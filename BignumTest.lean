@@ -17,6 +17,30 @@ open ScalarArray Bignum
 #guard trim (UInt32Array.mk #[0, 0]) == .empty
 #guard toNat (UInt32Array.mk #[5, 0, 0]) == 5
 
+/-! Word operations -/
+
+/-- Checks the word operations of an `n`-bit type against `Nat` on its edge values. -/
+def checkWords (n : Nat) (ofNat : Nat → α) (toNat : α → Nat)
+    (adc sbb : α → α → Bool → α × Bool) (maa : α → α → α → α → α × α) : Bool :=
+  let vs := [0, 1, 2, 2 ^ (n - 1) - 1, 2 ^ (n - 1), 2 ^ n - 2, 2 ^ n - 1]
+  vs.all fun x => vs.all fun y => [false, true].all fun c =>
+    let (s, c') := adc (ofNat x) (ofNat y) c
+    let (d, b') := sbb (ofNat x) (ofNat y) c
+    toNat s + (if c' then 2 ^ n else 0) == x + y + c.toNat &&
+    (toNat d : Int) - (if b' then 2 ^ n else 0) == (x : Int) - y - c.toNat &&
+    vs.all fun a => vs.all fun b =>
+      let (lo, hi) := maa (ofNat x) (ofNat y) (ofNat a) (ofNat b)
+      toNat hi * 2 ^ n + toNat lo == x * y + a + b
+
+#guard checkWords 8 UInt8.ofNat UInt8.toNat
+  UInt8.addWithCarry UInt8.subWithBorrow UInt8.mulAddAdd
+#guard checkWords 16 UInt16.ofNat UInt16.toNat
+  UInt16.addWithCarry UInt16.subWithBorrow UInt16.mulAddAdd
+#guard checkWords 32 UInt32.ofNat UInt32.toNat
+  UInt32.addWithCarry UInt32.subWithBorrow UInt32.mulAddAdd
+#guard checkWords 64 UInt64.ofNat UInt64.toNat
+  UInt64.addWithCarry UInt64.subWithBorrow UInt64.mulAddAdd
+
 /-! Test values -/
 
 /-- Pseudorandom numbers of up to `bits` bits from a linear congruential generator. -/
