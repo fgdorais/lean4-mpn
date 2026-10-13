@@ -21,3 +21,13 @@ lean_lib Bignum where
 @[default_target]
 lean_lib BignumTest where
   precompileModules := true
+
+/-- The native code used only by the benchmark. -/
+target bench.o pkg : System.FilePath := do
+  let src ← inputTextFile <| pkg.dir / "c" / "bench.c"
+  buildLeanO (pkg.buildDir / "c" / "bench.o") src (traceArgs := #["-O3", "-fPIC"])
+
+/-- Benchmarks the multiplication variants: `lake exe bench`. -/
+lean_exe bench where
+  root := `Bench
+  moreLinkObjs := #[bench.o]
