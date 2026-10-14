@@ -60,15 +60,13 @@ public theorem toNat_of_size_eq_one {s : UInt32Array.Slice} (h : s.size = 1) :
     simpa using this
   simp [toNat, hx, this]
 
-/-- The limb of `s` at `j`, or `0` past the end. -/
-@[inline, expose] public def limb (s : UInt32Array.Slice) (j : Nat) : UInt32 :=
-  if h : j < s.size then s[j] else 0
-
-public theorem limb_eq_getD (s : UInt32Array.Slice) (j : Nat) :
-    limb s j = s.copy.toList.getD j 0 := by
+/-- Reading a limb past the end of a slice gives `0`, as past the end of its list. -/
+public theorem getD_eq_getD_toList_copy (s : UInt32Array.Slice) (j : Nat) :
+    s.getD j 0 = s.copy.toList.getD j 0 := by
+  rw [UInt32Array.Slice.getD_eq]
   by_cases h : j < s.size
-  · simp [limb, h, List.getD_eq_getElem?_getD]
-  · simp [limb, h, List.getD_eq_getElem?_getD]
+  · simp [h, List.getD_eq_getElem?_getD]
+  · simp [h, List.getD_eq_getElem?_getD]
 
 /-- Splitting a slice at `k` splits its value. -/
 public theorem toNat_slice_add_toNat_slice (s : UInt32Array.Slice) (k : Nat) (hk : k ≤ s.size) :

@@ -29,7 +29,7 @@ def addAtLoop (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (j : Nat) (c
     if a.size ≤ j ∧ c = false then
       (r, false)
     else
-      let p := r[off + j].addWithCarry (limb a j) c
+      let p := r[off + j].addWithCarry (a.getD j 0) c
       addAtLoop (r.set (off + j) p.1 h) off a (j + 1) p.2
   else
     (r, c)
@@ -62,10 +62,10 @@ private theorem addAtLoop_spec (r : UInt32Array) (off : Nat) (a : UInt32Array.Sl
     refine ⟨ih₁, ?_⟩
     have hk : off + j < r.toList.length := by simp; omega
     have hset := ofLimbs_set r.toList (off + j) p.1 hk
-    have : p.1.toNat + p.2.toNat * 2 ^ 32 = r[off + j].toNat + (limb a j).toNat + c.toNat :=
-      UInt32.addWithCarry_spec r[off + j] (limb a j) c
+    have : p.1.toNat + p.2.toNat * 2 ^ 32 = r[off + j].toNat + (a.getD j 0).toNat + c.toNat :=
+      UInt32.addWithCarry_spec r[off + j] (a.getD j 0) c
     simp only [UInt32Array.getElem_toList] at hset
-    rw [ih₂, UInt32Array.toList_set, ofLimbs_drop a.copy.toList j, ← limb_eq_getD,
+    rw [ih₂, UInt32Array.toList_set, ofLimbs_drop a.copy.toList j, ← getD_eq_getD_toList_copy,
       ← Nat.add_assoc off j 1, Nat.mul_add 32 (off + j) 1, Nat.mul_one, Nat.pow_add]
     generalize ofLimbs (r.toList.set (off + j) p.1) = R₁ at *
     generalize ofLimbs r.toList = R at *
@@ -73,7 +73,7 @@ private theorem addAtLoop_spec (r : UInt32Array) (off : Nat) (a : UInt32Array.Sl
     generalize 2 ^ (32 * (off + j)) = P at *
     generalize p.1.toNat = lo at *
     generalize p.2.toNat = hi at *
-    generalize (limb a j).toNat = y at *
+    generalize (a.getD j 0).toNat = y at *
     generalize r[off + j].toNat = z at *
     grind
   | case3 r j c h =>
@@ -178,12 +178,12 @@ private theorem addAtLoopU_eq (r : UInt32Array) (off : Nat) (a : UInt32Array.Sli
     have hir : (off.toUSize + j.toUSize).toNat = off + j := by
       rw [toNat_add_usize (by rw [toNat_toUSize hoff, toNat_toUSize (by omega)]; omega),
         toNat_toUSize hoff, toNat_toUSize (by omega)]
-    -- The limb of the addend read with `USize` indices is `limb a j`.
+    -- The limb of the addend read with `USize` indices is `a.getD j 0`.
     have hy : (if hy : j.toUSize < a.size.toUSize then
         a.array.uget (a.start.toUSize + j.toUSize) (by
           have := USize.lt_iff_toNat_lt.1 hy
           rw [toNat_add_usize (by omega)]; omega)
-      else 0) = limb a j := by
+      else 0) = a.getD j 0 := by
       by_cases hja : j < a.size
       · have hy : j.toUSize < a.size.toUSize := by
           rw [USize.lt_iff_toNat_lt, toNat_toUSize (by omega), toNat_toUSize hn]
@@ -191,13 +191,13 @@ private theorem addAtLoopU_eq (r : UInt32Array) (off : Nat) (a : UInt32Array.Sli
         have hia : (a.start.toUSize + j.toUSize).toNat = a.start + j := by
           rw [toNat_add_usize (by rw [toNat_toUSize hst, toNat_toUSize (by omega)]; omega),
             toNat_toUSize hst, toNat_toUSize (by omega)]
-        simp only [hy, ↓reduceDIte, limb, hja]
+        simp only [hy, ↓reduceDIte, UInt32Array.Slice.getD_eq, hja]
         rw [uget_eq_getElem a.array _ (a.start + j) hia]
         rfl
       · have hy : ¬ j.toUSize < a.size.toUSize := by
           rw [USize.lt_iff_toNat_lt, toNat_toUSize (by omega), toNat_toUSize hn]
           exact hja
-        simp only [hy, ↓reduceDIte, limb, hja]
+        simp only [hy, ↓reduceDIte, UInt32Array.Slice.getD_eq, hja]
     have ih' := ih (by simpa using hrs) (by simpa using ha') (by simp; omega) (by simp [hmr])
     rw [← hjs] at ih'
     simp only [p, ← hir] at ih'
