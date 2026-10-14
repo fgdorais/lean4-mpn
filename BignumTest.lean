@@ -167,6 +167,12 @@ def bigSizes : List Nat := [31, 32, 33, 47, 64, 65, 100, 129, 200, 257]
   let (q, r) := divRem1 (ofNat m) d
   q.size == (ofNat m).size && toNat q == m / d.toNat && r.toNat == m % d.toNat
 
+/-! Comparison -/
+
+#guard values.all fun m => values.all fun n =>
+  lt (ofNat m) (ofNat n) == decide (m < n) &&
+    lt (ofNat m ++ UInt32Array.replicate 2 0) (ofNat n) == decide (m < n)
+
 /-! Slices of limbs -/
 
 -- Splitting a number into a low and a high part, with the slices of a single array.

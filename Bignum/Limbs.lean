@@ -187,4 +187,21 @@ public theorem isTrimmed_trimLimbs (l : List UInt32) : IsTrimmed (trimLimbs l) :
   have := List.head_dropWhile_not (· == 0) (l := l.reverse) (by simp [ht])
   simp [ht] at this
 
+/-! ## Prefixes -/
+
+/-- The value of the first `i + 1` limbs, with `0` for limbs past the end. -/
+public theorem ofLimbs_take_add_one_getD (l : List UInt32) (i : Nat) :
+    ofLimbs (l.take (i + 1)) = ofLimbs (l.take i) + 2 ^ (32 * i) * (l.getD i 0).toNat := by
+  by_cases h : i < l.length
+  · rw [ofLimbs_take_add_one l i h]
+    simp [List.getD_eq_getElem?_getD, h]
+  · rw [List.take_of_length_le (by omega), List.take_of_length_le (by omega)]
+    simp [List.getD_eq_getElem?_getD, List.getElem?_eq_none (by omega : l.length ≤ i)]
+
+public theorem ofLimbs_take_lt (l : List UInt32) (i : Nat) : ofLimbs (l.take i) < 2 ^ (32 * i) := by
+  have := ofLimbs_lt (l.take i)
+  have : 2 ^ (32 * (l.take i).length) ≤ 2 ^ (32 * i) :=
+    Nat.pow_le_pow_right (by decide) (by simp; omega)
+  omega
+
 end Bignum
