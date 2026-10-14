@@ -13,5 +13,4 @@ precompileModules = true
 [[require]]
 name = "lean4-scalar-arrays"
 git = "https://github.com/fgdorais/lean4-scalar-arrays"
-# Switch to `main` once fgdorais/lean4-scalar-arrays#9 is merged.
-rev = "bignum-test"
+rev = "main"
