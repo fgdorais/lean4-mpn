@@ -40,6 +40,12 @@ public structure Config where
   split pays off through Karatsuba on its pieces.
   -/
   mulUnbalanced : Nat := 160
+  /-- The size from which squaring uses the schoolbook square instead of multiplying. -/
+  sqrBasecase : Nat := 62
+  /-- The size from which squaring uses Karatsuba. -/
+  sqrKaratsuba : Nat := 272
+  /-- Karatsuba needs at least `4` limbs to make its squares smaller. -/
+  four_le_sqrKaratsuba : 4 ≤ sqrKaratsuba := by decide
   deriving Repr
 
 public meta register_option bignum.mul.karatsubaThreshold : Nat := {
@@ -53,6 +59,17 @@ public meta register_option bignum.mul.unbalancedThreshold : Nat := {
     operand that is at least twice as long"
 }
 
+public meta register_option bignum.sqr.basecaseThreshold : Nat := {
+  defValue := ({} : Config).sqrBasecase
+  descr := "the size, in limbs, from which squaring uses the schoolbook square instead of \
+    multiplying"
+}
+
+public meta register_option bignum.sqr.karatsubaThreshold : Nat := {
+  defValue := ({} : Config).sqrKaratsuba
+  descr := "the size, in limbs, from which squaring uses Karatsuba"
+}
+
 open Lean Elab Term in
 /-- The `Config` given by the `bignum.*` options in effect, with defaults from `Config`. -/
 elab "bignum_config%" : term => do
@@ -60,11 +77,19 @@ elab "bignum_config%" : term => do
   let mulKaratsuba := bignum.mul.karatsubaThreshold.get opts
   unless 4 ≤ mulKaratsuba do
     throwError "bignum.mul.karatsubaThreshold must be at least 4, but it is {mulKaratsuba}"
+  let sqrKaratsuba := bignum.sqr.karatsubaThreshold.get opts
+  unless 4 ≤ sqrKaratsuba do
+    throwError "bignum.sqr.karatsubaThreshold must be at least 4, but it is {sqrKaratsuba}"
+  let sqrBasecase := bignum.sqr.basecaseThreshold.get opts
   let mulUnbalanced := bignum.mul.unbalancedThreshold.get opts
   let m := quote mulKaratsuba
   let u := quote mulUnbalanced
+  let b := quote sqrBasecase
+  let q := quote sqrKaratsuba
   let stx ← `(({ mulKaratsuba := $m
-                 mulUnbalanced := $u } : Config))
+                 mulUnbalanced := $u
+                 sqrBasecase := $b
+                 sqrKaratsuba := $q } : Config))
   elabTerm stx (mkConst ``Config)
 
 end Bignum

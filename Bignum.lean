@@ -15,3 +15,5 @@ public import Bignum.Mul.Karatsuba
 public import Bignum.Mul.Unbalanced
 public import Bignum.Config
 public import Bignum.Mul
+public import Bignum.Sqr.Basecase
+public import Bignum.Sqr

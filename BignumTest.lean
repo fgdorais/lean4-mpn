@@ -137,6 +137,17 @@ def bigSizes : List Nat := [31, 32, 33, 47, 64, 65, 100, 129, 200, 257]
   let r := mulLimbs (ofNat x) (ofNat y)
   r.size == m + n && toNat r == x * y && toNat (mulLimbs (ofNat y) (ofNat x)) == x * y
 
+/-! Squaring -/
+
+#guard values.all fun m => toNat (sqr (ofNat m)) == m * m && isTrimmed (sqr (ofNat m))
+
+#guard (edges ++ bigSizes.map fun n => sample1 (32 * n) 13).all fun m =>
+  let r := sqrLimbs (ofNat m ++ UInt32Array.replicate 2 0)
+  r.size == 2 * ((ofNat m).size + 2) && toNat r == m * m
+
+#guard [1, 2, 3, 46, 47, 100, 257].all fun n =>
+  toNat (sqrBasecase (ofNat (2 ^ (32 * n) - 1))) == (2 ^ (32 * n) - 1) ^ 2
+
 #guard mulBasecase (ofNat (2 ^ 64 - 1)) (ofNat (2 ^ 96 - 1)) ==
   ofNat ((2 ^ 64 - 1) * (2 ^ 96 - 1))
 
