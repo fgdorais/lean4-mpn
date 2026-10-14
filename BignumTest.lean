@@ -173,6 +173,37 @@ def bigSizes : List Nat := [31, 32, 33, 47, 64, 65, 100, 129, 200, 257]
   lt (ofNat m) (ofNat n) == decide (m < n) &&
     lt (ofNat m ++ UInt32Array.replicate 2 0) (ofNat n) == decide (m < n)
 
+/-! Division -/
+
+#guard values.all fun m => values.all fun n =>
+  toNat (div (ofNat m) (ofNat n)) == m / n && toNat (mod (ofNat m) (ofNat n)) == m % n &&
+    isTrimmed (div (ofNat m) (ofNat n)) && isTrimmed (mod (ofNat m) (ofNat n))
+
+-- Divisors with trailing zero limbs, and divisors longer than the dividend.
+#guard values.all fun m => (values.take 20).all fun n =>
+  let b : UInt32Array.Slice := ofNat n ++ UInt32Array.replicate 3 0
+  toNat (div (ofNat m) b) == m / n && toNat (mod (ofNat m) b) == m % n
+
+-- Large quotients and divisors, and all-ones operands, which make the corrections run.
+#guard bigSizes.all fun m => [2, 3, 5, 31, 64, 100].all fun n =>
+  let x := sample1 (32 * (m + n)) 17
+  let y := sample1 (32 * n) 19
+  let ones := 2 ^ (32 * (m + n)) - 1
+  let yones := 2 ^ (32 * n) - 1
+  toNat (div (ofNat x) (ofNat y)) == x / y && toNat (mod (ofNat x) (ofNat y)) == x % y &&
+    toNat (div (ofNat ones) (ofNat yones)) == ones / yones &&
+    toNat (mod (ofNat ones) (ofNat (yones / 2 + 1))) == ones % (yones / 2 + 1)
+
+-- Schoolbook division alone, on divisors that are not normalized.
+#guard [2, 3, 7].all fun n => [1, 2, 33].all fun m =>
+  let x := sample1 (32 * (m + n)) 23
+  let y := 2 ^ (32 * (n - 1)) + 1
+  let v : UInt32Array.Slice := ofNat y
+  if h : 2 ≤ v.size then
+    let (q, r) := divRemBasecase (ofNat x) v h
+    toNat q == x / y && toNat r == x % y
+  else false
+
 /-! Slices of limbs -/
 
 -- Splitting a number into a low and a high part, with the slices of a single array.
