@@ -38,6 +38,15 @@ def edges : List Nat :=
   [0, 1, 2, 2 ^ 31] ++ (List.range 5).flatMap fun k =>
     [2 ^ (32 * (k + 1)) - 1, 2 ^ (32 * (k + 1)), 2 ^ (32 * (k + 1)) + 1]
 
+/-- A pseudorandom number of exactly `bits` bits. -/
+def sample1 (bits seed : Nat) : Nat := Id.run do
+  let mut s := seed
+  let mut n := 0
+  for _ in [0:(bits + 31) / 32] do
+    s := (s * 6364136223846793005 + 1442695040888963407) % 2 ^ 64
+    n := n * 2 ^ 32 + s / 2 ^ 32
+  return n % 2 ^ bits ||| 2 ^ (bits - 1)
+
 def values : List Nat := edges ++ samples 40 400
 
 /-! Addition -/
@@ -49,6 +58,46 @@ def values : List Nat := edges ++ samples 40 400
 #guard add (ofNat (2 ^ 128 - 1)) (ofNat 1) == ofNat (2 ^ 128)
 #guard add UInt32Array.empty UInt32Array.empty == .empty
 
+/-! Untrimmed addition, subtraction and adding at an offset -/
+
+#guard values.all fun m => values.all fun n =>
+  let r := addLimbs (ofNat m) (ofNat n)
+  r.size == max (ofNat m).size (ofNat n).size + 1 && toNat r == m + n
+
+#guard values.all fun m => values.all fun n =>
+  let (hi, lo) := if m < n then (n, m) else (m, n)
+  let a := ofNat hi ++ .replicate 1 0
+  let r := subLimbs a (ofNat lo)
+  r.size == a.size && toNat r == hi - lo
+
+#guard (values.take 12).all fun m => (values.take 12).all fun n =>
+  let r := ofNat m ++ .replicate 3 0
+  let a : UInt32Array.Slice := ofNat n
+  (List.range (r.size + 1)).all fun off =>
+    if off + a.size ≤ r.size then
+      let (r', c) := addAt r off a
+      r'.size == r.size && toNat r' + 2 ^ (32 * r.size) * c.toNat == m + 2 ^ (32 * off) * n
+    else true
+
+/-! Multiplication by a limb -/
+
+def limbs : List UInt32 := [0, 1, 2, 0x7FFFFFFF, 0x80000000, 0xFFFFFFFE, 0xFFFFFFFF]
+
+#guard values.all fun m => limbs.all fun x =>
+  let (r, c) := mul1 (ofNat m) x
+  r.size == (ofNat m).size && toNat r + 2 ^ (32 * r.size) * c.toNat == m * x.toNat
+
+-- Adds `n * x` into `ofNat m` at every offset that fits.
+#guard (values.take 12).all fun m => (values.take 12).all fun n => limbs.all fun x =>
+  let r := ofNat m
+  let a : UInt32Array.Slice := ofNat n
+  (List.range (r.size + 1)).all fun off =>
+    if h : off + a.size ≤ r.size then
+      let (r', c) := addMul1 r off a x h
+      r'.size == r.size &&
+        toNat r' + 2 ^ (32 * (off + a.size)) * c.toNat == m + 2 ^ (32 * off) * (n * x.toNat)
+    else true
+
 /-! Multiplication -/
 
 #guard values.all fun m => values.all fun n =>
@@ -58,6 +107,38 @@ def values : List Nat := edges ++ samples 40 400
 #guard mul (ofNat (2 ^ 128 - 1)) (ofNat (2 ^ 128 - 1)) ==
   ofNat ((2 ^ 128 - 1) * (2 ^ 128 - 1))
 #guard mul (ofNat 0) (ofNat (2 ^ 100)) == .empty
+
+-- Every case of the dispatcher, with operands in both orders and trailing zero limbs.
+#guard values.all fun m => (edges ++ samples 10 100).all fun n =>
+  let a := ofNat m ++ .replicate 2 0
+  let b := ofNat n
+  let r := mulLimbs a b
+  let r' := mulLimbs b a
+  r.size == a.size + b.size && toNat r == m * n && r'.size == r.size && toNat r' == m * n
+
+-- Karatsuba: sizes around and well above `karatsubaThreshold`, balanced and not, odd and even,
+-- with all-ones operands for the longest carries.
+def bigSizes : List Nat := [31, 32, 33, 47, 64, 65, 100, 129, 200, 257]
+
+#guard bigSizes.all fun m => bigSizes.all fun n =>
+  let x := sample1 (32 * m) 7
+  let y := sample1 (32 * n) 11
+  toNat (mulLimbs (ofNat x) (ofNat y)) == x * y &&
+    toNat (mulLimbs (ofNat (2 ^ (32 * m) - 1)) (ofNat (2 ^ (32 * n) - 1))) ==
+      (2 ^ (32 * m) - 1) * (2 ^ (32 * n) - 1)
+
+#guard (mul (ofNat (2 ^ 9600 - 1)) (ofNat (2 ^ 9000 - 1))).size ==
+  (ofNat ((2 ^ 9600 - 1) * (2 ^ 9000 - 1))).size
+
+-- Very unbalanced products, which split the longer operand.
+#guard [47, 50, 64].all fun n => [100, 141, 300, 517].all fun m =>
+  let x := sample1 (32 * m) 3
+  let y := sample1 (32 * n) 5
+  let r := mulLimbs (ofNat x) (ofNat y)
+  r.size == m + n && toNat r == x * y && toNat (mulLimbs (ofNat y) (ofNat x)) == x * y
+
+#guard mulBasecase (ofNat (2 ^ 64 - 1)) (ofNat (2 ^ 96 - 1)) ==
+  ofNat ((2 ^ 64 - 1) * (2 ^ 96 - 1))
 
 -- A long computation that reuses each result: 200 factorial.
 #guard

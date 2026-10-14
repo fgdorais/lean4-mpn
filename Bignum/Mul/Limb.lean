@@ -1,0 +1,216 @@
+/-
+Copyright © 2026 François G. Dorais. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+-/
+module
+
+public import Bignum.Basic
+public import Bignum.UInt
+
+/-!
+# Multiplication by a limb
+
+The two linear primitives of multiplication, after GMP's `mpn_mul_1` and `mpn_addmul_1`. Neither
+trims its result: each returns the limbs it computed and the carry limb separately.
+-/
+
+open ScalarArray
+
+namespace Bignum
+
+/-- Adds `a[j...] * x + c` to the limbs of `r` from `off + j` on and returns the carry. -/
+def addMul1Loop (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UInt32) (j : Nat)
+    (c : UInt32) (h : off + a.size ≤ r.size) : UInt32Array × UInt32 :=
+  if hj : j < a.size then
+    let p := a[j].mulAddAdd x r[off + j] c
+    addMul1Loop (r.set (off + j) p.1 (by omega)) off a x (j + 1) p.2 (by simpa using h)
+  else
+    (r, c)
+termination_by a.size - j
+
+/--
+Adds `a * x` to the limbs of `r` from `off` on, like GMP's `mpn_addmul_1`. Returns the new limbs
+and the carry limb, whose place is `off + a.size`.
+-/
+public def addMul1 (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UInt32)
+    (h : off + a.size ≤ r.size) : UInt32Array × UInt32 :=
+  addMul1Loop r off a x 0 0 h
+
+private theorem addMul1Loop_spec (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
+    (x : UInt32) (j : Nat) (c : UInt32) (h : off + a.size ≤ r.size) (hj : j ≤ a.size) :
+    (addMul1Loop r off a x j c h).1.size = r.size ∧
+      ofLimbs (addMul1Loop r off a x j c h).1.toList +
+          2 ^ (32 * (off + a.size)) * (addMul1Loop r off a x j c h).2.toNat =
+        ofLimbs r.toList +
+          2 ^ (32 * (off + j)) * (c.toNat + ofLimbs (a.copy.toList.drop j) * x.toNat) := by
+  induction r, j, c, h using addMul1Loop.induct off a x with
+  | case1 r j c h hj' p ih =>
+    rw [addMul1Loop]
+    simp only [hj', ↓reduceDIte]
+    obtain ⟨ih₁, ih₂⟩ := ih (by omega)
+    simp only [UInt32Array.size_set] at ih₁
+    refine ⟨ih₁, ?_⟩
+    have hk : off + j < r.toList.length := by simp; omega
+    have hset := ofLimbs_set r.toList (off + j) p.1 hk
+    have : p.1.toNat + p.2.toNat * 2 ^ 32 = a[j].toNat * x.toNat + r[off + j].toNat + c.toNat :=
+      UInt32.mulAddAdd_spec a[j] x r[off + j] c
+    simp only [UInt32Array.getElem_toList] at hset
+    rw [ih₂, UInt32Array.toList_set, toList_copy_drop hj', ofLimbs_cons, ← Nat.add_assoc off j 1,
+      Nat.mul_add 32 (off + j) 1, Nat.mul_one, Nat.pow_add]
+    generalize ofLimbs (r.toList.set (off + j) p.1) = R₁ at *
+    generalize ofLimbs r.toList = R at *
+    generalize ofLimbs (a.copy.toList.drop (j + 1)) = D at *
+    generalize 2 ^ (32 * (off + j)) = P at *
+    generalize p.1.toNat = lo at *
+    generalize p.2.toNat = hi at *
+    generalize a[j].toNat = y at *
+    generalize r[off + j].toNat = z at *
+    grind
+  | case2 r j c h hj' =>
+    rw [addMul1Loop]
+    simp only [hj', ↓reduceDIte]
+    have h₂ : a.copy.toList.drop j = [] := List.drop_of_length_le (by simp; omega)
+    have h₃ : j = a.size := by omega
+    rw [h₂, h₃]
+    simp
+
+private theorem getElem?_toList_addMul1Loop (r : UInt32Array) (off : Nat)
+    (a : UInt32Array.Slice) (x : UInt32) (j : Nat) (c : UInt32) (h : off + a.size ≤ r.size)
+    (k : Nat) (hk : k < off + j ∨ off + a.size ≤ k) :
+    (addMul1Loop r off a x j c h).1.toList[k]? = r.toList[k]? := by
+  induction r, j, c, h using addMul1Loop.induct off a x with
+  | case1 r j c h hj' p ih =>
+    rw [addMul1Loop]
+    simp only [hj', ↓reduceDIte]
+    rw [ih (by omega), UInt32Array.toList_set, List.getElem?_set_ne (by omega)]
+  | case2 r j c h hj' =>
+    rw [addMul1Loop]
+    simp only [hj', ↓reduceDIte]
+
+@[simp] public theorem size_addMul1 (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
+    (x : UInt32) (h : off + a.size ≤ r.size) : (addMul1 r off a x h).1.size = r.size :=
+  (addMul1Loop_spec r off a x 0 0 h (Nat.zero_le _)).1
+
+/-- `addMul1` leaves the limbs outside `off` to `off + a.size` unchanged. -/
+public theorem getElem?_addMul1 (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
+    (x : UInt32) (h : off + a.size ≤ r.size) (k : Nat) (hk : k < off ∨ off + a.size ≤ k) :
+    (addMul1 r off a x h).1[k]? = r[k]? := by
+  rw [← UInt32Array.getElem?_toList, ← UInt32Array.getElem?_toList]
+  exact getElem?_toList_addMul1Loop r off a x 0 0 h k (by omega)
+
+public theorem toNat_addMul1 (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UInt32)
+    (h : off + a.size ≤ r.size) :
+    toNat (addMul1 r off a x h).1 + 2 ^ (32 * (off + a.size)) * (addMul1 r off a x h).2.toNat =
+      toNat r + 2 ^ (32 * off) * (toNat a * x.toNat) := by
+  simpa [addMul1, toNat] using (addMul1Loop_spec r off a x 0 0 h (Nat.zero_le _)).2
+
+/-- `a * x` as `a.size` limbs and a carry limb, like GMP's `mpn_mul_1`: `addMul1` into zeros. -/
+public def mul1 (a : UInt32Array.Slice) (x : UInt32) : UInt32Array × UInt32 :=
+  addMul1 (.replicate a.size 0) 0 a x (by simp)
+
+@[simp] public theorem size_mul1 (a : UInt32Array.Slice) (x : UInt32) :
+    (mul1 a x).1.size = a.size := by
+  simp [mul1]
+
+public theorem toNat_mul1 (a : UInt32Array.Slice) (x : UInt32) :
+    toNat (mul1 a x).1 + 2 ^ (32 * a.size) * (mul1 a x).2.toNat = toNat a * x.toNat := by
+  have := toNat_addMul1 (.replicate a.size 0) 0 a x (by simp)
+  rw [toNat_toSlice, toNat_toSlice] at this
+  rw [toNat_toSlice]
+  simpa [mul1] using this
+
+/-! ## Compiled loops
+
+The loops above use `Nat` indices into slices, which keeps their proofs simple but costs a few
+checks per limb in compiled code. `addMul1Fast` runs the same loop with `USize` indices into the
+arrays under the slices, and `@[csimp]` makes the compiler use it in place of `addMul1`, with a
+proof that the two return the same result. The `USize` loop needs the arrays to fit in a `USize`,
+which every array in memory does; the other case falls back to `addMul1`'s loop.
+-/
+
+/--
+`addMul1Loop` with `USize` indices: limb `j` of the multiplicand is at `offA + j` in `arr`, and
+limb `j` of the sum at `offR + j` in `r`.
+-/
+def addMul1LoopU (r arr : UInt32Array) (offR offA n : USize) (x : UInt32) (j : USize) (c : UInt32)
+    (hr : offR.toNat + n.toNat ≤ r.size) (ha : offA.toNat + n.toNat ≤ arr.size)
+    (hrs : r.size < USize.size) (has : arr.size < USize.size) : UInt32Array × UInt32 :=
+  if hj : j < n then
+    have := USize.lt_iff_toNat_lt.1 hj
+    have hia : (offA + j).toNat < arr.size := by rw [toNat_add_usize (by omega)]; omega
+    have hir : (offR + j).toNat < r.size := by rw [toNat_add_usize (by omega)]; omega
+    let p := (arr.uget (offA + j) hia).mulAddAdd x (r.uget (offR + j) hir) c
+    addMul1LoopU (r.uset (offR + j) p.1 hir) arr offR offA n x (j + 1) p.2 (by simpa using hr) ha
+      (by simpa using hrs) has
+  else
+    (r, c)
+termination_by n.toNat - j.toNat
+decreasing_by
+  have := USize.lt_iff_toNat_lt.1 hj
+  rw [toNat_add_usize (by rw [USize.toNat_one]; omega), USize.toNat_one]
+  omega
+
+private theorem addMul1LoopU_eq (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UInt32)
+    (j : Nat) (c : UInt32) (h : off + a.size ≤ r.size) (hrs : r.size < USize.size)
+    (has : a.array.size < USize.size) (hj : j ≤ a.size) (hr ha) :
+    addMul1LoopU r a.array off.toUSize a.start.toUSize a.size.toUSize x j.toUSize c hr ha hrs has =
+      addMul1Loop r off a x j c h := by
+  have hstop := a.stop_le_array_size
+  have hstart := a.start_le_stop
+  have hsize := a.size_eq
+  have hoff : off < USize.size := by omega
+  have hst : a.start < USize.size := by omega
+  have hn : a.size < USize.size := by omega
+  induction r, j, c, h using addMul1Loop.induct off a x with
+  | case1 r j c h hj' _ ih =>
+    rw [addMul1LoopU, addMul1Loop]
+    have hlt : j.toUSize < a.size.toUSize := by
+      rw [USize.lt_iff_toNat_lt, toNat_toUSize (by omega), toNat_toUSize hn]
+      exact hj'
+    simp only [hj', hlt, ↓reduceDIte]
+    have hjs : j.toUSize + 1 = (j + 1).toUSize := by
+      apply USize.toNat_inj.1
+      rw [toNat_add_usize (by rw [toNat_toUSize (by omega), USize.toNat_one]; omega),
+        toNat_toUSize (by omega), USize.toNat_one, toNat_toUSize (by omega)]
+    have hia : (a.start.toUSize + j.toUSize).toNat = a.start + j := by
+      rw [toNat_add_usize (by rw [toNat_toUSize hst, toNat_toUSize (by omega)]; omega),
+        toNat_toUSize hst, toNat_toUSize (by omega)]
+    have hir : (off.toUSize + j.toUSize).toNat = off + j := by
+      rw [toNat_add_usize (by rw [toNat_toUSize hoff, toNat_toUSize (by omega)]; omega),
+        toNat_toUSize hoff, toNat_toUSize (by omega)]
+    have ih' := ih (by simpa using hrs) (by omega)
+    rw [← hjs] at ih'
+    simp only [uget_eq_getElem a.array _ (a.start + j) hia, uget_eq_getElem r _ (off + j) hir,
+      uset_eq_set r _ (off + j) hir]
+    first | exact ih' | exact ih' _ | exact ih' _ _
+  | case2 r j c h hj' =>
+    rw [addMul1LoopU, addMul1Loop]
+    have hlt : ¬ j.toUSize < a.size.toUSize := by
+      rw [USize.lt_iff_toNat_lt, toNat_toUSize (by omega), toNat_toUSize hn]
+      exact hj'
+    simp only [hj', hlt, ↓reduceDIte]
+
+/-- `addMul1` with `USize` indices, which the compiler uses in its place. -/
+public def addMul1Fast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UInt32)
+    (h : off + a.size ≤ r.size) : UInt32Array × UInt32 :=
+  if hs : r.size < USize.size ∧ a.array.size < USize.size then
+    have := a.stop_le_array_size
+    have := a.start_le_stop
+    have := a.size_eq
+    addMul1LoopU r a.array off.toUSize a.start.toUSize a.size.toUSize x 0 0
+      (by rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]; omega)
+      (by rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]; omega) hs.1 hs.2
+  else
+    addMul1Loop r off a x 0 0 h
+
+@[csimp] public theorem addMul1_eq_addMul1Fast : @addMul1 = @addMul1Fast := by
+  funext r off a x h
+  rw [addMul1, addMul1Fast]
+  split
+  · rename_i hs
+    first
+      | exact (addMul1LoopU_eq r off a x 0 0 h hs.1 hs.2 (Nat.zero_le _) _ _).symm
+      | exact (addMul1LoopU_eq r off a x 0 0 h hs.1 hs.2 (Nat.zero_le _) _).symm
+  · rfl
+
+end Bignum

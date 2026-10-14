@@ -1,0 +1,88 @@
+/-
+Copyright © 2026 François G. Dorais. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+-/
+module
+
+public import Bignum.Mul.Limb
+
+/-!
+# Schoolbook multiplication
+
+`mulBasecase a b` is the schoolbook algorithm, after GMP's `mpn_mul_basecase`: one `addMul1` of
+`b` per limb of `a`. It takes quadratic time and is the base case of the faster algorithms.
+-/
+
+open ScalarArray
+
+namespace Bignum
+
+/-- Adds the rows `a[i] * b` from `i` on into `r`, one `addMul1` per row. -/
+def mulBasecaseLoop (a b : UInt32Array.Slice) (r : UInt32Array) (i : Nat)
+    (h : r.size = a.size + b.size) : UInt32Array :=
+  if hi : i < a.size then
+    let p := addMul1 r i b a[i] (by omega)
+    mulBasecaseLoop a b (p.1.set (i + b.size) p.2 (by simp [p]; omega)) (i + 1) (by simp [p, h])
+  else
+    r
+termination_by a.size - i
+
+/--
+All `a.size + b.size` limbs of `a * b`, untrimmed, by the schoolbook algorithm. It runs `a.size`
+rows of `b.size` limbs each, so it is fastest with the shorter operand as `a`.
+-/
+public def mulBasecase (a b : UInt32Array.Slice) : UInt32Array :=
+  mulBasecaseLoop a b (.replicate (a.size + b.size) 0) 0 (by simp)
+
+private theorem mulBasecaseLoop_spec (a b : UInt32Array.Slice) (r : UInt32Array) (i : Nat)
+    (h : r.size = a.size + b.size) (hi : i ≤ a.size)
+    (hr : ofLimbs r.toList = ofLimbs (a.copy.toList.take i) * toNat b) :
+    (mulBasecaseLoop a b r i h).size = a.size + b.size ∧
+      ofLimbs (mulBasecaseLoop a b r i h).toList = toNat a * toNat b := by
+  induction r, i, h using mulBasecaseLoop.induct a b with
+  | case1 r i h hi' p ih =>
+    rw [mulBasecaseLoop]
+    simp only [hi', ↓reduceDIte]
+    apply ih (by omega)
+    -- The limb at `i + b.size` is zero, since the value so far is below `2^(32 (i + b.size))`.
+    have hA := ofLimbs_lt (a.copy.toList.take i)
+    have hB := toNat_lt b
+    simp only [List.length_take, UInt32Array.length_toList, UInt32Array.Slice.size_copy,
+      Nat.min_eq_left (Nat.le_of_lt hi')] at hA
+    have hlt : ofLimbs r.toList < 2 ^ (32 * (i + b.size)) := by
+      rw [hr, Nat.mul_add, Nat.pow_add]
+      exact Nat.mul_lt_mul'' hA hB
+    have hk : i + b.size < r.toList.length := by simp; omega
+    have hz : r.toList[i + b.size] = 0 := getElem_eq_zero_of_ofLimbs_lt hk hlt
+    have hz' : p.1.toList[i + b.size]'(by simp [p]; omega) = 0 := by
+      have := getElem?_addMul1 r i b a[i] (by omega) (i + b.size) (Or.inr (Nat.le_refl _))
+      rw [← UInt32Array.getElem?_toList, ← UInt32Array.getElem?_toList] at this
+      rw [List.getElem?_eq_getElem (by simp; omega), List.getElem?_eq_getElem hk, hz] at this
+      exact Option.some.inj this
+    -- Writing the carry there adds it at `2^(32 (i + b.size))`.
+    have hset := ofLimbs_set p.1.toList (i + b.size) p.2 (by simp [p]; omega)
+    have hadd := toNat_addMul1 r i b a[i] (by omega)
+    rw [hz', UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero] at hset
+    simp only [toNat_toSlice] at hadd
+    rw [UInt32Array.toList_set, hset, hadd, hr,
+      ofLimbs_take_add_one _ _ (by simpa using hi'), toNat]
+    simp only [UInt32Array.getElem_toList, UInt32Array.Slice.getElem_copy]
+    rw [Nat.add_mul, Nat.mul_assoc, Nat.mul_comm a[i].toNat]
+  | case2 r i h hi' =>
+    rw [mulBasecaseLoop]
+    simp only [hi', ↓reduceDIte]
+    refine ⟨h, ?_⟩
+    have : i = a.size := by omega
+    rw [hr, this, List.take_of_length_le (by simp)]
+    rfl
+
+@[simp] public theorem size_mulBasecase (a b : UInt32Array.Slice) :
+    (mulBasecase a b).size = a.size + b.size :=
+  (mulBasecaseLoop_spec a b (.replicate (a.size + b.size) 0) 0 _ (Nat.zero_le _) (by simp)).1
+
+public theorem toNat_mulBasecase (a b : UInt32Array.Slice) :
+    toNat (mulBasecase a b) = toNat a * toNat b := by
+  rw [toNat_toSlice, mulBasecase]
+  exact (mulBasecaseLoop_spec a b (.replicate (a.size + b.size) 0) 0 _ (Nat.zero_le _) (by simp)).2
+
+end Bignum
