@@ -35,6 +35,10 @@ public structure Config where
   mulKaratsuba : Nat := 68
   /-- Karatsuba needs at least `4` limbs to make its products smaller. -/
   four_le_mulKaratsuba : 4 ≤ mulKaratsuba := by decide
+  /-- The size of the shorter operand from which multiplication uses Toom-3 instead of Karatsuba. -/
+  mulToom3 : Nat := 512
+  /-- Toom-3 needs at least `12` limbs to make its products smaller. -/
+  twelve_le_mulToom3 : 12 ≤ mulToom3 := by decide
   /--
   The size of the shorter operand from which multiplication splits a longer operand that is at
   least twice as long, instead of using schoolbook. It only matters above `mulKaratsuba`, since the
@@ -52,6 +56,11 @@ public structure Config where
 public meta register_option bignum.mul.karatsubaThreshold : Nat := {
   defValue := ({} : Config).mulKaratsuba
   descr := "the size of the shorter operand, in limbs, from which multiplication uses Karatsuba"
+}
+
+public meta register_option bignum.mul.toom3Threshold : Nat := {
+  defValue := ({} : Config).mulToom3
+  descr := "the size of the shorter operand, in limbs, from which multiplication uses Toom-3"
 }
 
 public meta register_option bignum.mul.unbalancedThreshold : Nat := {
@@ -81,13 +90,18 @@ elab "bignum_config%" : term => do
   let sqrKaratsuba := bignum.sqr.karatsubaThreshold.get opts
   unless 4 ≤ sqrKaratsuba do
     throwError "bignum.sqr.karatsubaThreshold must be at least 4, but it is {sqrKaratsuba}"
+  let mulToom3 := bignum.mul.toom3Threshold.get opts
+  unless 12 ≤ mulToom3 do
+    throwError "bignum.mul.toom3Threshold must be at least 12, but it is {mulToom3}"
   let sqrBasecase := bignum.sqr.basecaseThreshold.get opts
   let mulUnbalanced := bignum.mul.unbalancedThreshold.get opts
   let m := quote mulKaratsuba
   let u := quote mulUnbalanced
+  let t := quote mulToom3
   let b := quote sqrBasecase
   let q := quote sqrKaratsuba
   let stx ← `(({ mulKaratsuba := $m
+                 mulToom3 := $t
                  mulUnbalanced := $u
                  sqrBasecase := $b
                  sqrKaratsuba := $q } : Config))

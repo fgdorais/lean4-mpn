@@ -117,23 +117,7 @@ private theorem toNat_qEstimate (wt wn vt : UInt32) :
     simp only [UInt32.reduceToNat]
     omega
 
-/-! ## The trial product and its correction -/
-
-/-- `v * x` as `v.size + 1` limbs. -/
-public def mulRow (v : UInt32Array.Slice) (x : UInt32) : UInt32Array :=
-  let p := mul1 v x
-  p.1.push p.2
-
-@[simp] public theorem size_mulRow (v : UInt32Array.Slice) (x : UInt32) :
-    (mulRow v x).size = v.size + 1 := by
-  simp [mulRow]
-
-public theorem toNat_mulRow (v : UInt32Array.Slice) (x : UInt32) :
-    toNat (mulRow v x) = toNat v * x.toNat := by
-  have := toNat_mul1 v x
-  rw [toNat_toSlice] at this ⊢
-  rw [mulRow, UInt32Array.toList_push, ofLimbs_concat, UInt32Array.length_toList, size_mul1,
-    this]
+/-! ## The correction of the trial product -/
 
 /--
 Decreases the estimate `qh` of `⌊w / v⌋`, subtracting `v` from the trial product `t = qh v` each

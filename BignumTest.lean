@@ -130,6 +130,22 @@ def bigSizes : List Nat := [31, 32, 33, 47, 64, 65, 100, 129, 200, 257]
 #guard (mul (ofNat (2 ^ 9600 - 1)) (ofNat (2 ^ 9000 - 1))).size ==
   (ofNat ((2 ^ 9600 - 1) * (2 ^ 9000 - 1))).size
 
+-- Toom-3 at almost every level of the recursion, with low thresholds.
+def toomConfig : Config := { mulKaratsuba := 8, mulToom3 := 12 }
+
+#guard bigSizes.all fun m => bigSizes.all fun n =>
+  let x := sample1 (32 * m) 29
+  let y := sample1 (32 * n) 31
+  let r := mulLimbsWith toomConfig (ofNat x) (ofNat y)
+  r.size == m + n && toNat r == x * y &&
+    toNat (mulLimbsWith toomConfig (ofNat (2 ^ (32 * m) - 1)) (ofNat (2 ^ (32 * n) - 1))) ==
+      (2 ^ (32 * m) - 1) * (2 ^ (32 * n) - 1)
+
+#guard [12, 13, 14, 15, 17, 24, 25, 26, 35, 36, 37].all fun n =>
+  let x := sample1 (32 * n) 37
+  let y := sample1 (32 * n) 41
+  toNat (mulLimbsWith toomConfig (ofNat x) (ofNat y)) == x * y
+
 -- Very unbalanced products, which split the longer operand.
 #guard [47, 50, 64].all fun n => [100, 141, 300, 517].all fun m =>
   let x := sample1 (32 * m) 3

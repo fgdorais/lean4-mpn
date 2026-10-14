@@ -14,6 +14,7 @@ public import Bignum.Mul.Limb
 public import Bignum.Mul.Basecase
 public import Bignum.Mul.Karatsuba
 public import Bignum.Mul.Unbalanced
+public import Bignum.Mul.Toom3
 public import Bignum.Config
 public import Bignum.Mul
 public import Bignum.Sqr.Basecase

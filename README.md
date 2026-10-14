@@ -3,8 +3,9 @@
 Verified arbitrary-precision natural numbers for Lean 4, stored as `UInt32` limbs in the unboxed
 arrays of [lean4-scalar-arrays](https://github.com/fgdorais/lean4-scalar-arrays). Each operation is
 proved correct against `Nat`, the specification being the value of the list of limbs. Addition and
-subtraction are linear; multiplication and squaring use schoolbook or Karatsuba depending on the
-sizes, and very unbalanced products are split into nearly balanced ones.
+subtraction are linear. Multiplication uses schoolbook, Karatsuba or Toom-3 depending on the sizes,
+and splits very unbalanced products into nearly balanced ones; squaring uses schoolbook or
+Karatsuba. Division is Knuth's Algorithm D.
 
 ## Tuning
 
@@ -13,5 +14,5 @@ defaults were measured on one machine; `lake exe tune` measures them on yours in
 prints the line to add to the `Bignum` library in `lakefile.toml`, for example:
 
 ```toml
-leanOptions = { weak.bignum.mul.karatsubaThreshold = 68, weak.bignum.mul.unbalancedThreshold = 160, weak.bignum.sqr.basecaseThreshold = 62, weak.bignum.sqr.karatsubaThreshold = 272 }
+leanOptions = { weak.bignum.mul.karatsubaThreshold = 68, weak.bignum.mul.toom3Threshold = 512, weak.bignum.mul.unbalancedThreshold = 160, weak.bignum.sqr.basecaseThreshold = 62, weak.bignum.sqr.karatsubaThreshold = 272 }
 ```

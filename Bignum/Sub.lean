@@ -266,4 +266,21 @@ public theorem toNat_subLimbs (a b : UInt32Array.Slice) (hb : b.size ≤ a.size)
     (by rw [toNat_copyPadded]; simpa using hle), toNat_copyPadded]
   simp
 
+/--
+`x - y` as `x.size` limbs. Unlike `subLimbs`, `y` may be longer than `x`: it is cut to `x.size`
+limbs, which keeps its value when `y ≤ x`.
+-/
+public def subVal (x y : UInt32Array) : UInt32Array := subLimbs x (y.toSlice 0 x.size)
+
+@[simp] public theorem size_subVal (x y : UInt32Array) : (subVal x y).size = x.size := by
+  rw [subVal, size_subLimbs _ _ (by simp; omega)]
+  simp
+
+public theorem toNat_subVal (x y : UInt32Array) (h : toNat y ≤ toNat x) :
+    toNat (subVal x y) = toNat x - toNat y := by
+  have hx := toNat_lt x
+  simp only [UInt32Array.size_toSlice, Nat.min_self, Nat.sub_zero] at hx
+  have hy : toNat (y.toSlice 0 x.size) = toNat y := toNat_toSlice_of_lt y x.size (by omega)
+  rw [subVal, toNat_subLimbs _ _ (by simp; omega) (by rw [hy]; exact h), hy]
+
 end Bignum

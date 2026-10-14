@@ -7,6 +7,7 @@ module
 public import Bignum.Mul.Basecase
 public import Bignum.Mul.Karatsuba
 public import Bignum.Mul.Unbalanced
+public import Bignum.Mul.Toom3
 public import Bignum.Config
 
 /-!
@@ -23,13 +24,13 @@ longer operand first, then `mulLongShort` chooses by the size of the shorter one
 * one limb: `mul1`;
 * at least `cfg.mulKaratsuba` and `cfg.mulUnbalanced` limbs, with the longer operand at least
   twice as long: `mulUnbalanced`, which halves the longer operand;
+* at least `cfg.mulToom3` limbs otherwise: `toom3`;
 * at least `cfg.mulKaratsuba` limbs otherwise: `karatsuba`;
 * otherwise: the schoolbook `mulBasecase`, with its rows over the shorter operand.
 
 The algorithms that recurse take the multiplier as a parameter and prove their result assuming it
-is correct on smaller inputs, and the induction in `mulLimbsWith_ok` supplies that. Toom-Cook will
-go in `mulLongShort` the same way. The thresholds come from a `Config`, and `mulLimbs` uses the
-library's `config`.
+is correct on smaller inputs, and the induction in `mulLimbsWith_ok` supplies that. The thresholds
+come from a `Config`, and `mulLimbs` uses the library's `config`.
 -/
 
 open ScalarArray
@@ -63,6 +64,8 @@ def mulLongShort (cfg : Config) (a b : UInt32Array.Slice) (hab : b.size ≤ a.si
           mulLimbsWith cfg x y
       else
         mulBasecase b a
+    else if h₃ : cfg.mulToom3 ≤ b.size then
+      toom3 a b (Nat.le_trans cfg.twelve_le_mulToom3 h₃) hab fun x y _ => mulLimbsWith cfg x y
     else
       karatsuba a b (Nat.le_trans cfg.four_le_mulKaratsuba h) hab fun x y _ => mulLimbsWith cfg x y
   else
@@ -114,7 +117,9 @@ private theorem mulLongShort_ok (cfg : Config) (a b : UInt32Array.Slice) (hab : 
           · exact mulUnbalanced_spec a b _ _ _ fun x y hxy => ih x y hxy
           · exact (show MulOK b a (mulBasecase b a) from ⟨size_mulBasecase b a,
               toNat_mulBasecase b a⟩).swap
-        · exact karatsuba_spec a b _ hab _ fun x y hxy => ih x y hxy
+        · split
+          · exact toom3_spec a b _ hab _ fun x y hxy => ih x y hxy
+          · exact karatsuba_spec a b _ hab _ fun x y hxy => ih x y hxy
       · exact (show MulOK b a (mulBasecase b a) from ⟨size_mulBasecase b a,
           toNat_mulBasecase b a⟩).swap
 
