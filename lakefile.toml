@@ -14,3 +14,7 @@ precompileModules = true
 name = "lean4-scalar-arrays"
 git = "https://github.com/fgdorais/lean4-scalar-arrays"
 rev = "main"
+
+[[lean_exe]]
+name = "tune"
+root = "Tune"

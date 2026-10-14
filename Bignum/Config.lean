@@ -23,7 +23,8 @@ registered by this library rather than by Lean. Options that are not set keep th
 `Config`. Each threshold carries the proof of the condition its algorithm needs, so an invalid
 value is rejected when the library is compiled.
 
-The defaults were measured on an AMD Ryzen 5 5600X.
+The defaults were measured with `lake exe tune` on an AMD Ryzen 5 5600X. Running it on the target
+machine prints the thresholds for that machine and the `leanOptions` line that sets them.
 -/
 
 namespace Bignum
