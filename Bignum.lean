@@ -17,3 +17,4 @@ public import Bignum.Config
 public import Bignum.Mul
 public import Bignum.Sqr.Basecase
 public import Bignum.Sqr
+public import Bignum.Div.Limb

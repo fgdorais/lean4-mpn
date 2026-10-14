@@ -161,6 +161,12 @@ def bigSizes : List Nat := [31, 32, 33, 47, 64, 65, 100, 129, 200, 257]
   let r := (List.range 10).foldl (fun a _ => mul a a) (ofNat 3)
   toNat r == 3 ^ 2 ^ 10
 
+/-! Division by a limb -/
+
+#guard values.all fun m => limbs.all fun d => d == 0 ||
+  let (q, r) := divRem1 (ofNat m) d
+  q.size == (ofNat m).size && toNat q == m / d.toNat && r.toNat == m % d.toNat
+
 /-! Slices of limbs -/
 
 -- Splitting a number into a low and a high part, with the slices of a single array.
