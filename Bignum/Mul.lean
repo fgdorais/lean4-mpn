@@ -21,7 +21,7 @@ correct by case analysis whichever algorithm each case picks. The dispatcher fir
 longer operand first, then `mulLongShort` chooses by the size of the shorter one:
 
 * no limbs: the product is zero;
-* one limb: `mul1`;
+* one limb: `mulRow`;
 * at least `cfg.mulKaratsuba` and `cfg.mulUnbalanced` limbs, with the longer operand at least
   twice as long: `mulUnbalanced`, which halves the longer operand;
 * at least `cfg.mulToom3` limbs otherwise: `toom3`;
@@ -55,8 +55,7 @@ def mulLongShort (cfg : Config) (a b : UInt32Array.Slice) (hab : b.size ≤ a.si
   if b.size = 0 then
     .replicate a.size 0
   else if h : b.size = 1 then
-    let p := mul1 a b[0]
-    p.1.push p.2
+    mulRow a b[0]
   else if h : cfg.mulKaratsuba ≤ b.size then
     if h' : 2 * b.size ≤ a.size then
       if cfg.mulUnbalanced ≤ b.size then
@@ -107,10 +106,7 @@ private theorem mulLongShort_ok (cfg : Config) (a b : UInt32Array.Slice) (hab : 
   · split
     · rename_i h
       refine ⟨by simp [h], ?_⟩
-      have := toNat_mul1 a b[0]
-      rw [toNat_toSlice] at this
-      rw [toNat_toSlice, UInt32Array.toList_push, ofLimbs_concat, UInt32Array.length_toList,
-        size_mul1, this, toNat_of_size_eq_one h]
+      rw [toNat_mulRow, toNat_of_size_eq_one h]
     · split
       · split
         · split

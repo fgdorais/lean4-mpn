@@ -173,6 +173,81 @@ public theorem toNat_addMul1 (r : UInt32Array) (off : Nat) (a : UInt32Array.Slic
       toNat r + 2 ^ (32 * off) * (toNat a * x.toNat) := by
   simpa [addMul1, toNat] using (addMul1Loop_spec r off a x 0 0 h (Nat.zero_le _)).2
 
+/-! ## Storing the carry -/
+
+/--
+`addMul1` followed by writing the carry limb at `off + a.size`, over the limb there: the step of
+the schoolbook loops, where that limb is still zero.
+-/
+public def addMul1Set (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UInt32)
+    (h : off + a.size < r.size) : UInt32Array :=
+  let p := addMul1 r off a x (by omega)
+  p.1.set (off + a.size) p.2 (by rw [size_addMul1]; exact h)
+
+/--
+`addMul1Set` with `foldInPlaceThen`, which the compiler uses in its place: the loop stores the
+carry itself, so no pair of the new limbs and the carry is allocated.
+-/
+public def addMul1SetFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UInt32)
+    (h : off + a.size < r.size) : UInt32Array :=
+  if hs : r.size < USize.size ∧ a.array.size < USize.size then
+    let arr := a.array
+    let st := a.start.toUSize
+    r.foldInPlaceThen off.toUSize a.size.toUSize 0
+      (addMul1Step arr st a.size.toUSize hs.2 (limbU_bound a hs.2) x)
+      (fun r' c => if h' : off + a.size < r'.size then r'.set (off + a.size) c h' else r')
+      (by
+        have := a.stop_le_array_size
+        have := a.start_le_stop
+        have := a.size_eq
+        rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]
+        omega)
+  else
+    let p := addMul1Loop r off a x 0 0 (by omega)
+    if h' : off + a.size < p.1.size then p.1.set (off + a.size) p.2 h' else p.1
+
+@[csimp] public theorem addMul1Set_eq_addMul1SetFast : @addMul1Set = @addMul1SetFast := by
+  funext r off a x h
+  have hsz := size_addMul1 r off a x (by omega)
+  rw [addMul1Set, addMul1SetFast]
+  split
+  · rename_i hs
+    have := a.stop_le_array_size
+    have := a.start_le_stop
+    have := a.size_eq
+    rw [UInt32Array.foldInPlaceThen_eq]
+    have heq : r.foldInPlace off.toUSize a.size.toUSize 0
+        (addMul1Step a.array a.start.toUSize a.size.toUSize hs.2 (limbU_bound a hs.2) x)
+        (by rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]; omega) =
+        addMul1 r off a x (by omega) :=
+      foldInPlace_loop_addMul1 r off a x hs.2 _ _ (toNat_toUSize (by omega))
+        (toNat_toUSize (by omega)) 0 0 (by omega) _ _
+    simp only [heq, hsz, h, ↓reduceDIte]
+  · simp only [addMul1] at hsz ⊢
+    simp only [hsz, h, ↓reduceDIte]
+
+@[simp] public theorem size_addMul1Set (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
+    (x : UInt32) (h : off + a.size < r.size) : (addMul1Set r off a x h).size = r.size := by
+  simp only [addMul1Set, UInt32Array.size_set, size_addMul1]
+
+/-- When the limb at `off + a.size` is zero, `addMul1Set` adds `a * x` at limb `off`. -/
+public theorem toNat_addMul1Set (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
+    (x : UInt32) (h : off + a.size < r.size) (hz : r[off + a.size] = 0) :
+    toNat (addMul1Set r off a x h) = toNat r + 2 ^ (32 * off) * (toNat a * x.toNat) := by
+  have hadd := toNat_addMul1 r off a x (by omega)
+  -- The limb at `off + a.size` is still zero, so writing the carry there adds `β^(off + n) c`.
+  have hz' : (addMul1 r off a x (by omega)).1[off + a.size]'(by simp; omega) = 0 := by
+    have := getElem?_addMul1 r off a x (by omega) (off + a.size) (by omega)
+    rw [getElem?_pos (addMul1 r off a x (by omega)).1 (off + a.size) (by simp; omega),
+      getElem?_pos r (off + a.size) h, Option.some.injEq] at this
+    rw [this, hz]
+  have hset := ofLimbs_set (addMul1 r off a x (by omega)).1.toList (off + a.size)
+    (addMul1 r off a x (by omega)).2 (by simp; omega)
+  simp only [UInt32Array.getElem_toList, hz', UInt32.toNat_zero, Nat.mul_zero,
+    Nat.add_zero] at hset
+  simp only [toNat_toSlice] at hadd
+  rw [toNat_toSlice, addMul1Set, UInt32Array.toList_set, hset, hadd, toNat_toSlice]
+
 /-- `a * x` as `a.size` limbs and a carry limb, like GMP's `mpn_mul_1`: `addMul1` into zeros. -/
 public def mul1 (a : UInt32Array.Slice) (x : UInt32) : UInt32Array × UInt32 :=
   addMul1 (.replicate a.size 0) 0 a x (by simp)
@@ -190,32 +265,19 @@ public theorem toNat_mul1 (a : UInt32Array.Slice) (x : UInt32) :
 
 /-- `v * x` as `v.size + 1` limbs. -/
 public def mulRow (v : UInt32Array.Slice) (x : UInt32) : UInt32Array :=
-  let p := addMul1 (.replicate (v.size + 1) 0) 0 v x (by simp)
-  p.1.set v.size p.2 (by rw [size_addMul1, UInt32Array.size_replicate]; omega)
+  addMul1Set (.replicate (v.size + 1) 0) 0 v x (by simp)
 
 @[simp] public theorem size_mulRow (v : UInt32Array.Slice) (x : UInt32) :
     (mulRow v x).size = v.size + 1 := by
-  simp only [mulRow, UInt32Array.size_set, size_addMul1, UInt32Array.size_replicate]
+  simp only [mulRow, size_addMul1Set, UInt32Array.size_replicate]
 
 public theorem toNat_mulRow (v : UInt32Array.Slice) (x : UInt32) :
     toNat (mulRow v x) = toNat v * x.toNat := by
-  have h := toNat_addMul1 (.replicate (v.size + 1) 0) 0 v x (by simp)
-  -- The limb at `v.size` is still zero, so writing the carry there adds `β^n c`.
-  have hz : (addMul1 (.replicate (v.size + 1) 0) 0 v x (by simp)).1[v.size]'(by simp) = 0 := by
-    have := getElem?_addMul1 (.replicate (v.size + 1) 0) 0 v x (by simp) v.size (by omega)
-    rw [getElem?_pos _ _ (by simp), getElem?_pos _ _ (by simp), Option.some.injEq] at this
-    simpa using this
-  have hset := ofLimbs_set (addMul1 (.replicate (v.size + 1) 0) 0 v x (by simp)).1.toList v.size
-    (addMul1 (.replicate (v.size + 1) 0) 0 v x (by simp)).2 (by simp)
-  simp only [UInt32Array.getElem_toList, hz, UInt32.toNat_zero, Nat.mul_zero,
-    Nat.add_zero] at hset
   have h0 : toNat (UInt32Array.replicate (v.size + 1) 0) = 0 := by
     rw [toNat_toSlice, UInt32Array.toList_replicate, ← List.nil_append (List.replicate _ _),
       ofLimbs_append_replicate_zero, ofLimbs_nil]
-  rw [h0] at h
-  simp only [Nat.zero_add, Nat.mul_zero, Nat.pow_zero, Nat.one_mul] at h
-  simp only [toNat_toSlice] at h
-  rw [toNat_toSlice, mulRow, UInt32Array.toList_set, hset, h]
+  rw [mulRow, toNat_addMul1Set _ _ _ _ _ (by simp), h0]
+  simp
 
 /-! ## Subtracting a multiple -/
 

@@ -192,8 +192,8 @@ private theorem toom3Interp_spec (c₀ w₁ w₂ w₃ c₄ : UInt32Array) (C₀ 
 private theorem addAt_term (r c : UInt32Array) (n off P C S : Nat) (hn : r.size = n)
     (hoff : off ≤ n) (hr : toNat r = P) (hc : toNat c = C) (hS : P + 2 ^ (32 * off) * C ≤ S)
     (hlt : S < 2 ^ (32 * n)) :
-    (addAt r off (c.toSlice 0 (n - off))).1.size = n ∧
-      toNat (addAt r off (c.toSlice 0 (n - off))).1 = P + 2 ^ (32 * off) * C := by
+    (addInto r off (c.toSlice 0 (n - off))).size = n ∧
+      toNat (addInto r off (c.toSlice 0 (n - off))) = P + 2 ^ (32 * off) * C := by
   have hpow : 2 ^ (32 * n) = 2 ^ (32 * off) * 2 ^ (32 * (n - off)) := by
     rw [← Nat.pow_add]; congr 1; omega
   have hC : C < 2 ^ (32 * (n - off)) := by
@@ -203,16 +203,16 @@ private theorem addAt_term (r c : UInt32Array) (n off P C S : Nat) (hn : r.size 
     rw [toNat_toSlice_of_lt _ _ (by rw [hc]; exact hC), hc]
   have hfit : off + (c.toSlice 0 (n - off)).size ≤ r.size := by
     rw [UInt32Array.size_toSlice]; omega
-  refine ⟨by rw [size_addAt _ _ _ hfit, hn], ?_⟩
-  rw [toNat_addAt_of_lt _ _ _ hfit (by rw [hr, hcut, hn]; omega), hr, hcut]
+  refine ⟨by rw [size_addInto _ _ _ hfit, hn], ?_⟩
+  rw [toNat_addInto_of_lt _ _ _ hfit (by rw [hr, hcut, hn]; omega), hr, hcut]
 
 /-- `c₀ + c₁ x + c₂ x² + c₃ x³ + c₄ x⁴` as `n` limbs, where `x = βᵏ`. -/
 def toom3Assemble (n k : Nat) (c₀ c₁ c₂ c₃ c₄ : UInt32Array) : UInt32Array :=
-  let r₀ := (addAt (.replicate n 0) 0 (c₀.toSlice 0 (n - 0))).1
-  let r₁ := (addAt r₀ k (c₁.toSlice 0 (n - k))).1
-  let r₂ := (addAt r₁ (2 * k) (c₂.toSlice 0 (n - 2 * k))).1
-  let r₃ := (addAt r₂ (3 * k) (c₃.toSlice 0 (n - 3 * k))).1
-  (addAt r₃ (4 * k) (c₄.toSlice 0 (n - 4 * k))).1
+  let r₀ := addInto (.replicate n 0) 0 (c₀.toSlice 0 (n - 0))
+  let r₁ := addInto r₀ k (c₁.toSlice 0 (n - k))
+  let r₂ := addInto r₁ (2 * k) (c₂.toSlice 0 (n - 2 * k))
+  let r₃ := addInto r₂ (3 * k) (c₃.toSlice 0 (n - 3 * k))
+  addInto r₃ (4 * k) (c₄.toSlice 0 (n - 4 * k))
 
 private theorem toom3Assemble_spec (n k : Nat) (c₀ c₁ c₂ c₃ c₄ : UInt32Array)
     (C₀ C₁ C₂ C₃ C₄ : Nat) (hk : 4 * k ≤ n) (h₀ : toNat c₀ = C₀) (h₁ : toNat c₁ = C₁)

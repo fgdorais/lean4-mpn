@@ -190,6 +190,96 @@ private theorem foldInPlace_loop_addAt (r : UInt32Array) (off : Nat) (a : UInt32
       (toNat_toUSize (by omega)) 0 false hs.2.2 (by omega) _ _).symm
   · rfl
 
+/-! ## Adding without the carry out
+
+`addInto r off a` is `(addAt r off a).1`, which is all that the callers use. Its compiled form
+ends the fold with `foldInPlaceThen` and then propagates the carry with `incrFrom`, which returns
+the array alone, so it allocates no pair.
+-/
+
+/-- Adds one at limb `i` of `r` and propagates the carry to the end of `r`, dropping the last. -/
+def incrFrom (r : UInt32Array) (i : Nat) : UInt32Array :=
+  if h : i < r.size then
+    if r[i] = 0xFFFFFFFF then incrFrom (r.set i 0 h) (i + 1) else r.set i (r[i] + 1) h
+  else
+    r
+termination_by r.size - i
+
+/-- Past the limbs of `a`, `addAtLoop` only propagates the carry, which `incrFrom` does. -/
+private theorem addAtLoop_tail (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (j : Nat)
+    (c : Bool) (hj : a.size ≤ j) :
+    (addAtLoop r off a j c).1 = if c then incrFrom r (off + j) else r := by
+  induction r, j, c using addAtLoop.induct off a with
+  | case1 r j c h hstop =>
+    rw [addAtLoop]
+    simp [h, hstop]
+  | case2 r j c h hstop p ih =>
+    have hc : c = true := by cases c <;> simp_all
+    subst hc
+    rw [addAtLoop]
+    simp only [h, hstop, ↓reduceDIte, ↓reduceIte]
+    rw [ih (by omega)]
+    have hg : a.getD j 0 = 0 := by simp [UInt32Array.Slice.getD_eq, show ¬ j < a.size by omega]
+    have hp := UInt32.addWithCarry_zero_true r[off + j]
+    simp only [p, hg, hp] at *
+    conv => rhs; rw [incrFrom]
+    simp only [h, ↓reduceDIte]
+    by_cases hx : r[off + j] = 0xFFFFFFFF
+    · simp [hx, Nat.add_assoc]
+    · simp [hx]
+  | case3 r j c h =>
+    rw [addAtLoop]
+    cases c
+    · simp [h]
+    · simp only [h, ↓reduceDIte, ↓reduceIte]
+      rw [incrFrom]
+      simp [h]
+
+/-- `addAt` without the carry out of `r`. -/
+public def addInto (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) : UInt32Array :=
+  (addAt r off a).1
+
+/-- `addInto` with `foldInPlaceThen` and `incrFrom`, which the compiler uses in its place. -/
+public def addIntoFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) : UInt32Array :=
+  if hs : r.size < USize.size ∧ a.array.size < USize.size ∧ off + a.size ≤ r.size then
+    let arr := a.array
+    let st := a.start.toUSize
+    r.foldInPlaceThen off.toUSize a.size.toUSize (0 : UInt32)
+      (addAtStep arr st a.size.toUSize hs.2.1 (limbU_bound a hs.2.1))
+      (fun r' c => if c != 0 then incrFrom r' (off + a.size) else r')
+      (by
+        have := a.stop_le_array_size
+        have := a.start_le_stop
+        have := a.size_eq
+        rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]
+        exact hs.2.2)
+  else
+    (addAtLoop r off a 0 false).1
+
+@[csimp] public theorem addInto_eq_addIntoFast : @addInto = @addIntoFast := by
+  funext r off a
+  rw [addInto, addAt, addIntoFast]
+  split
+  · rename_i hs
+    have := a.stop_le_array_size
+    have := a.start_le_stop
+    have := a.size_eq
+    rw [UInt32Array.foldInPlaceThen_eq]
+    rw [← foldInPlace_loop_addAt r off a hs.2.1 _ _ (toNat_toUSize (by omega))
+      (toNat_toUSize (by omega)) 0 false hs.2.2 (by omega) _ _, addAtLoop_tail _ _ _ _ _ (by omega)]
+    rfl
+  · rfl
+
+@[simp] public theorem size_addInto (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
+    (ha : off + a.size ≤ r.size) : (addInto r off a).size = r.size :=
+  size_addAt r off a ha
+
+/-- When the sum fits in `r`, `addInto` adds. -/
+public theorem toNat_addInto_of_lt (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
+    (ha : off + a.size ≤ r.size) (hlt : toNat r + 2 ^ (32 * off) * toNat a < 2 ^ (32 * r.size)) :
+    toNat (addInto r off a) = toNat r + 2 ^ (32 * off) * toNat a :=
+  toNat_addAt_of_lt r off a ha hlt
+
 /-! ## Sums -/
 
 /--
@@ -197,7 +287,7 @@ All `max a.size b.size + 1` limbs of `a + b`, untrimmed, like GMP's `mpn_add`: `
 the result and `b` added in place.
 -/
 public def addLimbs (a b : UInt32Array.Slice) : UInt32Array :=
-  (addAt (copyPadded a (max a.size b.size + 1)) 0 b).1
+  addInto (copyPadded a (max a.size b.size + 1)) 0 b
 
 private theorem addLimbs_fit (a b : UInt32Array.Slice) :
     0 + b.size ≤ (copyPadded a (max a.size b.size + 1)).size := by
@@ -206,7 +296,7 @@ private theorem addLimbs_fit (a b : UInt32Array.Slice) :
 
 @[simp] public theorem size_addLimbs (a b : UInt32Array.Slice) :
     (addLimbs a b).size = max a.size b.size + 1 := by
-  rw [addLimbs, size_addAt _ _ _ (addLimbs_fit a b), size_copyPadded _ _ (by omega)]
+  rw [addLimbs, size_addInto _ _ _ (addLimbs_fit a b), size_copyPadded _ _ (by omega)]
 
 public theorem toNat_addLimbs (a b : UInt32Array.Slice) :
     toNat (addLimbs a b) = toNat a + toNat b := by
@@ -218,7 +308,7 @@ public theorem toNat_addLimbs (a b : UInt32Array.Slice) :
     Nat.pow_le_pow_right (by decide) (by omega)
   have hpow : 2 ^ (32 * (max a.size b.size + 1)) = 2 ^ (32 * max a.size b.size) * 2 ^ 32 := by
     rw [Nat.mul_add, Nat.mul_one, Nat.pow_add]
-  rw [addLimbs, toNat_addAt_of_lt _ _ _ (addLimbs_fit a b) (by
+  rw [addLimbs, toNat_addInto_of_lt _ _ _ (addLimbs_fit a b) (by
     rw [toNat_copyPadded, size_copyPadded _ _ (by omega), hpow]; simp only [Nat.mul_zero,
       Nat.pow_zero, Nat.one_mul]; omega), toNat_copyPadded]
   simp

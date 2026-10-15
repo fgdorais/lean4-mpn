@@ -85,8 +85,7 @@ private theorem sqrDiagLoop_spec (a : UInt32Array.Slice) (j : Nat) (acc : UInt32
 def sqrRowsLoop (a : UInt32Array.Slice) (r : UInt32Array) (i : Nat) (h : r.size = 2 * a.size) :
     UInt32Array :=
   if hi : i < a.size then
-    let p := addMul1 r i (a.slice 0 i) a[i] (by simp; omega)
-    sqrRowsLoop a (p.1.set (i + i) p.2 (by simp [p]; omega)) (i + 1) (by simp [p, h])
+    sqrRowsLoop a (addMul1Set r i (a.slice 0 i) a[i] (by simp; omega)) (i + 1) (by simp [h])
   else
     r
 termination_by a.size - i
@@ -98,7 +97,7 @@ private theorem sqrRowsLoop_spec (a : UInt32Array.Slice) (r : UInt32Array) (i : 
     (sqrRowsLoop a r i h).size = 2 * a.size ∧
       2 * ofLimbs (sqrRowsLoop a r i h).toList + sqDiag a.copy.toList = toNat a * toNat a := by
   induction r, i, h using sqrRowsLoop.induct a with
-  | case1 r i h hi' p ih =>
+  | case1 r i h hi' ih =>
     rw [sqrRowsLoop]
     simp only [hi', ↓reduceDIte]
     apply ih (by omega)
@@ -116,19 +115,12 @@ private theorem sqrRowsLoop_spec (a : UInt32Array.Slice) (r : UInt32Array) (i : 
       omega
     have hk : i + i < r.toList.length := by simp; omega
     have hz : r.toList[i + i] = 0 := getElem_eq_zero_of_ofLimbs_lt hk hlt
-    have hz' : p.1.toList[i + i]'(by simp [p]; omega) = 0 := by
-      have := getElem?_addMul1 r i (a.slice 0 i) a[i] (by simp; omega) (i + i)
-        (Or.inr (by rw [hsl]; exact Nat.le_refl _))
-      rw [← UInt32Array.getElem?_toList, ← UInt32Array.getElem?_toList] at this
-      rw [List.getElem?_eq_getElem (by simp; omega), List.getElem?_eq_getElem hk, hz] at this
-      exact Option.some.inj this
-    -- Writing the carry there adds it at `2^(32 (i + i))`.
-    have hset := ofLimbs_set p.1.toList (i + i) p.2 (by simp [p]; omega)
-    have hadd := toNat_addMul1 r i (a.slice 0 i) a[i] (by simp; omega)
-    rw [hz', UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero] at hset
-    simp only [toNat_toSlice, hsl, hsl'] at hadd
+    simp only [UInt32Array.getElem_toList] at hz
+    have hadd := toNat_addMul1Set r i (a.slice 0 i) a[i] (by simp; omega) (by simpa [hsl] using hz)
+    simp only [toNat_toSlice, hsl'] at hadd
+    rw [hadd]
     have hai : (a.copy.toList)[i]'(by simpa using hi') = a[i] := by simp
-    rw [UInt32Array.toList_set, ofLimbs_take_add_one _ _ (by simpa using hi'), hai,
+    rw [ofLimbs_take_add_one _ _ (by simpa using hi'), hai,
       List.take_add_one, List.getElem?_eq_getElem (by simpa using hi'), Option.toList_some, hai,
       sqDiag_append, List.length_take_of_le (by simpa using Nat.le_of_lt hi')]
     simp only [sqDiag, Nat.mul_zero, Nat.add_zero]
@@ -136,14 +128,11 @@ private theorem sqrRowsLoop_spec (a : UInt32Array.Slice) (r : UInt32Array) (i : 
       rw [← Nat.pow_add]
       congr 1
       omega
-    rw [hpow, show 32 * (i + i) = 32 * i + 32 * i by omega, Nat.pow_add] at *
-    generalize ofLimbs (p.1.toList.set (i + i) p.2) = R₂ at *
-    generalize ofLimbs p.1.toList = R₁ at *
+    rw [hpow] at *
     generalize ofLimbs r.toList = R at *
     generalize ofLimbs (a.copy.toList.take i) = A at *
     generalize sqDiag (a.copy.toList.take i) = D at *
     generalize 2 ^ (32 * i) = P at *
-    generalize p.2.toNat = c at *
     generalize a[i].toNat = x at *
     grind
   | case2 r i h hi' =>
@@ -159,7 +148,7 @@ private theorem sqrRowsLoop_spec (a : UInt32Array.Slice) (r : UInt32Array) (i : 
 public def sqrBasecase (a : UInt32Array.Slice) : UInt32Array :=
   let s := sqrRowsLoop a (.replicate (2 * a.size) 0) 0 (by simp)
   let d := sqrDiagLoop a 0 (.emptyWithCapacity (2 * a.size))
-  (addAt (addAt d 0 s).1 0 s).1
+  addInto (addInto d 0 s) 0 s
 
 public theorem sqrBasecase_spec (a : UInt32Array.Slice) :
     (sqrBasecase a).size = a.size + a.size ∧ toNat (sqrBasecase a) = toNat a * toNat a := by
@@ -174,24 +163,24 @@ public theorem sqrBasecase_spec (a : UInt32Array.Slice) :
   generalize sqrRowsLoop a (.replicate (2 * a.size) 0) 0 (by simp) = s at *
   generalize sqrDiagLoop a 0 .empty = d at *
   have hfit₁ : 0 + s.toSlice.size ≤ d.size := by simp [hss, hds]
-  have hfit₂ : 0 + s.toSlice.size ≤ (addAt d 0 s).1.size := by
-    rw [size_addAt _ _ _ hfit₁]
+  have hfit₂ : 0 + s.toSlice.size ≤ (addInto d 0 s).size := by
+    rw [size_addInto _ _ _ hfit₁]
     exact hfit₁
   have hlt : toNat a * toNat a < 2 ^ (32 * (2 * a.size)) := by
     rw [show 32 * (2 * a.size) = 32 * a.size + 32 * a.size by omega, Nat.pow_add]
     exact Nat.mul_lt_mul'' (toNat_lt a) (toNat_lt a)
-  have h₁ : toNat (addAt d 0 s).1 = ofLimbs d.toList + ofLimbs s.toList := by
-    rw [toNat_addAt_of_lt _ _ _ hfit₁ (by
+  have h₁ : toNat (addInto d 0 s) = ofLimbs d.toList + ofLimbs s.toList := by
+    rw [toNat_addInto_of_lt _ _ _ hfit₁ (by
       rw [toNat_toSlice, toNat_toSlice, hds, hd, Nat.mul_zero, Nat.pow_zero, Nat.one_mul]
       omega)]
     rw [toNat_toSlice, toNat_toSlice, Nat.mul_zero, Nat.pow_zero, Nat.one_mul]
-  have h₂ : toNat (addAt (addAt d 0 s).1 0 s).1 = toNat a * toNat a := by
-    rw [toNat_addAt_of_lt _ _ _ hfit₂ (by
-      rw [h₁, size_addAt _ _ _ hfit₁, hds, toNat_toSlice, Nat.mul_zero, Nat.pow_zero, Nat.one_mul]
+  have h₂ : toNat (addInto (addInto d 0 s) 0 s) = toNat a * toNat a := by
+    rw [toNat_addInto_of_lt _ _ _ hfit₂ (by
+      rw [h₁, size_addInto _ _ _ hfit₁, hds, toNat_toSlice, Nat.mul_zero, Nat.pow_zero, Nat.one_mul]
       omega), h₁, toNat_toSlice, Nat.mul_zero, Nat.pow_zero, Nat.one_mul]
     omega
   refine ⟨?_, ?_⟩
-  · rw [size_addAt _ _ _ hfit₂, size_addAt _ _ _ hfit₁, hds]
+  · rw [size_addInto _ _ _ hfit₂, size_addInto _ _ _ hfit₁, hds]
     omega
   · rw [← toNat_toSlice, h₂]
 

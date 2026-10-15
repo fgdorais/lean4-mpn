@@ -203,6 +203,96 @@ private theorem foldInPlace_loop_subAt (r : UInt32Array) (off : Nat) (a : UInt32
       (toNat_toUSize (by omega)) 0 false hs.2.2 (by omega) _ _).symm
   · rfl
 
+/-! ## Subtracting without the borrow out
+
+`subInto r off a` is `(subAt r off a).1`, compiled like `addInto`: the fold ends with
+`foldInPlaceThen` and `decrFrom` propagates the borrow, so no pair is allocated.
+-/
+
+/-- Subtracts one at limb `i` of `r` and propagates the borrow to the end of `r`, dropping it. -/
+def decrFrom (r : UInt32Array) (i : Nat) : UInt32Array :=
+  if h : i < r.size then
+    if r[i] = 0 then decrFrom (r.set i 0xFFFFFFFF h) (i + 1) else r.set i (r[i] - 1) h
+  else
+    r
+termination_by r.size - i
+
+/-- Past the limbs of `a`, `subAtLoop` only propagates the borrow, which `decrFrom` does. -/
+private theorem subAtLoop_tail (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (j : Nat)
+    (c : Bool) (hj : a.size ≤ j) :
+    (subAtLoop r off a j c).1 = if c then decrFrom r (off + j) else r := by
+  induction r, j, c using subAtLoop.induct off a with
+  | case1 r j c h hstop =>
+    rw [subAtLoop]
+    simp [h, hstop]
+  | case2 r j c h hstop p ih =>
+    have hc : c = true := by cases c <;> simp_all
+    subst hc
+    rw [subAtLoop]
+    simp only [h, hstop, ↓reduceDIte, ↓reduceIte]
+    rw [ih (by omega)]
+    have hg : a.getD j 0 = 0 := by simp [UInt32Array.Slice.getD_eq, show ¬ j < a.size by omega]
+    have hp := UInt32.subWithBorrow_zero_true r[off + j]
+    simp only [p, hg, hp] at *
+    conv => rhs; rw [decrFrom]
+    simp only [h, ↓reduceDIte]
+    by_cases hx : r[off + j] = 0
+    · simp only [hx, beq_self_eq_true, ↓reduceIte, Nat.add_assoc]
+      rfl
+    · simp [hx]
+  | case3 r j c h =>
+    rw [subAtLoop]
+    cases c
+    · simp [h]
+    · simp only [h, ↓reduceDIte, ↓reduceIte]
+      rw [decrFrom]
+      simp [h]
+
+/-- `subAt` without the borrow out of `r`. -/
+public def subInto (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) : UInt32Array :=
+  (subAt r off a).1
+
+/-- `subInto` with `foldInPlaceThen` and `decrFrom`, which the compiler uses in its place. -/
+public def subIntoFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) : UInt32Array :=
+  if hs : r.size < USize.size ∧ a.array.size < USize.size ∧ off + a.size ≤ r.size then
+    let arr := a.array
+    let st := a.start.toUSize
+    r.foldInPlaceThen off.toUSize a.size.toUSize (0 : UInt32)
+      (subAtStep arr st a.size.toUSize hs.2.1 (limbU_bound a hs.2.1))
+      (fun r' c => if c != 0 then decrFrom r' (off + a.size) else r')
+      (by
+        have := a.stop_le_array_size
+        have := a.start_le_stop
+        have := a.size_eq
+        rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]
+        exact hs.2.2)
+  else
+    (subAtLoop r off a 0 false).1
+
+@[csimp] public theorem subInto_eq_subIntoFast : @subInto = @subIntoFast := by
+  funext r off a
+  rw [subInto, subAt, subIntoFast]
+  split
+  · rename_i hs
+    have := a.stop_le_array_size
+    have := a.start_le_stop
+    have := a.size_eq
+    rw [UInt32Array.foldInPlaceThen_eq]
+    rw [← foldInPlace_loop_subAt r off a hs.2.1 _ _ (toNat_toUSize (by omega))
+      (toNat_toUSize (by omega)) 0 false hs.2.2 (by omega) _ _, subAtLoop_tail _ _ _ _ _ (by omega)]
+    rfl
+  · rfl
+
+@[simp] public theorem size_subInto (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
+    (ha : off + a.size ≤ r.size) : (subInto r off a).size = r.size :=
+  size_subAt r off a ha
+
+/-- When the difference is not negative, `subInto` subtracts. -/
+public theorem toNat_subInto_of_le (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
+    (ha : off + a.size ≤ r.size) (hle : 2 ^ (32 * off) * toNat a ≤ toNat r) :
+    toNat (subInto r off a) = toNat r - 2 ^ (32 * off) * toNat a :=
+  toNat_subAt_of_le r off a ha hle
+
 /-! ## Differences -/
 
 /--
@@ -210,16 +300,16 @@ The `a.size` limbs of `a - b`, like GMP's `mpn_sub`: `a` is copied and `b` subtr
 is exact when `b ≤ a`.
 -/
 public def subLimbs (a b : UInt32Array.Slice) : UInt32Array :=
-  (subAt (copyPadded a a.size) 0 b).1
+  subInto (copyPadded a a.size) 0 b
 
 @[simp] public theorem size_subLimbs (a b : UInt32Array.Slice) (hb : b.size ≤ a.size) :
     (subLimbs a b).size = a.size := by
-  rw [subLimbs, size_subAt _ _ _ (by rw [size_copyPadded _ _ (Nat.le_refl _)]; omega),
+  rw [subLimbs, size_subInto _ _ _ (by rw [size_copyPadded _ _ (Nat.le_refl _)]; omega),
     size_copyPadded _ _ (Nat.le_refl _)]
 
 public theorem toNat_subLimbs (a b : UInt32Array.Slice) (hb : b.size ≤ a.size)
     (hle : toNat b ≤ toNat a) : toNat (subLimbs a b) = toNat a - toNat b := by
-  rw [subLimbs, toNat_subAt_of_le _ _ _ (by rw [size_copyPadded _ _ (Nat.le_refl _)]; omega)
+  rw [subLimbs, toNat_subInto_of_le _ _ _ (by rw [size_copyPadded _ _ (Nat.le_refl _)]; omega)
     (by rw [toNat_copyPadded]; simpa using hle), toNat_copyPadded]
   simp
 

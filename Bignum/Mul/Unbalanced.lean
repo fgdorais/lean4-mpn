@@ -34,7 +34,7 @@ public def mulUnbalanced (a b : UInt32Array.Slice) (hb : 1 ≤ b.size) (hab : 2 
   let r₀ := mulRec (a.slice 0 (a.size / 2)) b (by simp only [UInt32Array.Slice.size_slice]; omega)
   let r₁ := mulRec (a.slice (a.size / 2) a.size) b
     (by simp only [UInt32Array.Slice.size_slice]; omega)
-  (addAt (padZeros r₀ (a.size - a.size / 2)) (a.size / 2) r₁).1
+  addInto (padZeros r₀ (a.size - a.size / 2)) (a.size / 2) r₁
 
 public theorem mulUnbalanced_spec (a b : UInt32Array.Slice) (hb : 1 ≤ b.size)
     (hab : 2 * b.size ≤ a.size)
@@ -68,8 +68,8 @@ public theorem mulUnbalanced_spec (a b : UInt32Array.Slice) (hb : 1 ≤ b.size)
     rw [Nat.mul_add, Nat.pow_add]
     exact Nat.mul_lt_mul'' (toNat_lt a) (toNat_lt b)
   refine ⟨?_, ?_⟩
-  · rw [mulUnbalanced, size_addAt _ _ _ hfit, hps]
-  · rw [mulUnbalanced, toNat_addAt_of_lt _ _ _ hfit (by rw [hp, hr₁, hval, hps]; exact hlt), hp,
+  · rw [mulUnbalanced, size_addInto _ _ _ hfit, hps]
+  · rw [mulUnbalanced, toNat_addInto_of_lt _ _ _ hfit (by rw [hp, hr₁, hval, hps]; exact hlt), hp,
       hr₁, hval]
 
 end Bignum

@@ -21,8 +21,7 @@ namespace Bignum
 def mulBasecaseLoop (a b : UInt32Array.Slice) (r : UInt32Array) (i : Nat)
     (h : r.size = a.size + b.size) : UInt32Array :=
   if hi : i < a.size then
-    let p := addMul1 r i b a[i] (by omega)
-    mulBasecaseLoop a b (p.1.set (i + b.size) p.2 (by simp [p]; omega)) (i + 1) (by simp [p, h])
+    mulBasecaseLoop a b (addMul1Set r i b a[i] (by omega)) (i + 1) (by simp [h])
   else
     r
 termination_by a.size - i
@@ -40,7 +39,7 @@ private theorem mulBasecaseLoop_spec (a b : UInt32Array.Slice) (r : UInt32Array)
     (mulBasecaseLoop a b r i h).size = a.size + b.size ∧
       ofLimbs (mulBasecaseLoop a b r i h).toList = toNat a * toNat b := by
   induction r, i, h using mulBasecaseLoop.induct a b with
-  | case1 r i h hi' p ih =>
+  | case1 r i h hi' ih =>
     rw [mulBasecaseLoop]
     simp only [hi', ↓reduceDIte]
     apply ih (by omega)
@@ -54,18 +53,10 @@ private theorem mulBasecaseLoop_spec (a b : UInt32Array.Slice) (r : UInt32Array)
       exact Nat.mul_lt_mul'' hA hB
     have hk : i + b.size < r.toList.length := by simp; omega
     have hz : r.toList[i + b.size] = 0 := getElem_eq_zero_of_ofLimbs_lt hk hlt
-    have hz' : p.1.toList[i + b.size]'(by simp [p]; omega) = 0 := by
-      have := getElem?_addMul1 r i b a[i] (by omega) (i + b.size) (Or.inr (Nat.le_refl _))
-      rw [← UInt32Array.getElem?_toList, ← UInt32Array.getElem?_toList] at this
-      rw [List.getElem?_eq_getElem (by simp; omega), List.getElem?_eq_getElem hk, hz] at this
-      exact Option.some.inj this
-    -- Writing the carry there adds it at `2^(32 (i + b.size))`.
-    have hset := ofLimbs_set p.1.toList (i + b.size) p.2 (by simp [p]; omega)
-    have hadd := toNat_addMul1 r i b a[i] (by omega)
-    rw [hz', UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero] at hset
+    simp only [UInt32Array.getElem_toList] at hz
+    have hadd := toNat_addMul1Set r i b a[i] (by omega) hz
     simp only [toNat_toSlice] at hadd
-    rw [UInt32Array.toList_set, hset, hadd, hr,
-      ofLimbs_take_add_one _ _ (by simpa using hi'), toNat]
+    rw [hadd, hr, ofLimbs_take_add_one _ _ (by simpa using hi'), toNat]
     simp only [UInt32Array.getElem_toList, UInt32Array.Slice.getElem_copy]
     rw [Nat.add_mul, Nat.mul_assoc, Nat.mul_comm a[i].toNat]
   | case2 r i h hi' =>

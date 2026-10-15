@@ -216,6 +216,32 @@ public theorem UInt32.subWithBorrowWord_toUInt32 (x y : UInt32) (b : Bool) :
     Nat.shiftRight_eq_div_pow] <;> split <;> simp only [UInt32.toNat_zero, UInt32.toNat_one] <;>
     omega
 
+/-- Adding a carry alone: `x + 1`, with a carry out exactly when `x` is the largest word. -/
+public theorem UInt32.addWithCarry_zero_true (x : UInt32) :
+    x.addWithCarry 0 true = (x + 1, x == 0xFFFFFFFF) := by
+  have := x.toNat_lt
+  simp only [addWithCarry, Prod.mk.injEq]
+  constructor
+  · apply UInt32.toNat_inj.1
+    simp [UInt32.toNat_add, Bool.toUInt64]
+  · rw [Bool.eq_iff_iff]
+    simp only [bne_iff_ne, ne_eq, beq_iff_eq, ← UInt64.toNat_inj, ← UInt32.toNat_inj]
+    simp [UInt64.toNat_add, Nat.shiftRight_eq_div_pow, Bool.toUInt64]
+    omega
+
+/-- Subtracting a borrow alone: `x - 1`, with a borrow out exactly when `x` is zero. -/
+public theorem UInt32.subWithBorrow_zero_true (x : UInt32) :
+    x.subWithBorrow 0 true = (x - 1, x == 0) := by
+  have := x.toNat_lt
+  simp only [subWithBorrow, Prod.mk.injEq]
+  constructor
+  · apply UInt32.toNat_inj.1
+    simp [UInt32.toNat_sub, Bool.toUInt64]
+  · rw [Bool.eq_iff_iff]
+    simp only [bne_iff_ne, ne_eq, beq_iff_eq, ← UInt64.toNat_inj, ← UInt32.toNat_inj]
+    simp [UInt64.toNat_sub, Nat.shiftRight_eq_div_pow, Bool.toUInt64]
+    omega
+
 /--
 `y - (x * v + c)` as its low word, wrapping, and the borrow word `b`, so that
 `lo + x * v + c = y + b * 2³²`; the step of `subMul1`. The borrow fits in a word since
