@@ -41,7 +41,9 @@ pairs; `toom3Sqr`; guards of the compiled loops against a literal below `2³²` 
 the quotient estimate, which removed the add-backs (42% of quotient limbs at 256 limbs); the
 remainder of a normalized division shifted back instead of divided by a limb.
 
-Tried without gain: passing `subMul1`'s borrow to the end of the step through `foldInPlaceThen`
+Tried without gain: `divRem1` on `foldrInPlaceThen` over a copy (the loop is bound by the division,
+and building the slice costs 10–25 ns per call, 5–12% slower below 16 limbs), which also rules out
+slices for the per-row folds (`addMul1Set`, `addInto`, `subInto`), called once per row; passing `subMul1`'s borrow to the end of the step through `foldInPlaceThen`
 (the step still returns a pair, and the compiler already reused the memory of `subMul1`'s);
 a `USize` twin of `divRem1` (the hardware division hides the loop). Twins of `ltLoop` and
 `topSizeLoop` would not show: `lt` runs once or twice per block of the division, and `topSize`
@@ -56,9 +58,10 @@ usually stops at the first limb.
 - [ ] **Unbalanced Toom** (`toom32`, `toom42`) instead of halving the longer operand.
 - [ ] **Toom-4, Toom-6½, Toom-8½**, then FFT multiplication for very large numbers.
 - [ ] **The rest of `Nat`:**
-  - [x] shifts by bits (`<<<`, `>>>`, `Bits`): correct but in several passes (`mulRow`,
-    `shiftLimbs`, `trim`, a copy), about 95 ns on words and 5× behind `Nat` at 256 limbs; a
-    single fused shift loop on `foldInPlace` would fix both;
+  - [x] shifts by bits (`<<<`, `>>>`, `Bits`): `shiftRight` is one pass with
+    `foldrInPlaceThen` over a copy, even with `Nat` from 4 to 1024 limbs; `shiftLeft` is still
+    `mulRow`, `shiftLimbs` and `trim`, 2.7× behind at 1024 limbs, and would take the same
+    approach with `foldlInPlaceThen`;
   - [x] bitwise `&&&`, `|||`, `^^^` (limbwise with `ofFn`, then trimmed);
   - [x] `log2`;
   - [x] `pow`, by repeated squaring with `sqr`;
