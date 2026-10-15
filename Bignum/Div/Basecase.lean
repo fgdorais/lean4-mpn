@@ -4,8 +4,6 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.Cmp
-public import Bignum.Sub
 public import Bignum.Mul.Limb
 
 /-!
@@ -17,11 +15,12 @@ from the top down. At step `j`, the remainder `r` is below `v βʲ⁺¹`, so the
 `⌊W / v⌋ < β` where `W = ⌊r / βʲ⌋` is the window of limbs `j` to `j + n` of `r`.
 
 The quotient limb is estimated from the top two limbs of `W` and the top limb of `v` as
-`q̂ = min ⌊(w_n β + w_{n-1}) / v_{n-1}⌋ (β - 1)`, which is never too small. The trial product
-`q̂ v` is then compared with `W` and, while it is larger, `q̂` decreases by one and `v` is
-subtracted from it. Correctness only needs the estimate not to be too small; when the top limb of
-`v` is at least `β / 2`, Knuth shows that it is at most two too large, which keeps the corrections
-few. `Div` normalizes the divisor that way before calling `divRemBasecase`.
+`q̂ = min ⌊(w_n β + w_{n-1}) / v_{n-1}⌋ (β - 1)`, which is never too small. The step subtracts
+`q̂ v` from the window in place with `subMul1`, like GMP's `mpn_submul_1`; the window went negative
+exactly when the borrow out of its low `n` limbs exceeds its top limb, and then `v` is added back
+and `q̂` decreased until it is not. Correctness only needs the estimate not to be too small; when
+the top limb of `v` is at least `β / 2`, Knuth shows that it is at most two too large, so `v` is
+added back at most twice. `Div` normalizes the divisor that way before calling `divRemBasecase`.
 -/
 
 open ScalarArray
@@ -117,115 +116,214 @@ private theorem toNat_qEstimate (wt wn vt : UInt32) :
     simp only [UInt32.reduceToNat]
     omega
 
-/-! ## The correction of the trial product -/
+/-! ## Adding back -/
 
 /--
-Decreases the estimate `qh` of `⌊w / v⌋`, subtracting `v` from the trial product `t = qh v` each
-time, while `t` is larger than `w`.
+Adds `v` back into the limbs `j` to `j + n` of `r` and decreases the quotient limb `qh`, after
+`subMul1` subtracted too large a multiple of `v`: `e` counts the multiples of `βʲ⁺ⁿ` by which the
+window is still negative, and each carry out of the window cancels one.
 -/
-def divCorrect (w v : UInt32Array.Slice) (qh : UInt32) (t : UInt32Array) : UInt32 × UInt32Array :=
-  if lt w t then
-    if h : qh = 0 then (qh, t) else divCorrect w v (qh - 1) (subAt t 0 v).1
+def divAddBack (v : UInt32Array.Slice) (j : Nat) (r : UInt32Array) (qh e : UInt32)
+    (h : j + v.size ≤ r.size) : UInt32Array × UInt32 :=
+  if hq : qh = 0 then
+    (r, 0)
   else
-    (qh, t)
+    let p := addMul1 r j v 1 h
+    if e ≤ p.2 then
+      (p.1, qh - 1)
+    else
+      divAddBack v j p.1 (qh - 1) (e - p.2) (by rw [size_addMul1]; exact h)
 termination_by qh.toNat
 decreasing_by
-  have : qh.toNat ≠ 0 := fun h' => h (UInt32.toNat_inj.1 (by simpa using h'))
+  have : qh.toNat ≠ 0 := fun h' => hq (UInt32.toNat_inj.1 (by simpa using h'))
   rw [UInt32.toNat_sub_of_le _ _ (by simp [UInt32.le_iff_toNat_le]; omega)]
   simp
   omega
 
-private theorem divCorrect_spec (w v : UInt32Array.Slice) (qh : UInt32) (t : UInt32Array)
-    (hv : 0 < toNat v) (hs : v.size ≤ t.size) (ht : toNat t = qh.toNat * toNat v)
-    (hge : toNat w / toNat v ≤ qh.toNat) :
-    (divCorrect w v qh t).2.size = t.size ∧
-      (divCorrect w v qh t).1.toNat = toNat w / toNat v ∧
-      toNat (divCorrect w v qh t).2 = (toNat w / toNat v) * toNat v := by
-  induction qh, t using divCorrect.induct w v with
-  | case1 t hlt =>
-    -- `qh = 0` makes `t = 0`, which cannot exceed `w`.
-    rw [lt_iff, ht, UInt32.toNat_zero, Nat.zero_mul] at hlt
-    exact absurd hlt (Nat.not_lt_zero _)
-  | case2 qh t hlt h ih =>
-    rw [toNat_toSlice, divCorrect]
-    simp only [hlt, h, ↓reduceDIte, ↓reduceIte]
-    rw [lt_iff, ht] at hlt
-    have hqh : qh.toNat ≠ 0 := fun h' => h (UInt32.toNat_inj.1 (by simpa using h'))
-    have hq1 : (qh - 1).toNat = qh.toNat - 1 := by
+/--
+The arithmetic of one add-back: the window `r₀ < Q` falls short of `R` by `e Q` with the quotient
+limb `q`, and `r₁` with carry `c` is the window plus `P V`, where `P V < Q`.
+-/
+private theorem addBack_arith {r₀ r₁ c P V Q q R e : Nat} (hr : r₀ < Q) (hPV : P * V < Q)
+    (hadd : r₁ + Q * c = r₀ + P * V) (hinv : r₀ + P * (V * q) = R + Q * e) (he : 1 ≤ e)
+    (hq : 1 ≤ q) :
+    c ≤ 1 ∧ r₁ + P * (V * (q - 1)) + Q * c = R + Q * e ∧ R < P * (V * q) := by
+  have hsplit : P * (V * q) = P * (V * (q - 1)) + P * V := by
+    rw [← Nat.mul_add, ← Nat.mul_add_one, Nat.sub_add_cancel hq]
+  have hQe : Q * 1 ≤ Q * e := Nat.mul_le_mul_left _ he
+  refine ⟨?_, by omega, by omega⟩
+  have : Q * c < Q * 2 := by omega
+  have := Nat.lt_of_mul_lt_mul_left this
+  omega
+
+private theorem divAddBack_spec (v : UInt32Array.Slice) (j : Nat) (r : UInt32Array)
+    (qh e : UInt32) (h : j + v.size ≤ r.size) (R : Nat)
+    (hz : ∀ k (hk : k < r.size), j + v.size ≤ k → r[k] = 0) (he : 0 < e.toNat)
+    (hinv : toNat r + 2 ^ (32 * j) * (toNat v * qh.toNat) =
+      R + 2 ^ (32 * (j + v.size)) * e.toNat) :
+    (divAddBack v j r qh e h).1.size = r.size ∧
+      toNat (divAddBack v j r qh e h).1 +
+          2 ^ (32 * j) * (toNat v * (divAddBack v j r qh e h).2.toNat) = R ∧
+      R < 2 ^ (32 * j) * (toNat v * ((divAddBack v j r qh e h).2.toNat + 1)) ∧
+      ∀ k (hk : k < (divAddBack v j r qh e h).1.size), j + v.size ≤ k →
+        (divAddBack v j r qh e h).1[k] = 0 := by
+  have hPV : 2 ^ (32 * j) * toNat v < 2 ^ (32 * (j + v.size)) := by
+    rw [Nat.mul_add, Nat.pow_add]
+    exact Nat.mul_lt_mul_of_pos_left (toNat_lt v) (Nat.two_pow_pos _)
+  induction r, qh, e, h using divAddBack.induct v j with
+  | case1 r e h =>
+    -- `qh = 0` would make the window `R + e βʲ⁺ⁿ ≥ βʲ⁺ⁿ`, but it is below `βʲ⁺ⁿ`.
+    have := toNat_lt_of_zero_from r (j + v.size) hz
+    simp only [UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero] at hinv
+    have : 2 ^ (32 * (j + v.size)) * 1 ≤ 2 ^ (32 * (j + v.size)) * e.toNat :=
+      Nat.mul_le_mul_left _ he
+    omega
+  | case2 r qh e h hq p hle =>
+    simp only [p] at hle
+    have heq : divAddBack v j r qh e h = ((addMul1 r j v 1 h).1, qh - 1) := by
+      rw [divAddBack]
+      simp only [hq, ↓reduceDIte, hle, ↓reduceIte]
+    rw [heq]
+    dsimp only
+    have hqpos : 1 ≤ qh.toNat := by
+      rcases Nat.eq_zero_or_pos qh.toNat with h' | h'
+      · exact absurd (UInt32.toNat_inj.1 (by simpa using h')) hq
+      · exact h'
+    have hqh : (qh - 1).toNat = qh.toNat - 1 := by
       rw [UInt32.toNat_sub_of_le _ _ (by simp [UInt32.le_iff_toNat_le]; omega)]
       simp
-    have hfit : 0 + v.size ≤ t.size := by omega
-    have hle : 2 ^ (32 * 0) * toNat v ≤ toNat t := by
-      rw [ht, Nat.mul_zero, Nat.pow_zero, Nat.one_mul]
-      exact Nat.le_mul_of_pos_left _ (by omega)
-    -- `qh v > w ≥ ⌊w / v⌋ v`, so `qh` is too large and `qh - 1` is not too small.
-    have hdiv := Nat.div_mul_le_self (toNat w) (toNat v)
-    have hgt : toNat w / toNat v < qh.toNat :=
-      Nat.lt_of_mul_lt_mul_right (Nat.lt_of_le_of_lt hdiv hlt)
-    have := ih (by rw [size_subAt _ _ _ hfit]; exact hs)
-      (by rw [toNat_subAt_of_le _ _ _ hfit hle, ht, hq1, Nat.mul_zero, Nat.pow_zero, Nat.one_mul,
-          Nat.sub_mul, Nat.one_mul])
-      (by rw [hq1]; omega)
-    rw [size_subAt _ _ _ hfit, toNat_toSlice] at this
-    exact this
-  | case3 qh t hlt =>
-    rw [toNat_toSlice, divCorrect]
-    simp only [hlt, ↓reduceIte, Bool.false_eq_true]
-    rw [lt_iff, ht] at hlt
-    -- `qh v ≤ w`, so `qh ≤ ⌊w / v⌋`.
-    have hle : qh.toNat ≤ toNat w / toNat v := (Nat.le_div_iff_mul_le hv).2 (by omega)
-    have heq : qh.toNat = toNat w / toNat v := by omega
-    refine ⟨trivial, heq, ?_⟩
-    rw [toNat_toSlice] at ht
-    rw [ht, heq]
+    have hadd := toNat_addMul1 r j v 1 h
+    simp only [UInt32.toNat_one, Nat.mul_one] at hadd
+    obtain ⟨hc, h₁, h₂⟩ := addBack_arith (toNat_lt_of_zero_from r (j + v.size) hz) hPV hadd hinv
+      he hqpos
+    have hle' := UInt32.le_iff_toNat_le.1 hle
+    have hc1 : (addMul1 r j v 1 h).2.toNat = 1 := by omega
+    have he1 : e.toNat = 1 := by omega
+    rw [hc1, he1] at h₁
+    refine ⟨size_addMul1 .., ?_, ?_, fun k hk hjk => ?_⟩
+    · rw [hqh]
+      omega
+    · rw [hqh, Nat.sub_add_cancel hqpos]
+      exact h₂
+    · have := getElem?_addMul1 r j v 1 h k (by omega)
+      rw [getElem?_pos (addMul1 r j v 1 h).1 k hk,
+        getElem?_pos r k (by rw [size_addMul1] at hk; exact hk), Option.some.injEq] at this
+      rw [this]
+      exact hz k _ hjk
+  | case3 r qh e h hq p hlt ih =>
+    simp only [p] at hlt ih
+    have heq : divAddBack v j r qh e h = divAddBack v j (addMul1 r j v 1 h).1 (qh - 1)
+        (e - (addMul1 r j v 1 h).2) (by rw [size_addMul1]; exact h) := by
+      rw [divAddBack]
+      simp only [hq, ↓reduceDIte, hlt, ↓reduceIte]
+    rw [heq]
+    have hqpos : 1 ≤ qh.toNat := by
+      rcases Nat.eq_zero_or_pos qh.toNat with h' | h'
+      · exact absurd (UInt32.toNat_inj.1 (by simpa using h')) hq
+      · exact h'
+    have hqh : (qh - 1).toNat = qh.toNat - 1 := by
+      rw [UInt32.toNat_sub_of_le _ _ (by simp [UInt32.le_iff_toNat_le]; omega)]
+      simp
+    have hadd := toNat_addMul1 r j v 1 h
+    simp only [UInt32.toNat_one, Nat.mul_one] at hadd
+    obtain ⟨hc, h₁, -⟩ := addBack_arith (toNat_lt_of_zero_from r (j + v.size) hz) hPV hadd hinv
+      he hqpos
+    have hlt' : (addMul1 r j v 1 h).2.toNat < e.toNat :=
+      UInt32.lt_iff_toNat_lt.1 (UInt32.not_le.1 hlt)
+    have hes : (e - (addMul1 r j v 1 h).2).toNat = e.toNat - (addMul1 r j v 1 h).2.toNat :=
+      UInt32.toNat_sub_of_le _ _ (UInt32.le_iff_toNat_le.2 (by omega))
+    obtain ⟨ih₁, ih₂⟩ := ih
+      (fun k hk hjk => by
+        have := getElem?_addMul1 r j v 1 h k (by omega)
+        rw [getElem?_pos (addMul1 r j v 1 h).1 k hk,
+          getElem?_pos r k (by rw [size_addMul1] at hk; exact hk), Option.some.injEq] at this
+        rw [this]
+        exact hz k _ hjk)
+      (by rw [hes]; omega)
+      (by
+        have hm : 2 ^ (32 * (j + v.size)) * (e.toNat - (addMul1 r j v 1 h).2.toNat) =
+            2 ^ (32 * (j + v.size)) * e.toNat -
+              2 ^ (32 * (j + v.size)) * (addMul1 r j v 1 h).2.toNat :=
+          Nat.mul_sub _ _ _
+        have : 2 ^ (32 * (j + v.size)) * (addMul1 r j v 1 h).2.toNat ≤
+            2 ^ (32 * (j + v.size)) * e.toNat := Nat.mul_le_mul_left _ (by omega)
+        rw [hqh, hes, hm]
+        omega)
+    exact ⟨by rw [ih₁, size_addMul1], ih₂⟩
 
-private theorem size_divCorrect (w v : UInt32Array.Slice) (qh : UInt32) (t : UInt32Array)
-    (hs : v.size ≤ t.size) : (divCorrect w v qh t).2.size = t.size := by
-  induction qh, t using divCorrect.induct w v with
-  | case1 t hlt => rw [divCorrect]; simp [hlt]
-  | case2 qh t hlt h ih =>
-    rw [divCorrect]
-    simp only [hlt, h, ↓reduceDIte, ↓reduceIte]
-    rw [ih (by rw [size_subAt _ _ _ (by omega)]; exact hs), size_subAt _ _ _ (by omega)]
-  | case3 qh t hlt => rw [divCorrect]; simp [hlt]
-
-private theorem size_divCorrect_mulRow (w v : UInt32Array.Slice) (qh : UInt32) :
-    (divCorrect w v qh (mulRow v qh)).2.size = v.size + 1 := by
-  rw [size_divCorrect _ _ _ _ (by simp), size_mulRow]
+@[simp] private theorem size_divAddBack (v : UInt32Array.Slice) (j : Nat) (r : UInt32Array)
+    (qh e : UInt32) (h : j + v.size ≤ r.size) : (divAddBack v j r qh e h).1.size = r.size := by
+  induction r, qh, e, h using divAddBack.induct v j with
+  | case1 r e h => rw [divAddBack]; simp
+  | case2 r qh e h hq p hle =>
+    simp only [p] at hle
+    rw [divAddBack]
+    simp [hq, hle]
+  | case3 r qh e h hq p hlt ih =>
+    simp only [p] at hlt ih
+    rw [divAddBack]
+    simp only [hq, ↓reduceDIte, hlt, ↓reduceIte]
+    rw [ih, size_addMul1]
 
 /-! ## The main loop -/
 
 /--
-One step of the division, at quotient limb `j`: estimates the limb from the window of limbs `j`
-to `j + n` of `r`, corrects the estimate, subtracts its multiple of `v` from `r` at limb `j`, and
-writes it into `q`.
+The end of a step, from `p = subMul1 r j v qh`: the borrow `p.2` out of the low `n` limbs of the
+window exceeds its top limb exactly when the window went negative, and then `v` is added back.
 -/
-def divStepLimb (v : UInt32Array.Slice) (hn : 2 ≤ v.size) (j : Nat) (r q : UInt32Array)
-    (hr : j + v.size + 1 ≤ r.size) (hq : j < q.size) : UInt32Array × UInt32Array :=
+def divFinish (v : UInt32Array.Slice) (j : Nat) (p : UInt32Array × UInt32) (qh : UInt32)
+    (hp : j + v.size + 1 ≤ p.1.size) : UInt32Array × UInt32 :=
+  let t := p.1[j + v.size]
+  if p.2 ≤ t then
+    (p.1.set (j + v.size) (t - p.2), qh)
+  else
+    divAddBack v j (p.1.set (j + v.size) 0) qh (p.2 - t) (by rw [UInt32Array.size_set]; omega)
+
+/--
+One step of the division at quotient limb `j`, which returns the new remainder and the quotient
+limb: estimates the limb from the window of limbs `j` to `j + n` of `r`, subtracts its multiple
+of `v` from the window in place, and adds `v` back while the window is negative, which the borrow
+out of its low `n` limbs shows when it exceeds the top limb.
+-/
+def divStepCore (v : UInt32Array.Slice) (hn : 2 ≤ v.size) (j : Nat) (r : UInt32Array)
+    (hr : j + v.size + 1 ≤ r.size) : UInt32Array × UInt32 :=
   let qh := qEstimate (r[j + v.size]'(by omega)) (r[j + v.size - 1]'(by omega))
     (v[v.size - 1]'(by omega))
-  let p := divCorrect (r.toSlice j (j + v.size + 1)) v qh (mulRow v qh)
-  ((subAt r j p.2).1, q.set j p.1 hq)
+  divFinish v j (subMul1 r j v qh (by omega)) qh (by rw [size_subMul1]; omega)
+
+/-- `divStepCore` with the quotient limb written into `q`. -/
+def divStepLimb (v : UInt32Array.Slice) (hn : 2 ≤ v.size) (j : Nat) (r q : UInt32Array)
+    (hr : j + v.size + 1 ≤ r.size) (hq : j < q.size) : UInt32Array × UInt32Array :=
+  let s := divStepCore v hn j r hr
+  (s.1, q.set j s.2 hq)
+
+private theorem size_divStepCore (v : UInt32Array.Slice) (hn : 2 ≤ v.size) (j : Nat)
+    (r : UInt32Array) (hr : j + v.size + 1 ≤ r.size) :
+    (divStepCore v hn j r hr).1.size = r.size := by
+  simp only [divStepCore, divFinish]
+  split <;> simp
 
 private theorem size_divStepLimb (v : UInt32Array.Slice) (hn : 2 ≤ v.size) (j : Nat)
     (r q : UInt32Array) (hr : j + v.size + 1 ≤ r.size) (hq : j < q.size) :
     (divStepLimb v hn j r q hr hq).1.size = r.size ∧
-      (divStepLimb v hn j r q hr hq).2.size = q.size := by
-  refine ⟨?_, by simp [divStepLimb]⟩
-  simp only [divStepLimb]
-  rw [size_subAt _ _ _ (by rw [UInt32Array.size_toSlice, size_divCorrect_mulRow]; omega)]
+      (divStepLimb v hn j r q hr hq).2.size = q.size :=
+  ⟨size_divStepCore v hn j r hr, by simp [divStepLimb]⟩
 
-private theorem divStepLimb_spec (v : UInt32Array.Slice) (hn : 2 ≤ v.size)
-    (hvt : v[v.size - 1]'(by omega) ≠ 0) (j : Nat) (r q : UInt32Array)
-    (hr : j + v.size + 1 ≤ r.size) (hq : j < q.size)
-    (hbound : toNat r < toNat v * 2 ^ (32 * (j + 1)))
-    (hzj : q.toList[j]'(by simp; omega) = 0) :
-    toNat (divStepLimb v hn j r q hr hq).2 * toNat v + toNat (divStepLimb v hn j r q hr hq).1 =
-        toNat q * toNat v + toNat r ∧
-      toNat (divStepLimb v hn j r q hr hq).1 < toNat v * 2 ^ (32 * j) ∧
-      ∀ i (hi : i < j), (divStepLimb v hn j r q hr hq).2.toList[i]'(by
-        rw [UInt32Array.length_toList, (size_divStepLimb v hn j r q hr hq).2]; omega) =
-          q.toList[i]'(by simp; omega) := by
+/-- `r < P v (q + 1)` when `⌊⌊r / P⌋ / v⌋ ≤ q`. -/
+private theorem lt_of_div_div_le {R P V q : Nat} (hP : 0 < P) (hV : 0 < V) (h : R / P / V ≤ q) :
+    R < P * (V * (q + 1)) := by
+  have h₁ := Nat.lt_mul_div_succ (R / P) hV
+  have h₂ : V * (R / P / V + 1) ≤ V * (q + 1) := Nat.mul_le_mul_left _ (by omega)
+  have h₃ := Nat.lt_mul_div_succ R hP
+  have h₄ : P * (R / P + 1) ≤ P * (V * (q + 1)) := Nat.mul_le_mul_left _ (by omega)
+  omega
+
+/-- The estimate is not too small: `r < βʲ v (q̂ + 1)`. -/
+private theorem lt_of_qEstimate (v : UInt32Array.Slice) (hn : 2 ≤ v.size)
+    (hvt : v[v.size - 1]'(by omega) ≠ 0) (j : Nat) (r : UInt32Array)
+    (hr : j + v.size + 1 ≤ r.size) (hbound : toNat r < toNat v * 2 ^ (32 * (j + 1))) :
+    toNat r < 2 ^ (32 * j) * (toNat v * ((qEstimate (r[j + v.size]'(by omega))
+      (r[j + v.size - 1]'(by omega)) (v[v.size - 1]'(by omega))).toNat + 1)) := by
   have hvt' : 0 < (v[v.size - 1]'(by omega)).toNat := by
     rcases Nat.eq_zero_or_pos (v[v.size - 1]'(by omega)).toNat with h | h
     · exact absurd (UInt32.toNat_inj.1 (by simpa using h)) hvt
@@ -277,72 +375,125 @@ private theorem divStepLimb_spec (v : UInt32Array.Slice) (hn : 2 ≤ v.size)
         (v[v.size - 1]'(by omega))).toNat := by
     rw [hqh]
     exact Nat.le_min.2 ⟨hest, Nat.le_pred_of_lt hqlt⟩
-  -- The correction ends with the true quotient limb and its multiple of `v`.
-  obtain ⟨hs, hq₁, ht₁⟩ := divCorrect_spec (r.toSlice j (j + v.size + 1)) v
-    (qEstimate (r[j + v.size]'(by omega)) (r[j + v.size - 1]'(by omega))
-      (v[v.size - 1]'(by omega)))
-    (mulRow v (qEstimate (r[j + v.size]'(by omega)) (r[j + v.size - 1]'(by omega))
-      (v[v.size - 1]'(by omega))))
-    hVpos (by simp) (by rw [toNat_mulRow, Nat.mul_comm]) hge
-  have h₃ : ∀ i (hi : i < j), (divStepLimb v hn j r q hr hq).2.toList[i]'(by
-      rw [UInt32Array.length_toList, (size_divStepLimb v hn j r q hr hq).2]; omega) =
-        q.toList[i]'(by simp; omega) := by
-    intro i hi
-    simp only [divStepLimb, UInt32Array.toList_set]
-    exact List.getElem_set_ne (by omega) _
-  refine ⟨?_, ?_, h₃⟩
-  · clear h₃
-    simp only [divStepLimb]
-    generalize divCorrect (r.toSlice j (j + v.size + 1)) v
-      (qEstimate (r[j + v.size]'(by omega)) (r[j + v.size - 1]'(by omega))
-        (v[v.size - 1]'(by omega)))
-      (mulRow v (qEstimate (r[j + v.size]'(by omega)) (r[j + v.size - 1]'(by omega))
-        (v[v.size - 1]'(by omega)))) = p at *
-    rw [size_mulRow] at hs
-    generalize toNat (r.toSlice j (j + v.size + 1)) = W at *
-    have hfit : j + p.2.toSlice.size ≤ r.size := by rw [UInt32Array.size_toSlice, hs]; omega
-    have hle : 2 ^ (32 * j) * toNat p.2 ≤ toNat r := by
-      rw [ht₁, hW]
-      exact Nat.le_trans (Nat.mul_le_mul_left _ (Nat.div_mul_le_self _ _))
-        (Nat.mul_div_le _ _)
-    have hset := ofLimbs_set q.toList j p.1 (by simp; omega)
+  rw [hW] at hge
+  exact lt_of_div_div_le (Nat.two_pow_pos _) hVpos hge
+
+private theorem divFinish_spec (v : UInt32Array.Slice) (j : Nat) (r : UInt32Array)
+    (p : UInt32Array × UInt32) (qh : UInt32) (hp : j + v.size + 1 ≤ p.1.size)
+    (hsub : toNat p.1 + 2 ^ (32 * j) * (toNat v * qh.toNat) =
+      toNat r + 2 ^ (32 * (j + v.size)) * p.2.toNat)
+    (hz : ∀ k (hk : k < p.1.size), j + v.size + 1 ≤ k → p.1[k] = 0)
+    (hest : toNat r < 2 ^ (32 * j) * (toNat v * (qh.toNat + 1))) :
+    toNat (divFinish v j p qh hp).1 +
+        2 ^ (32 * j) * (toNat v * (divFinish v j p qh hp).2.toNat) = toNat r ∧
+      toNat r < 2 ^ (32 * j) * (toNat v * ((divFinish v j p qh hp).2.toNat + 1)) := by
+  have hset (x : UInt32) := ofLimbs_set p.1.toList (j + v.size) x (by simp; omega)
+  simp only [UInt32Array.getElem_toList] at hset
+  rw [toNat_toSlice] at hsub
+  by_cases hle : p.2 ≤ p.1[j + v.size]
+  · have heq : divFinish v j p qh hp =
+        (p.1.set (j + v.size) (p.1[j + v.size] - p.2), qh) := by
+      simp only [divFinish, hle, ↓reduceIte]
+    rw [heq]
+    dsimp only
+    generalize ht : p.1[j + v.size] = t at *
+    have hle' := UInt32.le_iff_toNat_le.1 hle
+    have hts : (t - p.2).toNat = t.toNat - p.2.toNat := UInt32.toNat_sub_of_le _ _ hle
+    have h₁ := hset (t - p.2)
+    rw [hts] at h₁
+    have hm : 2 ^ (32 * (j + v.size)) * (t.toNat - p.2.toNat) =
+        2 ^ (32 * (j + v.size)) * t.toNat - 2 ^ (32 * (j + v.size)) * p.2.toNat :=
+      Nat.mul_sub _ _ _
+    have : 2 ^ (32 * (j + v.size)) * p.2.toNat ≤ 2 ^ (32 * (j + v.size)) * t.toNat :=
+      Nat.mul_le_mul_left _ hle'
+    refine ⟨?_, hest⟩
+    rw [toNat_toSlice, UInt32Array.toList_set]
+    omega
+  · have heq : divFinish v j p qh hp = divAddBack v j (p.1.set (j + v.size) 0) qh
+        (p.2 - p.1[j + v.size]) (by rw [UInt32Array.size_set]; omega) := by
+      simp only [divFinish, hle, ↓reduceIte]
+    rw [heq]
+    generalize ht : p.1[j + v.size] = t at *
+    have hlt' : t.toNat < p.2.toNat := UInt32.lt_iff_toNat_lt.1 (UInt32.not_le.1 hle)
+    have hes : (p.2 - t).toNat = p.2.toNat - t.toNat :=
+      UInt32.toNat_sub_of_le _ _ (UInt32.le_iff_toNat_le.2 (by omega))
+    have h₁ := hset 0
+    rw [UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero] at h₁
+    have hm : 2 ^ (32 * (j + v.size)) * (p.2.toNat - t.toNat) =
+        2 ^ (32 * (j + v.size)) * p.2.toNat - 2 ^ (32 * (j + v.size)) * t.toNat :=
+      Nat.mul_sub _ _ _
+    have : 2 ^ (32 * (j + v.size)) * t.toNat ≤ 2 ^ (32 * (j + v.size)) * p.2.toNat :=
+      Nat.mul_le_mul_left _ (by omega)
+    obtain ⟨-, h₂, h₃, -⟩ := divAddBack_spec v j (p.1.set (j + v.size) 0) qh (p.2 - t)
+      (by rw [UInt32Array.size_set]; omega) (toNat r)
+      (fun k hk hjk => by
+        rw [UInt32Array.getElem_set]
+        split
+        · rfl
+        · rw [UInt32Array.size_set] at hk
+          exact hz k hk (by omega))
+      (by rw [hes]; omega)
+      (by
+        rw [hes, hm, toNat_toSlice, UInt32Array.toList_set]
+        omega)
+    exact ⟨h₂, h₃⟩
+
+private theorem divStepCore_spec (v : UInt32Array.Slice) (hn : 2 ≤ v.size)
+    (hvt : v[v.size - 1]'(by omega) ≠ 0) (j : Nat) (r : UInt32Array)
+    (hr : j + v.size + 1 ≤ r.size) (hbound : toNat r < toNat v * 2 ^ (32 * (j + 1))) :
+    toNat (divStepCore v hn j r hr).1 +
+        2 ^ (32 * j) * (toNat v * (divStepCore v hn j r hr).2.toNat) = toNat r ∧
+      toNat r < 2 ^ (32 * j) * (toNat v * ((divStepCore v hn j r hr).2.toNat + 1)) := by
+  have hest := lt_of_qEstimate v hn hvt j r hr hbound
+  have hV := toNat_lt v
+  -- The limbs of `r` above `j + n` are zero, and `subMul1` leaves them unchanged.
+  have hR : toNat r < 2 ^ (32 * (j + v.size + 1)) := by
+    have : toNat v * 2 ^ (32 * (j + 1)) ≤ 2 ^ (32 * v.size) * 2 ^ (32 * (j + 1)) :=
+      Nat.mul_le_mul_right _ (Nat.le_of_lt hV)
+    rw [← Nat.pow_add, show 32 * v.size + 32 * (j + 1) = 32 * (j + v.size + 1) by omega] at this
+    omega
+  simp only [divStepCore]
+  refine divFinish_spec v j r _ _ _ (toNat_subMul1 r j v _ _) (fun k hk hjk => ?_) hest
+  have := getElem?_subMul1 r j v (qEstimate (r[j + v.size]'(by omega))
+    (r[j + v.size - 1]'(by omega)) (v[v.size - 1]'(by omega))) (by omega) k (by omega)
+  rw [size_subMul1] at hk
+  rw [getElem?_pos _ k (by rw [size_subMul1]; exact hk), getElem?_pos r k hk,
+    Option.some.injEq] at this
+  rw [this]
+  have := getElem_eq_zero_of_ofLimbs_lt (l := r.toList) (k := k) (by simpa using hk)
+    (by rw [← toNat_toSlice]; exact Nat.lt_of_lt_of_le hR (Nat.pow_le_pow_right (by decide)
+      (by omega)))
+  simpa using this
+
+private theorem divStepLimb_spec (v : UInt32Array.Slice) (hn : 2 ≤ v.size)
+    (hvt : v[v.size - 1]'(by omega) ≠ 0) (j : Nat) (r q : UInt32Array)
+    (hr : j + v.size + 1 ≤ r.size) (hq : j < q.size)
+    (hbound : toNat r < toNat v * 2 ^ (32 * (j + 1)))
+    (hzj : q.toList[j]'(by simp; omega) = 0) :
+    toNat (divStepLimb v hn j r q hr hq).2 * toNat v + toNat (divStepLimb v hn j r q hr hq).1 =
+        toNat q * toNat v + toNat r ∧
+      toNat (divStepLimb v hn j r q hr hq).1 < toNat v * 2 ^ (32 * j) ∧
+      ∀ i (hi : i < j), (divStepLimb v hn j r q hr hq).2.toList[i]'(by
+        rw [UInt32Array.length_toList, (size_divStepLimb v hn j r q hr hq).2]; omega) =
+          q.toList[i]'(by simp; omega) := by
+  obtain ⟨h₁, h₂⟩ := divStepCore_spec v hn hvt j r hr hbound
+  refine ⟨?_, ?_, fun i hi => ?_⟩
+  · simp only [divStepLimb]
+    have hset := ofLimbs_set q.toList j (divStepCore v hn j r hr).2 (by simp; omega)
     rw [hzj, UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero] at hset
-    rw [toNat_subAt_of_le _ _ _ hfit hle, toNat_toSlice, toNat_toSlice, UInt32Array.toList_set,
-      hset, hq₁, ← toNat_toSlice]
-    rw [ht₁] at hle ⊢
-    rw [Nat.add_mul, Nat.mul_assoc]
-    simp only [toNat_toSlice] at hle ⊢
+    rw [toNat_toSlice, UInt32Array.toList_set, hset, ← toNat_toSlice]
+    generalize toNat (divStepCore v hn j r hr).1 = r' at *
+    generalize (divStepCore v hn j r hr).2.toNat = qf at *
+    rw [Nat.add_mul, Nat.mul_assoc, Nat.mul_comm qf (toNat v)]
     omega
-  · clear h₃
-    simp only [divStepLimb]
-    generalize divCorrect (r.toSlice j (j + v.size + 1)) v
-      (qEstimate (r[j + v.size]'(by omega)) (r[j + v.size - 1]'(by omega))
-        (v[v.size - 1]'(by omega)))
-      (mulRow v (qEstimate (r[j + v.size]'(by omega)) (r[j + v.size - 1]'(by omega))
-        (v[v.size - 1]'(by omega)))) = p at *
-    rw [size_mulRow] at hs
-    generalize toNat (r.toSlice j (j + v.size + 1)) = W at *
-    have hfit : j + p.2.toSlice.size ≤ r.size := by rw [UInt32Array.size_toSlice, hs]; omega
-    have hle : 2 ^ (32 * j) * toNat p.2 ≤ toNat r := by
-      rw [ht₁, hW]
-      exact Nat.le_trans (Nat.mul_le_mul_left _ (Nat.div_mul_le_self _ _))
-        (Nat.mul_div_le _ _)
-    rw [toNat_subAt_of_le _ _ _ hfit hle, ht₁]
-    -- `r - βʲ q v = βʲ (W mod v) + (r mod βʲ) < βʲ v`.
-    have h₁ := Nat.div_add_mod (toNat r) (2 ^ (32 * j))
-    have h₂ := Nat.div_add_mod W (toNat v)
-    have h₃ := Nat.mod_lt W hVpos
-    have h₄ := Nat.mod_lt (toNat r) (Nat.two_pow_pos (32 * j))
-    rw [← hW] at h₁
-    generalize 2 ^ (32 * j) = P at *
-    generalize W / toNat v = qs at *
-    generalize W % toNat v = wm at *
-    generalize toNat r % P = rm at *
-    have : P * (wm + 1) ≤ P * toNat v := Nat.mul_le_mul_left _ h₃
-    rw [Nat.mul_comm (toNat v) P]
-    rw [← h₁, ← h₂, Nat.mul_add, Nat.mul_comm (toNat v) qs] at hle ⊢
-    rw [Nat.mul_add, Nat.mul_one] at this
+  · simp only [divStepLimb]
+    generalize toNat (divStepCore v hn j r hr).1 = r' at *
+    generalize (divStepCore v hn j r hr).2.toNat = qf at *
+    rw [Nat.mul_add, Nat.mul_one, Nat.mul_add] at h₂
+    rw [Nat.mul_comm (toNat v)]
     omega
+  · simp only [divStepLimb, UInt32Array.toList_set]
+    exact List.getElem_set_ne (by omega) _
 
 /-- Computes the quotient limbs below `k`, from the top down, with one `divStepLimb` each. -/
 def divLoop (v : UInt32Array.Slice) (hn : 2 ≤ v.size) (k : Nat) (r q : UInt32Array)

@@ -81,16 +81,22 @@ def fmtRatio (x : Float) : String :=
 
 def sizes : List Nat := [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096]
 
-/-- Times one operation at each size and prints a table row per size. -/
-def row (name : String) (n : Nat) (bn : IO Float) (nat : IO Float) : IO Unit := do
+/-- Times one operation at one size against `Nat`, unless `noNat`, and prints a table row. -/
+def row (noNat : Bool) (name : String) (n : Nat) (bn : IO Float) (nat : IO Float) : IO Unit := do
   let tb ← bn
-  let tn ← nat
-  IO.println <|
-    s!"{pad 6 name} {pad 6 (toString n)} {pad 10 (fmt tb)} {pad 10 (fmt tn)} " ++
-      s!"{pad 8 (fmtRatio (tb / tn))}"
+  if noNat then
+    IO.println s!"{pad 6 name} {pad 6 (toString n)} {pad 10 (fmt tb)}"
+  else
+    let tn ← nat
+    IO.println <|
+      s!"{pad 6 name} {pad 6 (toString n)} {pad 10 (fmt tb)} {pad 10 (fmt tn)} " ++
+        s!"{pad 8 (fmtRatio (tb / tn))}"
 
 def main (args : List String) : IO Unit := do
-  let ops := if args.isEmpty then ["add", "sub", "mul1", "mul", "sqr", "div"] else args
+  let noNat := args.contains "--no-nat"
+  let (nums, names) := (args.filter (· != "--no-nat")).partition (·.isNat)
+  let ops := if names.isEmpty then ["add", "sub", "mul1", "mul", "sqr", "div"] else names
+  let sizes := if nums.isEmpty then sizes else nums.map String.toNat!
   IO.println s!"{pad 6 "op"} {pad 6 "limbs"} {pad 10 "Bignum"} {pad 10 "Nat"} {pad 8 "ratio"}"
   for op in ops do
     for n in sizes do
@@ -100,16 +106,19 @@ def main (args : List String) : IO Unit := do
       let s := add a b
       let (na, nb, na2, ns) := (toNat a, toNat b, toNat a2, toNat s)
       match op with
-      | "add" => row op n (time (fun x y => add x y) checkArr a b) (time (· + ·) checkNat na nb)
-      | "sub" => row op n (time subVal checkArr s b) (time (· - ·) checkNat ns nb)
-      | "mul" => row op n (time (fun x y => mul x y) checkArr a b) (time (· * ·) checkNat na nb)
+      | "add" =>
+        row noNat op n (time (fun x y => add x y) checkArr a b) (time (· + ·) checkNat na nb)
+      | "sub" => row noNat op n (time subVal checkArr s b) (time (· - ·) checkNat ns nb)
+      | "mul" =>
+        row noNat op n (time (fun x y => mul x y) checkArr a b) (time (· * ·) checkNat na nb)
       | "mul1" =>
-        row op n (time (fun x _ => mul1 x 7) (fun p => checkArr p.1) a a)
+        row noNat op n (time (fun x _ => mul1 x 7) (fun p => checkArr p.1) a a)
           (time (fun x _ => x * 7) checkNat na na)
       | "sqr" =>
-        row op n (time (fun x _ => sqr x) checkArr a a) (time (fun x _ => x * x) checkNat na na)
+        row noNat op n (time (fun x _ => sqr x) checkArr a a)
+          (time (fun x _ => x * x) checkNat na na)
       | "div" =>
-        row op n (time (fun x y => divMod x y) checkPair a2 b)
+        row noNat op n (time (fun x y => divMod x y) checkPair a2 b)
           (time (fun x y => (x / y, x % y)) checkNatPair na2 nb)
       | _ => throw <| .userError s!"unknown operation {op}"
 

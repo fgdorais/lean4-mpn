@@ -215,3 +215,26 @@ public theorem UInt32.subWithBorrowWord_toUInt32 (x y : UInt32) (b : Bool) :
   cases b <;> simp [UInt64.toNat_sub, Bool.toUInt64, Bool.toUInt32, bne, ← UInt64.toNat_inj,
     Nat.shiftRight_eq_div_pow] <;> split <;> simp only [UInt32.toNat_zero, UInt32.toNat_one] <;>
     omega
+
+/--
+`y - (x * v + c)` as its low word, wrapping, and the borrow word `b`, so that
+`lo + x * v + c = y + b * 2³²`; the step of `subMul1`. The borrow fits in a word since
+`x * v + c < 2⁶⁴`. It computes `y - (x * v + c)` modulo `2⁶⁴`, whose high word is `-b`.
+-/
+@[inline, expose] public def UInt32.subMul (y x v c : UInt32) : UInt32 × UInt32 :=
+  let t := y.toUInt64 - (x.toUInt64 * v.toUInt64 + c.toUInt64)
+  (t.toUInt32, ((0 : UInt64) - (t >>> 32)).toUInt32)
+
+public theorem UInt32.subMul_spec (y x v c : UInt32) :
+    (y.subMul x v c).1.toNat + x.toNat * v.toNat + c.toNat =
+      y.toNat + (y.subMul x v c).2.toNat * 2 ^ 32 := by
+  have := y.toNat_lt
+  have := x.toNat_lt
+  have := v.toNat_lt
+  have := c.toNat_lt
+  have : x.toNat * v.toNat ≤ (2 ^ 32 - 1) * (2 ^ 32 - 1) := Nat.mul_le_mul (by omega) (by omega)
+  simp only [subMul, UInt64.toNat_sub, UInt64.toNat_add, UInt64.toNat_mul, UInt64.toNat_toUInt32,
+    UInt32.toNat_toUInt64, UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow, UInt64.toNat_ofNat,
+    Nat.reduceMod, Nat.reducePow] at *
+  generalize x.toNat * v.toNat = p at *
+  omega

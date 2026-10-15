@@ -88,6 +88,20 @@ public theorem toNat_lt (s : UInt32Array.Slice) : toNat s < 2 ^ (32 * s.size) :=
   have := ofLimbs_lt s.copy.toList
   rwa [UInt32Array.length_toList, UInt32Array.Slice.size_copy] at this
 
+/-- An array whose limbs from `m` on are zero is below `2^(32 m)`. -/
+public theorem toNat_lt_of_zero_from (a : UInt32Array) (m : Nat)
+    (h : ∀ k (hk : k < a.size), m ≤ k → a[k] = 0) : toNat a < 2 ^ (32 * m) := by
+  rw [toNat_toSlice]
+  have hsplit := ofLimbs_append (a.toList.take m) (a.toList.drop m)
+  rw [List.take_append_drop] at hsplit
+  have hz : ofLimbs (a.toList.drop m) = 0 := by
+    refine ofLimbs_eq_zero_iff.2 fun d hd => ?_
+    obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hd
+    simp only [List.getElem_drop, UInt32Array.getElem_toList]
+    exact h _ _ (by omega)
+  rw [hsplit, hz, Nat.mul_zero, Nat.add_zero]
+  exact ofLimbs_take_lt _ _
+
 public theorem isTrimmed_iff (a : UInt32Array) : isTrimmed a = true ↔ IsTrimmed a.toList := by
   rw [isTrimmed, IsTrimmed, List.getLast?_eq_getElem?, UInt32Array.getElem?_toList,
     UInt32Array.length_toList]
