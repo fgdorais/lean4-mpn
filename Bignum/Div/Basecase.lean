@@ -107,7 +107,7 @@ private theorem top_two_limbs_le (v : UInt32Array.Slice) (hn : 2 ≤ v.size) :
   let e : UInt64 := (wt.toUInt64 * 4294967296 + wn.toUInt64) / vt.toUInt64
   if e < 4294967296 then e.toUInt32 else 0xFFFFFFFF
 
-private theorem toNat_qEstimate (wt wn vt : UInt32) :
+public theorem toNat_qEstimate (wt wn vt : UInt32) :
     (qEstimate wt wn vt).toNat =
       min ((wt.toNat * 2 ^ 32 + wn.toNat) / vt.toNat) (2 ^ 32 - 1) := by
   have hwt := wt.toNat_lt
@@ -236,7 +236,7 @@ private theorem toNat_mul_words (x y : UInt32) :
 `qEstimate3` is never too small: it is at least a quotient `qt` that the first estimate `q`
 bounds and with `qt (vt β + vs) ≤ (wt β + wn) β + wl`.
 -/
-private theorem qEstimate3_ge (q wt wn wl vt vs : UInt32) (qt : Nat)
+public theorem qEstimate3_ge (q wt wn wl vt vs : UInt32) (qt : Nat)
     (hle : q.toNat * vt.toNat ≤ wt.toNat * 2 ^ 32 + wn.toNat) (h₀ : qt ≤ q.toNat)
     (h₁ : qt * (vt.toNat * 2 ^ 32 + vs.toNat) ≤
       (wt.toNat * 2 ^ 32 + wn.toNat) * 2 ^ 32 + wl.toNat) :

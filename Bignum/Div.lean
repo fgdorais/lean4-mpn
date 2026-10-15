@@ -7,6 +7,7 @@ module
 public import Bignum.Div.Limb
 public import Bignum.Div.Basecase
 public import Bignum.Div.DC
+public import Bignum.Div.Two
 public import Bignum.Bits
 
 /-!
@@ -210,6 +211,9 @@ public def divMod (a b : UInt32Array.Slice) : UInt32Array × UInt32Array :=
   else if h : n = 1 then
     let p := divRem1 a (b.getD 0 0)
     (trim p.1, trim (UInt32Array.mk #[p.2]))
+  else if n = 2 then
+    let p := divRem2 a (b.getD 1 0) (b.getD 0 0)
+    (trim p.1, ofWord64 p.2)
   else
     let p := divModLimbs a (b.slice 0 n) (by simp; have := topSize_le b; omega)
     (trim p.1, trim p.2)
@@ -221,6 +225,8 @@ public def div (a b : UInt32Array.Slice) : UInt32Array :=
     .empty
   else if n = 1 then
     trim (divRem1 a (b.getD 0 0)).1
+  else if n = 2 then
+    trim (divRem2 a (b.getD 1 0) (b.getD 0 0)).1
   else if h : 2 ≤ n then
     trim (divLimbsQ a (b.slice 0 n) (by simp; have := topSize_le b; omega))
   else
@@ -232,7 +238,10 @@ private theorem div_eq_divMod (a b : UInt32Array.Slice) : div a b = (divMod a b)
   · simp [h₀]
   · by_cases h₁ : topSize b = 1
     · simp [h₁]
-    · simp only [h₀, h₁, ↓reduceIte, ↓reduceDIte, show 2 ≤ topSize b by omega, divLimbsQ_eq]
+    · by_cases h₂ : topSize b = 2
+      · simp [h₂]
+      · simp only [h₀, h₁, h₂, ↓reduceIte, ↓reduceDIte, show 2 ≤ topSize b by omega,
+          divLimbsQ_eq]
 
 /-- The remainder of dividing two numbers, with `a % 0 = a`. -/
 public def mod (a b : UInt32Array.Slice) : UInt32Array := (divMod a b).2
@@ -246,11 +255,17 @@ private theorem divMod_of_topSize_eq_one (a b : UInt32Array.Slice) (h : topSize 
       trim (UInt32Array.mk #[(divRem1 a (b.getD 0 0)).2])) := by
   simp [divMod, h]
 
-private theorem divMod_of_two_le_topSize (a b : UInt32Array.Slice) (h : 2 ≤ topSize b) :
+private theorem divMod_of_topSize_eq_two (a b : UInt32Array.Slice) (h : topSize b = 2) :
+    divMod a b = (trim (divRem2 a (b.getD 1 0) (b.getD 0 0)).1,
+      ofWord64 (divRem2 a (b.getD 1 0) (b.getD 0 0)).2) := by
+  simp [divMod, h]
+
+private theorem divMod_of_two_le_topSize (a b : UInt32Array.Slice) (h : 3 ≤ topSize b) :
     divMod a b = (trim (divModLimbs a (b.slice 0 (topSize b))
         (by simp; have := topSize_le b; omega)).1,
       trim (divModLimbs a (b.slice 0 (topSize b)) (by simp; have := topSize_le b; omega)).2) := by
-  simp [divMod, show topSize b ≠ 0 by omega, show topSize b ≠ 1 by omega]
+  simp [divMod, show topSize b ≠ 0 by omega, show topSize b ≠ 1 by omega,
+    show topSize b ≠ 2 by omega]
 
 /-- `divMod` divides, with `Nat`'s conventions for a zero divisor. -/
 public theorem toNat_divMod (a b : UInt32Array.Slice) :
@@ -282,11 +297,29 @@ public theorem toNat_divMod (a b : UInt32Array.Slice) :
       refine ⟨rfl, ?_⟩
       rw [toNat_toSlice]
       simp
-  · -- A divisor of at least two limbs.
+  · rcases Nat.lt_or_ge (topSize b) 3 with h₃ | h₃
+    · -- A divisor of two limbs.
+      have h₂ : topSize b = 2 := by omega
+      have hd := getD_topSize_ne_zero b (by omega)
+      rw [h₂] at hd
+      have hb2 : toNat b = (b.getD 1 0).toNat * 2 ^ 32 + (b.getD 0 0).toNat := by
+        rw [← hb, toNat_of_size_eq_two (by simp [h₂]; omega)]
+        simp only [UInt32Array.Slice.getD_eq, UInt32Array.Slice.size_slice,
+          UInt32Array.Slice.getElem_slice]
+        simp [show 0 < min 2 b.size by omega, show 1 < min 2 b.size by omega, h₂,
+          show 0 < b.size by omega, show 1 < b.size by omega]
+        omega
+      have hd' : b.getD 1 0 ≠ 0 := by simpa using hd
+      obtain ⟨h₄, h₅⟩ := divRem2_spec a (b.getD 1 0) (b.getD 0 0) hd'
+      rw [← hb2] at h₄ h₅
+      obtain ⟨hq, hr⟩ := div_mod_eq (by omega) h₄ h₅
+      rw [divMod_of_topSize_eq_two a b h₂, toNat_trim, toNat_ofWord64, ← hq, ← hr]
+      exact ⟨rfl, rfl⟩
+    -- A divisor of at least three limbs.
     have hs := divModLimbs_spec a (b.slice 0 (topSize b))
       (by simp; omega) (top_slice_topSize_ne_zero b (by omega))
     rw [hb] at hs
-    rw [divMod_of_two_le_topSize a b h, toNat_trim, toNat_trim]
+    rw [divMod_of_two_le_topSize a b h₃, toNat_trim, toNat_trim]
     exact hs
 
 /-- Division is `Nat` division. -/
@@ -306,8 +339,11 @@ public theorem isTrimmed_div (a b : UInt32Array.Slice) : isTrimmed (div a b) = t
       exact (isTrimmed_iff _).2 (by simp)
     · rw [divMod_of_topSize_eq_one a b (by omega)]
       exact isTrimmed_trim _
-  · rw [divMod_of_two_le_topSize a b h]
-    exact isTrimmed_trim _
+  · rcases Nat.lt_or_ge (topSize b) 3 with h₃ | h₃
+    · rw [divMod_of_topSize_eq_two a b (by omega)]
+      exact isTrimmed_trim _
+    · rw [divMod_of_two_le_topSize a b h₃]
+      exact isTrimmed_trim _
 
 public theorem isTrimmed_mod (a b : UInt32Array.Slice) : isTrimmed (mod a b) = true := by
   rw [mod]
@@ -317,7 +353,10 @@ public theorem isTrimmed_mod (a b : UInt32Array.Slice) : isTrimmed (mod a b) = t
       exact isTrimmed_trim _
     · rw [divMod_of_topSize_eq_one a b (by omega)]
       exact isTrimmed_trim _
-  · rw [divMod_of_two_le_topSize a b h]
-    exact isTrimmed_trim _
+  · rcases Nat.lt_or_ge (topSize b) 3 with h₃ | h₃
+    · rw [divMod_of_topSize_eq_two a b (by omega)]
+      exact isTrimmed_ofWord64 _
+    · rw [divMod_of_two_le_topSize a b h₃]
+      exact isTrimmed_trim _
 
 end Bignum

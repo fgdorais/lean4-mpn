@@ -325,3 +325,14 @@ def decimalValues : List Nat :=
 #guard ["", "_", "_1", "1_", "1__0", "abc", "12a", "-1", " 1", "000", "007", "1_000",
     "18446744073709551616", "18_446_744_073_709_551_615", "123456789012345678901234567890"].all
   fun s => (BigNat.ofString? s).map BigNat.toNat == s.toNat?
+
+-- Division by two limbs (`divRem2`): edge cases of the divisor and of the dividend.
+#guard
+  let ds : List Nat := [2 ^ 32, 2 ^ 32 + 1, 2 ^ 33 - 1, 2 ^ 63, 2 ^ 63 + 12345, 2 ^ 64 - 1,
+    (2 ^ 32 - 1) * 2 ^ 32, 3 * 2 ^ 32 + 7, sample1 64 97 ||| 2 ^ 63, sample1 40 101 ||| 2 ^ 32]
+  let as : List Nat := [0, 1, 2 ^ 32 - 1, 2 ^ 64 - 1, 2 ^ 64, 2 ^ 96 - 1, 2 ^ 128,
+    sample1 200 103, sample1 1000 107, 2 ^ 640 - 1]
+  ds.all fun d => (as ++ as.map (· * d) ++ as.map (· * d + d - 1)).all fun a =>
+    let p := divMod (ofNat a) (ofNat d)
+    toNat p.1 == a / d && toNat p.2 == a % d && toNat (div (ofNat a) (ofNat d)) == a / d &&
+      isTrimmed p.1 && isTrimmed p.2

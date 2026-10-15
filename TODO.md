@@ -37,7 +37,9 @@ pairs; `toom3Sqr`; guards of the compiled loops against a literal below `2³²` 
 `USize.size` (11–15% on small products); the schoolbook square in one final pass
 (`sqrAddDiag`) without row slices, faster than multiplying from 16 limbs; Knuth's correction of
 the quotient estimate, which removed the add-backs (42% of quotient limbs at 256 limbs); the
-remainder of a normalized division shifted back instead of divided by a limb; both shifts in one
+remainder of a normalized division shifted back instead of divided by a limb; `trim` without a
+closure (`popWhile`'s predicate was called through `lean_apply_1`); a quotient-only `div`;
+division by two limbs in one pass (`divRem2`); both shifts in one
 pass with the slice folds of lean4-scalar-arrays#27 and #28; `push` inline upstream
 (lean4-scalar-arrays#24).
 
@@ -87,9 +89,12 @@ usually stops at the first limb.
 - [x] **A `Nat`-like type:** `BigNat`, a word below `2⁶⁴` and trimmed limbs above, with the
   instances, truncated subtraction and the bijection with `Nat`. About 15 ns per operation on
   words, against 9–10 ns for `Nat`, whose small values need no allocation.
-- [ ] **The fixed cost of small divisions:** 400 ns to 1 µs for divisors of 2 to 16 limbs, against
-  50–160 ns for `Nat`: normalization, several arrays, and the remainder un-normalized even when
-  only the quotient is wanted. A quotient-only path and fewer arrays would help `BigNat.div`.
+- [ ] **The fixed cost of small divisions:** `BigNat.div` takes 206 ns for a divisor of 2 limbs
+  (`divRem2`, one pass like GMP's `mpn_divrem_2`; 428 ns before), 340 ns for 4 limbs and 770 ns
+  for 16, against 47, 95 and 154 ns for `Nat`. Above 2 limbs, Algorithm D's steps are half the
+  time, each paying the fixed cost of `subMul1` and its result pair; the copy of the normalized
+  dividend into `divRemBasecase`'s buffer is another 7%, and could be avoided with a run-time check
+  of its top limb against the divisor's.
 - [ ] **Words near `2⁶⁴` in `BigNat`:** a sum or product that overflows goes through
   `limbsOfWord` and the array functions (about 100 ns); a direct `64 × 64 → 128` product would
   help `*`.
