@@ -56,7 +56,10 @@ def time {α β : Type} (f : α → α → β) (check : β → UInt32) (a b : α
 def checkArr (r : UInt32Array) : UInt32 := r.size.toUInt32 + r[0]!
 def checkPair (r : UInt32Array × UInt32Array) : UInt32 := checkArr r.1 + checkArr r.2
 def checkNat (n : Nat) : UInt32 := n.toUInt32
-def checkBig (n : BigNat) : UInt32 := (hash n).toUInt32
+/-- O(1), like `checkNat`: hashing the result would add a pass over its limbs to the time. -/
+def checkBig : BigNat → UInt32
+  | .small w => w.toUInt32
+  | .large a _ => a.size.toUInt32 + a[0]!
 def checkStr (s : String) : UInt32 := s.utf8ByteSize.toUInt32
 def checkNatPair (r : Nat × Nat) : UInt32 := r.1.toUInt32 + r.2.toUInt32
 
@@ -151,6 +154,9 @@ def main (args : List String) : IO Unit := do
         let t := toString na
         row noNat op n (time (fun t _ => BigNat.ofString? t) (fun r => checkBig r.get!) t t)
           (time (fun t _ => t.toNat?) (fun r => checkNat r.get!) t t)
+      | "shr" =>
+        row noNat op n (time (fun (x : UInt32Array) _ => shiftRight x 37) checkArr a a)
+          (time (fun x _ => x >>> 37) checkNat na na)
       | "sqr" =>
         row noNat op n (time (fun x _ => sqr x) checkArr a a)
           (time (fun x _ => x * x) checkNat na na)
