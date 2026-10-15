@@ -6,16 +6,18 @@ Items are roughly in order of value within each section.
 
 ## Performance
 
-Time now goes mostly into the schoolbook row loop (`addMul1`, about 0.65 ns per 32-bit limb
-product); callgrind shows that allocations are a few percent of a product from 64 limbs up.
+Time now goes mostly into the schoolbook product, by columns since `Mul.Comba` (about 0.5 ns per
+32-bit limb product, vectorized by the C compiler with SSE2); callgrind shows that allocations are a
+few percent of a product from 64 limbs up. With 32-bit limbs, a product needs 4× as many limb
+products as GMP's, which is most of the gap above 64 limbs.
 
-- [ ] **Two rows per pass** (GMP's `mpn_addmul_2`): multiply by two limbs at once, with the two
-  carries in a `UInt64` accumulator of `foldInPlaceThen`. It halves the loads and stores of the
-  destination and the calls per product, and it is how GMP's schoolbook beats a plain
-  `addmul_1` loop.
+- [ ] **Comba squaring:** the column sums of a square are twice the products `aᵢ aⱼ` with `i < j`,
+  plus `aᵢ²` on the even columns, half the products of `combaMul`. The schoolbook square
+  (`sqrAddDiag`, by rows) is used from 30 limbs; Comba would replace it and the leaves of
+  Karatsuba and Toom-3 squaring.
 - [ ] **What is left of the Karatsuba and Toom-3 allocations:** about 100 small objects and arrays
   per 256-limb product (slices, `replicate`, and the `++` in `karatsubaCombine`, which copies),
-  a few percent; thresholds are 72 and 488 limbs, against about 30 and 100 for 64-bit GMP. The
+  a few percent; thresholds are 72 and 576 limbs, about GMP's in bits (its 64-bit limbs). The
   arrays are needed results; the `++` copies are about `2 n` limbs per node. A verified
   `mulInto r off a b` with one scratch area, in GMP's style, would remove them.
 - [ ] **A shorter dependency chain in `divRem1`** (GMP's `mpn_div_qr_1n_pi1`): the loop is
@@ -39,11 +41,15 @@ pairs; `toom3Sqr`; guards of the compiled loops against a literal below `2³²` 
 the quotient estimate, which removed the add-backs (42% of quotient limbs at 256 limbs); the
 remainder of a normalized division shifted back instead of divided by a limb; `trim` without a
 closure (`popWhile`'s predicate was called through `lean_apply_1`); a quotient-only `div`;
-division by two limbs in one pass (`divRem2`); both shifts in one
+division by two limbs in one pass (`divRem2`); the schoolbook product by columns (Comba, 14–24%
+from 8 limbs up); both shifts in one
 pass with the slice folds of lean4-scalar-arrays#27 and #28; `push` inline upstream
 (lean4-scalar-arrays#24).
 
-Tried without gain: `divRem1` on `foldrInPlaceThen` over a copy (the loop is bound by the
+Tried without gain: in Comba's column loop, unrolling by two (no change), counting the wraps of one
+64-bit sum instead of splitting the halves (faster below 32 limbs, slower above), and reading `b`
+reversed so that both operands go forward (the copy costs more than it saves); `divRem1` on
+`foldrInPlaceThen` over a copy (the loop is bound by the
 division, and building the slice costs 10–25 ns per call, 5–12% slower below 16 limbs), which also
 rules out slices for the per-row folds (`addMul1Set`, `addInto`, `subInto`), called once per row;
 passing `subMul1`'s borrow to the end of the step through `foldInPlaceThen` (the step still
@@ -55,7 +61,7 @@ usually stops at the first limb.
 ## Algorithms
 
 - [x] **Divide-and-conquer division** (`Div.DC`, Burnikel–Ziegler): blocks of half the divisor,
-  digits from recursive divisions by its top half and the low-half product, from 176 limbs.
+  digits from recursive divisions by its top half and the low-half product, from 144 limbs.
   Division is now about 5× behind `Nat` from 128 limbs up, instead of a gap growing with size
   (17× at 4096 limbs).
 - [ ] **Unbalanced Toom** (`toom32`, `toom42`) instead of halving the longer operand.

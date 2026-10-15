@@ -36,7 +36,7 @@ public structure Config where
   /-- Karatsuba needs at least `4` limbs to make its products smaller. -/
   four_le_mulKaratsuba : 4 ≤ mulKaratsuba := by decide
   /-- The size of the shorter operand from which multiplication uses Toom-3 instead of Karatsuba. -/
-  mulToom3 : Nat := 488
+  mulToom3 : Nat := 576
   /-- Toom-3 needs at least `12` limbs to make its products smaller. -/
   twelve_le_mulToom3 : 12 ≤ mulToom3 := by decide
   /--
@@ -46,7 +46,7 @@ public structure Config where
   -/
   mulUnbalanced : Nat := 104
   /-- The size from which squaring uses the schoolbook square instead of multiplying. -/
-  sqrBasecase : Nat := 16
+  sqrBasecase : Nat := 30
   /-- The size from which squaring uses Karatsuba. -/
   sqrKaratsuba : Nat := 116
   /-- Karatsuba needs at least `4` limbs to make its squares smaller. -/
@@ -57,7 +57,7 @@ public structure Config where
   twelve_le_sqrToom3 : 12 ≤ sqrToom3 := by decide
   /-- The size of the divisor from which division computes its quotient in blocks of half the
   divisor, with recursive divisions, instead of one limb at a time. -/
-  divDC : Nat := 176
+  divDC : Nat := 144
   /-- Blocks of half the divisor need at least `4` limbs, so that the recursion has two. -/
   four_le_divDC : 4 ≤ divDC := by decide
   deriving Repr

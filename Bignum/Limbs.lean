@@ -165,6 +165,22 @@ public theorem IsTrimmed.ofLimbs_inj {l₁ l₂ : List UInt32} (h₁ : IsTrimmed
       have hl : ofLimbs l = ofLimbs l' := by omega
       rw [UInt32.toNat_inj.1 hd, ih h₁.of_cons h₂.of_cons hl]
 
+/-- Lists of limbs of the same length with the same value are equal. -/
+public theorem ofLimbs_inj_of_length {l₁ l₂ : List UInt32} (hl : l₁.length = l₂.length)
+    (hv : ofLimbs l₁ = ofLimbs l₂) : l₁ = l₂ := by
+  induction l₁ generalizing l₂ with
+  | nil => exact (List.eq_nil_of_length_eq_zero (by simpa using hl.symm)).symm
+  | cons d l ih =>
+    cases l₂ with
+    | nil => simp at hl
+    | cons d' l' =>
+      simp only [ofLimbs_cons] at hv
+      have hd := d.toNat_lt
+      have hd' := d'.toNat_lt
+      have h₁ : d.toNat = d'.toNat := by omega
+      have h₂ : ofLimbs l = ofLimbs l' := by omega
+      rw [UInt32.toNat_inj.1 h₁, ih (by simpa using hl) h₂]
+
 /-! ## Removing trailing zeros -/
 
 /-- Removes the trailing zero limbs. -/

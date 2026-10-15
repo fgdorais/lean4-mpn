@@ -341,3 +341,16 @@ def decimalValues : List Nat :=
 #guard [2 ^ 32 + 1, 2 ^ 64 - 1, 2 ^ 64, 3 ^ 50, sample1 100 109, sample1 500 113, 2 ^ 700 - 1].all
   fun r => [r * r - 1, r * r, r * r + 1, r * r + 2 * r, (r + 1) * (r + 1) - 1].all fun a =>
     (BigNat.sqrt (BigNat.ofNat a)).toNat == Nat.sqrt a
+
+-- Comba's columns (`mulBasecase` compiles to `combaMul`): all-ones limbs give the largest column
+-- sums and carries; unbalanced shapes give columns of every length.
+#guard [(1, 1), (1, 7), (2, 2), (3, 5), (8, 8), (17, 3), (40, 40), (100, 7), (64, 129)].all
+  fun (n, m) =>
+    let x := 2 ^ (32 * n) - 1
+    let y := 2 ^ (32 * m) - 1
+    let u := sample1 (32 * n) 127
+    let v := sample1 (32 * m) 131
+    toNat (mulBasecase (ofNat x) (ofNat y)) == x * y &&
+      toNat (mulBasecase (ofNat u) (ofNat v)) == u * v &&
+      toNat (mulBasecase (ofNat x) (ofNat v)) == x * v &&
+      toNat (mulLimbs (ofNat x) (ofNat y)) == x * y

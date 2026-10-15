@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import Bignum.Mul.Limb
+public import Bignum.Mul.Comba
 
 /-!
 # Schoolbook multiplication
@@ -75,5 +76,27 @@ public theorem toNat_mulBasecase (a b : UInt32Array.Slice) :
     toNat (mulBasecase a b) = toNat a * toNat b := by
   rw [toNat_toSlice, mulBasecase]
   exact (mulBasecaseLoop_spec a b (.replicate (a.size + b.size) 0) 0 _ (Nat.zero_le _) (by simp)).2
+
+/-! ## The compiled product
+
+`mulBasecaseFast` uses Comba's method (`Mul.Comba`) when the sizes allow it, and `@[csimp]` makes
+the compiler use it in place of `mulBasecase`: both compute all `a.size + b.size` limbs of the
+product, and limbs of a given length are determined by their value.
+-/
+
+/-- `mulBasecase`, by Comba's method when the sizes allow it. -/
+public def mulBasecaseFast (a b : UInt32Array.Slice) : UInt32Array :=
+  if h : CombaOK a b then combaMul a b h else mulBasecase a b
+
+@[csimp] public theorem mulBasecase_eq_mulBasecaseFast : @mulBasecase = @mulBasecaseFast := by
+  funext a b
+  unfold mulBasecaseFast
+  split
+  · rename_i h
+    obtain ⟨hs, hv⟩ := combaMul_spec a b h
+    apply UInt32Array.toList_inj.1
+    apply ofLimbs_inj_of_length (by simp [hs])
+    rw [← toNat_toSlice, ← toNat_toSlice, toNat_mulBasecase, hv]
+  · rfl
 
 end Bignum
