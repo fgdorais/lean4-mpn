@@ -695,38 +695,65 @@ private theorem toNat_sqrtLoop (n x : BigNat) (hn : 0 < n.toNat) (hx : 0 < x.toN
       omega
     omega
 
-/-- `⌊√n⌋`: from `Nat.sqrt` on words, by Newton's iteration from a power of two above. -/
-public def sqrt : BigNat → BigNat
+/-- `⌊√n⌋ < (⌊√(n / 4ᵏ)⌋ + 1) 2ᵏ`: a start above the root from the root of the top half. -/
+private theorem sqrt_lt_succ_sqrt_shift (N k : Nat) :
+    Nat.sqrt N < (Nat.sqrt (N / 2 ^ (2 * k)) + 1) * 2 ^ k := by
+  have hP : 2 ^ (2 * k) = 2 ^ k * 2 ^ k := by rw [← Nat.pow_add]; congr 1; omega
+  -- `N < (N / 4ᵏ + 1) 4ᵏ ≤ (s + 1)² 4ᵏ`.
+  have h₁ : N < (N / 2 ^ (2 * k) + 1) * 2 ^ (2 * k) := by
+    rw [Nat.succ_mul]
+    have := Nat.lt_div_mul_add (a := N) (Nat.two_pow_pos (2 * k))
+    omega
+  have h₂ := Nat.lt_succ_sqrt (N / 2 ^ (2 * k))
+  generalize Nat.sqrt (N / 2 ^ (2 * k)) = s at h₂ ⊢
+  have h₃ : N < (s + 1) * 2 ^ k * ((s + 1) * 2 ^ k) := by
+    have := Nat.mul_le_mul_right (2 ^ (2 * k)) (show N / 2 ^ (2 * k) + 1 ≤ (s + 1) * (s + 1) by
+      simp only [Nat.succ_eq_add_one] at h₂; omega)
+    rw [Nat.mul_mul_mul_comm, ← hP]
+    omega
+  refine Nat.lt_of_not_le fun hle => ?_
+  have := Nat.mul_self_le_mul_self hle
+  have := Nat.sqrt_le N
+  omega
+
+/--
+`⌊√n⌋`: from `Nat.sqrt` on words, and above by Newton's iteration at growing precision: the root
+`s` of the top half `n / 4ᵏ`, for `k` about a quarter of the bits of `n`, gives the start
+`(s + 1) 2ᵏ` above `√n` and within `2ᵏ` of it, from which `sqrtLoop` needs about two divisions.
+-/
+public def sqrt (n : BigNat) : BigNat :=
+  match hn : n with
   | small a => small (Nat.sqrt a.toNat).toUInt64
-  | n@(large _ _) => sqrtLoop n (shiftLeft (small 1) (log2 n / 2 + 1))
+  | large _ ha =>
+    let k := log2 n / 4 + 1
+    sqrtLoop n (shiftLeft (add (sqrt (shiftRight n (2 * k))) (small 1)) k)
+termination_by n.toNat
+decreasing_by
+  rw [toNat_shiftRight]
+  have hpos : 0 < n.toNat := by rw [hn]; simp only [toNat]; omega
+  rw [← hn]
+  apply Nat.div_lt_self hpos
+  apply Nat.one_lt_two_pow
+  omega
 
 @[simp] public theorem toNat_sqrt (n : BigNat) : (sqrt n).toNat = Nat.sqrt n.toNat := by
-  cases n with
-  | small a =>
+  induction n using sqrt.induct with
+  | case1 a =>
+    rw [sqrt]
     have ha := a.toNat_lt
     have hs : Nat.sqrt a.toNat < 2 ^ 64 := by
       have := Nat.sqrt_le a.toNat
       have := Nat.le_mul_self (Nat.sqrt a.toNat)
       omega
-    simp only [sqrt, toNat, Nat.toUInt64, UInt64.toNat_ofNat', Nat.mod_eq_of_lt hs]
-  | large a ha =>
-    simp only [sqrt]
+    simp only [toNat, Nat.toUInt64, UInt64.toNat_ofNat', Nat.mod_eq_of_lt hs]
+  | case2 a ha k ih =>
+    rw [sqrt]
     have hN : 0 < (large a ha).toNat := by simp only [toNat]; omega
     apply toNat_sqrtLoop _ _ hN
-    · rw [toNat_shiftLeft, toNat_small, UInt64.toNat_one, Nat.one_mul]; exact Nat.two_pow_pos _
-    · rw [toNat_shiftLeft, log2_eq]
-      simp only [toNat_small, UInt64.toNat_one, Nat.one_mul]
-      generalize (large a ha).toNat = N at *
-      have hlt := @Nat.lt_log2_self N
-      have hpow : 2 ^ (N.log2 + 1) ≤ 2 ^ (N.log2 / 2 + 1) * 2 ^ (N.log2 / 2 + 1) := by
-        rw [← Nat.pow_add]; exact Nat.pow_le_pow_right (by decide) (by omega)
-      refine Nat.le_of_not_lt fun hgt => ?_
-      have := Nat.mul_self_le_mul_self (show 2 ^ (N.log2 / 2 + 1) + 1 ≤ Nat.sqrt N by omega)
-      have := Nat.sqrt_le N
-      have : 2 ^ (N.log2 / 2 + 1) * 2 ^ (N.log2 / 2 + 1) ≤
-          (2 ^ (N.log2 / 2 + 1) + 1) * (2 ^ (N.log2 / 2 + 1) + 1) :=
-        Nat.mul_self_le_mul_self (by omega)
-      omega
+    · rw [toNat_shiftLeft, toNat_add, toNat_small, UInt64.toNat_one]
+      exact Nat.mul_pos (by omega) (Nat.two_pow_pos _)
+    · rw [toNat_shiftLeft, toNat_add, ih, toNat_shiftRight, toNat_small, UInt64.toNat_one]
+      exact Nat.le_of_lt (sqrt_lt_succ_sqrt_shift _ _)
 
 /-! ## Instances -/
 

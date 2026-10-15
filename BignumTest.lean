@@ -336,3 +336,8 @@ def decimalValues : List Nat :=
     let p := divMod (ofNat a) (ofNat d)
     toNat p.1 == a / d && toNat p.2 == a % d && toNat (div (ofNat a) (ofNat d)) == a / d &&
       isTrimmed p.1 && isTrimmed p.2
+
+-- `sqrt` around perfect squares, where the start from the top half and the stopping test matter.
+#guard [2 ^ 32 + 1, 2 ^ 64 - 1, 2 ^ 64, 3 ^ 50, sample1 100 109, sample1 500 113, 2 ^ 700 - 1].all
+  fun r => [r * r - 1, r * r, r * r + 1, r * r + 2 * r, (r + 1) * (r + 1) - 1].all fun a =>
+    (BigNat.sqrt (BigNat.ofNat a)).toNat == Nat.sqrt a
