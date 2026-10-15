@@ -115,6 +115,23 @@ def divModLimbs (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) : UInt32Array × U
   else
     divRemWith config u v hn
 
+/-- The quotient of `divModLimbs`, without shifting the remainder back. -/
+def divLimbsQ (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) : UInt32Array :=
+  let vt := v[v.size - 1]'(by omega)
+  let f := normFactor vt
+  let vf := mulRow v f
+  let v' := vf.toSlice.slice 0 (topSize vf)
+  if h : 2 ≤ v'.size then
+    (divRemWith config (mulRow u f) v' h).1
+  else
+    (divRemWith config u v hn).1
+
+private theorem divLimbsQ_eq (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) :
+    divLimbsQ u v hn = (divModLimbs u v hn).1 := by
+  unfold divLimbsQ divModLimbs
+  simp only
+  split <;> rfl
+
 /-- The top limb of `s` cut to `topSize s` limbs is not zero. -/
 private theorem top_slice_topSize_ne_zero (s : UInt32Array.Slice) (h : 0 < topSize s) :
     (s.slice 0 (topSize s))[(s.slice 0 (topSize s)).size - 1]'(by
@@ -197,8 +214,25 @@ public def divMod (a b : UInt32Array.Slice) : UInt32Array × UInt32Array :=
     let p := divModLimbs a (b.slice 0 n) (by simp; have := topSize_le b; omega)
     (trim p.1, trim p.2)
 
-/-- Divides two numbers, with `a / 0 = 0`. -/
-public def div (a b : UInt32Array.Slice) : UInt32Array := (divMod a b).1
+/-- Divides two numbers, with `a / 0 = 0`: `divMod` without the remainder. -/
+public def div (a b : UInt32Array.Slice) : UInt32Array :=
+  let n := topSize b
+  if n = 0 then
+    .empty
+  else if n = 1 then
+    trim (divRem1 a (b.getD 0 0)).1
+  else if h : 2 ≤ n then
+    trim (divLimbsQ a (b.slice 0 n) (by simp; have := topSize_le b; omega))
+  else
+    .empty
+
+private theorem div_eq_divMod (a b : UInt32Array.Slice) : div a b = (divMod a b).1 := by
+  unfold div divMod
+  by_cases h₀ : topSize b = 0
+  · simp [h₀]
+  · by_cases h₁ : topSize b = 1
+    · simp [h₁]
+    · simp only [h₀, h₁, ↓reduceIte, ↓reduceDIte, show 2 ≤ topSize b by omega, divLimbsQ_eq]
 
 /-- The remainder of dividing two numbers, with `a % 0 = a`. -/
 public def mod (a b : UInt32Array.Slice) : UInt32Array := (divMod a b).2
@@ -256,15 +290,16 @@ public theorem toNat_divMod (a b : UInt32Array.Slice) :
     exact hs
 
 /-- Division is `Nat` division. -/
-@[simp] public theorem toNat_div (a b : UInt32Array.Slice) : toNat (div a b) = toNat a / toNat b :=
-  (toNat_divMod a b).1
+@[simp] public theorem toNat_div (a b : UInt32Array.Slice) : toNat (div a b) = toNat a / toNat b := by
+  rw [div_eq_divMod]
+  exact (toNat_divMod a b).1
 
 /-- The remainder is `Nat`'s remainder. -/
 @[simp] public theorem toNat_mod (a b : UInt32Array.Slice) : toNat (mod a b) = toNat a % toNat b :=
   (toNat_divMod a b).2
 
 public theorem isTrimmed_div (a b : UInt32Array.Slice) : isTrimmed (div a b) = true := by
-  rw [div]
+  rw [div_eq_divMod]
   rcases Nat.lt_or_ge (topSize b) 2 with h | h
   · rcases Nat.lt_or_ge (topSize b) 1 with h' | h'
     · rw [divMod_of_topSize_eq_zero a b (by omega)]

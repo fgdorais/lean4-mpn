@@ -118,6 +118,49 @@ public theorem toList_trim (a : UInt32Array) : (trim a).toList = trimLimbs a.toL
 public theorem isTrimmed_trim (a : UInt32Array) : isTrimmed (trim a) = true := by
   simp [isTrimmed_iff, toList_trim, isTrimmed_trimLimbs]
 
+/--
+`trim` as a loop that pops zero limbs, which the compiler uses in its place: `popWhile` takes its
+predicate as a closure, called through `lean_apply_1` for each limb it checks.
+-/
+public def trimFast (a : UInt32Array) : UInt32Array :=
+  if h : 0 < a.size then
+    if a[a.size - 1] = 0 then trimFast a.pop else a
+  else
+    a
+termination_by a.size
+decreasing_by simp only [UInt32Array.size_pop]; omega
+
+private theorem trimLimbs_of_getLast (l : List UInt32) (hne : l ≠ []) :
+    trimLimbs l = if l.getLast hne = 0 then trimLimbs l.dropLast else l := by
+  conv => lhs; rw [← List.dropLast_concat_getLast hne]
+  split
+  · rename_i h
+    rw [h]
+    simp [trimLimbs]
+  · rename_i h
+    conv => rhs; rw [← List.dropLast_concat_getLast hne]
+    simp [trimLimbs, h]
+
+@[csimp] public theorem trim_eq_trimFast : @trim = @trimFast := by
+  funext a
+  induction a using trimFast.induct with
+  | case1 a h hz ih =>
+    rw [trimFast, dite_eq_left h, ite_eq_left hz, ← ih, ← UInt32Array.toList_inj, toList_trim,
+      toList_trim, UInt32Array.toList_pop]
+    have hne : a.toList ≠ [] := by
+      intro h'; have := congrArg List.length h'; simp at this; omega
+    rw [trimLimbs_of_getLast _ hne, ite_eq_left (by simpa [List.getLast_eq_getElem] using hz)]
+  | case2 a h hz =>
+    rw [trimFast, dite_eq_left h, ite_eq_right hz, ← UInt32Array.toList_inj, toList_trim]
+    have hne : a.toList ≠ [] := by
+      intro h'; have := congrArg List.length h'; simp at this; omega
+    rw [trimLimbs_of_getLast _ hne, ite_eq_right (by simpa [List.getLast_eq_getElem] using hz)]
+  | case3 a h =>
+    rw [trimFast, dite_eq_right h, ← UInt32Array.toList_inj, toList_trim]
+    have : a.toList = [] := List.eq_nil_of_length_eq_zero (by simp; omega)
+    rw [this]
+    rfl
+
 private theorem ofLimbs_ofNat_loop (n : Nat) (acc : UInt32Array) :
     ofLimbs (ofNat.loop n acc).toList = ofLimbs acc.toList + 2 ^ (32 * acc.size) * n := by
   induction n, acc using ofNat.loop.induct with
