@@ -127,6 +127,9 @@ def main (args : List String) : IO Unit := do
       | "bdiv" =>
         let (x, y) := (BigNat.ofNat na2, BigNat.ofNat nb)
         row noNat op n (time (· / ·) checkBig x y) (time (· / ·) checkNat na2 nb)
+      | "bgcd" =>
+        let (x, y) := (BigNat.ofNat na, BigNat.ofNat nb)
+        row noNat op n (time BigNat.gcd checkBig x y) (time Nat.gcd checkNat na nb)
       | "sqr" =>
         row noNat op n (time (fun x _ => sqr x) checkArr a a)
           (time (fun x _ => x * x) checkNat na na)

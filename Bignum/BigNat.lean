@@ -428,6 +428,217 @@ public instance : Repr BigNat := ⟨fun x _ => repr x.toNat⟩
 public theorem lt_iff_toNat_lt {x y : BigNat} : x < y ↔ x.toNat < y.toNat := Iff.rfl
 public theorem le_iff_toNat_le {x y : BigNat} : x ≤ y ↔ x.toNat ≤ y.toNat := Iff.rfl
 
+/-! ## Greatest common divisor -/
+
+/-- Euclid's algorithm on words. -/
+def wordGcd (a b : UInt64) : UInt64 :=
+  if _h : b = 0 then a else wordGcd b (a % b)
+termination_by b.toNat
+decreasing_by
+  have : b.toNat ≠ 0 := fun h' => _h (UInt64.toNat_inj.1 (by simpa using h'))
+  rw [UInt64.toNat_mod]
+  exact Nat.mod_lt _ (by omega)
+
+private theorem toNat_wordGcd (a b : UInt64) : (wordGcd a b).toNat = Nat.gcd a.toNat b.toNat := by
+  induction a, b using wordGcd.induct with
+  | case1 a => rw [wordGcd]; simp
+  | case2 a b h ih =>
+    rw [wordGcd, dite_eq_right h, ih, UInt64.toNat_mod, Nat.gcd_comm a.toNat b.toNat,
+      Nat.gcd_rec b.toNat a.toNat, Nat.gcd_comm]
+
+/-- A matrix of determinant `±1` keeps the greatest common divisor. -/
+private theorem gcd_unimodular (a b : Nat) (A B C D : Int) (h : A * D - B * C = 1 ∨ A * D - B * C = -1) :
+    Nat.gcd (A * a + B * b).natAbs (C * a + D * b).natAbs = Nat.gcd a b := by
+  apply Nat.dvd_antisymm
+  · -- The gcd of the combinations divides `a` and `b`, which the inverse matrix recovers.
+    have hx : (Nat.gcd (A * a + B * b).natAbs (C * a + D * b).natAbs : Int) ∣ A * a + B * b :=
+      Int.ofNat_dvd_left.2 (Nat.gcd_dvd_left _ _)
+    have hy : (Nat.gcd (A * a + B * b).natAbs (C * a + D * b).natAbs : Int) ∣ C * a + D * b :=
+      Int.ofNat_dvd_left.2 (Nat.gcd_dvd_right _ _)
+    have ha : D * (A * a + B * b) - B * (C * a + D * b) = (A * D - B * C) * a := by grind
+    have hb : A * (C * a + D * b) - C * (A * a + B * b) = (A * D - B * C) * b := by grind
+    have hda := Int.dvd_sub (Int.dvd_trans hx (Int.dvd_mul_left D _))
+      (Int.dvd_trans hy (Int.dvd_mul_left B _))
+    have hdb := Int.dvd_sub (Int.dvd_trans hy (Int.dvd_mul_left A _))
+      (Int.dvd_trans hx (Int.dvd_mul_left C _))
+    rw [ha] at hda
+    rw [hb] at hdb
+    refine Nat.dvd_gcd ?_ ?_
+    · rcases h with h | h <;> rw [h] at hda <;> simp at hda <;> exact Int.natCast_dvd_natCast.1 hda
+    · rcases h with h | h <;> rw [h] at hdb <;> simp at hdb <;> exact Int.natCast_dvd_natCast.1 hdb
+  · have ga : (Nat.gcd a b : Int) ∣ (a : Int) := Int.natCast_dvd_natCast.2 (Nat.gcd_dvd_left a b)
+    have gb : (Nat.gcd a b : Int) ∣ (b : Int) := Int.natCast_dvd_natCast.2 (Nat.gcd_dvd_right a b)
+    refine Nat.dvd_gcd ?_ ?_
+    · exact Int.ofNat_dvd_left.1 (Int.dvd_add (Int.dvd_trans ga (Int.dvd_mul_left A _))
+        (Int.dvd_trans gb (Int.dvd_mul_left B _)))
+    · exact Int.ofNat_dvd_left.1 (Int.dvd_add (Int.dvd_trans ga (Int.dvd_mul_left C _))
+        (Int.dvd_trans gb (Int.dvd_mul_left D _)))
+
+/--
+Euclid's algorithm on the leading words `x` and `y` of two numbers, with the cofactors `A`, `B`,
+`C`, `D` of the steps so far, as in Knuth's Algorithm L: a step is taken only while the quotients
+of `x + A` by `y + C` and of `x + B` by `y + D` agree, which makes it a step of the full numbers.
+It computes in `Int64`, since `Int` boxes values from `2³¹`; nothing is proved about it, and `gcd`
+checks the determinant of the cofactors it returns.
+-/
+def lehmerSteps (x y A B C D : Int64) : Nat → Int64 × Int64 × Int64 × Int64
+  | 0 => (A, B, C, D)
+  | f + 1 =>
+    if y + C = 0 ∨ y + D = 0 then (A, B, C, D)
+    else
+      let q := (x + A) / (y + C)
+      if q ≠ (x + B) / (y + D) then (A, B, C, D)
+      else lehmerSteps y (x - q * y) C D (A - q * C) (B - q * D) f
+
+/-- `|A x + B y|`, from the signs of `A` and `B`. -/
+def absComb (A B : Int) (x y : BigNat) : BigNat :=
+  if (0 ≤ A ∧ 0 ≤ B) ∨ (A ≤ 0 ∧ B ≤ 0) then ofNat A.natAbs * x + ofNat B.natAbs * y
+  else if blt (ofNat A.natAbs * x) (ofNat B.natAbs * y) then
+    ofNat B.natAbs * y - ofNat A.natAbs * x
+  else
+    ofNat A.natAbs * x - ofNat B.natAbs * y
+
+/-- `A X` is `±(|A| X)` according to the sign of `A`. -/
+private theorem mul_eq_natAbs_mul (A : Int) (X : Nat) :
+    (0 ≤ A → A * X = ((A.natAbs * X : Nat) : Int)) ∧
+      (A ≤ 0 → A * X = -((A.natAbs * X : Nat) : Int)) := by
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · push_cast
+    rw [Int.natAbs_of_nonneg h]
+  · push_cast
+    rw [Int.ofNat_natAbs_of_nonpos h, Int.neg_mul, Int.neg_neg]
+
+private theorem toNat_absComb (A B : Int) (x y : BigNat) :
+    (absComb A B x y).toNat = (A * x.toNat + B * y.toNat).natAbs := by
+  obtain ⟨hA₁, hA₂⟩ := mul_eq_natAbs_mul A x.toNat
+  obtain ⟨hB₁, hB₂⟩ := mul_eq_natAbs_mul B y.toNat
+  have hp : (ofNat A.natAbs * x).toNat = A.natAbs * x.toNat := by
+    rw [toNat_hMul, toNat_ofNat]
+  have hq : (ofNat B.natAbs * y).toNat = B.natAbs * y.toNat := by
+    rw [toNat_hMul, toNat_ofNat]
+  unfold absComb
+  generalize A.natAbs * x.toNat = P at *
+  generalize B.natAbs * y.toNat = Q at *
+  split
+  · rename_i h
+    rw [toNat_hAdd, hp, hq]
+    rcases h with ⟨h₁, h₂⟩ | ⟨h₁, h₂⟩
+    · rw [hA₁ h₁, hB₁ h₂]; omega
+    · rw [hA₂ h₁, hB₂ h₂]; omega
+  · rename_i h
+    split
+    · rename_i hpq
+      rw [blt_iff, hp, hq] at hpq
+      rw [toNat_hSub, hp, hq]
+      by_cases hA : 0 ≤ A
+      · have hB : B ≤ 0 := by omega
+        rw [hA₁ hA, hB₂ hB]; omega
+      · have hB : 0 ≤ B := by omega
+        rw [hA₂ (by omega), hB₁ hB]; omega
+    · rename_i hpq
+      rw [blt_iff, hp, hq] at hpq
+      rw [toNat_hSub, hp, hq]
+      by_cases hA : 0 ≤ A
+      · have hB : B ≤ 0 := by omega
+        rw [hA₁ hA, hB₂ hB]; omega
+      · have hB : 0 ≤ B := by omega
+        rw [hA₂ (by omega), hB₁ hB]; omega
+
+/--
+The leading 62 bits of `a`, normalized so that its top bit is set, and the bits of `b` at the same
+positions, as the words of Lehmer's algorithm. Their values only affect its speed: every step on
+the full numbers is checked.
+-/
+def leadWords (a b : UInt32Array) : Int64 × Int64 :=
+  let n := a.size
+  let c := (31 - (a.getD (n - 1) 0).log2).toUInt64
+  let lead (t₂ t₁ t₀ : UInt32) : Int64 :=
+    let w := (((t₂.toUInt64 <<< 32) ||| t₁.toUInt64) <<< c) ||| (t₀.toUInt64 >>> (32 - c))
+    (w >>> 2).toInt64
+  (lead (a.getD (n - 1) 0) (a.getD (n - 2) 0) (a.getD (n - 3) 0),
+    lead (b.getD (n - 1) 0) (b.getD (n - 2) 0) (b.getD (n - 3) 0))
+
+/--
+The greatest common divisor, by Lehmer's algorithm: the cofactors of Euclid's steps on the leading
+words, from `lehmerSteps`, are applied to the full numbers at once with `absComb`, which keeps the
+greatest common divisor since their matrix has determinant `±1`; when that does not make the second
+number smaller, one step of Euclid's algorithm is taken instead. On words when both are small.
+-/
+public def gcd (x y : BigNat) : BigNat :=
+  match x, y with
+  | small a, small b => small (wordGcd a b)
+  | x, y =>
+    if _h : y = small 0 then x
+    else if blt x y then gcd y (mod x y)
+    else
+      let w := leadWords x.limbs y.limbs
+      let m := lehmerSteps w.1 w.2 1 0 0 1 100
+      let A := m.1.toInt
+      let B := m.2.1.toInt
+      let C := m.2.2.1.toInt
+      let D := m.2.2.2.toInt
+      if B = 0 ∨ ¬(A * D - B * C = 1 ∨ A * D - B * C = -1) then gcd y (mod x y)
+      else if _hy : blt (absComb C D x y) y then gcd (absComb A B x y) (absComb C D x y)
+      else gcd y (mod x y)
+termination_by y.toNat
+decreasing_by
+  all_goals first
+    | (rw [blt_iff] at _hy; exact _hy)
+    | (have : y.toNat ≠ 0 := fun h' => _h (toNat_inj.1 (by rw [h']; rfl))
+       rw [toNat_mod]
+       exact Nat.mod_lt _ (by omega))
+
+/-- One step of Euclid's algorithm keeps the greatest common divisor. -/
+private theorem gcd_mod_step (x y : BigNat) :
+    Nat.gcd y.toNat (mod x y).toNat = Nat.gcd x.toNat y.toNat := by
+  rw [toNat_mod, Nat.gcd_comm x.toNat y.toNat, Nat.gcd_rec y.toNat x.toNat, Nat.gcd_comm]
+
+@[simp] public theorem toNat_gcd (x y : BigNat) : (gcd x y).toNat = Nat.gcd x.toNat y.toNat := by
+  induction x, y using gcd.induct with
+  | case1 a b => rw [gcd]; exact toNat_wordGcd a b
+  | case2 x hxy =>
+    rw [gcd]
+    · simp only [↓reduceDIte, toNat_small, UInt64.toNat_zero, Nat.gcd_zero_right]
+    · exact hxy
+  | case3 x y hxy h hlt ih =>
+    rw [gcd]
+    · rw [dite_eq_right h, ite_eq_left hlt, ih, gcd_mod_step]
+    · exact hxy
+  | case4 x y hxy h hlt w m A B C D hB ih =>
+    rw [gcd]
+    · rw [dite_eq_right h, ite_eq_right hlt]
+      dsimp only
+      rw [ite_eq_left hB, ih, gcd_mod_step]
+    · exact hxy
+  | case5 x y hxy h hlt w m A B C D hB hy ih =>
+    rw [gcd]
+    · rw [dite_eq_right h, ite_eq_right hlt]
+      dsimp only
+      have hdet := Decidable.not_not.1 (not_or.1 hB).2
+      rw [ite_eq_right hB, dite_eq_left hy, ih, toNat_absComb, toNat_absComb,
+        gcd_unimodular _ _ _ _ _ _ hdet]
+    · exact hxy
+  | case6 x y hxy h hlt w m A B C D hB hy ih =>
+    rw [gcd]
+    · rw [dite_eq_right h, ite_eq_right hlt]
+      dsimp only
+      rw [ite_eq_right hB, dite_eq_right hy, ih, gcd_mod_step]
+    · exact hxy
+
+/-- The least common multiple, `x / gcd x y * y`, and `0` when either is `0`. -/
+public def lcm (x y : BigNat) : BigNat :=
+  if gcd x y = small 0 then small 0 else div x (gcd x y) * y
+
+@[simp] public theorem toNat_lcm (x y : BigNat) : (lcm x y).toNat = Nat.lcm x.toNat y.toNat := by
+  unfold lcm
+  split
+  · rename_i h
+    have h' := congrArg toNat h
+    rw [toNat_gcd, toNat_small, UInt64.toNat_zero, Nat.gcd_eq_zero_iff] at h'
+    rw [toNat_small, UInt64.toNat_zero, h'.1, Nat.lcm_zero_left]
+  · show (mul (div x (gcd x y)) y).toNat = _
+    rw [toNat_mul, toNat_div, toNat_gcd, Nat.lcm, Nat.div_mul_right_comm (Nat.gcd_dvd_left _ _)]
+
 end BigNat
 
 end Bignum

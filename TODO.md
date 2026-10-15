@@ -56,7 +56,11 @@ usually stops at the first limb.
   - [ ] bitwise `&&&`, `|||`, `^^^`;
   - [ ] `log2`;
   - [ ] `pow`, by repeated squaring with `sqr`;
-  - [ ] `gcd`;
+  - [x] `gcd` and `lcm` (`BigNat`): Lehmer's algorithm with single-word cofactors, checked by
+    their determinant, and Euclid on words; faster than `Nat` on words, 13–18× behind GMP from 3
+    limbs. A fused limb primitive applying the cofactor matrix in one pass (GMP's
+    `mpn_hgcd_mul_matrix1_vector`) would remove most of the allocations of a step, and
+    double-word leading digits (`hgcd2`) would double the progress per step.
   - [ ] integer square root;
   - [ ] `toString`/`ofString`, like GMP's `mpn_get_str`/`mpn_set_str`, by dividing by `10⁹`
     with `divRem1`.

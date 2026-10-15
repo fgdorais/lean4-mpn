@@ -283,9 +283,17 @@ def bigNatValues : List Nat :=
     (x / y).toNat == a / b && (x % y).toNat == a % b &&
     decide (x < y) == decide (a < b) && decide (x ≤ y) == decide (a ≤ b) &&
     decide (x = y) == decide (a = b) && (x == y || hash x != hash y || a != b) &&
-    (x.toNat == a && toString x == toString a)
+    (x.toNat == a && toString x == toString a) &&
+    (BigNat.gcd x y).toNat == Nat.gcd a b && (BigNat.lcm x y).toNat == Nat.lcm a b
 
 -- Literals and the representation.
 #guard ((12345678901234567890123 : BigNat) * 1000).toNat == 12345678901234567890123000
 #guard (BigNat.ofNat (2 ^ 64 - 1) + 1).toNat == 2 ^ 64
 #guard (BigNat.ofNat (2 ^ 64) - 1).toNat == 2 ^ 64 - 1
+
+-- `gcd` with large common factors.
+#guard [1, 5, 40].all fun k =>
+  let g := sample1 (32 * k) 71
+  let a := g * sample1 300 73
+  let b := g * sample1 250 79
+  (BigNat.gcd (BigNat.ofNat a) (BigNat.ofNat b)).toNat == Nat.gcd a b
