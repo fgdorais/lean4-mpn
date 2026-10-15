@@ -56,6 +56,7 @@ def time {α β : Type} (f : α → α → β) (check : β → UInt32) (a b : α
 def checkArr (r : UInt32Array) : UInt32 := r.size.toUInt32 + r[0]!
 def checkPair (r : UInt32Array × UInt32Array) : UInt32 := checkArr r.1 + checkArr r.2
 def checkNat (n : Nat) : UInt32 := n.toUInt32
+def checkBig (n : BigNat) : UInt32 := (hash n).toUInt32
 def checkNatPair (r : Nat × Nat) : UInt32 := r.1.toUInt32 + r.2.toUInt32
 
 /-- `x` with `w` characters, padded on the left. -/
@@ -114,6 +115,18 @@ def main (args : List String) : IO Unit := do
       | "mul1" =>
         row noNat op n (time (fun x _ => mul1 x 7) (fun p => checkArr p.1) a a)
           (time (fun x _ => x * 7) checkNat na na)
+      | "badd" =>
+        let (x, y) := (BigNat.ofNat na, BigNat.ofNat nb)
+        row noNat op n (time (· + ·) checkBig x y) (time (· + ·) checkNat na nb)
+      | "bsub" =>
+        let (x, y) := (BigNat.ofNat ns, BigNat.ofNat nb)
+        row noNat op n (time (· - ·) checkBig x y) (time (· - ·) checkNat ns nb)
+      | "bmul" =>
+        let (x, y) := (BigNat.ofNat na, BigNat.ofNat nb)
+        row noNat op n (time (· * ·) checkBig x y) (time (· * ·) checkNat na nb)
+      | "bdiv" =>
+        let (x, y) := (BigNat.ofNat na2, BigNat.ofNat nb)
+        row noNat op n (time (· / ·) checkBig x y) (time (· / ·) checkNat na2 nb)
       | "sqr" =>
         row noNat op n (time (fun x _ => sqr x) checkArr a a)
           (time (fun x _ => x * x) checkNat na na)

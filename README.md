@@ -8,6 +8,10 @@ and splits very unbalanced products into nearly balanced ones; squaring uses sch
 Karatsuba or Toom-3. Division is Knuth's Algorithm D, and divide-and-conquer (Burnikel–Ziegler)
 for large divisors.
 
+`Bignum.BigNat` packages this as a `Nat`-like type, with a fast path on machine words below `2⁶⁴`
+and the usual instances (`+ - * / %`, comparisons, `DecidableEq`, `Hashable`, literals): every
+operation is proved to agree with `Nat` through `BigNat.toNat`, which is a bijection.
+
 ## Tuning
 
 Multiplication and squaring switch algorithms at size thresholds collected in `Bignum.Config`. The

@@ -270,3 +270,22 @@ def dcCheck (x y : Nat) : Bool :=
     dcCheck (sample1 (32 * (n + k)) 47) (sample1 (32 * n) 53) &&
       dcCheck (2 ^ (32 * (n + k)) - 1) (2 ^ (32 * n) - 1) &&
       dcCheck (2 ^ (32 * (n + k)) - 1) (2 ^ (32 * n - 1) + 1)
+
+-- `BigNat` against `Nat`, at and around the boundary between words and limbs.
+def bigNatValues : List Nat :=
+  [0, 1, 2, 7, 2 ^ 32 - 1, 2 ^ 32, 2 ^ 32 + 1, 2 ^ 63, 2 ^ 64 - 2, 2 ^ 64 - 1, 2 ^ 64, 2 ^ 64 + 1,
+    2 ^ 96 - 1, 2 ^ 96, sample1 200 61, sample1 1000 67, 3 ^ 200]
+
+#guard bigNatValues.all fun a => bigNatValues.all fun b =>
+  let x := BigNat.ofNat a
+  let y := BigNat.ofNat b
+  (x + y).toNat == a + b && (x - y).toNat == a - b && (x * y).toNat == a * b &&
+    (x / y).toNat == a / b && (x % y).toNat == a % b &&
+    decide (x < y) == decide (a < b) && decide (x ≤ y) == decide (a ≤ b) &&
+    decide (x = y) == decide (a = b) && (x == y || hash x != hash y || a != b) &&
+    (x.toNat == a && toString x == toString a)
+
+-- Literals and the representation.
+#guard ((12345678901234567890123 : BigNat) * 1000).toNat == 12345678901234567890123000
+#guard (BigNat.ofNat (2 ^ 64 - 1) + 1).toNat == 2 ^ 64
+#guard (BigNat.ofNat (2 ^ 64) - 1).toNat == 2 ^ 64 - 1

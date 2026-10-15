@@ -63,12 +63,15 @@ usually stops at the first limb.
 
 ## API
 
-- [ ] **A `Nat`-like type:** trimmed arrays with the invariant built in, and instances for `Add`,
-  `Sub`, `Mul`, `Div`, `Mod`, `BEq`, `Ord`, `Hashable` and `ToString`. Prove that it is
-  isomorphic to `Nat` (`ofNat_toNat` and `toNat_ofNat` already hold) and transport the
-  operations.
-- [ ] **Truncated subtraction** `sub` on that type (`a - b = 0` when `a < b`), from `lt` and
-  `subLimbs`.
+- [x] **A `Nat`-like type:** `BigNat`, a word below `2⁶⁴` and trimmed limbs above, with the
+  instances, truncated subtraction and the bijection with `Nat`. About 15 ns per operation on
+  words, against 9–10 ns for `Nat`, whose small values need no allocation.
+- [ ] **The fixed cost of small divisions:** 400 ns to 1 µs for divisors of 2 to 16 limbs, against
+  50–160 ns for `Nat`: normalization, several arrays, and the remainder un-normalized even when
+  only the quotient is wanted. A quotient-only path and fewer arrays would help `BigNat.div`.
+- [ ] **Words near `2⁶⁴` in `BigNat`:** a sum or product that overflows goes through
+  `limbsOfWord` and the array functions (about 100 ns); a direct `64 × 64 → 128` product would
+  help `*`.
 - [ ] **Per-dependency thresholds.** Lake builds a dependency with that dependency's own
   options, so a downstream project can't tune this library's `Config`. The usual mechanism is
   `require … with …` configuration, which needs a `lakefile.lean`.
