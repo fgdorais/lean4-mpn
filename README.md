@@ -30,4 +30,5 @@ leanOptions = { weak.bignum.mul.karatsubaThreshold = 72, weak.bignum.mul.toom3Th
 and division against the same operations on `Nat`, which Lean implements with GMP, from 1 to 4096
 limbs; the `BigNat` operations are `badd`, `bsub`, `bmul`, `bdiv`, `bgcd`, `bshl`, `bshr`,
 `bsqrt`, `btostr` and `bofstr`. Arguments select operations and sizes: `lake exe bench mul div 64
-256` runs only those, and `--no-nat` skips `Nat`, which is useful under a profiler.
+256` runs only those, and `--no-nat` skips `Nat`, which is useful under a profiler. Current
+results, how to read them, and the history of performance changes are in [BENCH.md](BENCH.md).

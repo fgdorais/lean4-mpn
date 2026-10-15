@@ -53,7 +53,7 @@ def time {α β : Type} (f : α → α → β) (check : β → UInt32) (a b : α
     samples := samples.push ((t₁ - t₀).toFloat / reps.toFloat)
   return (samples.qsort (· < ·))[trials / 2]!
 
-def checkArr (r : UInt32Array) : UInt32 := r.size.toUInt32 + r[0]!
+def checkArr (r : UInt32Array) : UInt32 := r.size.toUInt32 + r.getD 0 0
 def checkPair (r : UInt32Array × UInt32Array) : UInt32 := checkArr r.1 + checkArr r.2
 def checkNat (n : Nat) : UInt32 := n.toUInt32
 /-- O(1), like `checkNat`: hashing the result would add a pass over its limbs to the time. -/
