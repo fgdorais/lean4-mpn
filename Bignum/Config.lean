@@ -32,11 +32,11 @@ namespace Bignum
 /-- The size thresholds, in limbs, at which the arithmetic switches algorithms. -/
 public structure Config where
   /-- The size of the shorter operand from which multiplication uses Karatsuba. -/
-  mulKaratsuba : Nat := 68
+  mulKaratsuba : Nat := 88
   /-- Karatsuba needs at least `4` limbs to make its products smaller. -/
   four_le_mulKaratsuba : 4 ≤ mulKaratsuba := by decide
   /-- The size of the shorter operand from which multiplication uses Toom-3 instead of Karatsuba. -/
-  mulToom3 : Nat := 512
+  mulToom3 : Nat := 576
   /-- Toom-3 needs at least `12` limbs to make its products smaller. -/
   twelve_le_mulToom3 : 12 ≤ mulToom3 := by decide
   /--
@@ -44,11 +44,11 @@ public structure Config where
   least twice as long, instead of using schoolbook. It only matters above `mulKaratsuba`, since the
   split pays off through Karatsuba on its pieces.
   -/
-  mulUnbalanced : Nat := 160
+  mulUnbalanced : Nat := 144
   /-- The size from which squaring uses the schoolbook square instead of multiplying. -/
-  sqrBasecase : Nat := 62
+  sqrBasecase : Nat := 48
   /-- The size from which squaring uses Karatsuba. -/
-  sqrKaratsuba : Nat := 272
+  sqrKaratsuba : Nat := 220
   /-- Karatsuba needs at least `4` limbs to make its squares smaller. -/
   four_le_sqrKaratsuba : 4 ≤ sqrKaratsuba := by decide
   deriving Repr

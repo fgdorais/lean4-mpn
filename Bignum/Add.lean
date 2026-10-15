@@ -106,123 +106,59 @@ public theorem toNat_addAt_of_lt (r : UInt32Array) (off : Nat) (a : UInt32Array.
 
 /-! ## The compiled loop
 
-`addAtFast` runs `addAt`'s loop with `USize` indices, and `@[csimp]` makes the compiler use it, as
-for `addMul1Fast`.
+`addAtFast` adds the limbs of `a` with `foldInPlace`, as `addMul1Fast` does, then propagates the
+carry with `addAt`'s own loop, which stops as soon as the carry is gone. `@[csimp]` makes the
+compiler use it in place of `addAt`.
 -/
 
-/--
-`addAtLoop` with `USize` indices: limb `j` of the addend is at `offA + j` in `arr` when `j < na`,
-and the loop runs while `j < m`, where `m` is the number of limbs of `r` from `offR` on.
--/
-def addAtLoopU (r arr : UInt32Array) (offR offA na m : USize) (j : USize) (c : Bool)
-    (hm : offR.toNat + m.toNat = r.size) (ha : offA.toNat + na.toNat ≤ arr.size)
-    (hrs : r.size < USize.size) (has : arr.size < USize.size) : UInt32Array × Bool :=
-  if hj : j < m then
-    if na ≤ j ∧ c = false then
-      (r, false)
-    else
-      have := USize.lt_iff_toNat_lt.1 hj
-      have hir : (offR + j).toNat < r.size := by rw [toNat_add_usize (by omega)]; omega
-      let y := if hy : j < na then
-          arr.uget (offA + j) (by
-            have := USize.lt_iff_toNat_lt.1 hy
-            rw [toNat_add_usize (by omega)]; omega)
-        else 0
-      let p := (r.uget (offR + j) hir).addWithCarry y c
-      addAtLoopU (r.uset (offR + j) p.1 hir) arr offR offA na m (j + 1) p.2 (by simpa using hm)
-        ha (by simpa using hrs) has
-  else
-    (r, c)
-termination_by m.toNat - j.toNat
-decreasing_by
-  rw [toNat_add_usize (by rw [USize.toNat_one]; omega), USize.toNat_one]
-  omega
-
-private theorem addAtLoopU_eq (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (j : Nat)
-    (c : Bool) (hrs : r.size < USize.size) (has : a.array.size < USize.size)
-    (ha' : off + a.size ≤ r.size) (hj : off + j ≤ r.size) (m : USize)
-    (hmr : m.toNat = r.size - off) (hm ha) :
-    addAtLoopU r a.array off.toUSize a.start.toUSize a.size.toUSize m j.toUSize c hm ha hrs has =
-      addAtLoop r off a j c := by
-  have hstop := a.stop_le_array_size
-  have hstart := a.start_le_stop
-  have hsize := a.size_eq
-  have hoff : off < USize.size := by omega
-  have hst : a.start < USize.size := by omega
-  have hn : a.size < USize.size := by omega
-  induction r, j, c using addAtLoop.induct off a with
-  | case1 r j c h hstop' =>
-    have hrm : r.size - off < USize.size := by omega
-    rw [addAtLoopU, addAtLoop]
-    have hlt : j.toUSize < m := by
-      rw [USize.lt_iff_toNat_lt, toNat_toUSize (by omega), hmr]
-      omega
-    have hle : a.size.toUSize ≤ j.toUSize := by
-      rw [USize.le_iff_toNat_le, toNat_toUSize hn, toNat_toUSize (by omega)]
-      exact hstop'.1
-    simp only [h, hlt, hstop', hle, ↓reduceDIte, ↓reduceIte, and_self]
-  | case2 r j c h hstop' p ih =>
-    have hrm : r.size - off < USize.size := by omega
-    rw [addAtLoopU, addAtLoop]
-    have hlt : j.toUSize < m := by
-      rw [USize.lt_iff_toNat_lt, toNat_toUSize (by omega), hmr]
-      omega
-    have hnot : ¬ (a.size.toUSize ≤ j.toUSize ∧ c = false) := by
-      rw [USize.le_iff_toNat_le, toNat_toUSize hn, toNat_toUSize (by omega)]
-      exact hstop'
-    simp only [h, hlt, hstop', hnot, ↓reduceDIte, ↓reduceIte]
-    have hjs : j.toUSize + 1 = (j + 1).toUSize := by
-      apply USize.toNat_inj.1
-      rw [toNat_add_usize (by rw [toNat_toUSize (by omega), USize.toNat_one]; omega),
-        toNat_toUSize (by omega), USize.toNat_one, toNat_toUSize (by omega)]
-    have hir : (off.toUSize + j.toUSize).toNat = off + j := by
-      rw [toNat_add_usize (by rw [toNat_toUSize hoff, toNat_toUSize (by omega)]; omega),
-        toNat_toUSize hoff, toNat_toUSize (by omega)]
-    -- The limb of the addend read with `USize` indices is `a.getD j 0`.
-    have hy : (if hy : j.toUSize < a.size.toUSize then
-        a.array.uget (a.start.toUSize + j.toUSize) (by
-          have := USize.lt_iff_toNat_lt.1 hy
-          rw [toNat_add_usize (by omega)]; omega)
-      else 0) = a.getD j 0 := by
-      by_cases hja : j < a.size
-      · have hy : j.toUSize < a.size.toUSize := by
-          rw [USize.lt_iff_toNat_lt, toNat_toUSize (by omega), toNat_toUSize hn]
-          exact hja
-        have hia : (a.start.toUSize + j.toUSize).toNat = a.start + j := by
-          rw [toNat_add_usize (by rw [toNat_toUSize hst, toNat_toUSize (by omega)]; omega),
-            toNat_toUSize hst, toNat_toUSize (by omega)]
-        simp only [hy, ↓reduceDIte, UInt32Array.Slice.getD_eq, hja]
-        rw [uget_eq_getElem a.array _ (a.start + j) hia]
-        rfl
-      · have hy : ¬ j.toUSize < a.size.toUSize := by
-          rw [USize.lt_iff_toNat_lt, toNat_toUSize (by omega), toNat_toUSize hn]
-          exact hja
-        simp only [hy, ↓reduceDIte, UInt32Array.Slice.getD_eq, hja]
-    have ih' := ih (by simpa using hrs) (by simpa using ha') (by simp; omega) (by simp [hmr])
-    rw [← hjs] at ih'
-    simp only [p, ← hir] at ih'
-    simp only [hy, uget_eq_getElem r _ (off + j) hir]
-    simp only [← hir]
-    exact ih' (by simp only [UInt32Array.size_set, toNat_toUSize hoff, hmr]; omega)
-  | case3 r j c h =>
-    have hrm : r.size - off < USize.size := by omega
-    rw [addAtLoopU, addAtLoop]
-    have hlt : ¬ j.toUSize < m := by
-      rw [USize.lt_iff_toNat_lt, toNat_toUSize (by omega), hmr]
-      omega
-    simp only [h, hlt, ↓reduceDIte]
-
-/-- `addAt` with `USize` indices, which the compiler uses in its place. -/
+/-- `addAt` with `foldInPlace` over the limbs of `a`, which the compiler uses in its place. -/
 public def addAtFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) : UInt32Array × Bool :=
   if hs : r.size < USize.size ∧ a.array.size < USize.size ∧ off + a.size ≤ r.size then
-    have := a.stop_le_array_size
-    have := a.start_le_stop
-    have := a.size_eq
-    addAtLoopU r a.array off.toUSize a.start.toUSize a.size.toUSize (r.size - off).toUSize 0 false
-      (by rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]; omega)
-      (by rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]; omega) hs.1 hs.2.1
+    let p := r.foldInPlace off.toUSize a.size.toUSize false
+      (fun k hk y c => y.addWithCarry (limbU a hs.2.1 k hk) c)
+      (by
+        have := a.stop_le_array_size
+        have := a.start_le_stop
+        have := a.size_eq
+        rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]
+        exact hs.2.2)
+    addAtLoop p.1 off a a.size p.2
   else
     addAtLoop r off a 0 false
+
+/-- The fold of `addAtFast` from limb `j` on, then the carry, is `addAtLoop` from limb `j` on. -/
+private theorem foldInPlace_loop_addAt (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
+    (has : a.array.size < USize.size) (s n : Nat) (hs : s = off) (hn : n = a.size) (j : Nat)
+    (c : Bool) (ha : off + a.size ≤ r.size) (hj : j ≤ a.size) (h' hlen) :
+    addAtLoop (UInt32Array.foldInPlace.loop a.size.toUSize
+          (fun k hk y c => y.addWithCarry (limbU a has k hk) c) s n r h' hlen j c).1 off a a.size
+        (UInt32Array.foldInPlace.loop a.size.toUSize
+          (fun k hk y c => y.addWithCarry (limbU a has k hk) c) s n r h' hlen j c).2 =
+      addAtLoop r off a j c := by
+  subst s n
+  induction r, j, c using addAtLoop.induct off a with
+  | case1 r j c h hstop =>
+    have : j = a.size := by omega
+    subst this
+    rw [UInt32Array.foldInPlace.loop]
+    simp
+  | case2 r j c h hstop p ih =>
+    by_cases hja : j < a.size
+    · rw [UInt32Array.foldInPlace.loop]
+      conv => rhs; rw [addAtLoop]
+      simp only [hja, ↓reduceDIte, h, hstop, ↓reduceIte, limbU_eq a has j _ hja]
+      have hg : a.getD j 0 = a[j] := by simp [UInt32Array.Slice.getD_eq, hja]
+      simp only [p, hg] at ih ⊢
+      exact ih (by simpa using ha) (by omega) (by simpa using ha)
+    · have : j = a.size := by omega
+      subst this
+      rw [UInt32Array.foldInPlace.loop]
+      simp
+  | case3 r j c h =>
+    have : j = a.size := by omega
+    subst this
+    rw [UInt32Array.foldInPlace.loop]
+    simp
 
 @[csimp] public theorem addAt_eq_addAtFast : @addAt = @addAtFast := by
   funext r off a
@@ -232,8 +168,8 @@ public def addAtFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) : UIn
     have := a.stop_le_array_size
     have := a.start_le_stop
     have := a.size_eq
-    exact (addAtLoopU_eq r off a 0 false hs.1 hs.2.1 hs.2.2 (by omega) _
-      (toNat_toUSize (by omega)) _ _).symm
+    exact (foldInPlace_loop_addAt r off a hs.2.1 _ _ (toNat_toUSize (by omega))
+      (toNat_toUSize (by omega)) 0 false hs.2.2 (by omega) _ _).symm
   · rfl
 
 /-! ## Sums -/

@@ -179,6 +179,28 @@ public theorem uset_eq_set (a : UInt32Array) (i : USize) (k : Nat) (hk : i.toNat
   subst hk
   rfl
 
+/-- Limb `k` of `a`, read with `USize` indices, as the folds of the compiled loops do. -/
+@[inline] public def limbU (a : UInt32Array.Slice) (has : a.array.size < USize.size) (k : USize)
+    (hk : k.toNat < a.size.toUSize.toNat) : UInt32 :=
+  have := a.stop_le_array_size
+  have := a.start_le_stop
+  have := a.size_eq
+  a.array.uget (a.start.toUSize + k) (by
+    rw [toNat_toUSize (by omega)] at hk
+    rw [toNat_add_usize (by rw [toNat_toUSize (by omega)]; omega), toNat_toUSize (by omega)]
+    omega)
+
+public theorem limbU_eq (a : UInt32Array.Slice) (has : a.array.size < USize.size) (k : Nat)
+    (hk) (hk' : k < a.size) : limbU a has k.toUSize hk = a[k] := by
+  have := a.stop_le_array_size
+  have := a.start_le_stop
+  have := a.size_eq
+  have hidx : (a.start.toUSize + k.toUSize).toNat = a.start + k := by
+    rw [toNat_add_usize (by rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]; omega),
+      toNat_toUSize (by omega), toNat_toUSize (by omega)]
+  rw [limbU, uget_eq_getElem _ _ _ hidx]
+  rfl
+
 /-- `a` followed by `n` zero limbs, which has the same value. -/
 public def padZeros (a : UInt32Array) (n : Nat) : UInt32Array := a ++ .replicate n 0
 
