@@ -18,3 +18,7 @@ rev = "main"
 [[lean_exe]]
 name = "tune"
 root = "Tune"
+
+[[lean_exe]]
+name = "bench"
+root = "Bench"

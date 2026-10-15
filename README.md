@@ -16,3 +16,9 @@ prints the line to add to the `Bignum` library in `lakefile.toml`, for example:
 ```toml
 leanOptions = { weak.bignum.mul.karatsubaThreshold = 88, weak.bignum.mul.toom3Threshold = 576, weak.bignum.mul.unbalancedThreshold = 144, weak.bignum.sqr.basecaseThreshold = 48, weak.bignum.sqr.karatsubaThreshold = 220 }
 ```
+
+## Benchmark
+
+`lake exe bench` times addition, subtraction, multiplication by a limb, multiplication, squaring
+and division against the same operations on `Nat`, which Lean implements with GMP, from 1 to 4096
+limbs. `lake exe bench mul div` runs only the operations named.
