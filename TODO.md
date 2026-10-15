@@ -11,10 +11,6 @@ Time now goes mostly into the schoolbook product, by columns since `Mul.Comba` (
 few percent of a product from 64 limbs up. With 32-bit limbs, a product needs 4× as many limb
 products as GMP's, which is most of the gap above 64 limbs.
 
-- [ ] **Comba squaring:** the column sums of a square are twice the products `aᵢ aⱼ` with `i < j`,
-  plus `aᵢ²` on the even columns, half the products of `combaMul`. The schoolbook square
-  (`sqrAddDiag`, by rows) is used from 30 limbs; Comba would replace it and the leaves of
-  Karatsuba and Toom-3 squaring.
 - [ ] **What is left of the Karatsuba and Toom-3 allocations:** about 100 small objects and arrays
   per 256-limb product (slices, `replicate`, and the `++` in `karatsubaCombine`, which copies),
   a few percent; thresholds are 72 and 576 limbs, about GMP's in bits (its 64-bit limbs). The
@@ -42,7 +38,7 @@ the quotient estimate, which removed the add-backs (42% of quotient limbs at 256
 remainder of a normalized division shifted back instead of divided by a limb; `trim` without a
 closure (`popWhile`'s predicate was called through `lean_apply_1`); a quotient-only `div`;
 division by two limbs in one pass (`divRem2`); the schoolbook product by columns (Comba, 14–24%
-from 8 limbs up); both shifts in one
+from 8 limbs up) and the square (22–25% from 64 limbs up); both shifts in one
 pass with the slice folds of lean4-scalar-arrays#27 and #28; `push` inline upstream
 (lean4-scalar-arrays#24).
 
