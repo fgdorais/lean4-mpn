@@ -7,6 +7,7 @@ module
 public import Bignum.Div.Limb
 public import Bignum.Div.Basecase
 public import Bignum.Div.DC
+public import Bignum.Bits
 
 /-!
 # Division
@@ -84,28 +85,33 @@ public theorem toNat_lt_topSize (s : UInt32Array.Slice) : toNat s < 2 ^ (32 * to
 
 /-! ## Normalized division -/
 
-/-- A power of two that brings the top bit of `vt` to the top of the limb. Never zero. -/
-@[expose] public def normFactor (vt : UInt32) : UInt32 :=
-  let f := (1 : UInt32) <<< (31 - vt.log2)
-  if f = 0 then 1 else f
+/-- The shift that brings the top bit of `vt ≠ 0` to the top of the limb. -/
+@[expose] public def normShift (vt : UInt32) : Nat := (31 - vt.log2).toNat % 32
+
+/-- `2 ^ normShift vt`, the factor of the normalization. -/
+@[expose] public def normFactor (vt : UInt32) : UInt32 := (1 : UInt32) <<< (normShift vt).toUInt32
+
+public theorem toNat_normFactor (vt : UInt32) : (normFactor vt).toNat = 2 ^ normShift vt :=
+  toNat_pow_limb _ (Nat.mod_lt _ (by decide))
 
 public theorem normFactor_ne_zero (vt : UInt32) : normFactor vt ≠ 0 := by
-  simp only [normFactor]
-  split
-  · decide
-  · assumption
+  intro h
+  have := toNat_normFactor vt
+  rw [h, UInt32.toNat_zero] at this
+  exact absurd this.symm (Nat.ne_of_gt (Nat.two_pow_pos _))
 
 /--
 `u / v` and `u % v` for a divisor of at least two limbs with a nonzero top limb, untrimmed:
-`u` and `v` are normalized, divided with `divRemWith`, and the remainder divided back.
+`u` and `v` are normalized, divided with `divRemWith`, and the remainder shifted back.
 -/
 def divModLimbs (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) : UInt32Array × UInt32Array :=
-  let f := normFactor (v[v.size - 1]'(by omega))
+  let vt := v[v.size - 1]'(by omega)
+  let f := normFactor vt
   let vf := mulRow v f
   let v' := vf.toSlice.slice 0 (topSize vf)
   if h : 2 ≤ v'.size then
     let p := divRemWith config (mulRow u f) v' h
-    (p.1, (divRem1 p.2 f).1)
+    (p.1, shiftRight p.2 (normShift vt))
   else
     divRemWith config u v hn
 
@@ -151,11 +157,10 @@ private theorem divModLimbs_spec (u v : UInt32Array.Slice) (hn : 2 ≤ v.size)
   split
   · rename_i h
     -- Normalized: `u f = q (v f) + r'` with `r' < v f`, and `r' = r f + rem` with `rem < f`.
-    have hf := normFactor_ne_zero (v[v.size - 1]'(by omega))
     have hF : 0 < (normFactor (v[v.size - 1]'(by omega))).toNat := by
-      rcases Nat.eq_zero_or_pos (normFactor (v[v.size - 1]'(by omega))).toNat with h | h
-      · exact absurd (UInt32.toNat_inj.1 (by simpa using h)) hf
-      · exact h
+      rw [toNat_normFactor]; exact Nat.two_pow_pos _
+    simp only
+    rw [← toNat_toSlice (shiftRight _ _), toNat_shiftRight, ← toNat_normFactor]
     generalize normFactor (v[v.size - 1]'(by omega)) = f at *
     have hv' : toNat ((mulRow v f).toSlice.slice 0 (topSize (mulRow v f))) = toNat v * f.toNat := by
       rw [toNat_slice_topSize, toNat_mulRow]
@@ -163,18 +168,15 @@ private theorem divModLimbs_spec (u v : UInt32Array.Slice) (hn : 2 ≤ v.size)
       simp only [UInt32Array.Slice.size_slice] at h
       omega
     obtain ⟨h₁, h₂⟩ := divRemWith_spec config (mulRow u f) _ h (top_slice_topSize_ne_zero _ hpos)
-    obtain ⟨h₃, h₄⟩ := divRem1_spec (divRemWith config (mulRow u f)
-      ((mulRow v f).toSlice.slice 0 (topSize (mulRow v f))) h).2 f hf
     rw [hv', toNat_mulRow] at h₁
     rw [hv'] at h₂
-    simp only [toNat_toSlice] at h₁ h₂ h₃ h₄ ⊢
+    simp only [toNat_toSlice] at h₁ h₂ ⊢
     obtain ⟨hq, hr⟩ := div_mod_eq (Nat.mul_pos hVpos hF) h₁ h₂
     rw [Nat.mul_div_mul_right _ _ hF] at hq
     rw [Nat.mul_mod_mul_right] at hr
+    -- The remainder is `(u % v) f`, and the shift divides it by `f`.
     refine ⟨hq, ?_⟩
-    rw [hr] at h₃
-    obtain ⟨hr', _⟩ := div_mod_eq hF h₃ h₄
-    rw [hr', Nat.mul_div_cancel _ hF]
+    rw [hr, Nat.mul_div_cancel _ hF]
   · -- The fallback, without normalization.
     obtain ⟨h₁, h₂⟩ := divRemWith_spec config u v hn hvt
     simp only [toNat_toSlice] at h₁ h₂

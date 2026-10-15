@@ -18,11 +18,14 @@ product); callgrind shows that allocations are a few percent of a product from 6
   a few percent; thresholds are 72 and 488 limbs, against about 30 and 100 for 64-bit GMP. The
   arrays are needed results; the `++` copies are about `2 n` limbs per node. A verified
   `mulInto r off a b` with one scratch area, in GMP's style, would remove them.
-- [ ] **`divRem1` by a precomputed reciprocal** (GMP's `udiv_qrnnd_preinv`, Möller–Granlund):
-  the hardware division is all of its time, about 3.3 ns per limb, 2× behind `Nat` at large
-  sizes; a `USize` twin of the loop was tried and changes nothing. It is behind division by one
-  limb, the un-normalization of every remainder, Toom-3's exact divisions and, later,
-  `toString`.
+- [ ] **A shorter dependency chain in `divRem1`** (GMP's `mpn_div_qr_1n_pi1`): the loop is
+  bound by the latency of one step, about 15 cycles (3.3 ns per limb on Zen 3), since each step
+  needs the previous remainder; the rest of the loop (1.4 ns per limb) runs in parallel. A
+  precomputed reciprocal (Möller–Granlund's `udiv_qrnnd_preinv`) was prototyped and is 3% *slower*
+  there, because Zen 3's divider is fast; it would pay on CPUs with slow 64-bit division (Intel
+  before Ice Lake). `div_qr_1n_pi1` keeps a partly reduced two-limb remainder and takes the
+  quotient off the chain, about one multiply-add per step. `divRem1` is behind division by one
+  limb, Toom-3's exact divisions and `toString`.
 - [ ] **`toNat` (the conversion to `Nat`)** is `ofLimbs`, which builds the literal `2³²` from a
   string at each limb and multiplies a growing `Nat` each time; a compiled twin (by halves, or
   from GMP's limbs once `Nat` is replaced) would make conversions much cheaper.
@@ -35,7 +38,8 @@ Done this round: word carries and hoisted slice fields in the folds; in-place Al
 pairs; `toom3Sqr`; guards of the compiled loops against a literal below `2³²` instead of
 `USize.size` (11–15% on small products); the schoolbook square in one final pass
 (`sqrAddDiag`) without row slices, faster than multiplying from 16 limbs; Knuth's correction of
-the quotient estimate, which removed the add-backs (42% of quotient limbs at 256 limbs).
+the quotient estimate, which removed the add-backs (42% of quotient limbs at 256 limbs); the
+remainder of a normalized division shifted back instead of divided by a limb.
 
 Tried without gain: passing `subMul1`'s borrow to the end of the step through `foldInPlaceThen`
 (the step still returns a pair, and the compiler already reused the memory of `subMul1`'s);

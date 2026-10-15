@@ -32,7 +32,7 @@ public theorem toNat_slice_from (a : UInt32Array.Slice) (k : Nat) (hk : k ≤ a.
   rw [← h, Nat.mul_comm (2 ^ _), Nat.add_mul_div_right _ _ (Nat.two_pow_pos _),
     Nat.div_eq_of_lt hlt, Nat.zero_add]
 
-private theorem toNat_pow_limb (s : Nat) (hs : s < 32) :
+public theorem toNat_pow_limb (s : Nat) (hs : s < 32) :
     ((1 : UInt32) <<< s.toUInt32).toNat = 2 ^ s := by
   rw [UInt32.toNat_shiftLeft]
   simp only [UInt32.toNat_one, Nat.toUInt32, UInt32.toNat_ofNat', Nat.one_shiftLeft]
