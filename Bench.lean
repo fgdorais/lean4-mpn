@@ -57,6 +57,7 @@ def checkArr (r : UInt32Array) : UInt32 := r.size.toUInt32 + r[0]!
 def checkPair (r : UInt32Array × UInt32Array) : UInt32 := checkArr r.1 + checkArr r.2
 def checkNat (n : Nat) : UInt32 := n.toUInt32
 def checkBig (n : BigNat) : UInt32 := (hash n).toUInt32
+def checkStr (s : String) : UInt32 := s.utf8ByteSize.toUInt32
 def checkNatPair (r : Nat × Nat) : UInt32 := r.1.toUInt32 + r.2.toUInt32
 
 /-- `x` with `w` characters, padded on the left. -/
@@ -142,6 +143,14 @@ def main (args : List String) : IO Unit := do
         let x := BigNat.ofNat na2
         row noNat op n (time (fun x _ => BigNat.sqrt x) checkBig x x)
           (time (fun x _ => Nat.sqrt x) checkNat na2 na2)
+      | "btostr" =>
+        let x := BigNat.ofNat na
+        row noNat op n (time (fun (x : BigNat) _ => toString x) checkStr x x)
+          (time (fun (x : Nat) _ => toString x) checkStr na na)
+      | "bofstr" =>
+        let t := toString na
+        row noNat op n (time (fun t _ => BigNat.ofString? t) (fun r => checkBig r.get!) t t)
+          (time (fun t _ => t.toNat?) (fun r => checkNat r.get!) t t)
       | "sqr" =>
         row noNat op n (time (fun x _ => sqr x) checkArr a a)
           (time (fun x _ => x * x) checkNat na na)

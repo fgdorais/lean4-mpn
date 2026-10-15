@@ -9,8 +9,10 @@ Karatsuba or Toom-3. Division is Knuth's Algorithm D, and divide-and-conquer (Bu
 for large divisors.
 
 `Bignum.BigNat` packages this as a `Nat`-like type, with a fast path on machine words below `2⁶⁴`
-and the usual instances (`+ - * / %`, comparisons, `DecidableEq`, `Hashable`, literals): every
-operation is proved to agree with `Nat` through `BigNat.toNat`, which is a bijection.
+and the usual instances (`+ - * / %`, comparisons, `DecidableEq`, `Hashable`, literals, shifts,
+bitwise operations, `^`, `ToString`, `Repr`), as well as `gcd`, `lcm`, `log2`, `sqrt` and
+`ofString?`: every operation is proved to agree with `Nat` through `BigNat.toNat`, which is a
+bijection, and `toString` and `ofString?` with `Nat.repr` and `String.toNat?`.
 
 ## Tuning
 
@@ -26,5 +28,6 @@ leanOptions = { weak.bignum.mul.karatsubaThreshold = 72, weak.bignum.mul.toom3Th
 
 `lake exe bench` times addition, subtraction, multiplication by a limb, multiplication, squaring
 and division against the same operations on `Nat`, which Lean implements with GMP, from 1 to 4096
-limbs. Arguments select operations and sizes: `lake exe bench mul div 64 256` runs only those,
+limbs; the `BigNat` operations are `badd`, `bsub`, `bmul`, `bdiv`, `bgcd`, `bshl`, `bshr`,
+`bsqrt`, `btostr` and `bofstr`. Arguments select operations and sizes: `lake exe bench mul div 64 256` runs only those,
 and `--no-nat` skips `Nat`, which is useful under a profiler.

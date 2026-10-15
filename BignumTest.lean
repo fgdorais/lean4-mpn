@@ -311,3 +311,17 @@ def bigNatValues : List Nat :=
 
 #guard [2 ^ 128 - 1, 2 ^ 128, 10 ^ 50, sample1 3000 83].all fun a =>
   (BigNat.sqrt (BigNat.ofNat a)).toNat == Nat.sqrt a
+
+-- Decimal strings: chunk boundaries, inner zero chunks, and what `String.toNat?` accepts.
+def decimalValues : List Nat :=
+  bigNatValues ++ [10 ^ 9 - 1, 10 ^ 9, 10 ^ 18, 10 ^ 27 * 7, 10 ^ 30 + 5, 10 ^ 45 - 1,
+    2 ^ 64 * 10 ^ 9, sample1 3000 89]
+
+#guard decimalValues.all fun a =>
+  let x := BigNat.ofNat a
+  toString x == toString a && reprStr x == reprStr a &&
+    (BigNat.ofString? (toString a)).map BigNat.toNat == some a
+
+#guard ["", "_", "_1", "1_", "1__0", "abc", "12a", "-1", " 1", "000", "007", "1_000",
+    "18446744073709551616", "18_446_744_073_709_551_615", "123456789012345678901234567890"].all
+  fun s => (BigNat.ofString? s).map BigNat.toNat == s.toNat?

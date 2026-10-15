@@ -66,8 +66,13 @@ usually stops at the first limb.
   - [x] integer square root: Newton's iteration from a power of two above the root, 3× behind
     `Nat` at 2 limbs and 12× at 256; each step is a full division. GMP's `mpn_sqrtrem`
     (Zimmermann's recursive square root) or Newton at growing precision would close most of it.
-  - [ ] `toString`/`ofString`, like GMP's `mpn_get_str`/`mpn_set_str`, by dividing by `10⁹`
-    with `divRem1`.
+  - [x] `toString`/`ofString?` (`Decimal`), like GMP's `mpn_get_str`/`mpn_set_str` below their
+    thresholds: chunks of nine digits, by `divRem1` by `10⁹` one way and a fold over the
+    characters the other. Equal to `Nat.repr` and `String.toNat?`, and 10–20× faster than
+    `Nat`'s, which works digit by digit, from 4 limbs up; words go to the runtime's `USize.repr`.
+    Both are quadratic: GMP's subquadratic versions (by powers `10^(9·2ᵏ)`) would be next.
+    Reading a short number costs 350 ns against 140 ns, mostly in `String.isNat` and the string
+    iterator.
 
 ## API
 

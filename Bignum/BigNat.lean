@@ -11,6 +11,9 @@ public import Bignum.Mul
 public import Bignum.Sqr
 public import Bignum.Div
 public import Bignum.Bits
+public import Bignum.Decimal
+import Std.Data.String.ToNat
+import all Init.Data.Repr
 
 /-!
 # Natural numbers
@@ -727,6 +730,46 @@ public def sqrt : BigNat → BigNat
 
 /-! ## Instances -/
 
+/-! ## Decimal strings -/
+
+/--
+The decimal digits, like `Nat.repr`. A word that fits in a `USize` goes to the runtime's
+`USize.repr` directly, without a `Nat` above `2⁶³`, which would be a GMP number.
+-/
+public def repr : BigNat → String
+  | small n => if n.toUSize.toUInt64 = n then n.toUSize.repr else Nat.repr n.toNat
+  | large a h => toDecimal a h.1
+
+private theorem usize_repr (n : USize) : n.repr = Nat.repr n.toNat := by
+  unfold USize.repr
+  rfl
+
+public theorem repr_eq (x : BigNat) : x.repr = Nat.repr x.toNat := by
+  cases x with
+  | small n =>
+    show (if n.toUSize.toUInt64 = n then n.toUSize.repr else Nat.repr n.toNat) = Nat.repr n.toNat
+    by_cases h : n.toUSize.toUInt64 = n
+    · have := congrArg UInt64.toNat h
+      rw [USize.toNat_toUInt64] at this
+      rw [ite_eq_left h, usize_repr, this]
+    · rw [ite_eq_right h]
+  | large a h => exact toDecimal_eq a h.1
+
+/-- The number that a string of decimal digits denotes, like `String.toNat?`. -/
+public def ofString? (s : String) : Option BigNat :=
+  if s.isNat then
+    some (ofLimbs (trim (s.foldl DecimalState.step .init).finish) (isTrimmed_trim _))
+  else
+    none
+
+public theorem ofString?_eq (s : String) : ofString? s = s.toNat?.map ofNat := by
+  by_cases h : s.isNat = true
+  · rw [ofString?, if_pos h, String.toNat?_eq_some_ofDigitChars h, Option.map_some,
+      Option.some.injEq, ← toNat_inj, toNat_ofLimbs, toNat_ofNat, toNat_trim,
+      String.foldl_eq_foldl_toList]
+    exact toNat_finish_foldl _ (String.isNat_iff.1 h).2.1
+  · rw [ofString?, if_neg h, String.toNat?_eq_none (by simpa using h), Option.map_none]
+
 public instance : DecidableEq BigNat := decEq
 public instance : Add BigNat := ⟨add⟩
 public instance : Sub BigNat := ⟨sub⟩
@@ -755,8 +798,8 @@ public instance : Hashable BigNat where
   hash
     | small n => hash n
     | large a _ => hash a
-public instance : ToString BigNat := ⟨fun x => toString x.toNat⟩
-public instance : Repr BigNat := ⟨fun x _ => repr x.toNat⟩
+public instance : ToString BigNat := ⟨BigNat.repr⟩
+public instance : Repr BigNat := ⟨fun x _ => x.repr⟩
 
 @[simp] public theorem toNat_hAdd (x y : BigNat) : (x + y).toNat = x.toNat + y.toNat :=
   toNat_add x y
