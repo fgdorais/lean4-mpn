@@ -6,6 +6,7 @@ module
 
 public import Bignum.Add
 public import Bignum.Mul.Limb
+public import Bignum.Mul.Comba
 
 /-!
 # Schoolbook squaring
@@ -370,5 +371,28 @@ public theorem sqrBasecase_spec (a : UInt32Array.Slice) :
   rw [← hs]
   rw [hc, Nat.mul_zero, Nat.add_zero] at hd
   exact hd
+
+/-! ## The compiled square
+
+`sqrBasecaseFast` squares by Comba's method (`csqMul`) when the size allows it, and `@[csimp]`
+makes the compiler use it in place of `sqrBasecase`: both compute all `2 * a.size` limbs of the
+square, and limbs of a given length are determined by their value.
+-/
+
+/-- `sqrBasecase`, by Comba's method when the size allows it. -/
+public def sqrBasecaseFast (a : UInt32Array.Slice) : UInt32Array :=
+  if h : SqrOK a then csqMul a h else sqrBasecase a
+
+@[csimp] public theorem sqrBasecase_eq_sqrBasecaseFast : @sqrBasecase = @sqrBasecaseFast := by
+  funext a
+  unfold sqrBasecaseFast
+  split
+  · rename_i h
+    obtain ⟨hs, hv⟩ := csqMul_spec a h
+    obtain ⟨hs', hv'⟩ := sqrBasecase_spec a
+    apply UInt32Array.toList_inj.1
+    apply ofLimbs_inj_of_length (by simp [hs, hs'])
+    rw [← toNat_toSlice, ← toNat_toSlice, hv', hv]
+  · rfl
 
 end Bignum

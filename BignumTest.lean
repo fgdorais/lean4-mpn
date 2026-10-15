@@ -354,3 +354,10 @@ def decimalValues : List Nat :=
       toNat (mulBasecase (ofNat u) (ofNat v)) == u * v &&
       toNat (mulBasecase (ofNat x) (ofNat v)) == x * v &&
       toNat (mulLimbs (ofNat x) (ofNat y)) == x * y
+
+-- Comba squares (`sqrBasecase` compiles to `csqMul`): all-ones limbs, odd and even sizes.
+#guard [1, 2, 3, 4, 7, 16, 31, 64, 100].all fun n =>
+  let x := 2 ^ (32 * n) - 1
+  let u := sample1 (32 * n) 137
+  toNat (sqrBasecase (ofNat x)) == x * x && toNat (sqrBasecase (ofNat u)) == u * u &&
+    toNat (sqrLimbs (ofNat x)) == x * x && toNat (sqrLimbs (ofNat u)) == u * u

@@ -46,13 +46,13 @@ public structure Config where
   -/
   mulUnbalanced : Nat := 104
   /-- The size from which squaring uses the schoolbook square instead of multiplying. -/
-  sqrBasecase : Nat := 30
+  sqrBasecase : Nat := 2
   /-- The size from which squaring uses Karatsuba. -/
-  sqrKaratsuba : Nat := 116
+  sqrKaratsuba : Nat := 112
   /-- Karatsuba needs at least `4` limbs to make its squares smaller. -/
   four_le_sqrKaratsuba : 4 ≤ sqrKaratsuba := by decide
   /-- The size from which squaring uses Toom-3 instead of Karatsuba. -/
-  sqrToom3 : Nat := 804
+  sqrToom3 : Nat := 892
   /-- Toom-3 needs at least `12` limbs to make its squares smaller. -/
   twelve_le_sqrToom3 : 12 ≤ sqrToom3 := by decide
   /-- The size of the divisor from which division computes its quotient in blocks of half the

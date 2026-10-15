@@ -39,7 +39,7 @@ noise.
 | `add`, `sub` | `add`, `sub` on limbs | `n` and `n` limbs | linear, one pass |
 | `mul1` | `mul1` | `n` limbs times a limb | linear, one pass |
 | `mul` | `mulLimbs` | `n` by `n` limbs | Comba schoolbook, Karatsuba from 72, Toom-3 from 576 |
-| `sqr` | `sqr` | `n` limbs | Comba to 30, schoolbook square, Karatsuba from 116, Toom-3 from 804 |
+| `sqr` | `sqr` | `n` limbs | Comba square, Karatsuba from 112, Toom-3 from 892 |
 | `div` | `divMod` | `2n` by `n` limbs | `divRem1`, `divRem2`, Algorithm D, Burnikel–Ziegler from 144 |
 | `shr` | `shiftRight` by 37 bits | `n` limbs | one pass in place |
 | `badd` … `bdiv` | `BigNat` `+ - * /` | as above (`bdiv`: `2n` by `n`) | word fast path, then as above |
