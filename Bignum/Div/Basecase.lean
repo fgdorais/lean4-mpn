@@ -15,12 +15,14 @@ from the top down. At step `j`, the remainder `r` is below `v βʲ⁺¹`, so the
 `⌊W / v⌋ < β` where `W = ⌊r / βʲ⌋` is the window of limbs `j` to `j + n` of `r`.
 
 The quotient limb is estimated from the top two limbs of `W` and the top limb of `v` as
-`q̂ = min ⌊(w_n β + w_{n-1}) / v_{n-1}⌋ (β - 1)`, which is never too small. The step subtracts
-`q̂ v` from the window in place with `subMul1`, like GMP's `mpn_submul_1`; the window went negative
+`q̂ = min ⌊(w_n β + w_{n-1}) / v_{n-1}⌋ (β - 1)`, then corrected at most twice with the next
+limbs, as in Knuth's Algorithm D: `q̂` decreases while `q̂ (v_{n-1} β + v_{n-2})` exceeds the top
+three limbs of `W`. It is never too small, and when the top limb of `v` is at least `β / 2` it is
+at most one too large, which happens with probability about `2 / β`. The step subtracts `q̂ v`
+from the window in place with `subMul1`, like GMP's `mpn_submul_1`; the window went negative
 exactly when the borrow out of its low `n` limbs exceeds its top limb, and then `v` is added back
-and `q̂` decreased until it is not. Correctness only needs the estimate not to be too small; when
-the top limb of `v` is at least `β / 2`, Knuth shows that it is at most two too large, so `v` is
-added back at most twice. `Div` normalizes the divisor that way before calling `divRemBasecase`.
+and `q̂` decreased. Correctness only needs the estimate not to be too small. `Div` normalizes the
+divisor before calling `divRemBasecase`.
 -/
 
 open ScalarArray
@@ -68,6 +70,24 @@ private theorem div_eq_two_limbs (r : UInt32Array) (i : Nat) (hr : toNat r < 2 ^
     List.getD_eq_getElem?_getD, List.getElem?_drop, Nat.mul_one, Nat.add_zero]
   omega
 
+/-- The limbs `i` to `i + 2` of `r` give `⌊r / βⁱ⌋` when `r < βⁱ⁺³`. -/
+private theorem div_eq_three_limbs (r : UInt32Array) (i : Nat)
+    (hr : toNat r < 2 ^ (32 * (i + 3))) :
+    toNat r / 2 ^ (32 * i) = ((r.toList.getD (i + 2) 0).toNat * 2 ^ 32 +
+      (r.toList.getD (i + 1) 0).toNat) * 2 ^ 32 + (r.toList.getD i 0).toNat := by
+  rw [← toNat_window r i (i + 3) (by omega) hr]
+  simp only [toNat, UInt32Array.copy_toSlice, UInt32Array.toList_extract,
+    List.extract_eq_take_drop, show i + 3 - i = 0 + 1 + 1 + 1 by omega]
+  rw [ofLimbs_take_add_one_getD, ofLimbs_take_add_one_getD, ofLimbs_take_add_one_getD]
+  simp only [List.take_zero, ofLimbs_nil, Nat.mul_zero, Nat.pow_zero, Nat.one_mul, Nat.zero_add,
+    List.getD_eq_getElem?_getD, List.getElem?_drop, Nat.mul_one, Nat.add_zero]
+  rw [show 32 * 2 = 32 + 32 by rfl, Nat.pow_add]
+  generalize (r.toList[i]?.getD 0).toNat = a
+  generalize (r.toList[i + 1]?.getD 0).toNat = b
+  generalize (r.toList[i + 2]?.getD 0).toNat = c
+  generalize (2 : Nat) ^ 32 = B
+  grind
+
 /-- The quotient estimate is not too small. -/
 private theorem le_div_of_estimate {q W V T vt P : Nat} (hq : q * V ≤ W)
     (hW : W < (T + 1) * P) (hV : vt * P ≤ V) (hvt : 0 < vt) : q ≤ T / vt := by
@@ -84,6 +104,27 @@ private theorem top_limb_le (v : UInt32Array.Slice) (hn : 1 ≤ v.size) :
   rw [show v.size - 1 + 1 = v.size by omega, List.take_of_length_le (by simp)] at h
   simp only [toNat, h, UInt32Array.getElem_toList, UInt32Array.Slice.getElem_copy]
   rw [Nat.mul_comm]
+  omega
+
+/-- A divisor with top limbs `vt` and `vs` is at least `(vt β + vs) βⁿ⁻²`. -/
+private theorem top_two_limbs_le (v : UInt32Array.Slice) (hn : 2 ≤ v.size) :
+    ((v[v.size - 1]'(by omega)).toNat * 2 ^ 32 + (v[v.size - 2]'(by omega)).toNat) *
+      2 ^ (32 * (v.size - 2)) ≤ toNat v := by
+  have h₁ := ofLimbs_take_add_one v.copy.toList (v.size - 1) (by simp; omega)
+  have h₂ := ofLimbs_take_add_one v.copy.toList (v.size - 2) (by simp; omega)
+  rw [show v.size - 1 + 1 = v.size by omega, List.take_of_length_le (by simp)] at h₁
+  rw [show v.size - 2 + 1 = v.size - 1 by omega] at h₂
+  simp only [UInt32Array.getElem_toList, UInt32Array.Slice.getElem_copy] at h₁ h₂
+  have hpow : 2 ^ (32 * (v.size - 1)) = 2 ^ (32 * (v.size - 2)) * 2 ^ 32 := by
+    rw [← Nat.pow_add]; congr 1; omega
+  simp only [toNat, h₁, h₂, hpow]
+  generalize ofLimbs (v.copy.toList.take (v.size - 2)) = L
+  generalize (v[v.size - 1]'(by omega)).toNat = a
+  generalize (v[v.size - 2]'(by omega)).toNat = b
+  generalize 2 ^ (32 * (v.size - 2)) = P
+  generalize (2 : Nat) ^ 32 = B
+  rw [Nat.add_mul, Nat.mul_comm (a * B) P, Nat.mul_comm b P, Nat.mul_assoc P, Nat.mul_comm a B]
+  have : P * (B * a) = P * B * a := (Nat.mul_assoc _ _ _).symm
   omega
 
 /-! ## The quotient estimate -/
@@ -115,6 +156,150 @@ private theorem toNat_qEstimate (wt wn vt : UInt32) :
     simp only [UInt64.lt_iff_toNat_lt, he, UInt64.reduceToNat] at h
     simp only [UInt32.reduceToNat]
     omega
+
+/--
+One correction of the estimate `q` with the next limb `wl` of the window and the second limb `vs`
+of the divisor, as in Knuth's Algorithm D: `r` is `wt β + wn - q vt`, and `q` decreases when
+`q vs > r β + wl`, which means that `q (vt β + vs)` exceeds the top three limbs of the window.
+-/
+@[inline, expose] public def qRefine (q : UInt32) (r : UInt64) (wl vt vs : UInt32) :
+    UInt32 × UInt64 :=
+  if r < 4294967296 then
+    if (r <<< 32) + wl.toUInt64 < q.toUInt64 * vs.toUInt64 then (q - 1, r + vt.toUInt64)
+    else (q, r)
+  else
+    (q, r)
+
+/--
+The estimate `q` of a quotient limb, from `qEstimate`, corrected twice with `qRefine` using the
+next limb `wl` of the window and the second limb `vs` of the divisor. Then it is at most one too
+large, and rarely, so that `v` is seldom added back.
+
+It takes `q` as a parameter and computes `wt β` with a shift: when the kernel compares terms that
+contain a multiplication by the literal `2³²`, it may unfold it into a recursion on the literal.
+-/
+@[inline, expose] public def qEstimate3 (q wt wn wl vt vs : UInt32) : UInt32 :=
+  let r := ((wt.toUInt64 <<< 32) + wn.toUInt64) - q.toUInt64 * vt.toUInt64
+  -- `qRefine` twice, written without the pair, which the compiler would box.
+  if r < 4294967296 then
+    if (r <<< 32) + wl.toUInt64 < q.toUInt64 * vs.toUInt64 then
+      let r' := r + vt.toUInt64
+      if r' < 4294967296 then
+        if (r' <<< 32) + wl.toUInt64 < (q - 1).toUInt64 * vs.toUInt64 then q - 1 - 1 else q - 1
+      else q - 1
+    else q
+  else q
+
+/-- The arithmetic of one correction, over any base `B`. -/
+private theorem refine_arith {q r T qt vt vs wl B : Nat} (hT : q * vt + r = T)
+    (hW : qt * (vt * B + vs) ≤ T * B + wl) (hc : r * B + wl < q * vs) :
+    qt < q ∧ (q - 1) * vt + (r + vt) = T := by
+  have e₁ : q * (vt * B + vs) = q * vt * B + q * vs := by
+    rw [Nat.mul_add, Nat.mul_assoc]
+  have e₂ : T * B = q * vt * B + r * B := by rw [← hT, Nat.add_mul]
+  have hgt : qt * (vt * B + vs) < q * (vt * B + vs) := by omega
+  have hq := Nat.lt_of_mul_lt_mul_right hgt
+  refine ⟨hq, ?_⟩
+  have : vt ≤ q * vt := Nat.le_mul_of_pos_left _ (by omega)
+  rw [Nat.sub_mul, Nat.one_mul]
+  omega
+
+/-- `qRefine` keeps `q vt + r = T` and never goes below a quotient `qt` with `qt V' ≤ W'`. -/
+private theorem qRefine_spec (q : UInt32) (r : UInt64) (wl vt vs : UInt32) (T qt : Nat)
+    (hT : q.toNat * vt.toNat + r.toNat = T) (hq : qt ≤ q.toNat)
+    (hW : qt * (vt.toNat * 2 ^ 32 + vs.toNat) ≤ T * 2 ^ 32 + wl.toNat) :
+    (qRefine q r wl vt vs).1.toNat * vt.toNat + (qRefine q r wl vt vs).2.toNat = T ∧
+      qt ≤ (qRefine q r wl vt vs).1.toNat := by
+  have hq32 := q.toNat_lt
+  have hvt := vt.toNat_lt
+  have hvs := vs.toNat_lt
+  have hwl := wl.toNat_lt
+  have hr64 := r.toNat_lt
+  unfold qRefine
+  split
+  · rename_i hr
+    have hr' : r.toNat < 2 ^ 32 := by simpa [UInt64.lt_iff_toNat_lt] using hr
+    split
+    · rename_i hc
+      have hmul : (q.toUInt64 * vs.toUInt64).toNat = q.toNat * vs.toNat := by
+        rw [UInt64.toNat_mul, UInt32.toNat_toUInt64, UInt32.toNat_toUInt64]
+        apply Nat.mod_eq_of_lt
+        exact Nat.lt_of_lt_of_le (Nat.mul_lt_mul'' hq32 hvs) (by decide)
+      have hsh : ((r <<< 32) + wl.toUInt64).toNat = r.toNat * 2 ^ 32 + wl.toNat := by
+        rw [UInt64.toNat_add, UInt64.toNat_shiftLeft, UInt32.toNat_toUInt64]
+        simp only [UInt64.reduceToNat, Nat.reduceMod, Nat.shiftLeft_eq]
+        have : r.toNat * 2 ^ 32 < 2 ^ 64 := by
+          have := Nat.mul_lt_mul_of_pos_right hr' (by decide : 0 < 2 ^ 32)
+          simpa using this
+        rw [Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)]
+      have hc' : r.toNat * 2 ^ 32 + wl.toNat < q.toNat * vs.toNat := by
+        have := UInt64.lt_iff_toNat_lt.1 hc
+        rwa [hsh, hmul] at this
+      obtain ⟨hgt, hsum⟩ := refine_arith hT hW hc'
+      have hq1 : (q - 1).toNat = q.toNat - 1 := by
+        rw [UInt32.toNat_sub_of_le _ _ (by simp [UInt32.le_iff_toNat_le]; omega)]
+        simp
+      have hrv : (r + vt.toUInt64).toNat = r.toNat + vt.toNat := by
+        rw [UInt64.toNat_add, UInt32.toNat_toUInt64]
+        exact Nat.mod_eq_of_lt (by simp; omega)
+      exact ⟨by rw [hq1, hrv]; exact hsum, by rw [hq1]; omega⟩
+    · exact ⟨hT, hq⟩
+  · exact ⟨hT, hq⟩
+
+private theorem toNat_two_words (wt wn : UInt32) :
+    (wt.toUInt64 * 4294967296 + wn.toUInt64).toNat = wt.toNat * 2 ^ 32 + wn.toNat := by
+  have hwt := wt.toNat_lt
+  have hwn := wn.toNat_lt
+  simp only [UInt64.toNat_add, UInt64.toNat_mul, UInt32.toNat_toUInt64, UInt64.reduceToNat]
+  omega
+
+private theorem toNat_mul_words (x y : UInt32) :
+    (x.toUInt64 * y.toUInt64).toNat = x.toNat * y.toNat := by
+  rw [UInt64.toNat_mul, UInt32.toNat_toUInt64, UInt32.toNat_toUInt64]
+  apply Nat.mod_eq_of_lt
+  exact Nat.lt_of_lt_of_le (Nat.mul_lt_mul'' x.toNat_lt y.toNat_lt) (by decide)
+
+/--
+`qEstimate3` is never too small: it is at least a quotient `qt` that the first estimate `q`
+bounds and with `qt (vt β + vs) ≤ (wt β + wn) β + wl`.
+-/
+private theorem qEstimate3_ge (q wt wn wl vt vs : UInt32) (qt : Nat)
+    (hle : q.toNat * vt.toNat ≤ wt.toNat * 2 ^ 32 + wn.toNat) (h₀ : qt ≤ q.toNat)
+    (h₁ : qt * (vt.toNat * 2 ^ 32 + vs.toNat) ≤
+      (wt.toNat * 2 ^ 32 + wn.toNat) * 2 ^ 32 + wl.toNat) :
+    qt ≤ (qEstimate3 q wt wn wl vt vs).toNat := by
+  have hT : ((wt.toUInt64 <<< 32) + wn.toUInt64).toNat = wt.toNat * 2 ^ 32 + wn.toNat := by
+    have := wt.toNat_lt
+    have := wn.toNat_lt
+    simp only [UInt64.toNat_add, UInt64.toNat_shiftLeft, UInt32.toNat_toUInt64,
+      UInt64.reduceToNat, Nat.reduceMod, Nat.shiftLeft_eq]
+    omega
+  have hqv : (q.toUInt64 * vt.toUInt64).toNat = q.toNat * vt.toNat := by
+    rw [UInt64.toNat_mul, UInt32.toNat_toUInt64, UInt32.toNat_toUInt64]
+    apply Nat.mod_eq_of_lt
+    exact Nat.lt_of_lt_of_le (Nat.mul_lt_mul'' q.toNat_lt vt.toNat_lt) (by decide)
+  have hT₀ : q.toNat * vt.toNat +
+      (((wt.toUInt64 <<< 32) + wn.toUInt64) - q.toUInt64 * vt.toUInt64).toNat =
+      wt.toNat * 2 ^ 32 + wn.toNat := by
+    rw [UInt64.toNat_sub_of_le _ _ (by rw [UInt64.le_iff_toNat_le, hT, hqv]; exact hle), hT, hqv]
+    exact Nat.add_sub_cancel' hle
+  obtain ⟨hT₁, hq₁⟩ := qRefine_spec q _ wl vt vs (wt.toNat * 2 ^ 32 + wn.toNat) qt hT₀ h₀ h₁
+  have := (qRefine_spec _ _ wl vt vs _ qt hT₁ hq₁ h₁).2
+  -- `qEstimate3` is the two applications of `qRefine`.
+  have heq : qEstimate3 q wt wn wl vt vs =
+      (qRefine (qRefine q (((wt.toUInt64 <<< 32) + wn.toUInt64) - q.toUInt64 * vt.toUInt64) wl
+        vt vs).1 (qRefine q (((wt.toUInt64 <<< 32) + wn.toUInt64) - q.toUInt64 * vt.toUInt64) wl
+        vt vs).2 wl vt vs).1 := by
+    simp only [qEstimate3, qRefine]
+    split
+    · split
+      · split
+        · split <;> rfl
+        · rfl
+      · rfl
+    · rfl
+  rw [heq]
+  exact this
 
 /-! ## Adding back -/
 
@@ -281,14 +466,16 @@ def divFinish (v : UInt32Array.Slice) (j : Nat) (p : UInt32Array × UInt32) (qh 
 
 /--
 One step of the division at quotient limb `j`, which returns the new remainder and the quotient
-limb: estimates the limb from the window of limbs `j` to `j + n` of `r`, subtracts its multiple
+limb: estimates the limb from the top three limbs of the window of limbs `j` to `j + n` of `r`
+and the top two limbs of `v`, subtracts its multiple
 of `v` from the window in place, and adds `v` back while the window is negative, which the borrow
 out of its low `n` limbs shows when it exceeds the top limb.
 -/
 def divStepCore (v : UInt32Array.Slice) (hn : 2 ≤ v.size) (j : Nat) (r : UInt32Array)
     (hr : j + v.size + 1 ≤ r.size) : UInt32Array × UInt32 :=
-  let qh := qEstimate (r[j + v.size]'(by omega)) (r[j + v.size - 1]'(by omega))
-    (v[v.size - 1]'(by omega))
+  let qh := qEstimate3 (qEstimate (r[j + v.size]'(by omega)) (r[j + v.size - 1]'(by omega))
+    (v[v.size - 1]'(by omega))) (r[j + v.size]'(by omega)) (r[j + v.size - 1]'(by omega))
+    (r[j + v.size - 2]'(by omega)) (v[v.size - 1]'(by omega)) (v[v.size - 2]'(by omega))
   divFinish v j (subMul1 r j v qh (by omega)) qh (by rw [size_subMul1]; omega)
 
 /-- `divStepCore` with the quotient limb written into `q`. -/
@@ -322,8 +509,10 @@ private theorem lt_of_div_div_le {R P V q : Nat} (hP : 0 < P) (hV : 0 < V) (h : 
 private theorem lt_of_qEstimate (v : UInt32Array.Slice) (hn : 2 ≤ v.size)
     (hvt : v[v.size - 1]'(by omega) ≠ 0) (j : Nat) (r : UInt32Array)
     (hr : j + v.size + 1 ≤ r.size) (hbound : toNat r < toNat v * 2 ^ (32 * (j + 1))) :
-    toNat r < 2 ^ (32 * j) * (toNat v * ((qEstimate (r[j + v.size]'(by omega))
-      (r[j + v.size - 1]'(by omega)) (v[v.size - 1]'(by omega))).toNat + 1)) := by
+    toNat r < 2 ^ (32 * j) * (toNat v * ((qEstimate3 (qEstimate (r[j + v.size]'(by omega))
+      (r[j + v.size - 1]'(by omega)) (v[v.size - 1]'(by omega))) (r[j + v.size]'(by omega))
+      (r[j + v.size - 1]'(by omega)) (r[j + v.size - 2]'(by omega)) (v[v.size - 1]'(by omega))
+      (v[v.size - 2]'(by omega))).toNat + 1)) := by
   have hvt' : 0 < (v[v.size - 1]'(by omega)).toNat := by
     rcases Nat.eq_zero_or_pos (v[v.size - 1]'(by omega)).toNat with h | h
     · exact absurd (UInt32.toNat_inj.1 (by simpa using h)) hvt
@@ -375,8 +564,41 @@ private theorem lt_of_qEstimate (v : UInt32Array.Slice) (hn : 2 ≤ v.size)
         (v[v.size - 1]'(by omega))).toNat := by
     rw [hqh]
     exact Nat.le_min.2 ⟨hest, Nat.le_pred_of_lt hqlt⟩
-  rw [hW] at hge
-  exact lt_of_div_div_le (Nat.two_pow_pos _) hVpos hge
+  -- The first estimate times the top limb of `v` fits in the top two limbs of the window.
+  have hle₀ : (qEstimate (r[j + v.size]'(by omega)) (r[j + v.size - 1]'(by omega))
+      (v[v.size - 1]'(by omega))).toNat * (v[v.size - 1]'(by omega)).toNat ≤
+      (r[j + v.size]'(by omega)).toNat * 2 ^ 32 + (r[j + v.size - 1]'(by omega)).toNat := by
+    have : (qEstimate (r[j + v.size]'(by omega)) (r[j + v.size - 1]'(by omega))
+        (v[v.size - 1]'(by omega))).toNat ≤ ((r[j + v.size]'(by omega)).toNat * 2 ^ 32 +
+          (r[j + v.size - 1]'(by omega)).toNat) / (v[v.size - 1]'(by omega)).toNat := by
+      rw [hqh]; exact Nat.min_le_left _ _
+    exact Nat.le_trans (Nat.mul_le_mul_right _ this) (Nat.div_mul_le_self _ _)
+  -- The top three limbs of the window, `W' = ⌊r / βʲ⁺ⁿ⁻²⌋`, and the top two limbs of `v`.
+  have hT3 := div_eq_three_limbs r (j + v.size - 2)
+    (by rw [show j + v.size - 2 + 3 = j + v.size + 1 by omega]; exact hR)
+  rw [show j + v.size - 2 + 2 = j + v.size by omega,
+    show j + v.size - 2 + 1 = j + v.size - 1 by omega, hg₁, hg₂] at hT3
+  have hg₃ : r.toList.getD (j + v.size - 2) 0 = r[j + v.size - 2]'(by omega) := by
+    simp [List.getD_eq_getElem?_getD, show j + v.size - 2 < r.size by omega]
+  rw [hg₃] at hT3
+  have hW2 : toNat (r.toSlice j (j + v.size + 1)) / 2 ^ (32 * (v.size - 2)) =
+      toNat r / 2 ^ (32 * (j + v.size - 2)) := by
+    rw [hW, Nat.div_div_eq_div_mul, ← Nat.pow_add]
+    congr 2
+    omega
+  have hWlt3 : toNat (r.toSlice j (j + v.size + 1)) <
+      (((r[j + v.size]'(by omega)).toNat * 2 ^ 32 + (r[j + v.size - 1]'(by omega)).toNat) *
+        2 ^ 32 + (r[j + v.size - 2]'(by omega)).toNat + 1) * 2 ^ (32 * (v.size - 2)) := by
+    rw [← hT3, ← hW2, Nat.mul_comm]
+    exact Nat.lt_mul_div_succ _ (Nat.two_pow_pos _)
+  have hvt2 : 0 < (v[v.size - 1]'(by omega)).toNat * 2 ^ 32 + (v[v.size - 2]'(by omega)).toNat :=
+    Nat.lt_of_lt_of_le (Nat.mul_pos hvt' (Nat.two_pow_pos _)) (Nat.le_add_right _ _)
+  have hest3 := le_div_of_estimate (Nat.div_mul_le_self (toNat (r.toSlice j (j + v.size + 1)))
+    (toNat v)) hWlt3 (top_two_limbs_le v hn) hvt2
+  have h₁ := Nat.le_trans (Nat.mul_le_mul_right _ hest3) (Nat.div_mul_le_self _ _)
+  have hge3 := qEstimate3_ge _ _ _ _ _ _ _ hle₀ hge h₁
+  rw [hW] at hge3
+  exact lt_of_div_div_le (Nat.two_pow_pos _) hVpos hge3
 
 private theorem divFinish_spec (v : UInt32Array.Slice) (j : Nat) (r : UInt32Array)
     (p : UInt32Array × UInt32) (qh : UInt32) (hp : j + v.size + 1 ≤ p.1.size)
@@ -454,8 +676,10 @@ private theorem divStepCore_spec (v : UInt32Array.Slice) (hn : 2 ≤ v.size)
     omega
   simp only [divStepCore]
   refine divFinish_spec v j r _ _ _ (toNat_subMul1 r j v _ _) (fun k hk hjk => ?_) hest
-  have := getElem?_subMul1 r j v (qEstimate (r[j + v.size]'(by omega))
-    (r[j + v.size - 1]'(by omega)) (v[v.size - 1]'(by omega))) (by omega) k (by omega)
+  have := getElem?_subMul1 r j v (qEstimate3 (qEstimate (r[j + v.size]'(by omega))
+    (r[j + v.size - 1]'(by omega)) (v[v.size - 1]'(by omega))) (r[j + v.size]'(by omega))
+    (r[j + v.size - 1]'(by omega)) (r[j + v.size - 2]'(by omega)) (v[v.size - 1]'(by omega))
+    (v[v.size - 2]'(by omega))) (by omega) k (by omega)
   rw [size_subMul1] at hk
   rw [getElem?_pos _ k (by rw [size_subMul1]; exact hk), getElem?_pos r k hk,
     Option.some.injEq] at this
