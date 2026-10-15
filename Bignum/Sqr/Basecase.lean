@@ -280,17 +280,19 @@ private theorem diagLimbU_eq (a : UInt32Array.Slice) (has : a.array.size < USize
 
 /-- `sqrAddDiag` with `foldInPlace`, which the compiler uses in its place. -/
 public def sqrAddDiagFast (a : UInt32Array.Slice) (r : UInt32Array) : UInt32Array × UInt32 :=
-  if hs : r.size < USize.size ∧ a.array.size < USize.size ∧ r.size ≤ 2 * a.size then
+  if hs : r.size < 4294967295 ∧ a.array.size < 4294967295 ∧ r.size ≤ 2 * a.size then
+    have has := lt_usizeSize hs.2.1
+    have hrs := lt_usizeSize hs.1
     let arr := a.array
     let st := a.start.toUSize
     r.foldInPlace 0 r.size.toUSize 0
-      (sqrAddDiagStep arr st a.size.toUSize hs.2.1 (limbU_bound a hs.2.1) r.size.toUSize (by
+      (sqrAddDiagStep arr st a.size.toUSize has (limbU_bound a has) r.size.toUSize (by
         have := a.stop_le_array_size
         have := a.start_le_stop
         have := a.size_eq
-        rw [toNat_toUSize hs.1, toNat_toUSize (by omega)]
+        rw [toNat_toUSize hrs, toNat_toUSize (by omega)]
         exact hs.2.2))
-      (by rw [USize.toNat_zero, toNat_toUSize hs.1]; omega)
+      (by rw [USize.toNat_zero, toNat_toUSize hrs]; omega)
   else
     sqrAddDiagLoop a r 0 0
 
@@ -320,11 +322,14 @@ private theorem foldInPlace_loop_sqrAddDiag (a : UInt32Array.Slice)
   rw [sqrAddDiag, sqrAddDiagFast]
   split
   · rename_i hs
+    have := USize.le_size
     have := a.stop_le_array_size
     have := a.start_le_stop
     have := a.size_eq
-    exact (foldInPlace_loop_sqrAddDiag a hs.2.1 _ _ (by rw [toNat_toUSize hs.1]; exact hs.2.2)
-      r _ _ USize.toNat_zero (toNat_toUSize hs.1) rfl 0 0 _ _).symm
+    have hrs := lt_usizeSize hs.1
+    exact (foldInPlace_loop_sqrAddDiag a (lt_usizeSize hs.2.1) _ _
+      (by rw [toNat_toUSize hrs]; exact hs.2.2) r _ _ USize.toNat_zero (toNat_toUSize hrs) rfl 0 0
+      _ _).symm
   · rfl
 
 private theorem sqrAddDiag_spec (a : UInt32Array.Slice) (r : UInt32Array)

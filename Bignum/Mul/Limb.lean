@@ -58,12 +58,13 @@ to `y`.
 /-- `addMul1` as a `foldInPlace`, which the compiler uses in its place. -/
 public def addMul1Fast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UInt32)
     (h : off + a.size ≤ r.size) : UInt32Array × UInt32 :=
-  if hs : r.size < USize.size ∧ a.array.size < USize.size then
+  if hs : r.size < 4294967295 ∧ a.array.size < 4294967295 then
     let arr := a.array
     let st := a.start.toUSize
     r.foldInPlace off.toUSize a.size.toUSize 0
-      (addMul1Step arr st a.size.toUSize hs.2 (limbU_bound a hs.2) x)
+      (addMul1Step arr st a.size.toUSize (lt_usizeSize hs.2) (limbU_bound a (lt_usizeSize hs.2)) x)
       (by
+        have := USize.le_size
         have := a.stop_le_array_size
         have := a.start_le_stop
         have := a.size_eq
@@ -96,10 +97,11 @@ private theorem foldInPlace_loop_addMul1 (r : UInt32Array) (off : Nat) (a : UInt
   rw [addMul1, addMul1Fast]
   split
   · rename_i hs
+    have := USize.le_size
     have := a.stop_le_array_size
     have := a.start_le_stop
     have := a.size_eq
-    exact (foldInPlace_loop_addMul1 r off a x hs.2 _ _ (toNat_toUSize (by omega))
+    exact (foldInPlace_loop_addMul1 r off a x (lt_usizeSize hs.2) _ _ (toNat_toUSize (by omega))
       (toNat_toUSize (by omega)) 0 0 h _ _).symm
   · rfl
 
@@ -190,13 +192,14 @@ carry itself, so no pair of the new limbs and the carry is allocated.
 -/
 public def addMul1SetFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UInt32)
     (h : off + a.size < r.size) : UInt32Array :=
-  if hs : r.size < USize.size ∧ a.array.size < USize.size then
+  if hs : r.size < 4294967295 ∧ a.array.size < 4294967295 then
     let arr := a.array
     let st := a.start.toUSize
     r.foldInPlaceThen off.toUSize a.size.toUSize 0
-      (addMul1Step arr st a.size.toUSize hs.2 (limbU_bound a hs.2) x)
+      (addMul1Step arr st a.size.toUSize (lt_usizeSize hs.2) (limbU_bound a (lt_usizeSize hs.2)) x)
       (fun r' c => if h' : off + a.size < r'.size then r'.set (off + a.size) c h' else r')
       (by
+        have := USize.le_size
         have := a.stop_le_array_size
         have := a.start_le_stop
         have := a.size_eq
@@ -212,15 +215,17 @@ public def addMul1SetFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) 
   rw [addMul1Set, addMul1SetFast]
   split
   · rename_i hs
+    have := USize.le_size
     have := a.stop_le_array_size
     have := a.start_le_stop
     have := a.size_eq
     rw [UInt32Array.foldInPlaceThen_eq]
     have heq : r.foldInPlace off.toUSize a.size.toUSize 0
-        (addMul1Step a.array a.start.toUSize a.size.toUSize hs.2 (limbU_bound a hs.2) x)
+        (addMul1Step a.array a.start.toUSize a.size.toUSize (lt_usizeSize hs.2)
+          (limbU_bound a (lt_usizeSize hs.2)) x)
         (by rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]; omega) =
         addMul1 r off a x (by omega) :=
-      foldInPlace_loop_addMul1 r off a x hs.2 _ _ (toNat_toUSize (by omega))
+      foldInPlace_loop_addMul1 r off a x (lt_usizeSize hs.2) _ _ (toNat_toUSize (by omega))
         (toNat_toUSize (by omega)) 0 0 (by omega) _ _
     simp only [heq, hsz, h, ↓reduceDIte]
   · simp only [addMul1] at hsz ⊢
@@ -289,13 +294,15 @@ private theorem foldInPlace_loop_addMul1Pre (r : UInt32Array) (off : Nat) (a : U
 /-- `addMul1SetPre` with `foldInPlaceThen` over the array of `a`, used by the compiler. -/
 public def addMul1SetPreFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (n : Nat)
     (x : UInt32) (hn : n ≤ a.size) (h : off + n < r.size) : UInt32Array :=
-  if hs : r.size < USize.size ∧ a.array.size < USize.size then
+  if hs : r.size < 4294967295 ∧ a.array.size < 4294967295 then
     let arr := a.array
     let st := a.start.toUSize
     r.foldInPlaceThen off.toUSize n.toUSize 0
-      (addMul1Step arr st n.toUSize hs.2 (prefix_bound a n hn hs.2) x)
+      (addMul1Step arr st n.toUSize (lt_usizeSize hs.2) (prefix_bound a n hn (lt_usizeSize hs.2)) x)
       (fun r' c => if h' : off + n < r'.size then r'.set (off + n) c h' else r')
-      (by rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]; omega)
+      (by
+        have := USize.le_size
+        rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]; omega)
   else
     addMul1Set r off (a.slice 0 n) x (by rw [UInt32Array.Slice.size_slice]; omega)
 
@@ -307,12 +314,14 @@ public def addMul1SetPreFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slic
   rw [addMul1SetPre, addMul1SetPreFast]
   split
   · rename_i hs
+    have := USize.le_size
     rw [UInt32Array.foldInPlaceThen_eq]
     have heq : r.foldInPlace off.toUSize n.toUSize 0
-        (addMul1Step a.array a.start.toUSize n.toUSize hs.2 (prefix_bound a n hn hs.2) x)
+        (addMul1Step a.array a.start.toUSize n.toUSize (lt_usizeSize hs.2)
+          (prefix_bound a n hn (lt_usizeSize hs.2)) x)
         (by rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]; omega) =
         addMul1 r off (a.slice 0 n) x (by omega) :=
-      foldInPlace_loop_addMul1Pre r off a n hn x hs.2 _ _ (toNat_toUSize (by omega))
+      foldInPlace_loop_addMul1Pre r off a n hn x (lt_usizeSize hs.2) _ _ (toNat_toUSize (by omega))
         (toNat_toUSize (by omega)) 0 0 (by omega) _ _
     rw [heq, addMul1Set]
     simp only [hsz, hsize, h, ↓reduceDIte]
@@ -399,12 +408,13 @@ The step of the fold of `subMul1Fast`: subtracts limb `k` of the slice `arr[st..
 /-- `subMul1` as a `foldInPlace`, which the compiler uses in its place, as for `addMul1Fast`. -/
 public def subMul1Fast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UInt32)
     (h : off + a.size ≤ r.size) : UInt32Array × UInt32 :=
-  if hs : r.size < USize.size ∧ a.array.size < USize.size then
+  if hs : r.size < 4294967295 ∧ a.array.size < 4294967295 then
     let arr := a.array
     let st := a.start.toUSize
     r.foldInPlace off.toUSize a.size.toUSize 0
-      (subMul1Step arr st a.size.toUSize hs.2 (limbU_bound a hs.2) x)
+      (subMul1Step arr st a.size.toUSize (lt_usizeSize hs.2) (limbU_bound a (lt_usizeSize hs.2)) x)
       (by
+        have := USize.le_size
         have := a.stop_le_array_size
         have := a.start_le_stop
         have := a.size_eq
@@ -437,10 +447,11 @@ private theorem foldInPlace_loop_subMul1 (r : UInt32Array) (off : Nat) (a : UInt
   rw [subMul1, subMul1Fast]
   split
   · rename_i hs
+    have := USize.le_size
     have := a.stop_le_array_size
     have := a.start_le_stop
     have := a.size_eq
-    exact (foldInPlace_loop_subMul1 r off a x hs.2 _ _ (toNat_toUSize (by omega))
+    exact (foldInPlace_loop_subMul1 r off a x (lt_usizeSize hs.2) _ _ (toNat_toUSize (by omega))
       (toNat_toUSize (by omega)) 0 0 h _ _).symm
   · rfl
 

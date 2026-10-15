@@ -121,12 +121,13 @@ of `addAt`.
 
 /-- `addAt` with `foldInPlace` over the limbs of `a`, which the compiler uses in its place. -/
 public def addAtFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) : UInt32Array × Bool :=
-  if hs : r.size < USize.size ∧ a.array.size < USize.size ∧ off + a.size ≤ r.size then
+  if hs : r.size < 4294967295 ∧ a.array.size < 4294967295 ∧ off + a.size ≤ r.size then
     let arr := a.array
     let st := a.start.toUSize
     let p := r.foldInPlace off.toUSize a.size.toUSize (0 : UInt32)
-      (addAtStep arr st a.size.toUSize hs.2.1 (limbU_bound a hs.2.1))
+      (addAtStep arr st a.size.toUSize (lt_usizeSize hs.2.1) (limbU_bound a (lt_usizeSize hs.2.1)))
       (by
+        have := USize.le_size
         have := a.stop_le_array_size
         have := a.start_le_stop
         have := a.size_eq
@@ -183,10 +184,11 @@ private theorem foldInPlace_loop_addAt (r : UInt32Array) (off : Nat) (a : UInt32
   rw [addAt, addAtFast]
   split
   · rename_i hs
+    have := USize.le_size
     have := a.stop_le_array_size
     have := a.start_le_stop
     have := a.size_eq
-    exact (foldInPlace_loop_addAt r off a hs.2.1 _ _ (toNat_toUSize (by omega))
+    exact (foldInPlace_loop_addAt r off a (lt_usizeSize hs.2.1) _ _ (toNat_toUSize (by omega))
       (toNat_toUSize (by omega)) 0 false hs.2.2 (by omega) _ _).symm
   · rfl
 
@@ -241,13 +243,14 @@ public def addInto (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) : UInt3
 
 /-- `addInto` with `foldInPlaceThen` and `incrFrom`, which the compiler uses in its place. -/
 public def addIntoFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) : UInt32Array :=
-  if hs : r.size < USize.size ∧ a.array.size < USize.size ∧ off + a.size ≤ r.size then
+  if hs : r.size < 4294967295 ∧ a.array.size < 4294967295 ∧ off + a.size ≤ r.size then
     let arr := a.array
     let st := a.start.toUSize
     r.foldInPlaceThen off.toUSize a.size.toUSize (0 : UInt32)
-      (addAtStep arr st a.size.toUSize hs.2.1 (limbU_bound a hs.2.1))
+      (addAtStep arr st a.size.toUSize (lt_usizeSize hs.2.1) (limbU_bound a (lt_usizeSize hs.2.1)))
       (fun r' c => if c != 0 then incrFrom r' (off + a.size) else r')
       (by
+        have := USize.le_size
         have := a.stop_le_array_size
         have := a.start_le_stop
         have := a.size_eq
@@ -261,11 +264,13 @@ public def addIntoFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) : U
   rw [addInto, addAt, addIntoFast]
   split
   · rename_i hs
+    have := USize.le_size
     have := a.stop_le_array_size
     have := a.start_le_stop
     have := a.size_eq
+    have := USize.le_size
     rw [UInt32Array.foldInPlaceThen_eq]
-    rw [← foldInPlace_loop_addAt r off a hs.2.1 _ _ (toNat_toUSize (by omega))
+    rw [← foldInPlace_loop_addAt r off a (lt_usizeSize hs.2.1) _ _ (toNat_toUSize (by omega))
       (toNat_toUSize (by omega)) 0 false hs.2.2 (by omega) _ _, addAtLoop_tail _ _ _ _ _ (by omega)]
     rfl
   · rfl

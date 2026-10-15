@@ -183,6 +183,14 @@ public theorem toNat_add_usize {x y : USize} (h : x.toNat + y.toNat < USize.size
 public theorem toNat_toUSize {n : Nat} (h : n < USize.size) : n.toUSize.toNat = n := by
   simp [Nat.mod_eq_of_lt h]
 
+/--
+The guard of the compiled loops: below `2³² - 1`, a literal that the compiler builds cheaply and
+that is a small `Nat` on 64-bit platforms, where comparing with `USize.size = 2⁶⁴` goes through a
+big number. (A literal of `2³²` or more is built from a string at each use.)
+-/
+public theorem lt_usizeSize {n : Nat} (h : n < 4294967295) : n < USize.size :=
+  Nat.lt_of_lt_of_le (Nat.lt_succ_of_lt h) USize.le_size
+
 public theorem uget_eq_getElem (a : UInt32Array) (i : USize) (k : Nat) (hk : i.toNat = k)
     (h : i.toNat < a.size) : a.uget i h = a[k]'(hk ▸ h) := by
   subst hk
