@@ -30,7 +30,8 @@ the coefficients are, and each step of the interpolation
 * `c₃ = t₃ - t₂`, `c₂ = t₂ - 3 c₃`, `c₁ = r₁ - c₂ - c₃`
 
 subtracts a part of what it subtracts from and divides exactly. Like `karatsuba`, `toom3` takes
-the multiplier for the five products as a parameter.
+the multiplier for the five products as a parameter. `toom3Sqr` squares the same way with five
+squares.
 -/
 
 open ScalarArray
@@ -238,6 +239,70 @@ private theorem toom3Assemble_spec (n k : Nat) (c₀ c₁ c₂ c₃ c₄ : UInt3
   rw [toom3Assemble, v₄, ← hS]
   simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul, Nat.zero_add]
 
+/-- Interpolation and assembly: `n` limbs of `c(βᵏ)` from the five products. -/
+def toom3Finish (n k : Nat) (c₀ w₁ w₂ w₃ c₄ : UInt32Array) : UInt32Array :=
+  let i := toom3Interp c₀ w₁ w₂ w₃ c₄
+  toom3Assemble n k c₀ i.1 i.2.1 i.2.2 c₄
+
+private theorem toom3_w₁ (A₀ A₁ A₂ B₀ B₁ B₂ : Nat) :
+    (A₀ + A₁ + A₂) * (B₀ + B₁ + B₂) = A₀ * B₀ + (A₀ * B₁ + A₁ * B₀) +
+      (A₀ * B₂ + A₁ * B₁ + A₂ * B₀) + (A₁ * B₂ + A₂ * B₁) + A₂ * B₂ := by
+  grind
+
+private theorem toom3_w₂ (A₀ A₁ A₂ B₀ B₁ B₂ : Nat) :
+    (A₀ + 2 * A₁ + 4 * A₂) * (B₀ + 2 * B₁ + 4 * B₂) = A₀ * B₀ + 2 * (A₀ * B₁ + A₁ * B₀) +
+      4 * (A₀ * B₂ + A₁ * B₁ + A₂ * B₀) + 8 * (A₁ * B₂ + A₂ * B₁) + 16 * (A₂ * B₂) := by
+  grind
+
+private theorem toom3_w₃ (A₀ A₁ A₂ B₀ B₁ B₂ : Nat) :
+    (A₀ + 3 * A₁ + 9 * A₂) * (B₀ + 3 * B₁ + 9 * B₂) = A₀ * B₀ + 3 * (A₀ * B₁ + A₁ * B₀) +
+      9 * (A₀ * B₂ + A₁ * B₁ + A₂ * B₀) + 27 * (A₁ * B₂ + A₂ * B₁) + 81 * (A₂ * B₂) := by
+  grind
+
+private theorem toom3_sum (A₀ A₁ A₂ B₀ B₁ B₂ x : Nat) :
+    A₀ * B₀ + x * (A₀ * B₁ + A₁ * B₀) + x * x * (A₀ * B₂ + A₁ * B₁ + A₂ * B₀) +
+      x * x * x * (A₁ * B₂ + A₂ * B₁) + x * x * x * x * (A₂ * B₂) =
+      (A₀ + x * A₁ + x * x * A₂) * (B₀ + x * B₁ + x * x * B₂) := by
+  grind
+
+/--
+`toom3Finish` computes the product `(A₀ + x A₁ + x² A₂) (B₀ + x B₁ + x² B₂)` at `x = βᵏ` from
+`c₀ = A₀ B₀`, `c₄ = A₂ B₂` and the products of the values at `1`, `2` and `3`, when it fits in
+`n` limbs.
+-/
+private theorem toom3Finish_spec (n k : Nat) (c₀ w₁ w₂ w₃ c₄ : UInt32Array)
+    (A₀ A₁ A₂ B₀ B₁ B₂ : Nat) (hk : 4 * k ≤ n) (hv₀ : toNat c₀ = A₀ * B₀)
+    (hv₄ : toNat c₄ = A₂ * B₂) (hw₁ : toNat w₁ = (A₀ + A₁ + A₂) * (B₀ + B₁ + B₂))
+    (hw₂ : toNat w₂ = (A₀ + 2 * A₁ + 4 * A₂) * (B₀ + 2 * B₁ + 4 * B₂))
+    (hw₃ : toNat w₃ = (A₀ + 3 * A₁ + 9 * A₂) * (B₀ + 3 * B₁ + 9 * B₂))
+    (hlt : (A₀ + 2 ^ (32 * k) * A₁ + 2 ^ (32 * k) * 2 ^ (32 * k) * A₂) *
+      (B₀ + 2 ^ (32 * k) * B₁ + 2 ^ (32 * k) * 2 ^ (32 * k) * B₂) < 2 ^ (32 * n)) :
+    (toom3Finish n k c₀ w₁ w₂ w₃ c₄).size = n ∧
+      toNat (toom3Finish n k c₀ w₁ w₂ w₃ c₄) =
+        (A₀ + 2 ^ (32 * k) * A₁ + 2 ^ (32 * k) * 2 ^ (32 * k) * A₂) *
+          (B₀ + 2 ^ (32 * k) * B₁ + 2 ^ (32 * k) * 2 ^ (32 * k) * B₂) := by
+  -- Interpolation recovers the middle coefficients.
+  have hi := toom3Interp_spec _ _ _ _ _ (A₀ * B₀) (A₀ * B₁ + A₁ * B₀)
+    (A₀ * B₂ + A₁ * B₁ + A₂ * B₀) (A₁ * B₂ + A₂ * B₁) (A₂ * B₂) hv₀ hv₄
+    (by rw [hw₁, toom3_w₁]) (by rw [hw₂, toom3_w₂]) (by rw [hw₃, toom3_w₃])
+  -- The coefficients at `x = βᵏ` give the product.
+  have hx₂ : 2 ^ (32 * (2 * k)) = 2 ^ (32 * k) * 2 ^ (32 * k) := by
+    rw [← Nat.pow_add]; congr 1; omega
+  have hx₃ : 2 ^ (32 * (3 * k)) = 2 ^ (32 * k) * 2 ^ (32 * k) * 2 ^ (32 * k) := by
+    rw [← Nat.pow_add, ← Nat.pow_add]; congr 1; omega
+  have hx₄ : 2 ^ (32 * (4 * k)) = 2 ^ (32 * k) * 2 ^ (32 * k) * 2 ^ (32 * k) * 2 ^ (32 * k) := by
+    rw [← Nat.pow_add, ← Nat.pow_add, ← Nat.pow_add]; congr 1; omega
+  have hS : A₀ * B₀ + 2 ^ (32 * k) * (A₀ * B₁ + A₁ * B₀) +
+      2 ^ (32 * (2 * k)) * (A₀ * B₂ + A₁ * B₁ + A₂ * B₀) +
+      2 ^ (32 * (3 * k)) * (A₁ * B₂ + A₂ * B₁) + 2 ^ (32 * (4 * k)) * (A₂ * B₂) =
+      (A₀ + 2 ^ (32 * k) * A₁ + 2 ^ (32 * k) * 2 ^ (32 * k) * A₂) *
+        (B₀ + 2 ^ (32 * k) * B₁ + 2 ^ (32 * k) * 2 ^ (32 * k) * B₂) := by
+    rw [hx₂, hx₃, hx₄, toom3_sum]
+  have key := toom3Assemble_spec n k _ _ _ _ _ _ _ _ _ _ hk hv₀ hi.1 hi.2.1 hi.2.2 hv₄
+    (by rw [hS]; exact hlt)
+  rw [hS] at key
+  exact key
+
 /-! ## Toom-3 -/
 
 /--
@@ -269,29 +334,7 @@ public def toom3 (a b : UInt32Array.Slice) (hb : 12 ≤ b.size) (hab : b.size �
     simp only [UInt32Array.size_toSlice, size_eval3, a₀, a₁, a₂, b₀, b₁, b₂,
       UInt32Array.Slice.size_slice]
     omega)
-  let i := toom3Interp c₀ w₁ w₂ w₃ c₄
-  toom3Assemble (a.size + b.size) k c₀ i.1 i.2.1 i.2.2 c₄
-
-private theorem toom3_w₁ (A₀ A₁ A₂ B₀ B₁ B₂ : Nat) :
-    (A₀ + A₁ + A₂) * (B₀ + B₁ + B₂) = A₀ * B₀ + (A₀ * B₁ + A₁ * B₀) +
-      (A₀ * B₂ + A₁ * B₁ + A₂ * B₀) + (A₁ * B₂ + A₂ * B₁) + A₂ * B₂ := by
-  grind
-
-private theorem toom3_w₂ (A₀ A₁ A₂ B₀ B₁ B₂ : Nat) :
-    (A₀ + 2 * A₁ + 4 * A₂) * (B₀ + 2 * B₁ + 4 * B₂) = A₀ * B₀ + 2 * (A₀ * B₁ + A₁ * B₀) +
-      4 * (A₀ * B₂ + A₁ * B₁ + A₂ * B₀) + 8 * (A₁ * B₂ + A₂ * B₁) + 16 * (A₂ * B₂) := by
-  grind
-
-private theorem toom3_w₃ (A₀ A₁ A₂ B₀ B₁ B₂ : Nat) :
-    (A₀ + 3 * A₁ + 9 * A₂) * (B₀ + 3 * B₁ + 9 * B₂) = A₀ * B₀ + 3 * (A₀ * B₁ + A₁ * B₀) +
-      9 * (A₀ * B₂ + A₁ * B₁ + A₂ * B₀) + 27 * (A₁ * B₂ + A₂ * B₁) + 81 * (A₂ * B₂) := by
-  grind
-
-private theorem toom3_sum (A₀ A₁ A₂ B₀ B₁ B₂ x : Nat) :
-    A₀ * B₀ + x * (A₀ * B₁ + A₁ * B₀) + x * x * (A₀ * B₂ + A₁ * B₁ + A₂ * B₀) +
-      x * x * x * (A₁ * B₂ + A₂ * B₁) + x * x * x * x * (A₂ * B₂) =
-      (A₀ + x * A₁ + x * x * A₂) * (B₀ + x * B₁ + x * x * B₂) := by
-  grind
+  toom3Finish (a.size + b.size) k c₀ w₁ w₂ w₃ c₄
 
 public theorem toom3_spec (a b : UInt32Array.Slice) (hb : 12 ≤ b.size) (hab : b.size ≤ a.size)
     (mulRec : (x y : UInt32Array.Slice) → x.size + y.size < a.size + b.size → UInt32Array)
@@ -336,33 +379,75 @@ public theorem toom3_spec (a b : UInt32Array.Slice) (hb : 12 ≤ b.size) (hab : 
   generalize toNat (b.slice 0 ((b.size + 2) / 3)) = B₀ at *
   generalize toNat (b.slice ((b.size + 2) / 3) (2 * ((b.size + 2) / 3))) = B₁ at *
   generalize toNat (b.slice (2 * ((b.size + 2) / 3)) b.size) = B₂ at *
-  -- Interpolation recovers the middle coefficients.
-  have hi := toom3Interp_spec _ _ _ _ _ (A₀ * B₀) (A₀ * B₁ + A₁ * B₀)
-    (A₀ * B₂ + A₁ * B₁ + A₂ * B₀) (A₁ * B₂ + A₂ * B₁) (A₂ * B₂) hv₀ hv₄
-    (by rw [hw₁, toom3_w₁]) (by rw [hw₂, toom3_w₂]) (by rw [hw₃, toom3_w₃])
-  -- The coefficients at `x = βᵏ` give the product.
-  have hx₂ : 2 ^ (32 * (2 * ((b.size + 2) / 3))) =
-      2 ^ (32 * ((b.size + 2) / 3)) * 2 ^ (32 * ((b.size + 2) / 3)) := by
-    rw [← Nat.pow_add]; congr 1; omega
-  have hx₃ : 2 ^ (32 * (3 * ((b.size + 2) / 3))) =
-      2 ^ (32 * ((b.size + 2) / 3)) * 2 ^ (32 * ((b.size + 2) / 3)) *
-        2 ^ (32 * ((b.size + 2) / 3)) := by
-    rw [← Nat.pow_add, ← Nat.pow_add]; congr 1; omega
-  have hx₄ : 2 ^ (32 * (4 * ((b.size + 2) / 3))) =
-      2 ^ (32 * ((b.size + 2) / 3)) * 2 ^ (32 * ((b.size + 2) / 3)) *
-        2 ^ (32 * ((b.size + 2) / 3)) * 2 ^ (32 * ((b.size + 2) / 3)) := by
-    rw [← Nat.pow_add, ← Nat.pow_add, ← Nat.pow_add]; congr 1; omega
-  have hS : A₀ * B₀ + 2 ^ (32 * ((b.size + 2) / 3)) * (A₀ * B₁ + A₁ * B₀) +
-      2 ^ (32 * (2 * ((b.size + 2) / 3))) * (A₀ * B₂ + A₁ * B₁ + A₂ * B₀) +
-      2 ^ (32 * (3 * ((b.size + 2) / 3))) * (A₁ * B₂ + A₂ * B₁) +
-      2 ^ (32 * (4 * ((b.size + 2) / 3))) * (A₂ * B₂) = toNat a * toNat b := by
-    rw [hx₂, hx₃, hx₄, ha, hb', toom3_sum]
   have hlt : toNat a * toNat b < 2 ^ (32 * (a.size + b.size)) := by
     rw [Nat.mul_add, Nat.pow_add]
     exact Nat.mul_lt_mul'' hA hB
-  have key := toom3Assemble_spec (a.size + b.size) ((b.size + 2) / 3) _ _ _ _ _ _ _ _ _ _
-    (by omega) hv₀ hi.1 hi.2.1 hi.2.2 hv₄ (by rw [hS]; exact hlt)
-  rw [hS] at key
-  exact key
+  rw [ha, hb'] at hlt ⊢
+  exact toom3Finish_spec (a.size + b.size) ((b.size + 2) / 3) _ _ _ _ _ A₀ A₁ A₂ B₀ B₁ B₂ (by omega)
+    hv₀ hv₄ hw₁ hw₂ hw₃ hlt
+
+/-! ## Toom-3 squaring -/
+
+/--
+The square `a * a` by one step of Toom-3, for `12 ≤ a.size`: the same split, evaluations,
+interpolation and assembly as `toom3 a a`, but each value is computed once and the five products
+are squares, which `sqrRec` computes on inputs shorter than `a`.
+-/
+public def toom3Sqr (a : UInt32Array.Slice) (ha : 12 ≤ a.size)
+    (sqrRec : (x : UInt32Array.Slice) → x.size < a.size → UInt32Array) : UInt32Array :=
+  let k := (a.size + 2) / 3
+  let a₀ := a.slice 0 k
+  let a₁ := a.slice k (2 * k)
+  let a₂ := a.slice (2 * k) a.size
+  let c₀ := sqrRec a₀ (by simp only [a₀, UInt32Array.Slice.size_slice]; omega)
+  let c₄ := sqrRec a₂ (by simp only [a₂, UInt32Array.Slice.size_slice]; omega)
+  let w₁ := sqrRec (eval1 a₀ a₁ a₂) (by
+    simp only [UInt32Array.size_toSlice, size_eval1, a₀, a₁, a₂, UInt32Array.Slice.size_slice]
+    omega)
+  let w₂ := sqrRec (eval2 a₀ a₁ a₂) (by
+    simp only [UInt32Array.size_toSlice, size_eval2, a₀, a₁, a₂, UInt32Array.Slice.size_slice]
+    omega)
+  let w₃ := sqrRec (eval3 a₀ a₁ a₂) (by
+    simp only [UInt32Array.size_toSlice, size_eval3, a₀, a₁, a₂, UInt32Array.Slice.size_slice]
+    omega)
+  toom3Finish (a.size + a.size) k c₀ w₁ w₂ w₃ c₄
+
+public theorem toom3Sqr_spec (a : UInt32Array.Slice) (ha : 12 ≤ a.size)
+    (sqrRec : (x : UInt32Array.Slice) → x.size < a.size → UInt32Array)
+    (hrec : ∀ x h, (sqrRec x h).size = x.size + x.size ∧
+      toNat (sqrRec x h) = toNat x * toNat x) :
+    (toom3Sqr a ha sqrRec).size = a.size + a.size ∧
+      toNat (toom3Sqr a ha sqrRec) = toNat a * toNat a := by
+  have hsplit := toNat_slice_three a ((a.size + 2) / 3) (by omega)
+  have hA := toNat_lt a
+  -- The five squares.
+  obtain ⟨-, hv₀⟩ := hrec (a.slice 0 ((a.size + 2) / 3))
+    (by simp only [UInt32Array.Slice.size_slice]; omega)
+  obtain ⟨-, hv₄⟩ := hrec (a.slice (2 * ((a.size + 2) / 3)) a.size)
+    (by simp only [UInt32Array.Slice.size_slice]; omega)
+  obtain ⟨-, hw₁⟩ := hrec
+    (eval1 (a.slice 0 ((a.size + 2) / 3)) (a.slice ((a.size + 2) / 3) (2 * ((a.size + 2) / 3)))
+      (a.slice (2 * ((a.size + 2) / 3)) a.size))
+    (by simp only [UInt32Array.size_toSlice, size_eval1, UInt32Array.Slice.size_slice]; omega)
+  obtain ⟨-, hw₂⟩ := hrec
+    (eval2 (a.slice 0 ((a.size + 2) / 3)) (a.slice ((a.size + 2) / 3) (2 * ((a.size + 2) / 3)))
+      (a.slice (2 * ((a.size + 2) / 3)) a.size))
+    (by simp only [UInt32Array.size_toSlice, size_eval2, UInt32Array.Slice.size_slice]; omega)
+  obtain ⟨-, hw₃⟩ := hrec
+    (eval3 (a.slice 0 ((a.size + 2) / 3)) (a.slice ((a.size + 2) / 3) (2 * ((a.size + 2) / 3)))
+      (a.slice (2 * ((a.size + 2) / 3)) a.size))
+    (by simp only [UInt32Array.size_toSlice, size_eval3, UInt32Array.Slice.size_slice]; omega)
+  rw [toNat_eval1] at hw₁
+  rw [toNat_eval2] at hw₂
+  rw [toNat_eval3] at hw₃
+  generalize toNat (a.slice 0 ((a.size + 2) / 3)) = A₀ at *
+  generalize toNat (a.slice ((a.size + 2) / 3) (2 * ((a.size + 2) / 3))) = A₁ at *
+  generalize toNat (a.slice (2 * ((a.size + 2) / 3)) a.size) = A₂ at *
+  have hlt : toNat a * toNat a < 2 ^ (32 * (a.size + a.size)) := by
+    rw [Nat.mul_add, Nat.pow_add]
+    exact Nat.mul_lt_mul'' hA hA
+  rw [hsplit] at hlt ⊢
+  exact toom3Finish_spec (a.size + a.size) ((a.size + 2) / 3) _ _ _ _ _ A₀ A₁ A₂ A₀ A₁ A₂
+    (by omega) hv₀ hv₄ hw₁ hw₂ hw₃ hlt
 
 end Bignum

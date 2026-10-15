@@ -51,6 +51,10 @@ public structure Config where
   sqrKaratsuba : Nat := 192
   /-- Karatsuba needs at least `4` limbs to make its squares smaller. -/
   four_le_sqrKaratsuba : 4 ≤ sqrKaratsuba := by decide
+  /-- The size from which squaring uses Toom-3 instead of Karatsuba. -/
+  sqrToom3 : Nat := 576
+  /-- Toom-3 needs at least `12` limbs to make its squares smaller. -/
+  twelve_le_sqrToom3 : 12 ≤ sqrToom3 := by decide
   deriving Repr
 
 public meta register_option bignum.mul.karatsubaThreshold : Nat := {
@@ -80,6 +84,11 @@ public meta register_option bignum.sqr.karatsubaThreshold : Nat := {
   descr := "the size, in limbs, from which squaring uses Karatsuba"
 }
 
+public meta register_option bignum.sqr.toom3Threshold : Nat := {
+  defValue := ({} : Config).sqrToom3
+  descr := "the size, in limbs, from which squaring uses Toom-3"
+}
+
 open Lean Elab Term in
 /-- The `Config` given by the `bignum.*` options in effect, with defaults from `Config`. -/
 elab "bignum_config%" : term => do
@@ -93,6 +102,9 @@ elab "bignum_config%" : term => do
   let mulToom3 := bignum.mul.toom3Threshold.get opts
   unless 12 ≤ mulToom3 do
     throwError "bignum.mul.toom3Threshold must be at least 12, but it is {mulToom3}"
+  let sqrToom3 := bignum.sqr.toom3Threshold.get opts
+  unless 12 ≤ sqrToom3 do
+    throwError "bignum.sqr.toom3Threshold must be at least 12, but it is {sqrToom3}"
   let sqrBasecase := bignum.sqr.basecaseThreshold.get opts
   let mulUnbalanced := bignum.mul.unbalancedThreshold.get opts
   let m := quote mulKaratsuba
@@ -100,11 +112,13 @@ elab "bignum_config%" : term => do
   let t := quote mulToom3
   let b := quote sqrBasecase
   let q := quote sqrKaratsuba
+  let st := quote sqrToom3
   let stx ← `(({ mulKaratsuba := $m
                  mulToom3 := $t
                  mulUnbalanced := $u
                  sqrBasecase := $b
-                 sqrKaratsuba := $q } : Config))
+                 sqrKaratsuba := $q
+                 sqrToom3 := $st } : Config))
   elabTerm stx (mkConst ``Config)
 
 end Bignum

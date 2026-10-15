@@ -162,6 +162,27 @@ def tuneSqrKaratsuba (log : Bool) : IO Nat := medianOf 3 do
     IO.eprintln "warning: Karatsuba squaring never won up to 368 limbs; using 368"
     return 368
 
+/--
+Tunes `sqrToom3`: where one Toom-3 square beats Karatsuba squaring, with the squares of both
+computed by `sqrLimbsWith` from the tuned schoolbook and Karatsuba thresholds.
+-/
+def tuneSqrToom3 (basecase karatsuba : Nat) (h : 4 ≤ karatsuba) (log : Bool) :
+    IO Nat := medianOf 3 do
+  -- A threshold for Toom-3 beyond every size tried, so that only Karatsuba recurses.
+  let cfg : Config := {
+    sqrBasecase := basecase, sqrKaratsuba := karatsuba, four_le_sqrKaratsuba := h,
+    sqrToom3 := 100000 }
+  let toom3SqrStep (a _ : UInt32Array.Slice) : UInt32Array :=
+    if h : 12 ≤ a.size then toom3Sqr a h fun x _ => sqrLimbsWith cfg x else sqrLimbsWith cfg a
+  let sizes := (List.range 50).map (karatsuba + 16 * ·)
+  match ← crossover (fun a _ => sqrLimbsWith cfg a) toom3SqrStep sizes (log := log) with
+  | some n =>
+    if log then IO.println s!"  found {n}"
+    return n
+  | none =>
+    IO.eprintln s!"warning: Toom-3 squaring never won up to {karatsuba + 784} limbs; using that"
+    return karatsuba + 784
+
 end Tune
 
 open Tune in
@@ -178,10 +199,13 @@ def main (args : List String) : IO UInt32 := do
   let sqrBasecase ← tuneSqrBasecase log
   IO.println "sqrKaratsuba: one Karatsuba square against the schoolbook square"
   let sqrKaratsuba ← tuneSqrKaratsuba log
+  IO.println "sqrToom3: one Toom-3 square against Karatsuba squaring"
+  let sqrToom3 ← tuneSqrToom3 sqrBasecase (max 4 sqrKaratsuba) (by omega) log
   let cfg : Config := {
     mulKaratsuba := max 4 karatsuba, four_le_mulKaratsuba := by omega,
     mulToom3 := max 12 toom3, twelve_le_mulToom3 := by omega, mulUnbalanced := unbalanced
-    sqrBasecase, sqrKaratsuba := max 4 sqrKaratsuba, four_le_sqrKaratsuba := by omega }
+    sqrBasecase, sqrKaratsuba := max 4 sqrKaratsuba, four_le_sqrKaratsuba := by omega,
+    sqrToom3 := max 12 sqrToom3, twelve_le_sqrToom3 := by omega }
   IO.println ""
   IO.println s!"Found:   {repr cfg}"
   IO.println s!"Default: {repr ({} : Config)}"
@@ -191,5 +215,6 @@ def main (args : List String) : IO UInt32 := do
     weak.bignum.mul.toom3Threshold = {cfg.mulToom3}, \
     weak.bignum.mul.unbalancedThreshold = {cfg.mulUnbalanced}, \
     weak.bignum.sqr.basecaseThreshold = {cfg.sqrBasecase}, \
-    weak.bignum.sqr.karatsubaThreshold = {cfg.sqrKaratsuba} }"
+    weak.bignum.sqr.karatsubaThreshold = {cfg.sqrKaratsuba}, \
+    weak.bignum.sqr.toom3Threshold = {cfg.sqrToom3} }"
   return 0

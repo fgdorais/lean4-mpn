@@ -146,6 +146,16 @@ def toomConfig : Config := { mulKaratsuba := 8, mulToom3 := 12 }
   let y := sample1 (32 * n) 41
   toNat (mulLimbsWith toomConfig (ofNat x) (ofNat y)) == x * y
 
+-- Toom-3 squaring from 12 limbs, over Karatsuba squaring from 4 and the schoolbook square.
+def sqrToomConfig : Config := { sqrBasecase := 2, sqrKaratsuba := 4, sqrToom3 := 12 }
+
+#guard [1, 2, 3, 11, 12, 13, 14, 15, 17, 24, 25, 26, 35, 36, 37, 64, 100].all fun n =>
+  let x := sample1 (32 * n) 43
+  let r := sqrLimbsWith sqrToomConfig (ofNat x)
+  r.size == n + n && toNat r == x * x &&
+    toNat (sqrLimbsWith sqrToomConfig (ofNat (2 ^ (32 * n) - 1))) ==
+      (2 ^ (32 * n) - 1) * (2 ^ (32 * n) - 1)
+
 -- Very unbalanced products, which split the longer operand.
 #guard [47, 50, 64].all fun n => [100, 141, 300, 517].all fun m =>
   let x := sample1 (32 * m) 3
