@@ -447,7 +447,8 @@ private theorem toNat_wordGcd (a b : UInt64) : (wordGcd a b).toNat = Nat.gcd a.t
       Nat.gcd_rec b.toNat a.toNat, Nat.gcd_comm]
 
 /-- A matrix of determinant `±1` keeps the greatest common divisor. -/
-private theorem gcd_unimodular (a b : Nat) (A B C D : Int) (h : A * D - B * C = 1 ∨ A * D - B * C = -1) :
+private theorem gcd_unimodular (a b : Nat) (A B C D : Int)
+    (h : A * D - B * C = 1 ∨ A * D - B * C = -1) :
     Nat.gcd (A * a + B * b).natAbs (C * a + D * b).natAbs = Nat.gcd a b := by
   apply Nat.dvd_antisymm
   · -- The gcd of the combinations divides `a` and `b`, which the inverse matrix recovers.
