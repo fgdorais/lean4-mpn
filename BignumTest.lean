@@ -253,3 +253,20 @@ def sqrToomConfig : Config := { sqrBasecase := 2, sqrKaratsuba := 4, sqrToom3 :=
   let mid := ofNat (toNat z₁ - toNat z₀ - toNat z₂)
   let r := add (add z₀ (shiftLimbs mid k)) (shiftLimbs z₂ (2 * k))
   r == mul a b && toNat r == m * n
+
+-- Division by blocks from 4 limbs, over Algorithm D, against `Nat`: random operands, all-ones
+-- operands, and shapes from one block up.
+def dcConfig : Config := { divDC := 4 }
+
+def dcCheck (x y : Nat) : Bool :=
+  let v : UInt32Array.Slice := ofNat y
+  if h : 2 ≤ v.size then
+    let p := divRemWith dcConfig (ofNat x) v h
+    toNat p.1 == x / y && toNat p.2 == x % y
+  else true
+
+#guard [4, 5, 6, 7, 8, 9, 13, 16, 17, 31, 32, 33, 64].all fun n =>
+  [0, 1, 2, n - 1, n, n + 1, 2 * n, 3 * n + 5].all fun k =>
+    dcCheck (sample1 (32 * (n + k)) 47) (sample1 (32 * n) 53) &&
+      dcCheck (2 ^ (32 * (n + k)) - 1) (2 ^ (32 * n) - 1) &&
+      dcCheck (2 ^ (32 * (n + k)) - 1) (2 ^ (32 * n - 1) + 1)

@@ -32,7 +32,7 @@ namespace Bignum
 /-! ## Arithmetic facts -/
 
 /-- The limbs `j` to `k` of `r` hold `⌊r / βʲ⌋` when `r < βᵏ`. -/
-private theorem toNat_window (r : UInt32Array) (j k : Nat) (hjk : j ≤ k)
+public theorem toNat_window (r : UInt32Array) (j k : Nat) (hjk : j ≤ k)
     (hr : toNat r < 2 ^ (32 * k)) :
     toNat (r.toSlice j k) = toNat r / 2 ^ (32 * j) := by
   rw [toNat_toSlice] at hr ⊢
@@ -89,7 +89,7 @@ private theorem div_eq_three_limbs (r : UInt32Array) (i : Nat)
   grind
 
 /-- The quotient estimate is not too small. -/
-private theorem le_div_of_estimate {q W V T vt P : Nat} (hq : q * V ≤ W)
+public theorem le_div_of_estimate {q W V T vt P : Nat} (hq : q * V ≤ W)
     (hW : W < (T + 1) * P) (hV : vt * P ≤ V) (hvt : 0 < vt) : q ≤ T / vt := by
   rw [Nat.le_div_iff_mul_le hvt]
   have h₁ : q * (vt * P) ≤ q * V := Nat.mul_le_mul_left q hV
@@ -98,7 +98,7 @@ private theorem le_div_of_estimate {q W V T vt P : Nat} (hq : q * V ≤ W)
   omega
 
 /-- A divisor with top limb `vt` is at least `vt βⁿ⁻¹`. -/
-private theorem top_limb_le (v : UInt32Array.Slice) (hn : 1 ≤ v.size) :
+public theorem top_limb_le (v : UInt32Array.Slice) (hn : 1 ≤ v.size) :
     (v[v.size - 1]'(by omega)).toNat * 2 ^ (32 * (v.size - 1)) ≤ toNat v := by
   have h := ofLimbs_take_add_one v.copy.toList (v.size - 1) (by simp; omega)
   rw [show v.size - 1 + 1 = v.size by omega, List.take_of_length_le (by simp)] at h

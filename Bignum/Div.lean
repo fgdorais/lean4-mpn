@@ -6,6 +6,7 @@ module
 
 public import Bignum.Div.Limb
 public import Bignum.Div.Basecase
+public import Bignum.Div.DC
 
 /-!
 # Division
@@ -13,7 +14,7 @@ public import Bignum.Div.Basecase
 `divMod a b` is `(a / b, a % b)`, trimmed, with `Nat`'s conventions: `a / 0 = 0` and `a % 0 = a`.
 The divisor is first cut to its nonzero limbs. A divisor of one limb uses `divRem1`. A longer one
 is normalized, like in GMP: both numbers are multiplied by a power of two `f` that sets the top bit
-of the divisor, which keeps the corrections of the quotient estimates in `divRemBasecase` few, and
+of the divisor, which keeps the corrections of the quotient estimates in `divRemWith` few, and
 the remainder is divided by `f` again at the end. Normalization only affects speed: the quotient
 of `a f` by `b f` is `a / b` and the remainder `(a % b) f` for any `f ≠ 0`.
 -/
@@ -96,17 +97,17 @@ public theorem normFactor_ne_zero (vt : UInt32) : normFactor vt ≠ 0 := by
 
 /--
 `u / v` and `u % v` for a divisor of at least two limbs with a nonzero top limb, untrimmed:
-`u` and `v` are normalized, divided with `divRemBasecase`, and the remainder divided back.
+`u` and `v` are normalized, divided with `divRemWith`, and the remainder divided back.
 -/
 def divModLimbs (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) : UInt32Array × UInt32Array :=
   let f := normFactor (v[v.size - 1]'(by omega))
   let vf := mulRow v f
   let v' := vf.toSlice.slice 0 (topSize vf)
   if h : 2 ≤ v'.size then
-    let p := divRemBasecase (mulRow u f) v' h
+    let p := divRemWith config (mulRow u f) v' h
     (p.1, (divRem1 p.2 f).1)
   else
-    divRemBasecase u v hn
+    divRemWith config u v hn
 
 /-- The top limb of `s` cut to `topSize s` limbs is not zero. -/
 private theorem top_slice_topSize_ne_zero (s : UInt32Array.Slice) (h : 0 < topSize s) :
@@ -161,8 +162,8 @@ private theorem divModLimbs_spec (u v : UInt32Array.Slice) (hn : 2 ≤ v.size)
     have hpos : 0 < topSize (mulRow v f) := by
       simp only [UInt32Array.Slice.size_slice] at h
       omega
-    obtain ⟨h₁, h₂⟩ := divRemBasecase_spec (mulRow u f) _ h (top_slice_topSize_ne_zero _ hpos)
-    obtain ⟨h₃, h₄⟩ := divRem1_spec (divRemBasecase (mulRow u f)
+    obtain ⟨h₁, h₂⟩ := divRemWith_spec config (mulRow u f) _ h (top_slice_topSize_ne_zero _ hpos)
+    obtain ⟨h₃, h₄⟩ := divRem1_spec (divRemWith config (mulRow u f)
       ((mulRow v f).toSlice.slice 0 (topSize (mulRow v f))) h).2 f hf
     rw [hv', toNat_mulRow] at h₁
     rw [hv'] at h₂
@@ -175,7 +176,7 @@ private theorem divModLimbs_spec (u v : UInt32Array.Slice) (hn : 2 ≤ v.size)
     obtain ⟨hr', _⟩ := div_mod_eq hF h₃ h₄
     rw [hr', Nat.mul_div_cancel _ hF]
   · -- The fallback, without normalization.
-    obtain ⟨h₁, h₂⟩ := divRemBasecase_spec u v hn hvt
+    obtain ⟨h₁, h₂⟩ := divRemWith_spec config u v hn hvt
     simp only [toNat_toSlice] at h₁ h₂
     obtain ⟨hq, hr⟩ := div_mod_eq hVpos h₁ h₂
     exact ⟨hq, hr⟩

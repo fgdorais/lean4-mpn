@@ -21,4 +21,5 @@ public import Bignum.Sqr.Basecase
 public import Bignum.Sqr
 public import Bignum.Div.Limb
 public import Bignum.Div.Basecase
+public import Bignum.Div.DC
 public import Bignum.Div

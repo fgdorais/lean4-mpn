@@ -183,6 +183,33 @@ def tuneSqrToom3 (basecase karatsuba : Nat) (h : 4 ≤ karatsuba) (log : Bool) :
     IO.eprintln s!"warning: Toom-3 squaring never won up to {karatsuba + 784} limbs; using that"
     return karatsuba + 784
 
+/-- The quotient of `a` by `b` after normalizing both, with `div` on the normalized numbers. -/
+def normDiv (div : (u v : UInt32Array.Slice) → 2 ≤ v.size → UInt32Array)
+    (a b : UInt32Array.Slice) : UInt32Array :=
+  let f := normFactor (b.getD (b.size - 1) 0)
+  let vf := mulRow b f
+  let v := vf.toSlice.slice 0 (topSize vf)
+  if h : 2 ≤ v.size then div (mulRow a f) v h else a.copy
+
+/-- One level of division by blocks over `divRemBasecase`. -/
+def divDCStep (u v : UInt32Array.Slice) (h : 2 ≤ v.size) : UInt32Array :=
+  if h4 : 4 ≤ v.size then
+    (divRemDC config u v h4 fun u' v' _ hn' => divRemBasecase u' v' hn').1
+  else
+    (divRemBasecase u v h).1
+
+/-- Tunes `divDC`: where one level of division by blocks beats `divRemBasecase`, at `2 n / n`. -/
+def tuneDivDC (log : Bool) : IO Nat := medianOf 3 do
+  let sizes := (List.range 60).map (16 + 8 * ·)
+  match ← crossover (normDiv fun u v h => (divRemBasecase u v h).1) (normDiv divDCStep) sizes
+      (shape := fun n => (2 * n, n)) (log := log) with
+  | some n =>
+    if log then IO.println s!"  found {n}"
+    return n
+  | none =>
+    IO.eprintln "warning: division by blocks never won up to 488 limbs; using 488"
+    return 488
+
 end Tune
 
 open Tune in
@@ -201,11 +228,14 @@ def main (args : List String) : IO UInt32 := do
   let sqrKaratsuba ← tuneSqrKaratsuba log
   IO.println "sqrToom3: one Toom-3 square against Karatsuba squaring"
   let sqrToom3 ← tuneSqrToom3 sqrBasecase (max 4 sqrKaratsuba) (by omega) log
+  IO.println "divDC: one level of division by blocks against Algorithm D, at 2n / n"
+  let divDC ← tuneDivDC log
   let cfg : Config := {
     mulKaratsuba := max 4 karatsuba, four_le_mulKaratsuba := by omega,
     mulToom3 := max 12 toom3, twelve_le_mulToom3 := by omega, mulUnbalanced := unbalanced
     sqrBasecase, sqrKaratsuba := max 4 sqrKaratsuba, four_le_sqrKaratsuba := by omega,
-    sqrToom3 := max 12 sqrToom3, twelve_le_sqrToom3 := by omega }
+    sqrToom3 := max 12 sqrToom3, twelve_le_sqrToom3 := by omega,
+    divDC := max 4 divDC, four_le_divDC := by omega }
   IO.println ""
   IO.println s!"Found:   {repr cfg}"
   IO.println s!"Default: {repr ({} : Config)}"
@@ -216,5 +246,6 @@ def main (args : List String) : IO UInt32 := do
     weak.bignum.mul.unbalancedThreshold = {cfg.mulUnbalanced}, \
     weak.bignum.sqr.basecaseThreshold = {cfg.sqrBasecase}, \
     weak.bignum.sqr.karatsubaThreshold = {cfg.sqrKaratsuba}, \
-    weak.bignum.sqr.toom3Threshold = {cfg.sqrToom3} }"
+    weak.bignum.sqr.toom3Threshold = {cfg.sqrToom3}, \
+    weak.bignum.div.dcThreshold = {cfg.divDC} }"
   return 0
