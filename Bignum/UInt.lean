@@ -216,6 +216,26 @@ public theorem UInt32.subWithBorrowWord_toUInt32 (x y : UInt32) (b : Bool) :
     Nat.shiftRight_eq_div_pow] <;> split <;> simp only [UInt32.toNat_zero, UInt32.toNat_one] <;>
     omega
 
+/--
+`2 x + d + c` as its low word and its high word, the step of `mpn_sqr_diag_addlsh1`-style
+squaring: twice a limb of the cross products plus a limb of the diagonal and the carry, which is
+at most `2`.
+-/
+@[inline, expose] public def UInt32.dblAddAdd (x d c : UInt32) : UInt32 × UInt32 :=
+  let t := x.toUInt64 + x.toUInt64 + d.toUInt64 + c.toUInt64
+  (t.toUInt32, (t >>> 32).toUInt32)
+
+public theorem UInt32.dblAddAdd_spec (x d c : UInt32) :
+    (x.dblAddAdd d c).1.toNat + (x.dblAddAdd d c).2.toNat * 2 ^ 32 =
+      2 * x.toNat + d.toNat + c.toNat := by
+  have := x.toNat_lt
+  have := d.toNat_lt
+  have := c.toNat_lt
+  simp only [dblAddAdd, UInt64.toNat_add, UInt64.toNat_toUInt32, UInt32.toNat_toUInt64,
+    UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow, UInt64.toNat_ofNat, Nat.reduceMod,
+    Nat.reducePow] at *
+  omega
+
 /-- Adding a carry alone: `x + 1`, with a carry out exactly when `x` is the largest word. -/
 public theorem UInt32.addWithCarry_zero_true (x : UInt32) :
     x.addWithCarry 0 true = (x + 1, x == 0xFFFFFFFF) := by

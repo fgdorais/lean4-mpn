@@ -14,7 +14,7 @@ defaults were measured on one machine; `lake exe tune` measures them on yours in
 prints the line to add to the `Bignum` library in `lakefile.toml`, for example:
 
 ```toml
-leanOptions = { weak.bignum.mul.karatsubaThreshold = 72, weak.bignum.mul.toom3Threshold = 488, weak.bignum.mul.unbalancedThreshold = 104, weak.bignum.sqr.basecaseThreshold = 62, weak.bignum.sqr.karatsubaThreshold = 192, weak.bignum.sqr.toom3Threshold = 576 }
+leanOptions = { weak.bignum.mul.karatsubaThreshold = 72, weak.bignum.mul.toom3Threshold = 488, weak.bignum.mul.unbalancedThreshold = 104, weak.bignum.sqr.basecaseThreshold = 16, weak.bignum.sqr.karatsubaThreshold = 116, weak.bignum.sqr.toom3Threshold = 804 }
 ```
 
 ## Benchmark

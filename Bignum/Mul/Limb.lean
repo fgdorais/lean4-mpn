@@ -230,6 +230,94 @@ public def addMul1SetFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) 
     (x : UInt32) (h : off + a.size < r.size) : (addMul1Set r off a x h).size = r.size := by
   simp only [addMul1Set, UInt32Array.size_set, size_addMul1]
 
+/--
+`addMul1Set` on the first `n` limbs of `a`. The compiled form reads them from the array of `a`
+directly, without the slice object, for the rows of the schoolbook square.
+-/
+public def addMul1SetPre (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (n : Nat)
+    (x : UInt32) (hn : n ≤ a.size) (h : off + n < r.size) : UInt32Array :=
+  addMul1Set r off (a.slice 0 n) x (by rw [UInt32Array.Slice.size_slice]; omega)
+
+public theorem addMul1SetPre_eq (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (n : Nat)
+    (x : UInt32) (hn : n ≤ a.size) (h : off + n < r.size) :
+    addMul1SetPre r off a n x hn h =
+      addMul1Set r off (a.slice 0 n) x (by rw [UInt32Array.Slice.size_slice]; omega) := by
+  rw [addMul1SetPre]
+
+private theorem prefix_bound (a : UInt32Array.Slice) (n : Nat) (hn : n ≤ a.size)
+    (has : a.array.size < USize.size) :
+    a.start.toUSize.toNat + n.toUSize.toNat ≤ a.array.size := by
+  have := a.stop_le_array_size
+  have := a.start_le_stop
+  have := a.size_eq
+  rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]
+  omega
+
+private theorem limbU_prefix_eq (a : UInt32Array.Slice) (n : Nat) (hn : n ≤ a.size)
+    (has : a.array.size < USize.size) (k : Nat) (hk) (hk' : k < n) :
+    limbU a.array a.start.toUSize n.toUSize has (prefix_bound a n hn has) k.toUSize hk =
+      (a.slice 0 n)[k]'(by rw [UInt32Array.Slice.size_slice]; omega) := by
+  have := a.stop_le_array_size
+  have := a.start_le_stop
+  have := a.size_eq
+  rw [limbU_eq_getElem _ _ _ _ _ _ _ (a.start + k)
+    (by rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]), UInt32Array.Slice.getElem_slice]
+  simp only [Nat.zero_add]
+  rfl
+
+/-- The fold of `addMul1SetPreFast` from limb `k` on is `addMul1Loop` on the prefix. -/
+private theorem foldInPlace_loop_addMul1Pre (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
+    (n : Nat) (hn : n ≤ a.size) (x : UInt32) (has : a.array.size < USize.size) (s m : Nat)
+    (hs : s = off) (hm : m = n) (k : Nat) (c : UInt32) (h : off + (a.slice 0 n).size ≤ r.size)
+    (h' hlen) :
+    UInt32Array.foldInPlace.loop n.toUSize
+        (addMul1Step a.array a.start.toUSize n.toUSize has (prefix_bound a n hn has) x) s m r h'
+        hlen k c =
+      addMul1Loop r off (a.slice 0 n) x k c h := by
+  have hsz : (a.slice 0 n).size = n := by rw [UInt32Array.Slice.size_slice]; omega
+  subst s m
+  induction r, k, c, h using addMul1Loop.induct off (a.slice 0 n) x with
+  | case1 r k c h hk p ih =>
+    rw [UInt32Array.foldInPlace.loop, addMul1Loop]
+    simp only [show k < n by omega, hk, ↓reduceDIte]
+    simp only [addMul1Step, limbU_prefix_eq a n hn has k _ (by omega)]
+    exact ih _
+  | case2 r k c h hk =>
+    rw [UInt32Array.foldInPlace.loop, addMul1Loop]
+    simp only [show ¬ k < n by omega, hk, ↓reduceDIte]
+
+/-- `addMul1SetPre` with `foldInPlaceThen` over the array of `a`, used by the compiler. -/
+public def addMul1SetPreFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (n : Nat)
+    (x : UInt32) (hn : n ≤ a.size) (h : off + n < r.size) : UInt32Array :=
+  if hs : r.size < USize.size ∧ a.array.size < USize.size then
+    let arr := a.array
+    let st := a.start.toUSize
+    r.foldInPlaceThen off.toUSize n.toUSize 0
+      (addMul1Step arr st n.toUSize hs.2 (prefix_bound a n hn hs.2) x)
+      (fun r' c => if h' : off + n < r'.size then r'.set (off + n) c h' else r')
+      (by rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]; omega)
+  else
+    addMul1Set r off (a.slice 0 n) x (by rw [UInt32Array.Slice.size_slice]; omega)
+
+@[csimp] public theorem addMul1SetPre_eq_addMul1SetPreFast :
+    @addMul1SetPre = @addMul1SetPreFast := by
+  funext r off a n x hn h
+  have hsz : (a.slice 0 n).size = n := by rw [UInt32Array.Slice.size_slice]; omega
+  have hsize := size_addMul1 r off (a.slice 0 n) x (by omega)
+  rw [addMul1SetPre, addMul1SetPreFast]
+  split
+  · rename_i hs
+    rw [UInt32Array.foldInPlaceThen_eq]
+    have heq : r.foldInPlace off.toUSize n.toUSize 0
+        (addMul1Step a.array a.start.toUSize n.toUSize hs.2 (prefix_bound a n hn hs.2) x)
+        (by rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]; omega) =
+        addMul1 r off (a.slice 0 n) x (by omega) :=
+      foldInPlace_loop_addMul1Pre r off a n hn x hs.2 _ _ (toNat_toUSize (by omega))
+        (toNat_toUSize (by omega)) 0 0 (by omega) _ _
+    rw [heq, addMul1Set]
+    simp only [hsz, hsize, h, ↓reduceDIte]
+  · rfl
+
 /-- When the limb at `off + a.size` is zero, `addMul1Set` adds `a * x` at limb `off`. -/
 public theorem toNat_addMul1Set (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
     (x : UInt32) (h : off + a.size < r.size) (hz : r[off + a.size] = 0) :

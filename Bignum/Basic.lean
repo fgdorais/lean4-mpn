@@ -202,6 +202,12 @@ slice.
     (h : st.toNat + len.toNat ≤ arr.size) (k : USize) (hk : k.toNat < len.toNat) : UInt32 :=
   arr.uget (st + k) (by rw [toNat_add_usize (by omega)]; omega)
 
+/-- `limbU` reads the element of `arr` at `st + k`. -/
+public theorem limbU_eq_getElem (arr : UInt32Array) (st len : USize) (has : arr.size < USize.size)
+    (h : st.toNat + len.toNat ≤ arr.size) (k : USize) (hk : k.toNat < len.toNat) (i : Nat)
+    (hi : st.toNat + k.toNat = i) : limbU arr st len has h k hk = arr[i]'(by omega) := by
+  rw [limbU, uget_eq_getElem _ _ i (by rw [toNat_add_usize (by omega)]; exact hi)]
+
 /-- The bound that `limbU` needs to read the limbs of a slice. -/
 public theorem limbU_bound (a : UInt32Array.Slice) (has : a.array.size < USize.size) :
     a.start.toUSize.toNat + a.size.toUSize.toNat ≤ a.array.size := by
