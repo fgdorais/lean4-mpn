@@ -106,59 +106,77 @@ public theorem toNat_addAt_of_lt (r : UInt32Array) (off : Nat) (a : UInt32Array.
 
 /-! ## The compiled loop
 
-`addAtFast` adds the limbs of `a` with `foldInPlace`, as `addMul1Fast` does, then propagates the
-carry with `addAt`'s own loop, which stops as soon as the carry is gone. `@[csimp]` makes the
-compiler use it in place of `addAt`.
+`addAtFast` adds the limbs of `a` with `foldInPlace`, as `addMul1Fast` does, then
+propagates the carry with `addAt`'s own loop, which stops as soon as the carry is gone. The fold
+keeps the carry as a word with `UInt32.addWithCarryWord`, which makes a shorter dependency
+chain from limb to limb than a `Bool`. `@[csimp]` makes the compiler use `addAtFast` in place
+of `addAt`.
 -/
+
+/-- The step of the fold of `addAtFast`: adds limb `k` of the slice `arr[st...st + len]` to `y`. -/
+@[inline] def addAtStep (arr : UInt32Array) (st len : USize) (has : arr.size < USize.size)
+    (h : st.toNat + len.toNat ≤ arr.size) (k : USize) (hk : k.toNat < len.toNat) (y c : UInt32) :
+    UInt32 × UInt32 :=
+  y.addWithCarryWord (limbU arr st len has h k hk) c
 
 /-- `addAt` with `foldInPlace` over the limbs of `a`, which the compiler uses in its place. -/
 public def addAtFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) : UInt32Array × Bool :=
   if hs : r.size < USize.size ∧ a.array.size < USize.size ∧ off + a.size ≤ r.size then
-    let p := r.foldInPlace off.toUSize a.size.toUSize false
-      (fun k hk y c => y.addWithCarry (limbU a hs.2.1 k hk) c)
+    let arr := a.array
+    let st := a.start.toUSize
+    let p := r.foldInPlace off.toUSize a.size.toUSize (0 : UInt32)
+      (addAtStep arr st a.size.toUSize hs.2.1 (limbU_bound a hs.2.1))
       (by
         have := a.stop_le_array_size
         have := a.start_le_stop
         have := a.size_eq
         rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]
         exact hs.2.2)
-    addAtLoop p.1 off a a.size p.2
+    addAtLoop p.1 off a a.size (p.2 != 0)
   else
     addAtLoop r off a 0 false
 
-/-- The fold of `addAtFast` from limb `j` on, then the carry, is `addAtLoop` from limb `j` on. -/
+/--
+The fold of `addAtFast` from limb `j` on, with the carry `c` as a word, then the carry, is
+`addAtLoop` from limb `j` on.
+-/
 private theorem foldInPlace_loop_addAt (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
     (has : a.array.size < USize.size) (s n : Nat) (hs : s = off) (hn : n = a.size) (j : Nat)
     (c : Bool) (ha : off + a.size ≤ r.size) (hj : j ≤ a.size) (h' hlen) :
     addAtLoop (UInt32Array.foldInPlace.loop a.size.toUSize
-          (fun k hk y c => y.addWithCarry (limbU a has k hk) c) s n r h' hlen j c).1 off a a.size
-        (UInt32Array.foldInPlace.loop a.size.toUSize
-          (fun k hk y c => y.addWithCarry (limbU a has k hk) c) s n r h' hlen j c).2 =
+          (addAtStep a.array a.start.toUSize a.size.toUSize has (limbU_bound a has)) s n r h'
+          hlen j c.toUInt32).1
+        off a a.size
+        ((UInt32Array.foldInPlace.loop a.size.toUSize
+          (addAtStep a.array a.start.toUSize a.size.toUSize has (limbU_bound a has)) s n r h'
+          hlen j c.toUInt32).2 != 0) =
       addAtLoop r off a j c := by
+  have hc (c : Bool) : (c.toUInt32 != 0) = c := by cases c <;> rfl
   subst s n
   induction r, j, c using addAtLoop.induct off a with
   | case1 r j c h hstop =>
     have : j = a.size := by omega
     subst this
     rw [UInt32Array.foldInPlace.loop]
-    simp
+    simp [hc]
   | case2 r j c h hstop p ih =>
     by_cases hja : j < a.size
     · rw [UInt32Array.foldInPlace.loop]
       conv => rhs; rw [addAtLoop]
-      simp only [hja, ↓reduceDIte, h, hstop, ↓reduceIte, limbU_eq a has j _ hja]
+      simp only [hja, ↓reduceDIte, h, hstop, ↓reduceIte, addAtStep, limbU_eq a has j _ hja,
+        UInt32.addWithCarryWord_toUInt32]
       have hg : a.getD j 0 = a[j] := by simp [UInt32Array.Slice.getD_eq, hja]
       simp only [p, hg] at ih ⊢
       exact ih (by simpa using ha) (by omega) (by simpa using ha)
     · have : j = a.size := by omega
       subst this
       rw [UInt32Array.foldInPlace.loop]
-      simp
+      simp [hc]
   | case3 r j c h =>
     have : j = a.size := by omega
     subst this
     rw [UInt32Array.foldInPlace.loop]
-    simp
+    simp [hc]
 
 @[csimp] public theorem addAt_eq_addAtFast : @addAt = @addAtFast := by
   funext r off a

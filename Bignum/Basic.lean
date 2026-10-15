@@ -179,19 +179,27 @@ public theorem uset_eq_set (a : UInt32Array) (i : USize) (k : Nat) (hk : i.toNat
   subst hk
   rfl
 
-/-- Limb `k` of `a`, read with `USize` indices, as the folds of the compiled loops do. -/
-@[inline] public def limbU (a : UInt32Array.Slice) (has : a.array.size < USize.size) (k : USize)
-    (hk : k.toNat < a.size.toUSize.toNat) : UInt32 :=
+/--
+Limb `k` of the `len` limbs of `arr` from `st` on, read with `USize` indices, as the folds of the
+compiled loops do. They bind `arr` and `st` before the fold so that its loop reads neither from the
+slice.
+-/
+@[inline] public def limbU (arr : UInt32Array) (st len : USize) (has : arr.size < USize.size)
+    (h : st.toNat + len.toNat ≤ arr.size) (k : USize) (hk : k.toNat < len.toNat) : UInt32 :=
+  arr.uget (st + k) (by rw [toNat_add_usize (by omega)]; omega)
+
+/-- The bound that `limbU` needs to read the limbs of a slice. -/
+public theorem limbU_bound (a : UInt32Array.Slice) (has : a.array.size < USize.size) :
+    a.start.toUSize.toNat + a.size.toUSize.toNat ≤ a.array.size := by
   have := a.stop_le_array_size
   have := a.start_le_stop
   have := a.size_eq
-  a.array.uget (a.start.toUSize + k) (by
-    rw [toNat_toUSize (by omega)] at hk
-    rw [toNat_add_usize (by rw [toNat_toUSize (by omega)]; omega), toNat_toUSize (by omega)]
-    omega)
+  rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]
+  omega
 
 public theorem limbU_eq (a : UInt32Array.Slice) (has : a.array.size < USize.size) (k : Nat)
-    (hk) (hk' : k < a.size) : limbU a has k.toUSize hk = a[k] := by
+    (hk) (hk' : k < a.size) :
+    limbU a.array a.start.toUSize a.size.toUSize has (limbU_bound a has) k.toUSize hk = a[k] := by
   have := a.stop_le_array_size
   have := a.start_le_stop
   have := a.size_eq

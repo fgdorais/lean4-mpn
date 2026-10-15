@@ -85,7 +85,9 @@ def sizes : List Nat := [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096
 def row (name : String) (n : Nat) (bn : IO Float) (nat : IO Float) : IO Unit := do
   let tb ← bn
   let tn ← nat
-  IO.println s!"{pad 6 name} {pad 6 (toString n)} {pad 10 (fmt tb)} {pad 10 (fmt tn)} {pad 8 (fmtRatio (tb / tn))}"
+  IO.println <|
+    s!"{pad 6 name} {pad 6 (toString n)} {pad 10 (fmt tb)} {pad 10 (fmt tn)} " ++
+      s!"{pad 8 (fmtRatio (tb / tn))}"
 
 def main (args : List String) : IO Unit := do
   let ops := if args.isEmpty then ["add", "sub", "mul1", "mul", "sqr", "div"] else args

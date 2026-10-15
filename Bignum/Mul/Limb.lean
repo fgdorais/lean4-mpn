@@ -42,16 +42,27 @@ public def addMul1 (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UI
 computes the same as `addMul1` with `foldInPlace`, which updates the array in place with one
 exclusivity check and `USize` indices, and `@[csimp]` makes the compiler use it in place of
 `addMul1`, with a proof that the two return the same result. `foldInPlace` needs the arrays to fit
-in a `USize`, which every array in memory does; the other case falls back to `addMul1`'s loop. This comes before the
-rest of the file so that `mul1` and `mulRow` are compiled with it.
+in a `USize`, which every array in memory does; the other case falls back to `addMul1`'s loop.
+This comes before the rest of the file so that `mul1` and `mulRow` are compiled with it.
 -/
+
+/--
+The step of the fold of `addMul1Fast`: adds limb `k` of the slice `arr[st...st + len]` times `x`
+to `y`.
+-/
+@[inline] def addMul1Step (arr : UInt32Array) (st len : USize) (has : arr.size < USize.size)
+    (h : st.toNat + len.toNat ≤ arr.size) (x : UInt32) (k : USize) (hk : k.toNat < len.toNat)
+    (y c : UInt32) : UInt32 × UInt32 :=
+  (limbU arr st len has h k hk).mulAddAdd x y c
 
 /-- `addMul1` as a `foldInPlace`, which the compiler uses in its place. -/
 public def addMul1Fast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UInt32)
     (h : off + a.size ≤ r.size) : UInt32Array × UInt32 :=
   if hs : r.size < USize.size ∧ a.array.size < USize.size then
+    let arr := a.array
+    let st := a.start.toUSize
     r.foldInPlace off.toUSize a.size.toUSize 0
-      (fun k hk y c => (limbU a hs.2 k hk).mulAddAdd x y c)
+      (addMul1Step arr st a.size.toUSize hs.2 (limbU_bound a hs.2) x)
       (by
         have := a.stop_le_array_size
         have := a.start_le_stop
@@ -65,15 +76,16 @@ public def addMul1Fast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x 
 private theorem foldInPlace_loop_addMul1 (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
     (x : UInt32) (has : a.array.size < USize.size) (s n : Nat) (hs : s = off) (hn : n = a.size)
     (k : Nat) (c : UInt32) (h : off + a.size ≤ r.size) (h' hlen) :
-    UInt32Array.foldInPlace.loop a.size.toUSize (fun k hk y c => (limbU a has k hk).mulAddAdd x y c)
-        s n r h' hlen k c =
+    UInt32Array.foldInPlace.loop a.size.toUSize
+        (addMul1Step a.array a.start.toUSize a.size.toUSize has (limbU_bound a has) x) s n r h'
+        hlen k c =
       addMul1Loop r off a x k c h := by
   subst s n
   induction r, k, c, h using addMul1Loop.induct off a x with
   | case1 r k c h hk p ih =>
     rw [UInt32Array.foldInPlace.loop, addMul1Loop]
     simp only [hk, ↓reduceDIte]
-    simp only [limbU_eq a has k _ hk]
+    simp only [addMul1Step, limbU_eq a has k _ hk]
     exact ih _
   | case2 r k c h hk =>
     rw [UInt32Array.foldInPlace.loop, addMul1Loop]
