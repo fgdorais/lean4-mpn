@@ -52,16 +52,20 @@ usually stops at the first limb.
 - [ ] **Unbalanced Toom** (`toom32`, `toom42`) instead of halving the longer operand.
 - [ ] **Toom-4, Toom-6½, Toom-8½**, then FFT multiplication for very large numbers.
 - [ ] **The rest of `Nat`:**
-  - [ ] shifts by bits (`<<<`, `>>>`);
-  - [ ] bitwise `&&&`, `|||`, `^^^`;
-  - [ ] `log2`;
-  - [ ] `pow`, by repeated squaring with `sqr`;
+  - [x] shifts by bits (`<<<`, `>>>`, `Bits`): correct but in several passes (`mulRow`,
+    `shiftLimbs`, `trim`, a copy), about 95 ns on words and 5× behind `Nat` at 256 limbs; a
+    single fused shift loop on `foldInPlace` would fix both;
+  - [x] bitwise `&&&`, `|||`, `^^^` (limbwise with `ofFn`, then trimmed);
+  - [x] `log2`;
+  - [x] `pow`, by repeated squaring with `sqr`;
   - [x] `gcd` and `lcm` (`BigNat`): Lehmer's algorithm with single-word cofactors, checked by
     their determinant, and Euclid on words; faster than `Nat` on words, 13–18× behind GMP from 3
     limbs. A fused limb primitive applying the cofactor matrix in one pass (GMP's
     `mpn_hgcd_mul_matrix1_vector`) would remove most of the allocations of a step, and
     double-word leading digits (`hgcd2`) would double the progress per step.
-  - [ ] integer square root;
+  - [x] integer square root: Newton's iteration from a power of two above the root, 3× behind
+    `Nat` at 2 limbs and 12× at 256; each step is a full division. GMP's `mpn_sqrtrem`
+    (Zimmermann's recursive square root) or Newton at growing precision would close most of it.
   - [ ] `toString`/`ofString`, like GMP's `mpn_get_str`/`mpn_set_str`, by dividing by `10⁹`
     with `divRem1`.
 

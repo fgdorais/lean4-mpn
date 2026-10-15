@@ -10,6 +10,7 @@ public import Bignum.Cmp
 public import Bignum.Mul
 public import Bignum.Sqr
 public import Bignum.Div
+public import Bignum.Bits
 
 /-!
 # Natural numbers
@@ -386,6 +387,344 @@ public def decEq : (x y : BigNat) → Decidable (x = y)
   | large a ha, large b hb =>
     if h : a = b then isTrue (by subst h; rfl) else isFalse fun h' => h (by cases h'; rfl)
 
+/-! ## Shifts, bits and `log2` -/
+
+/-- `x <<< n = x * 2ⁿ`: on words when it fits. -/
+public def shiftLeft (x : BigNat) (n : Nat) : BigNat :=
+  match x with
+  | small a =>
+    if n = 0 then small a
+    else if n < 64 ∧ a >>> (64 - n).toUInt64 = 0 then small (a <<< n.toUInt64)
+    else ofLimbs (Bignum.shiftLeft (limbsOfWord a) n) (isTrimmed_shiftLeft _ _)
+  | large a _ => ofLimbs (Bignum.shiftLeft a n) (isTrimmed_shiftLeft _ _)
+
+/-- `x >>> n = x / 2ⁿ`. -/
+public def shiftRight (x : BigNat) (n : Nat) : BigNat :=
+  match x with
+  | small a => if n < 64 then small (a >>> n.toUInt64) else small 0
+  | large a _ => ofLimbs (Bignum.shiftRight a n) (isTrimmed_shiftRight _ _)
+
+@[simp] public theorem toNat_shiftLeft (x : BigNat) (n : Nat) :
+    (shiftLeft x n).toNat = x.toNat * 2 ^ n := by
+  cases x with
+  | small a =>
+    have ha := a.toNat_lt
+    simp only [shiftLeft]
+    split
+    · rename_i h; subst h; simp [toNat]
+    · rename_i h0
+      split
+      · rename_i h
+        obtain ⟨h₁, h₂⟩ := h
+        have h₂ := congrArg UInt64.toNat h₂
+        rw [UInt64.toNat_shiftRight, UInt64.toNat_zero, Nat.shiftRight_eq_div_pow] at h₂
+        have hn : (64 - n).toUInt64.toNat % 64 = 64 - n := by
+          simp only [Nat.toUInt64, UInt64.toNat_ofNat']
+          rw [Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)]
+        have hn' : n.toUInt64.toNat % 64 = n := by
+          simp only [Nat.toUInt64, UInt64.toNat_ofNat']
+          rw [Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)]
+        rw [hn] at h₂
+        have hlt : a.toNat < 2 ^ (64 - n) := by
+          rcases Nat.eq_zero_or_pos (a.toNat / 2 ^ (64 - n)) with h | h
+          · exact (Nat.div_eq_zero_iff_lt (Nat.two_pow_pos _)).1 h
+          · omega
+        have : a.toNat * 2 ^ n < 2 ^ 64 := by
+          have := Nat.mul_lt_mul_of_pos_right hlt (Nat.two_pow_pos n)
+          rwa [← Nat.pow_add, show 64 - n + n = 64 by omega] at this
+        simp only [toNat, UInt64.toNat_shiftLeft, hn', Nat.shiftLeft_eq]
+        exact Nat.mod_eq_of_lt this
+      · rw [toNat_ofLimbs, Bignum.toNat_shiftLeft, (limbsOfWord_spec a).1]
+        rfl
+  | large a ha =>
+    simp only [shiftLeft]
+    rw [toNat_ofLimbs, Bignum.toNat_shiftLeft]
+    rfl
+
+@[simp] public theorem toNat_shiftRight (x : BigNat) (n : Nat) :
+    (shiftRight x n).toNat = x.toNat / 2 ^ n := by
+  cases x with
+  | small a =>
+    have ha := a.toNat_lt
+    simp only [shiftRight]
+    split
+    · rename_i h
+      have hn' : n.toUInt64.toNat % 64 = n := by
+        simp only [Nat.toUInt64, UInt64.toNat_ofNat']
+        rw [Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)]
+      simp only [toNat, UInt64.toNat_shiftRight, hn', Nat.shiftRight_eq_div_pow]
+    · rename_i h
+      have : 2 ^ 64 ≤ 2 ^ n := Nat.pow_le_pow_right (by decide) (by omega)
+      simp only [toNat, UInt64.toNat_zero]
+      exact (Nat.div_eq_of_lt (by omega)).symm
+  | large a ha =>
+    simp only [shiftRight]
+    rw [toNat_ofLimbs, Bignum.toNat_shiftRight]
+    rfl
+
+/-- `x &&& y`: on words when both are small. -/
+public def land : BigNat → BigNat → BigNat
+  | small a, small b => small (a &&& b)
+  | x, y => ofLimbs (Bignum.land x.limbs y.limbs) (isTrimmed_land _ _)
+
+/-- `x ||| y`: on words when both are small. -/
+public def lor : BigNat → BigNat → BigNat
+  | small a, small b => small (a ||| b)
+  | x, y => ofLimbs (Bignum.lor x.limbs y.limbs) (isTrimmed_lor _ _)
+
+/-- `x ^^^ y`: on words when both are small. -/
+public def xor : BigNat → BigNat → BigNat
+  | small a, small b => small (a ^^^ b)
+  | x, y => ofLimbs (Bignum.xor x.limbs y.limbs) (isTrimmed_xor _ _)
+
+@[simp] public theorem toNat_land (x y : BigNat) : (land x y).toNat = x.toNat &&& y.toNat := by
+  have hgen : ∀ x y : BigNat, (ofLimbs (Bignum.land x.limbs y.limbs) (isTrimmed_land _ _)).toNat =
+      x.toNat &&& y.toNat := fun x y => by
+    rw [toNat_ofLimbs, Bignum.toNat_land, toNat_limbs, toNat_limbs]
+  cases x with
+  | small a => cases y with
+    | small b => simp [land, toNat, UInt64.toNat_and]
+    | large b hb => exact hgen _ _
+  | large a ha => exact hgen _ _
+
+@[simp] public theorem toNat_lor (x y : BigNat) : (lor x y).toNat = x.toNat ||| y.toNat := by
+  have hgen : ∀ x y : BigNat, (ofLimbs (Bignum.lor x.limbs y.limbs) (isTrimmed_lor _ _)).toNat =
+      x.toNat ||| y.toNat := fun x y => by
+    rw [toNat_ofLimbs, Bignum.toNat_lor, toNat_limbs, toNat_limbs]
+  cases x with
+  | small a => cases y with
+    | small b => simp [lor, toNat, UInt64.toNat_or]
+    | large b hb => exact hgen _ _
+  | large a ha => exact hgen _ _
+
+@[simp] public theorem toNat_xor (x y : BigNat) : (xor x y).toNat = x.toNat ^^^ y.toNat := by
+  have hgen : ∀ x y : BigNat, (ofLimbs (Bignum.xor x.limbs y.limbs) (isTrimmed_xor _ _)).toNat =
+      x.toNat ^^^ y.toNat := fun x y => by
+    rw [toNat_ofLimbs, Bignum.toNat_xor, toNat_limbs, toNat_limbs]
+  cases x with
+  | small a => cases y with
+    | small b => simp [xor, toNat, UInt64.toNat_xor]
+    | large b hb => exact hgen _ _
+  | large a ha => exact hgen _ _
+
+/-- `⌊log₂ x⌋`, and `0` for `0`, like `Nat.log2`: from the top limb. -/
+public def log2 : BigNat → Nat
+  | small a => a.toNat.log2
+  | large a _ => 32 * (a.size - 1) + (a.getD (a.size - 1) 0).toNat.log2
+
+@[simp] public theorem log2_eq (x : BigNat) : x.log2 = x.toNat.log2 := by
+  cases x with
+  | small a => rfl
+  | large a ha =>
+    simp only [log2, toNat]
+    have hpos : 0 < a.size := by
+      rcases Nat.eq_zero_or_pos a.size with h | h
+      · have := ha.2
+        rw [toNat_of_size_eq_zero (by simpa using h)] at this
+        omega
+      · exact h
+    -- `a = L + β^(n - 1) t` with `L < β^(n - 1)` and `t ≠ 0` the top limb.
+    have hsplit := toNat_slice_add_toNat_slice a (a.size - 1) (by simp)
+    have hL := toNat_lt (a.toSlice.slice 0 (a.size - 1))
+    have htop : Bignum.toNat (a.toSlice.slice (a.size - 1) a.toSlice.size) =
+        (a.getD (a.size - 1) 0).toNat := by
+      rw [toNat_of_size_eq_one (by simp; omega)]
+      simp [UInt32Array.getD_eq_getD_getElem?, show a.size - 1 < a.size by omega]
+    have ht : (a.getD (a.size - 1) 0).toNat ≠ 0 := by
+      have := ha.1
+      rw [isTrimmed_iff, IsTrimmed, List.getLast?_eq_getElem?] at this
+      simp only [UInt32Array.length_toList] at this
+      rw [List.getElem?_eq_getElem (by simp; omega)] at this
+      intro h0
+      apply this
+      simp only [UInt32Array.getElem_toList]
+      congr 1
+      apply UInt32.toNat_inj.1
+      rw [UInt32.toNat_zero, ← h0]
+      simp [UInt32Array.getD_eq_getD_getElem?, show a.size - 1 < a.size by omega]
+    simp only [UInt32Array.Slice.size_slice, UInt32Array.size_toSlice] at hL
+    rw [show min (a.size - 1) (min a.size a.size - 0) - 0 = a.size - 1 by omega] at hL
+    rw [htop] at hsplit
+    have hlo := Nat.log2_self_le ht
+    have hhi := @Nat.lt_log2_self (a.getD (a.size - 1) 0).toNat
+    generalize (a.getD (a.size - 1) 0).toNat = t at *
+    symm
+    rw [Nat.log2_eq_iff (by omega)]
+    have hP : 2 ^ (32 * (a.size - 1) + t.log2) = 2 ^ (32 * (a.size - 1)) * 2 ^ t.log2 :=
+      Nat.pow_add _ _ _
+    have hP1 : 2 ^ (32 * (a.size - 1) + t.log2 + 1) =
+        2 ^ (32 * (a.size - 1)) * 2 ^ (t.log2 + 1) := by
+      rw [Nat.add_assoc, Nat.pow_add]
+    constructor
+    · rw [hP, ← hsplit]
+      have := Nat.mul_le_mul_left (2 ^ (32 * (a.size - 1))) hlo
+      omega
+    · rw [hP1, ← hsplit]
+      have := Nat.mul_le_mul_left (2 ^ (32 * (a.size - 1))) (Nat.succ_le_of_lt hhi)
+      rw [Nat.mul_succ] at this
+      omega
+
+/-! ## Powers and square roots -/
+
+/-- `x * x`: on words below `2³²`, with the squaring of this library above. -/
+public def sqr : BigNat → BigNat
+  | small a =>
+    if a < 4294967296 then small (a * a)
+    else ofLimbs (Bignum.sqr (limbsOfWord a)) (isTrimmed_sqr _)
+  | large a _ => ofLimbs (Bignum.sqr a) (isTrimmed_sqr _)
+
+@[simp] public theorem toNat_sqr (x : BigNat) : (sqr x).toNat = x.toNat * x.toNat := by
+  cases x with
+  | small a =>
+    simp only [sqr]
+    split
+    · rename_i h
+      rw [UInt64.lt_iff_toNat_lt] at h
+      simp only [UInt64.reduceToNat] at h
+      have : a.toNat * a.toNat < 2 ^ 64 := Nat.lt_of_lt_of_le (Nat.mul_lt_mul'' h h) (by decide)
+      simp only [toNat, UInt64.toNat_mul, Nat.mod_eq_of_lt this]
+    · rw [toNat_ofLimbs, Bignum.toNat_sqr, (limbsOfWord_spec a).1]
+      rfl
+  | large a ha =>
+    simp only [sqr]
+    rw [toNat_ofLimbs, Bignum.toNat_sqr]
+    rfl
+
+/-- `xⁿ`, by repeated squaring. -/
+public def pow (x : BigNat) (n : Nat) : BigNat :=
+  if n = 0 then small 1
+  else if n % 2 = 0 then pow (sqr x) (n / 2)
+  else mul x (pow (sqr x) (n / 2))
+termination_by n
+decreasing_by all_goals omega
+
+@[simp] public theorem toNat_pow (x : BigNat) (n : Nat) : (pow x n).toNat = x.toNat ^ n := by
+  induction n using Nat.strongRecOn generalizing x with
+  | ind n ih =>
+    rw [pow]
+    split
+    · rename_i h; subst h; rfl
+    · rename_i h0
+      have hn := Nat.div_add_mod n 2
+      split
+      · rename_i h
+        rw [ih _ (by omega), toNat_sqr, ← Nat.pow_two, ← Nat.pow_mul]
+        congr 1
+        omega
+      · rename_i h
+        rw [toNat_mul, ih _ (by omega), toNat_sqr, ← Nat.pow_two, ← Nat.pow_mul, ← Nat.pow_succ']
+        congr 1
+        omega
+
+/-- Newton's iteration for `⌊√n⌋` from `x`, while it decreases. -/
+def sqrtLoop (n x : BigNat) : BigNat :=
+  if _h : blt (shiftRight (add x (div n x)) 1) x then sqrtLoop n (shiftRight (add x (div n x)) 1)
+  else x
+termination_by x.toNat
+decreasing_by rw [blt_iff] at _h; exact _h
+
+/-- `⌊√N⌋` is the `r` with `r² ≤ N < (r + 1)²`. -/
+private theorem eq_sqrt {r N : Nat} (h₁ : r * r ≤ N) (h₂ : N < (r + 1) * (r + 1)) :
+    r = Nat.sqrt N := by
+  have s₁ := Nat.sqrt_le N
+  have s₂ := Nat.lt_succ_sqrt N
+  rcases Nat.lt_trichotomy r (Nat.sqrt N) with h | h | h
+  · have := Nat.mul_self_le_mul_self (show r + 1 ≤ Nat.sqrt N by omega)
+    omega
+  · exact h
+  · have := Nat.mul_self_le_mul_self (show Nat.sqrt N + 1 ≤ r by omega)
+    simp only [Nat.succ_eq_add_one] at s₂
+    omega
+
+/-- One step of Newton's iteration stays at or above `s` when `s² ≤ N`, by AM-GM. -/
+private theorem le_newton {x s N : Nat} (hx : 0 < x) (hs : s * s ≤ N) :
+    s ≤ (x + N / x) / 2 := by
+  refine Nat.le_of_not_lt fun hlt => ?_
+  have hN : N < x * (N / x + 1) := Nat.lt_mul_div_succ N hx
+  generalize N / x = q at *
+  have h2 : x + q + 1 ≤ 2 * s := by omega
+  have h3 := Nat.mul_self_le_mul_self h2
+  -- `4 x (q + 1) ≤ (x + q + 1)²`, since their difference is a square.
+  have h4 : 4 * (x * (q + 1)) ≤ (x + q + 1) * (x + q + 1) := by
+    have e : ((x : Int) + q + 1) * ((x : Int) + q + 1) - 4 * ((x : Int) * (q + 1)) =
+        ((x : Int) - (q + 1)) * ((x : Int) - (q + 1)) := by grind
+    have hsq : 0 ≤ ((x : Int) - (q + 1)) * ((x : Int) - (q + 1)) := by
+      rcases Int.le_total 0 ((x : Int) - (q + 1)) with h | h
+      · exact Int.mul_nonneg h h
+      · exact Int.mul_nonneg_of_nonpos_of_nonpos h h
+    have h : ((4 * (x * (q + 1)) : Nat) : Int) ≤ (((x + q + 1) * (x + q + 1) : Nat) : Int) := by
+      push_cast; omega
+    exact_mod_cast h
+  have : 2 * s * (2 * s) = 4 * (s * s) := by rw [Nat.mul_mul_mul_comm]
+  omega
+
+private theorem toNat_sqrtLoop (n x : BigNat) (hn : 0 < n.toNat) (hx : 0 < x.toNat)
+    (hs : Nat.sqrt n.toNat ≤ x.toNat) : (sqrtLoop n x).toNat = Nat.sqrt n.toNat := by
+  have hs1 : 1 ≤ Nat.sqrt n.toNat := by
+    have := Nat.lt_succ_sqrt n.toNat
+    rcases Nat.eq_zero_or_pos (Nat.sqrt n.toNat) with h | h
+    · rw [h] at this; simp at this; omega
+    · exact h
+  induction x using sqrtLoop.induct n with
+  | case1 x h ih =>
+    rw [sqrtLoop, dite_eq_left h]
+    rw [blt_iff, toNat_shiftRight, toNat_add, toNat_div] at h
+    have hstep := le_newton hx (Nat.sqrt_le n.toNat)
+    rw [Nat.pow_one] at h
+    apply ih
+    · rw [toNat_shiftRight, toNat_add, toNat_div, Nat.pow_one]
+      omega
+    · rw [toNat_shiftRight, toNat_add, toNat_div, Nat.pow_one]
+      exact hstep
+  | case2 x h =>
+    rw [sqrtLoop, dite_eq_right h]
+    rw [blt_iff, toNat_shiftRight, toNat_add, toNat_div, Nat.pow_one] at h
+    -- The iteration stopped: `x ≤ (x + n / x) / 2`, so `x² ≤ n`, and `x ≥ ⌊√n⌋`.
+    have hxx : x.toNat * x.toNat ≤ n.toNat := by
+      refine Nat.le_of_not_lt fun hlt => h ?_
+      have : n.toNat / x.toNat < x.toNat := (Nat.div_lt_iff_lt_mul hx).2 hlt
+      omega
+    have := Nat.lt_succ_sqrt n.toNat
+    have hle : x.toNat ≤ Nat.sqrt n.toNat := by
+      refine Nat.le_of_not_lt fun hlt => ?_
+      have := Nat.mul_self_le_mul_self (show Nat.sqrt n.toNat + 1 ≤ x.toNat by omega)
+      simp only [Nat.succ_eq_add_one] at *
+      omega
+    omega
+
+/-- `⌊√n⌋`: from `Nat.sqrt` on words, by Newton's iteration from a power of two above. -/
+public def sqrt : BigNat → BigNat
+  | small a => small (Nat.sqrt a.toNat).toUInt64
+  | n@(large _ _) => sqrtLoop n (shiftLeft (small 1) (log2 n / 2 + 1))
+
+@[simp] public theorem toNat_sqrt (n : BigNat) : (sqrt n).toNat = Nat.sqrt n.toNat := by
+  cases n with
+  | small a =>
+    have ha := a.toNat_lt
+    have hs : Nat.sqrt a.toNat < 2 ^ 64 := by
+      have := Nat.sqrt_le a.toNat
+      have := Nat.le_mul_self (Nat.sqrt a.toNat)
+      omega
+    simp only [sqrt, toNat, Nat.toUInt64, UInt64.toNat_ofNat', Nat.mod_eq_of_lt hs]
+  | large a ha =>
+    simp only [sqrt]
+    have hN : 0 < (large a ha).toNat := by simp only [toNat]; omega
+    apply toNat_sqrtLoop _ _ hN
+    · rw [toNat_shiftLeft, toNat_small, UInt64.toNat_one, Nat.one_mul]; exact Nat.two_pow_pos _
+    · rw [toNat_shiftLeft, log2_eq]
+      simp only [toNat_small, UInt64.toNat_one, Nat.one_mul]
+      generalize (large a ha).toNat = N at *
+      have hlt := @Nat.lt_log2_self N
+      have hpow : 2 ^ (N.log2 + 1) ≤ 2 ^ (N.log2 / 2 + 1) * 2 ^ (N.log2 / 2 + 1) := by
+        rw [← Nat.pow_add]; exact Nat.pow_le_pow_right (by decide) (by omega)
+      refine Nat.le_of_not_lt fun hgt => ?_
+      have := Nat.mul_self_le_mul_self (show 2 ^ (N.log2 / 2 + 1) + 1 ≤ Nat.sqrt N by omega)
+      have := Nat.sqrt_le N
+      have : 2 ^ (N.log2 / 2 + 1) * 2 ^ (N.log2 / 2 + 1) ≤
+          (2 ^ (N.log2 / 2 + 1) + 1) * (2 ^ (N.log2 / 2 + 1) + 1) :=
+        Nat.mul_self_le_mul_self (by omega)
+      omega
+
 /-! ## Instances -/
 
 public instance : DecidableEq BigNat := decEq
@@ -404,6 +743,12 @@ public instance (x y : BigNat) : Decidable (x ≤ y) :=
     rw [← Bool.not_eq_true, blt_iff]
     omega)
 public instance : Ord BigNat := ⟨fun x y => compareOfLessAndEq x y⟩
+public instance : HShiftLeft BigNat Nat BigNat := ⟨shiftLeft⟩
+public instance : HShiftRight BigNat Nat BigNat := ⟨shiftRight⟩
+public instance : AndOp BigNat := ⟨land⟩
+public instance : OrOp BigNat := ⟨lor⟩
+public instance : XorOp BigNat := ⟨xor⟩
+public instance : Pow BigNat Nat := ⟨pow⟩
 public instance (n : Nat) : OfNat BigNat n := ⟨ofNat n⟩
 public instance : Inhabited BigNat := ⟨small 0⟩
 public instance : Hashable BigNat where

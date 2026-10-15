@@ -282,4 +282,46 @@ public theorem toNat_copyPadded (a : UInt32Array.Slice) (n : Nat) :
 public def shiftLimbs (a : UInt32Array) (k : Nat) : UInt32Array :=
   if a.isEmpty then a else .replicate k 0 ++ a
 
+@[simp] public theorem toNat_shiftLimbs (a : UInt32Array) (k : Nat) :
+    toNat (shiftLimbs a k) = toNat a * 2 ^ (32 * k) := by
+  by_cases h : a.isEmpty = true
+  · have hs : a.size = 0 := by simpa [UInt32Array.isEmpty] using h
+    have h0 : toNat a = 0 := toNat_of_size_eq_zero (by simpa using hs)
+    rw [shiftLimbs, ite_eq_left h, h0, Nat.zero_mul]
+  · rw [shiftLimbs, ite_eq_right h, toNat_toSlice, toNat_toSlice, UInt32Array.toList_append,
+      ofLimbs_append, UInt32Array.toList_replicate, ofLimbs_replicate_zero, List.length_replicate,
+      Nat.zero_add, Nat.mul_comm]
+
+/-- The value of the copy of a slice. -/
+@[simp] public theorem toNat_copy (a : UInt32Array.Slice) : toNat a.copy = toNat a := by
+  rw [toNat_toSlice]
+  rfl
+
+/-- The limbs `j` to `k` of `r` hold `⌊r / βʲ⌋` when `r < βᵏ`. -/
+public theorem toNat_window (r : UInt32Array) (j k : Nat) (hjk : j ≤ k)
+    (hr : toNat r < 2 ^ (32 * k)) :
+    toNat (r.toSlice j k) = toNat r / 2 ^ (32 * j) := by
+  rw [toNat_toSlice] at hr ⊢
+  have hsplit := ofLimbs_append (r.toList.take j) (r.toList.drop j)
+  rw [List.take_append_drop] at hsplit
+  have hlow := ofLimbs_take_lt r.toList j
+  have hlen : (r.toList.take j).length = j ∨ r.toList.length < j := by
+    simp only [List.length_take]; omega
+  have hdrop : ofLimbs (r.toList.drop j) = ofLimbs r.toList / 2 ^ (32 * j) := by
+    rcases hlen with hl | hl
+    · rw [hl] at hsplit
+      rw [hsplit, Nat.add_mul_div_left _ _ (Nat.two_pow_pos _), Nat.div_eq_of_lt hlow,
+        Nat.zero_add]
+    · rw [List.drop_of_length_le (by omega), ofLimbs_nil]
+      have := ofLimbs_lt r.toList
+      have : 2 ^ (32 * r.toList.length) ≤ 2 ^ (32 * j) :=
+        Nat.pow_le_pow_right (by decide) (by omega)
+      exact (Nat.div_eq_of_lt (by omega)).symm
+  have hbound : ofLimbs (r.toList.drop j) < 2 ^ (32 * (k - j)) := by
+    rw [hdrop, Nat.div_lt_iff_lt_mul (Nat.two_pow_pos _), ← Nat.pow_add]
+    rw [show 32 * (k - j) + 32 * j = 32 * k by omega]
+    exact hr
+  simp only [toNat, UInt32Array.copy_toSlice, UInt32Array.toList_extract,
+    List.extract_eq_take_drop, ofLimbs_take_of_lt hbound, hdrop]
+
 end Bignum

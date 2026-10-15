@@ -23,4 +23,5 @@ public import Bignum.Div.Limb
 public import Bignum.Div.Basecase
 public import Bignum.Div.DC
 public import Bignum.Div
+public import Bignum.Bits
 public import Bignum.BigNat

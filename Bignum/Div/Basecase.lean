@@ -31,33 +31,6 @@ namespace Bignum
 
 /-! ## Arithmetic facts -/
 
-/-- The limbs `j` to `k` of `r` hold `⌊r / βʲ⌋` when `r < βᵏ`. -/
-public theorem toNat_window (r : UInt32Array) (j k : Nat) (hjk : j ≤ k)
-    (hr : toNat r < 2 ^ (32 * k)) :
-    toNat (r.toSlice j k) = toNat r / 2 ^ (32 * j) := by
-  rw [toNat_toSlice] at hr ⊢
-  have hsplit := ofLimbs_append (r.toList.take j) (r.toList.drop j)
-  rw [List.take_append_drop] at hsplit
-  have hlow := ofLimbs_take_lt r.toList j
-  have hlen : (r.toList.take j).length = j ∨ r.toList.length < j := by
-    simp only [List.length_take]; omega
-  have hdrop : ofLimbs (r.toList.drop j) = ofLimbs r.toList / 2 ^ (32 * j) := by
-    rcases hlen with hl | hl
-    · rw [hl] at hsplit
-      rw [hsplit, Nat.add_mul_div_left _ _ (Nat.two_pow_pos _), Nat.div_eq_of_lt hlow,
-        Nat.zero_add]
-    · rw [List.drop_of_length_le (by omega), ofLimbs_nil]
-      have := ofLimbs_lt r.toList
-      have : 2 ^ (32 * r.toList.length) ≤ 2 ^ (32 * j) :=
-        Nat.pow_le_pow_right (by decide) (by omega)
-      exact (Nat.div_eq_of_lt (by omega)).symm
-  have hbound : ofLimbs (r.toList.drop j) < 2 ^ (32 * (k - j)) := by
-    rw [hdrop, Nat.div_lt_iff_lt_mul (Nat.two_pow_pos _), ← Nat.pow_add]
-    rw [show 32 * (k - j) + 32 * j = 32 * k by omega]
-    exact hr
-  simp only [toNat, UInt32Array.copy_toSlice, UInt32Array.toList_extract,
-    List.extract_eq_take_drop, ofLimbs_take_of_lt hbound, hdrop]
-
 /-- The limbs `i` and `i + 1` of `r` give `⌊r / βⁱ⌋` when `r < βⁱ⁺²`. -/
 private theorem div_eq_two_limbs (r : UInt32Array) (i : Nat) (hr : toNat r < 2 ^ (32 * (i + 2))) :
     toNat r / 2 ^ (32 * i) = (r.toList.getD (i + 1) 0).toNat * 2 ^ 32 +

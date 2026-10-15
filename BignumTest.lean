@@ -297,3 +297,17 @@ def bigNatValues : List Nat :=
   let a := g * sample1 300 73
   let b := g * sample1 250 79
   (BigNat.gcd (BigNat.ofNat a) (BigNat.ofNat b)).toNat == Nat.gcd a b
+
+-- Shifts, bitwise operations, `log2`, `sqrt` and `pow` against `Nat`.
+#guard bigNatValues.all fun a =>
+  let x := BigNat.ofNat a
+  [0, 1, 5, 31, 32, 33, 63, 64, 65, 100, 200].all (fun k =>
+    (x <<< k).toNat == a <<< k && (x >>> k).toNat == a >>> k) &&
+  x.log2 == a.log2 && (BigNat.sqrt x).toNat == Nat.sqrt a &&
+  [0, 1, 2, 3, 7, 10].all (fun k => (x ^ k).toNat == a ^ k) &&
+  bigNatValues.all fun b =>
+    let y := BigNat.ofNat b
+    (x &&& y).toNat == (a &&& b) && (x ||| y).toNat == (a ||| b) && (x ^^^ y).toNat == (a ^^^ b)
+
+#guard [2 ^ 128 - 1, 2 ^ 128, 10 ^ 50, sample1 3000 83].all fun a =>
+  (BigNat.sqrt (BigNat.ofNat a)).toNat == Nat.sqrt a

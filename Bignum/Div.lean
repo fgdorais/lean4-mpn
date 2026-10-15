@@ -201,10 +201,6 @@ public def div (a b : UInt32Array.Slice) : UInt32Array := (divMod a b).1
 /-- The remainder of dividing two numbers, with `a % 0 = a`. -/
 public def mod (a b : UInt32Array.Slice) : UInt32Array := (divMod a b).2
 
-private theorem toNat_copy (a : UInt32Array.Slice) : toNat a.copy = toNat a := by
-  rw [toNat_toSlice]
-  rfl
-
 private theorem divMod_of_topSize_eq_zero (a b : UInt32Array.Slice) (h : topSize b = 0) :
     divMod a b = (.empty, trim a.copy) := by
   simp [divMod, h]
