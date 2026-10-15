@@ -132,8 +132,8 @@ private theorem shl_loop (sh : Nat) (hsh : sh < 32) (O : List UInt32) (q n : Nat
       rfl
     · simp [hW]
     · rw [ofLimbs_concat, hW, List.take_succ_eq_append_getElem hkO, ofLimbs_append, ofLimbs_cons,
-        ofLimbs_nil, Nat.mul_zero, Nat.add_zero, List.length_take, Nat.min_eq_left (Nat.le_of_lt hkO), ← hrk, Nat.add_mul, ← hv,
-        Nat.mul_succ, Nat.pow_add]
+        ofLimbs_nil, Nat.mul_zero, Nat.add_zero, List.length_take,
+        Nat.min_eq_left (Nat.le_of_lt hkO), ← hrk, Nat.add_mul, ← hv, Nat.mul_succ, Nat.pow_add]
       generalize (shlStep sh.toUInt64 (r[k]'(by omega)) c).1.toNat = o at *
       generalize (shlStep sh.toUInt64 (r[k]'(by omega)) c).2.toNat = c' at *
       generalize (r[k]'(by omega)).toNat = v at *
@@ -190,7 +190,8 @@ private theorem toList_copyAt (a : UInt32Array.Slice) (q : Nat) :
   have hxs : x.size = n / 32 + a.size + 1 := by
     rw [← UInt32Array.length_toList, hxl]; simp; omega
   obtain ⟨W, hl, hW, hv⟩ := shl_loop (n % 32) (Nat.mod_lt _ (by decide)) (a.copy.toList ++ [0])
-    (n / 32) (x.toSlice (n / 32) x.size).size (by simp; omega) (x.toSlice (n / 32) x.size) rfl 0 0 []
+    (n / 32) (x.toSlice (n / 32) x.size).size (by simp; omega) (x.toSlice (n / 32) x.size) rfl
+    0 0 []
     (by simp; omega) (by simpa using hxl) rfl (Nat.zero_le _) (by simp) (Nat.two_pow_pos _)
   simp only [UInt32Array.Slice.foldlInPlace]
   rw [hl, ofLimbs_append, ofLimbs_replicate_zero, Nat.zero_add, List.length_replicate]

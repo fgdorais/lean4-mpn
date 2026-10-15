@@ -764,11 +764,11 @@ public def ofString? (s : String) : Option BigNat :=
 
 public theorem ofString?_eq (s : String) : ofString? s = s.toNat?.map ofNat := by
   by_cases h : s.isNat = true
-  · rw [ofString?, if_pos h, String.toNat?_eq_some_ofDigitChars h, Option.map_some,
+  · rw [ofString?, ite_eq_left h, String.toNat?_eq_some_ofDigitChars h, Option.map_some,
       Option.some.injEq, ← toNat_inj, toNat_ofLimbs, toNat_ofNat, toNat_trim,
       String.foldl_eq_foldl_toList]
     exact toNat_finish_foldl _ (String.isNat_iff.1 h).2.1
-  · rw [ofString?, if_neg h, String.toNat?_eq_none (by simpa using h), Option.map_none]
+  · rw [ofString?, ite_eq_right h, String.toNat?_eq_none (by simpa using h), Option.map_none]
 
 public instance : DecidableEq BigNat := decEq
 public instance : Add BigNat := ⟨add⟩

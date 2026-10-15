@@ -29,8 +29,6 @@ product); callgrind shows that allocations are a few percent of a product from 6
 - [ ] **`toNat` (the conversion to `Nat`)** is `ofLimbs`, which builds the literal `2³²` from a
   string at each limb and multiplies a growing `Nat` each time; a compiled twin (by halves, or
   from GMP's limbs once `Nat` is replaced) would make conversions much cheaper.
-- [ ] **`push` is still an out-of-line call** in lean4-scalar-arrays; inlining it upstream like
-  `uset` would help every loop that builds an array.
 
 Done this round: word carries and hoisted slice fields in the folds; in-place Algorithm D with
 `subMul1` (34 allocations per 32 ÷ 16-limb division instead of 270); `foldInPlaceThen`
@@ -39,12 +37,15 @@ pairs; `toom3Sqr`; guards of the compiled loops against a literal below `2³²` 
 `USize.size` (11–15% on small products); the schoolbook square in one final pass
 (`sqrAddDiag`) without row slices, faster than multiplying from 16 limbs; Knuth's correction of
 the quotient estimate, which removed the add-backs (42% of quotient limbs at 256 limbs); the
-remainder of a normalized division shifted back instead of divided by a limb.
+remainder of a normalized division shifted back instead of divided by a limb; both shifts in one
+pass with the slice folds of lean4-scalar-arrays#27 and #28; `push` inline upstream
+(lean4-scalar-arrays#24).
 
-Tried without gain: `divRem1` on `foldrInPlaceThen` over a copy (the loop is bound by the division,
-and building the slice costs 10–25 ns per call, 5–12% slower below 16 limbs), which also rules out
-slices for the per-row folds (`addMul1Set`, `addInto`, `subInto`), called once per row; passing `subMul1`'s borrow to the end of the step through `foldInPlaceThen`
-(the step still returns a pair, and the compiler already reused the memory of `subMul1`'s);
+Tried without gain: `divRem1` on `foldrInPlaceThen` over a copy (the loop is bound by the
+division, and building the slice costs 10–25 ns per call, 5–12% slower below 16 limbs), which also
+rules out slices for the per-row folds (`addMul1Set`, `addInto`, `subInto`), called once per row;
+passing `subMul1`'s borrow to the end of the step through `foldInPlaceThen` (the step still
+returns a pair, and the compiler already reused the memory of `subMul1`'s);
 a `USize` twin of `divRem1` (the hardware division hides the loop). Twins of `ltLoop` and
 `topSizeLoop` would not show: `lt` runs once or twice per block of the division, and `topSize`
 usually stops at the first limb.
@@ -66,7 +67,7 @@ usually stops at the first limb.
   - [x] `log2`;
   - [x] `pow`, by repeated squaring with `sqr`;
   - [x] `gcd` and `lcm` (`BigNat`): Lehmer's algorithm with single-word cofactors, checked by
-    their determinant, and Euclid on words; faster than `Nat` on words, 13–18× behind GMP from 3
+    their determinant, and Euclid on words; faster than `Nat` on words, 10–19× behind GMP from 4
     limbs. A fused limb primitive applying the cofactor matrix in one pass (GMP's
     `mpn_hgcd_mul_matrix1_vector`) would remove most of the allocations of a step, and
     double-word leading digits (`hgcd2`) would double the progress per step.
@@ -122,7 +123,8 @@ usually stops at the first limb.
 ## Tooling
 
 - [x] **Benchmarks on `main`:** `lake exe bench` times each operation against `Nat`;
-  `lake exe bench --no-nat mul 256` runs one case alone, for a profiler.
+  `lake exe bench --no-nat mul 256` runs one case alone, for a profiler. Results are checked in
+  O(1) on both sides (a hash of a `BigNat` result once cost a pass over its limbs).
 - [ ] **A raw GMP baseline.** The `Nat` column is Lean's wrapper around GMP, which copies both
   the operand and the result and allocates twice per operation, so below about 64 limbs it
   measures mostly that overhead (we beat it there). Calling `mpn_*` directly needs C, so it
