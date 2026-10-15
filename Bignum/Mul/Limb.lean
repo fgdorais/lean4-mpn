@@ -36,6 +36,63 @@ public def addMul1 (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UI
     (h : off + a.size ≤ r.size) : UInt32Array × UInt32 :=
   addMul1Loop r off a x 0 0 h
 
+/-! ## The compiled loop
+
+`addMul1Loop` uses `Nat` indices into slices, which keeps its proofs simple. `addMul1Fast`
+computes the same as `addMul1` with `foldInPlace`, which updates the array in place with one
+exclusivity check and `USize` indices, and `@[csimp]` makes the compiler use it in place of
+`addMul1`, with a proof that the two return the same result. `foldInPlace` needs the arrays to fit
+in a `USize`, which every array in memory does; the other case falls back to `addMul1`'s loop. This comes before the
+rest of the file so that `mul1` and `mulRow` are compiled with it.
+-/
+
+/-- `addMul1` as a `foldInPlace`, which the compiler uses in its place. -/
+public def addMul1Fast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UInt32)
+    (h : off + a.size ≤ r.size) : UInt32Array × UInt32 :=
+  if hs : r.size < USize.size ∧ a.array.size < USize.size then
+    r.foldInPlace off.toUSize a.size.toUSize 0
+      (fun k hk y c => (limbU a hs.2 k hk).mulAddAdd x y c)
+      (by
+        have := a.stop_le_array_size
+        have := a.start_le_stop
+        have := a.size_eq
+        rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]
+        exact h)
+  else
+    addMul1Loop r off a x 0 0 h
+
+/-- The fold of `addMul1Fast` from limb `k` on is `addMul1Loop` from limb `k` on. -/
+private theorem foldInPlace_loop_addMul1 (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
+    (x : UInt32) (has : a.array.size < USize.size) (s n : Nat) (hs : s = off) (hn : n = a.size)
+    (k : Nat) (c : UInt32) (h : off + a.size ≤ r.size) (h' hlen) :
+    UInt32Array.foldInPlace.loop a.size.toUSize (fun k hk y c => (limbU a has k hk).mulAddAdd x y c)
+        s n r h' hlen k c =
+      addMul1Loop r off a x k c h := by
+  subst s n
+  induction r, k, c, h using addMul1Loop.induct off a x with
+  | case1 r k c h hk p ih =>
+    rw [UInt32Array.foldInPlace.loop, addMul1Loop]
+    simp only [hk, ↓reduceDIte]
+    simp only [limbU_eq a has k _ hk]
+    exact ih _
+  | case2 r k c h hk =>
+    rw [UInt32Array.foldInPlace.loop, addMul1Loop]
+    simp only [hk, ↓reduceDIte]
+
+@[csimp] public theorem addMul1_eq_addMul1Fast : @addMul1 = @addMul1Fast := by
+  funext r off a x h
+  rw [addMul1, addMul1Fast]
+  split
+  · rename_i hs
+    have := a.stop_le_array_size
+    have := a.start_le_stop
+    have := a.size_eq
+    exact (foldInPlace_loop_addMul1 r off a x hs.2 _ _ (toNat_toUSize (by omega))
+      (toNat_toUSize (by omega)) 0 0 h _ _).symm
+  · rfl
+
+/-! ## Correctness -/
+
 private theorem addMul1Loop_spec (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
     (x : UInt32) (j : Nat) (c : UInt32) (h : off + a.size ≤ r.size) (hj : j ≤ a.size) :
     (addMul1Loop r off a x j c h).1.size = r.size ∧
@@ -134,59 +191,5 @@ public theorem toNat_mulRow (v : UInt32Array.Slice) (x : UInt32) :
   rw [toNat_toSlice] at this ⊢
   rw [mulRow, UInt32Array.toList_push, ofLimbs_concat, UInt32Array.length_toList, size_mul1,
     this]
-
-/-! ## Compiled loops
-
-The loops above use `Nat` indices into slices, which keeps their proofs simple. `addMul1Fast`
-computes the same as `addMul1` with `foldInPlace`, which updates the array in place with one
-exclusivity check and `USize` indices, and `@[csimp]` makes the compiler use it in place of
-`addMul1`, with a proof that the two return the same result. `foldInPlace` needs the arrays to fit
-in a `USize`, which every array in memory does; the other case falls back to `addMul1`'s loop.
--/
-
-/-- `addMul1` as a `foldInPlace`, which the compiler uses in its place. -/
-public def addMul1Fast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UInt32)
-    (h : off + a.size ≤ r.size) : UInt32Array × UInt32 :=
-  if hs : r.size < USize.size ∧ a.array.size < USize.size then
-    r.foldInPlace off.toUSize a.size.toUSize 0
-      (fun k hk y c => (limbU a hs.2 k hk).mulAddAdd x y c)
-      (by
-        have := a.stop_le_array_size
-        have := a.start_le_stop
-        have := a.size_eq
-        rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]
-        exact h)
-  else
-    addMul1Loop r off a x 0 0 h
-
-/-- The fold of `addMul1Fast` from limb `k` on is `addMul1Loop` from limb `k` on. -/
-private theorem foldInPlace_loop_addMul1 (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
-    (x : UInt32) (has : a.array.size < USize.size) (s n : Nat) (hs : s = off) (hn : n = a.size)
-    (k : Nat) (c : UInt32) (h : off + a.size ≤ r.size) (h' hlen) :
-    UInt32Array.foldInPlace.loop a.size.toUSize (fun k hk y c => (limbU a has k hk).mulAddAdd x y c)
-        s n r h' hlen k c =
-      addMul1Loop r off a x k c h := by
-  subst s n
-  induction r, k, c, h using addMul1Loop.induct off a x with
-  | case1 r k c h hk p ih =>
-    rw [UInt32Array.foldInPlace.loop, addMul1Loop]
-    simp only [hk, ↓reduceDIte]
-    simp only [limbU_eq a has k _ hk]
-    exact ih _
-  | case2 r k c h hk =>
-    rw [UInt32Array.foldInPlace.loop, addMul1Loop]
-    simp only [hk, ↓reduceDIte]
-
-@[csimp] public theorem addMul1_eq_addMul1Fast : @addMul1 = @addMul1Fast := by
-  funext r off a x h
-  rw [addMul1, addMul1Fast]
-  split
-  · rename_i hs
-    have := a.stop_le_array_size
-    have := a.start_le_stop
-    have := a.size_eq
-    exact (foldInPlace_loop_addMul1 r off a x hs.2 _ _ (toNat_toUSize (by omega))
-      (toNat_toUSize (by omega)) 0 0 h _ _).symm
-  · rfl
 
 end Bignum
