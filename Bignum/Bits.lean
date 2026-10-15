@@ -10,8 +10,8 @@ public import Bignum.Mul.Limb
 # Shifts and bits
 
 * `shiftLeft a n` is `a * 2ⁿ`: `n / 32` zero limbs below `a` times `2^(n % 32)`.
-* `shiftRight a n` is `a / 2ⁿ`: the limbs of `a` from `n / 32` on, divided by `2^s` for
-  `s = n % 32` as `a 2^(32 - s)` without its low limb, which multiplies instead of dividing.
+* `shiftRight a n` is `a / 2ⁿ`: the limbs of `a` from `n / 32` on, copied and shifted right by
+  `n % 32` bits in place with `foldrInPlaceThen`, from the top limb down.
 
 Both results are trimmed.
 -/
@@ -56,50 +56,115 @@ public theorem isTrimmed_shiftLeft (a : UInt32Array.Slice) (n : Nat) :
     isTrimmed (shiftLeft a n) = true :=
   isTrimmed_trim _
 
-/-- `a / 2ⁿ`, trimmed. -/
+/-- Limb `v` shifted right by `s < 32` bits, with the `s` low bits of the limb `c` above it. -/
+@[inline] def shrStep (s : UInt64) (v c : UInt32) : UInt32 × UInt32 :=
+  (((c.toUInt64 * 4294967296 + v.toUInt64) >>> s).toUInt32, v)
+
+private theorem toNat_shrStep (s : Nat) (hs : s < 32) (v c : UInt32) :
+    (shrStep s.toUInt64 v c).1.toNat = (c.toNat * 2 ^ 32 + v.toNat) / 2 ^ s % 2 ^ 32 := by
+  have hv := v.toNat_lt
+  have hc := c.toNat_lt
+  have ht : (c.toUInt64 * 4294967296 + v.toUInt64).toNat = c.toNat * 2 ^ 32 + v.toNat := by
+    simp only [UInt64.toNat_add, UInt64.toNat_mul, UInt32.toNat_toUInt64, UInt64.reduceToNat]
+    omega
+  have hs' : s.toUInt64.toNat = s := by
+    simp only [Nat.toUInt64, UInt64.toNat_ofNat']
+    exact Nat.mod_eq_of_lt (by omega)
+  simp only [shrStep, UInt64.toNat_toUInt32, UInt64.toNat_shiftRight, ht, hs',
+    Nat.shiftRight_eq_div_pow, Nat.mod_eq_of_lt (show s < 64 by omega)]
+
+/--
+One limb of a right shift: `(D % β · β + v) / P % β` and `β ⌊D / P⌋` make `⌊(v + β D) / P⌋` when
+`P` divides `β`.
+-/
+private theorem shr_arith (v D P Q : Nat) (hP : 0 < P) (hv : v < P * Q) :
+    ((D % (P * Q)) * (P * Q) + v) / P % (P * Q) + (P * Q) * (D / P) = (v + (P * Q) * D) / P := by
+  have hB0 : 0 < P * Q := by omega
+  have h1 : (v + P * Q * D) / (P * Q) = D := by
+    rw [Nat.add_mul_div_left _ _ hB0, Nat.div_eq_of_lt hv, Nat.zero_add]
+  have h2 : (v + P * Q * D) / P / (P * Q) = D / P := by
+    rw [Nat.div_div_eq_div_mul, Nat.mul_comm P (P * Q), ← Nat.div_div_eq_div_mul, h1]
+  have h3 : (v + P * Q * D) / P % (P * Q) = ((D % (P * Q)) * (P * Q) + v) / P % (P * Q) := by
+    have hD := Nat.div_add_mod D (P * Q)
+    have e : v + P * Q * D = ((D % (P * Q)) * (P * Q) + v) + P * (Q * (P * Q) * (D / (P * Q))) := by
+      conv => lhs; rw [← hD]
+      grind
+    rw [e, Nat.add_mul_div_left _ _ hP,
+      show Q * (P * Q) * (D / (P * Q)) = (P * Q) * (Q * (D / (P * Q))) by grind,
+      Nat.add_mul_mod_self_left]
+  rw [← h3, ← h2, Nat.mod_add_div]
+
+/--
+The loop of `foldrInPlace` with `shrStep`: below index `k` the limbs of `O` are untouched, above
+it they hold `⌊O' / 2^s⌋` for the limbs `O'` of `O` from `k` on, and the carry is limb `k`.
+-/
+private theorem shr_loop (sh : Nat) (hsh : sh < 32) (O : List UInt32) (n : Nat) (hn : n = O.length)
+    (r : UInt32Array.Slice) (hs : r.size = n) (k : Nat) (hk : k ≤ n) (c : UInt32)
+    (W : List UInt32) (h0 : r.start = 0) (hl : r.array.toList = O.take k ++ W)
+    (hW : ofLimbs W = ofLimbs (O.drop k) / 2 ^ sh)
+    (hc : c.toNat = ofLimbs (O.drop k) % 2 ^ 32) :
+    ofLimbs (UInt32Array.Slice.foldrInPlace.loop n (fun _ _ v c => shrStep sh.toUInt64 v c) r hs
+      k hk c).1.array.toList = ofLimbs O / 2 ^ sh := by
+  induction k generalizing r c W with
+  | zero =>
+    rw [UInt32Array.Slice.foldrInPlace.loop, hl, List.take_zero, List.nil_append, hW,
+      List.drop_zero]
+  | succ k ih =>
+    rw [UInt32Array.Slice.foldrInPlace.loop]
+    have hkO : k < O.length := by omega
+    have hra : k < r.array.size := by
+      have := r.stop_le_array_size; have := r.size_eq; have := r.start_le_stop; omega
+    have hrk : r[k]'(by omega) = O[k] := by
+      have h := List.getElem_of_eq hl (i := k) (by simp; omega)
+      rw [List.getElem_append_left (by simp; omega), List.getElem_take,
+        UInt32Array.getElem_toList] at h
+      rw [UInt32Array.Slice.getElem_eq]
+      simpa [h0] using h
+    have hdrop := List.drop_eq_getElem_cons hkO
+    refine ih _ _ _ _ ((shrStep sh.toUInt64 (r[k]'(by omega)) c).1 :: W) ?_ ?_ ?_ ?_
+    · rw [UInt32Array.Slice.start_set, h0]
+    · rw [UInt32Array.Slice.array_set, UInt32Array.toList_set, hl, h0, Nat.zero_add,
+        List.take_succ_eq_append_getElem hkO, List.append_assoc,
+        List.set_append_right _ _ (by simp; omega)]
+      simp [Nat.min_eq_left (Nat.le_of_lt hkO)]
+    · rw [ofLimbs_cons, toNat_shrStep sh hsh, hW, hc, hrk, hdrop, ofLimbs_cons]
+      have hP : (2 : Nat) ^ 32 = 2 ^ sh * 2 ^ (32 - sh) := by
+        rw [← Nat.pow_add]; congr 1; omega
+      rw [hP]
+      exact shr_arith _ _ _ _ (Nat.two_pow_pos _) (by rw [← hP]; exact O[k].toNat_lt)
+    · show (r[k]'(by omega)).toNat = _
+      rw [hrk, hdrop, ofLimbs_cons, Nat.add_mul_mod_self_left,
+        Nat.mod_eq_of_lt O[k].toNat_lt]
+
+/--
+Shifts the limbs of `x` right by `s < 32` bits in place, from the top limb down, with the low bits
+of each limb carried into the one below, and trims. The shift is an argument so that the loop
+doesn't recompute it.
+-/
+def shrLimbs (x : UInt32Array) (s : UInt64) : UInt32Array :=
+  x.toSlice.foldrInPlaceThen (0 : UInt32) (fun _ _ v c => shrStep s v c) (fun r _ => trim r.array)
+
+/-- `a / 2ⁿ`, trimmed: the limbs of `a` from `n / 32` on, copied, then `shrLimbs` by `n % 32`. -/
 public def shiftRight (a : UInt32Array.Slice) (n : Nat) : UInt32Array :=
-  if n / 32 ≤ a.size then
-    let a' := a.slice (n / 32) a.size
-    if n % 32 = 0 then
-      trim a'.copy
-    else
-      let w := mulRow a' ((1 : UInt32) <<< (32 - n % 32).toUInt32)
-      trim (w.toSlice 1 w.size).copy
-  else
-    .empty
+  if n / 32 < a.size then shrLimbs (a.slice (n / 32) a.size).copy (n % 32).toUInt64 else .empty
 
 @[simp] public theorem toNat_shiftRight (a : UInt32Array.Slice) (n : Nat) :
     toNat (shiftRight a n) = toNat a / 2 ^ n := by
   have hA := toNat_lt a
   have hn : 2 ^ n = 2 ^ (32 * (n / 32)) * 2 ^ (n % 32) := by
     rw [← Nat.pow_add]; congr 1; omega
-  by_cases hq : n / 32 ≤ a.size
-  · have hsl := toNat_slice_from a (n / 32) hq
-    by_cases hs : n % 32 = 0
-    · have e : shiftRight a n = trim (a.slice (n / 32) a.size).copy := by
-        rw [shiftRight, ite_eq_left hq]
-        exact ite_eq_left hs
-      rw [e, toNat_trim, toNat_copy, hsl, hn, hs, Nat.pow_zero, Nat.mul_one]
-    · have e : shiftRight a n = trim ((mulRow (a.slice (n / 32) a.size)
-          ((1 : UInt32) <<< (32 - n % 32).toUInt32)).toSlice 1 (mulRow (a.slice (n / 32) a.size)
-          ((1 : UInt32) <<< (32 - n % 32).toUInt32)).size).copy := by
-        rw [shiftRight, ite_eq_left hq]
-        exact ite_eq_right hs
-      rw [e, toNat_trim, toNat_copy]
-      have hws : 1 ≤ (mulRow (a.slice (n / 32) a.size)
-          ((1 : UInt32) <<< (32 - n % 32).toUInt32)).size := by
-        rw [size_mulRow]; omega
-      generalize hw : mulRow (a.slice (n / 32) a.size)
-        ((1 : UInt32) <<< (32 - n % 32).toUInt32) = w at hws ⊢
-      have hwv : toNat w = toNat a / 2 ^ (32 * (n / 32)) * 2 ^ (32 - n % 32) := by
-        rw [← hw, toNat_mulRow, toNat_pow_limb _ (by omega), hsl]
-      have hwin := toNat_window w 1 w.size hws (by
-        have := toNat_lt w
-        simpa using this)
-      rw [hwin, hwv, Nat.mul_one, hn, ← Nat.div_div_eq_div_mul]
-      have h32 : 2 ^ (32 : Nat) = 2 ^ (n % 32) * 2 ^ (32 - n % 32) := by
-        rw [← Nat.pow_add]; congr 1; omega
-      rw [h32, Nat.mul_div_mul_right _ _ (Nat.two_pow_pos _)]
+  by_cases hq : n / 32 < a.size
+  · have hsl := toNat_slice_from a (n / 32) (by omega)
+    rw [shiftRight, ite_eq_left hq, shrLimbs]
+    simp only [UInt32Array.Slice.foldrInPlaceThen_eq, UInt32Array.Slice.foldrInPlace]
+    rw [toNat_trim, toNat_toSlice]
+    generalize hx : (a.slice (n / 32) a.size).copy = x
+    have hxv : ofLimbs x.toList = toNat a / 2 ^ (32 * (n / 32)) := by
+      rw [← toNat_toSlice, ← hx, toNat_copy, hsl]
+    rw [shr_loop (n % 32) (Nat.mod_lt _ (by decide)) x.toList _ (by simp) _ _ _ _ 0 []
+      (by simp) (by rw [List.take_of_length_le (by simp)]; simp)
+      (by rw [List.drop_of_length_le (by simp)]; simp)
+      (by rw [List.drop_of_length_le (by simp)]; simp), hxv, hn, Nat.div_div_eq_div_mul]
   · have e : shiftRight a n = .empty := by rw [shiftRight, ite_eq_right hq]
     rw [e, toNat_toSlice]
     simp only [UInt32Array.toList_empty, ofLimbs_nil]
@@ -111,9 +176,8 @@ public theorem isTrimmed_shiftRight (a : UInt32Array.Slice) (n : Nat) :
     isTrimmed (shiftRight a n) = true := by
   unfold shiftRight
   split
-  · split
-    · exact isTrimmed_trim _
-    · exact isTrimmed_trim _
+  · rw [shrLimbs, UInt32Array.Slice.foldrInPlaceThen_eq]
+    exact isTrimmed_trim _
   · rw [isTrimmed_iff]; simp
 
 /-! ## Bitwise operations -/
@@ -126,9 +190,9 @@ public theorem testBit_ofLimbs (l : List UInt32) (j : Nat) :
   | cons x l ih =>
     rw [ofLimbs_cons, Nat.add_comm, Nat.testBit_two_pow_mul_add _ x.toNat_lt]
     by_cases hj : j < 32
-    · rw [if_pos hj, Nat.div_eq_of_lt hj, Nat.mod_eq_of_lt hj]
+    · rw [ite_eq_left hj, Nat.div_eq_of_lt hj, Nat.mod_eq_of_lt hj]
       rfl
-    · rw [if_neg hj, ih]
+    · rw [ite_eq_right hj, ih]
       have h₁ : j / 32 = (j - 32) / 32 + 1 := by omega
       have h₂ : j % 32 = (j - 32) % 32 := by omega
       rw [h₁, h₂, List.getD_cons_succ]
