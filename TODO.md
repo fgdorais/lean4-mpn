@@ -58,10 +58,10 @@ usually stops at the first limb.
 - [ ] **Unbalanced Toom** (`toom32`, `toom42`) instead of halving the longer operand.
 - [ ] **Toom-4, Toom-6½, Toom-8½**, then FFT multiplication for very large numbers.
 - [ ] **The rest of `Nat`:**
-  - [x] shifts by bits (`<<<`, `>>>`, `Bits`): `shiftRight` is one pass with
-    `foldrInPlaceThen` over a copy, even with `Nat` from 4 to 1024 limbs; `shiftLeft` is still
-    `mulRow`, `shiftLimbs` and `trim`, 2.7× behind at 1024 limbs, and would take the same
-    approach with `foldlInPlaceThen`;
+  - [x] shifts by bits (`<<<`, `>>>`, `Bits`): one pass each, in place over a copy with
+    `foldrInPlaceThen` and `foldlInPlaceThen`, even with `Nat` from 1 to 1024 limbs. The left
+    shift computes each carry from its limb alone, so the loop has no dependency chain (36%
+    faster than carrying through the sum);
   - [x] bitwise `&&&`, `|||`, `^^^` (limbwise with `ofFn`, then trimmed);
   - [x] `log2`;
   - [x] `pow`, by repeated squaring with `sqr`;
