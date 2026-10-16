@@ -7,10 +7,16 @@ Items are roughly in order of value within each section.
 ## Performance
 
 Time now goes mostly into the schoolbook product, by columns since `Mul.Comba` (about 0.5 ns per
-32-bit limb product, vectorized by the C compiler with SSE2); callgrind shows that allocations are a
-few percent of a product from 64 limbs up. With 32-bit limbs, a product needs 4× as many limb
+32-bit limb product, vectorized by the C compiler with SSE2): 65–85% of a product or a square from
+128 to 4096 limbs, with `perf`. The combinations take 9–17% and allocation and copies 5–11% (see
+below for why the latter is hard to recover). With 32-bit limbs, a product needs 4× as many limb
 products as GMP's, which is most of the gap above 64 limbs.
 
+- [ ] **Toom-3's assembly and interpolation in place:** `addInto` and `subInto` are 8–11% of a
+  product or a square from 1024 limbs, nearly all in Toom-3: the assembly adds the five
+  coefficients into a zeroed `replicate` in five passes, where `c₀` and `c₄` don't overlap and
+  could be copied in as Karatsuba's `z₀ ++ z₂`, and the interpolation makes a fresh array for each
+  of its eight `subVal`s and three `mulRow`s, where GMP's `toom_interpolate_5pts` works in place.
 - [ ] **A shorter dependency chain in `divRem1`** (GMP's `mpn_div_qr_1n_pi1`): the loop is
   bound by the latency of one step, about 15 cycles (3.3 ns per limb on Zen 3), since each step
   needs the previous remainder; the rest of the loop (1.4 ns per limb) runs in parallel. A
@@ -19,32 +25,27 @@ products as GMP's, which is most of the gap above 64 limbs.
   before Ice Lake). `div_qr_1n_pi1` keeps a partly reduced two-limb remainder and takes the
   quotient off the chain, about one multiply-add per step. `divRem1` is behind division by one
   limb and `toString`.
-- [x] **The conversions to and from `Nat`** went one limb at a time, multiplying or dividing a
-  growing `Nat` at each limb. Their compiled twins (`toNatFast`, `ofNatFast`) split the limbs in
-  halves and join or split them with shifts; `ofNat` takes 64 bits at a time below 64 limbs, with
-  `toUInt64`. From 4 limbs up, `toNat` is 2.4–16× faster (4096 limbs: 6.1 → 0.39 ms) and `ofNat`
-  1.3–9× (4096: 2.2 → 0.24 ms). They are still 2–450× behind a pass over the value, since each
-  operation on `Nat` costs about 40 ns; reading GMP's limbs directly would need C.
 
 Done this round: word carries and hoisted slice fields in the folds; in-place Algorithm D with
 `subMul1` (34 allocations per 32 ÷ 16-limb division instead of 270); `foldInPlaceThen`
-(lean4-scalar-arrays#22) for `addMul1Set`, `addInto` and `subInto`, which allocate no result
-pairs; `toom3Sqr`; guards of the compiled loops against a literal below `2³²` instead of
-`USize.size` (11–15% on small products); the schoolbook square in one final pass
-(`sqrAddDiag`) without row slices, faster than multiplying from 16 limbs; Knuth's correction of
-the quotient estimate, which removed the add-backs (42% of quotient limbs at 256 limbs); the
-remainder of a normalized division shifted back instead of divided by a limb; `trim` without a
-closure (`popWhile`'s predicate was called through `lean_apply_1`); a quotient-only `div`;
-division by two limbs in one pass (`divRem2`); the schoolbook product by columns (Comba, 14–24%
-from 8 limbs up) and the square (22–25% from 64 limbs up); Karatsuba's middle term added in one
-pass over `z₁` with `addDiffInto`, which keeps a carry between `-2` and `1` as a word plus 2, where
-two subtractions and an addition took three passes (the combination 38% faster, products 2–5%
-faster from 256 limbs up); Toom-3's exact divisions without the hardware divider, by 2 with
-`shrLimbs` and by 3 with the inverse of 3 modulo `2³²` (`divExact3`, 2.2× faster than `divRem1`;
-products 3–8% and squares up to 10% faster from 576 limbs up, Toom-3 from 480 and 720 limbs
-instead of 576 and 892); both shifts in one
-pass with the slice folds of lean4-scalar-arrays#27 and #28; `push` inline upstream
-(lean4-scalar-arrays#24).
+(lean4-scalar-arrays#22) for `addMul1Set`, `addInto` and `subInto`, which allocate no result pairs;
+`toom3Sqr`; guards of the compiled loops against a literal below `2³²` instead of `USize.size`
+(11–15% on small products); the schoolbook square in one final pass (`sqrAddDiag`) without row
+slices, faster than multiplying from 16 limbs; Knuth's correction of the quotient estimate, which
+removed the add-backs (42% of quotient limbs at 256 limbs); the remainder of a normalized division
+shifted back instead of divided by a limb; `trim` without a closure (`popWhile`'s predicate was
+called through `lean_apply_1`); a quotient-only `div`; division by two limbs in one pass
+(`divRem2`); the schoolbook product by columns (Comba, 14–24% from 8 limbs up) and the square
+(22–25% from 64 limbs up); Karatsuba's middle term added in one pass over `z₁` with `addDiffInto`,
+which keeps a carry between `-2` and `1` as a word plus 2, where two subtractions and an addition
+took three passes (the combination 38% faster, products 2–5% faster from 256 limbs up); Toom-3's
+exact divisions without the hardware divider, by 2 with `shrLimbs` and by 3 with the inverse of 3
+modulo `2³²` (`divExact3`, 2.2× faster than `divRem1`; products 3–8% and squares up to 10% faster
+from 576 limbs up, Toom-3 from 480 and 720 limbs instead of 576 and 892); both shifts in one pass
+with the slice folds of lean4-scalar-arrays#27 and #28; `push` inline upstream
+(lean4-scalar-arrays#24); the conversions to and from `Nat` by halves, joined or split with shifts,
+and 64 bits at a time below 64 limbs for `ofNat` (`toNatFast`, `ofNatFast`; 4096 limbs: 6.1 → 0.39
+ms and 2.2 → 0.24 ms, still about one operation on `Nat`, some 40 ns, per two limbs).
 
 Tried without gain: Karatsuba into one array, products at an offset with the scratch above (GMP's
 style), prototyped without proofs on an offset copy of Comba's kernel: within ±1% of the allocating
@@ -165,4 +166,6 @@ Profiling notes: `perf record` (without `-g`, which misattributes in these binar
 time goes; `valgrind --tool=callgrind --toggle-collect=<C symbol>` for exact allocation counts
 per operation; `gdb` with a breakpoint on `lean_copy_sarray` for unexpected array copies; the
 generated C in `.lake/build/ir` to check that a `@[csimp]` twin is really called. `lake build`
-does not rebuild `bench` and `tune`.
+does not rebuild `bench` and `tune`. The benchmark's trials (2 ms) are too short to profile: a loop
+in a scratch Lake project that requires this one by `path` reuses its build. `perf record` in front
+of `taskset` samples only the startup, so pin the whole command or not at all.

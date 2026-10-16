@@ -22,7 +22,8 @@ at most one too large, which happens with probability about `2 / β`. The step s
 from the window in place with `subMul1`, like GMP's `mpn_submul_1`; the window went negative
 exactly when the borrow out of its low `n` limbs exceeds its top limb, and then `v` is added back
 and `q̂` decreased. Correctness only needs the estimate not to be too small. `Div` normalizes the
-divisor before calling `divRemBasecase`.
+divisor and the dividend, and divides the latter in place with `divRemBasecaseTop` when its top limb
+is below the divisor's, as it is after normalization.
 -/
 
 open ScalarArray
