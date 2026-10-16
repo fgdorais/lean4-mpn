@@ -250,7 +250,7 @@ public def div (a b : UInt32Array.Slice) : UInt32Array :=
   else if n = 1 then
     trim (divRem1 a (b.getD 0 0)).1
   else if n = 2 then
-    trim (divRem2 a (b.getD 1 0) (b.getD 0 0)).1
+    trim (div2 a (b.getD 1 0) (b.getD 0 0))
   else if h : 2 ≤ n then
     trim (divLimbsQ a (b.slice 0 n) (by simp; have := topSize_le b; omega))
   else
@@ -258,6 +258,7 @@ public def div (a b : UInt32Array.Slice) : UInt32Array :=
 
 private theorem div_eq_divMod (a b : UInt32Array.Slice) : div a b = (divMod a b).1 := by
   unfold div divMod
+  simp only [div2_eq]
   by_cases h₀ : topSize b = 0
   · simp [h₀]
   · by_cases h₁ : topSize b = 1

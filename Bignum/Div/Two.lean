@@ -30,7 +30,7 @@ namespace Bignum
 Decreases `q` while `q (vt β + vs)` exceeds `R β + x`, then returns `q` with the remainder
 `R β + x - q (vt β + vs)`, all in words.
 -/
-def div2Fix (vt vs : UInt32) (R : UInt64) (x q : UInt32) : UInt32 × UInt64 :=
+public def div2Fix (vt vs : UInt32) (R : UInt64) (x q : UInt32) : UInt32 × UInt64 :=
   let a := q.toUInt64 * vs.toUInt64
   let ph := q.toUInt64 * vt.toUInt64 + (a >>> 32)
   let a₀ := a.toUInt32
@@ -173,7 +173,7 @@ private theorem div2Fix_spec (vt vs : UInt32) (R : UInt64) (x q : UInt32) (V W :
 `R`). It tests the high half instead of comparing with `2³²`: the kernel would otherwise unfold
 the literal while checking the loop that uses it.
 -/
-@[inline] def div2Est (R : UInt64) (vt : UInt32) : UInt32 :=
+@[inline] public def div2Est (R : UInt64) (vt : UInt32) : UInt32 :=
   let e := R / vt.toUInt64
   if e >>> 32 = 0 then e.toUInt32 else 0xFFFFFFFF
 
@@ -212,12 +212,12 @@ private theorem toNat_div2Est (R : UInt64) (vt : UInt32) :
     omega
 
 /-- One step: the quotient limb and remainder of `R β + x` by `vt β + vs`, for `R < vt β + vs`. -/
-@[inline] def div2Step (vt vs : UInt32) (R : UInt64) (x : UInt32) : UInt32 × UInt64 :=
+@[inline] public def div2Step (vt vs : UInt32) (R : UInt64) (x : UInt32) : UInt32 × UInt64 :=
   let wt := (R >>> 32).toUInt32
   let wn := R.toUInt32
   div2Fix vt vs R x (qEstimate3 (div2Est R vt) wt wn x vt vs)
 
-private theorem div2Step_spec (vt vs : UInt32) (R : UInt64) (x : UInt32) (hvt : 0 < vt.toNat)
+public theorem div2Step_spec (vt vs : UInt32) (R : UInt64) (x : UInt32) (hvt : 0 < vt.toNat)
     (hR : R.toNat < vt.toNat * 2 ^ 32 + vs.toNat) :
     (div2Step vt vs R x).1.toNat =
         (R.toNat * 2 ^ 32 + x.toNat) / (vt.toNat * 2 ^ 32 + vs.toNat) ∧
@@ -330,6 +330,20 @@ public def divRem2 (a : UInt32Array.Slice) (d₁ d₀ : UInt32) : UInt32Array ×
   let s := 31 - d₁.toNat.log2
   let D : UInt64 := ((d₁.toUInt64 <<< 32) + d₀.toUInt64) <<< s.toUInt64
   divRem2Limbs (shiftLeft a s) (D >>> 32).toUInt32 D.toUInt32 s.toUInt64
+
+/--
+`divRem2` without the remainder: the fold ends with the array alone, so that it allocates no pair
+and no box for the remainder.
+-/
+public def div2 (a : UInt32Array.Slice) (d₁ d₀ : UInt32) : UInt32Array :=
+  let s := 31 - d₁.toNat.log2
+  let D : UInt64 := ((d₁.toUInt64 <<< 32) + d₀.toUInt64) <<< s.toUInt64
+  (shiftLeft a s).toSlice.foldrInPlaceThen (0 : UInt64)
+    (fun _ _ v R => div2Step (D >>> 32).toUInt32 D.toUInt32 R v) (fun r _ => r.array)
+
+public theorem div2_eq (a : UInt32Array.Slice) (d₁ d₀ : UInt32) :
+    div2 a d₁ d₀ = (divRem2 a d₁ d₀).1 := by
+  simp only [div2, divRem2, divRem2Limbs, UInt32Array.Slice.foldrInPlaceThen_eq]
 
 /-- `divRem2` divides: `a = q d + r` with `r < d`. -/
 public theorem divRem2_spec (a : UInt32Array.Slice) (d₁ d₀ : UInt32) (hd : d₁ ≠ 0) :

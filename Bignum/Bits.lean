@@ -48,11 +48,11 @@ Limb `v` shifted left by `s < 32` bits, plus the carry `c < 2^s`; the bits above
 out depends on `v` only, not on `c`, which keeps the loop free of a dependency chain: `c` lands in
 the `s` low bits, which the shift leaves zero, so the sum doesn't wrap.
 -/
-@[inline] def shlStep (s : UInt64) (v c : UInt32) : UInt32 × UInt32 :=
+@[inline] public def shlStep (s : UInt64) (v c : UInt32) : UInt32 × UInt32 :=
   let w := v.toUInt64 <<< s
   (w.toUInt32 + c, (w >>> 32).toUInt32)
 
-private theorem shlStep_spec (s : Nat) (hs : s < 32) (v c : UInt32) (hc : c.toNat < 2 ^ s) :
+public theorem shlStep_spec (s : Nat) (hs : s < 32) (v c : UInt32) (hc : c.toNat < 2 ^ s) :
     (shlStep s.toUInt64 v c).1.toNat + 2 ^ 32 * (shlStep s.toUInt64 v c).2.toNat =
       v.toNat * 2 ^ s + c.toNat ∧ (shlStep s.toUInt64 v c).2.toNat < 2 ^ s := by
   have hv := v.toNat_lt

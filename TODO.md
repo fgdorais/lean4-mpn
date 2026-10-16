@@ -108,16 +108,18 @@ division, and `topSize` usually stops at the first limb.
 - [x] **A `Nat`-like type:** `BigNat`, a word below `2⁶⁴` and trimmed limbs above, with the
   instances, truncated subtraction and the bijection with `Nat`. About 15 ns per operation on
   words, against 9–10 ns for `Nat`, whose small values need no allocation.
-- [ ] **The fixed cost of small divisions:** `BigNat.div` takes 170 ns for a divisor of 2 limbs,
-  247 ns for 4 limbs and 555 ns for 16, against 47, 95 and 154 ns for `Nat`. Done: the normalized
-  dividend is divided in place when its top limb is below the divisor's (`divRemBasecaseTop`),
-  which saves its copy and one step of Algorithm D (12–22% from 3 to 16 limbs); a `BigNat`
-  divided by a word goes to `divRem1` or `divRem2` without an array for the word (`divRemWord`,
-  2 limbs 192 → 170 ns; `%` by a word returns the word); Algorithm D works in one array, with
-  each quotient limb in the freed top limb of its window, and its compiled step allocates no pair
-  (`divLoopIn`, `divStepInFast`; 11–19% from 3 to 64 limbs). Left: at 2 limbs, half the time is
-  allocation (the shifted copy of the dividend, its slices, the result pair, the trimmed
-  quotient), which normalizing on the fly in `divRem2`'s loop would remove.
+- [ ] **The fixed cost of small divisions:** `BigNat.div` takes 86 ns for 4 limbs by 2, 245 ns for 8
+  by 4 and 555 ns for 32 by 16, against 47, 95 and 154 ns for `Nat`. Done: up to four limbs by a
+  word of two, the division runs on words alone, with three `div2Step`s after the shift
+  (`divRem128`; 159 → 86 ns), and `/` by a word uses `div2`, which allocates no remainder; the
+  normalized dividend is divided in place when its top limb is below the divisor's
+  (`divRemBasecaseTop`), which saves its copy and one step of Algorithm D (12–22% from 3 to 16
+  limbs); a `BigNat` divided by a word goes to `divRem1` or `divRem2` without an array for the word
+  (`divRemWord`, 2 limbs 192 → 170 ns; `%` by a word returns the word); Algorithm D works in one
+  array, with each quotient limb in the freed top limb of its window, and its compiled step
+  allocates no pair (`divLoopIn`, `divStepInFast`; 11–19% from 3 to 64 limbs). Left: above four
+  limbs, a divisor of two limbs still goes through `divRem2`'s shifted copy of the dividend and its
+  slices, which normalizing on the fly in its loop would remove.
 - [x] **Words near `2⁶⁴` in `BigNat`:** a sum or product of two words that overflows went
   through `limbsOfWord` and the array functions (about 95 ns). `mulWide` computes the product from
   the four products of halves, and `wideOf` makes the three or four limbs directly: `badd` at 2

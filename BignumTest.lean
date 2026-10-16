@@ -286,6 +286,13 @@ def bigNatValues : List Nat :=
     (x.toNat == a && toString x == toString a) &&
     (BigNat.gcd x y).toNat == Nat.gcd a b && (BigNat.lcm x y).toNat == Nat.lcm a b
 
+-- Division of up to four limbs by a word of two limbs, on words alone (`divRem128`).
+#guard [2 ^ 64, 2 ^ 64 + 12345, 2 ^ 96 - 1, 2 ^ 96, 2 ^ 127 + 2 ^ 64 + 7, 2 ^ 128 - 1,
+    sample1 96 71, sample1 128 73, sample1 120 79].all fun a =>
+  [2 ^ 32, 2 ^ 32 + 1, 2 ^ 33 - 1, 2 ^ 63, 2 ^ 63 + 2 ^ 31, 2 ^ 64 - 1, 3 * 2 ^ 40 + 5].all fun b =>
+    (BigNat.ofNat a / BigNat.ofNat b).toNat == a / b &&
+      (BigNat.ofNat a % BigNat.ofNat b).toNat == a % b
+
 -- Literals and the representation.
 #guard ((12345678901234567890123 : BigNat) * 1000).toNat == 12345678901234567890123000
 #guard (BigNat.ofNat (2 ^ 64 - 1) + 1).toNat == 2 ^ 64
