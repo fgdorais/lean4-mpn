@@ -711,10 +711,11 @@ public theorem combaMul_spec (a b : UInt32Array.Slice) (h : CombaOK a b) :
   have hsb : b.size.toUSize.toNat = b.size := toNat_toUSize (by omega)
   have hn : a.size + b.size + 1 < USize.size := lt_usizeSize (by have := h.2.2.1; omega)
   have hkE' : (a.size + b.size - 1).toUSize.toNat = a.size + b.size - 1 := toNat_toUSize (by omega)
-  have hkE : (a.size + b.size - 1).toUSize.toNat + 1 = a.size.toUSize.toNat + b.size.toUSize.toNat :=
-    by have := mod_usize (n := a.size + b.size - 1) (by omega)
-       have := mod_usize (n := a.size) (by omega); have := mod_usize (n := b.size) (by omega)
-       have := h.1; simp; omega
+  have hkE : (a.size + b.size - 1).toUSize.toNat + 1 =
+      a.size.toUSize.toNat + b.size.toUSize.toNat := by
+    have := mod_usize (n := a.size + b.size - 1) (by omega)
+    have := mod_usize (n := a.size) (by omega); have := mod_usize (n := b.size) (by omega)
+    have := h.1; simp; omega
   have hrs : (UInt32Array.replicate (a.size + b.size + 1) 0).size < USize.size := by
     rw [UInt32Array.size_replicate]; exact hn
   have hr0 : (UInt32Array.replicate (a.size + b.size + 1) 0).size =
@@ -735,8 +736,8 @@ public theorem combaMul_spec (a b : UInt32Array.Slice) (h : CombaOK a b) :
       (by simp)).pop := rfl
   rw [heq]
   generalize combaOuter a.array a.start.toUSize a.size.toUSize _ _ b.array b.start.toUSize
-    b.size.toUSize _ _ (a.size + b.size - 1).toUSize _ (UInt32Array.replicate (a.size + b.size + 1) 0)
-    _ _ 0 _ = r at hspec hsize ⊢
+    b.size.toUSize _ _ (a.size + b.size - 1).toUSize _
+    (UInt32Array.replicate (a.size + b.size + 1) 0) _ _ 0 _ = r at hspec hsize ⊢
   have hrsz : r.size = a.size + b.size + 1 := by
     rw [hsize]
     have := mod_usize (n := a.size + b.size - 1) (by omega); have := h.1; simp; omega
@@ -874,16 +875,19 @@ private theorem csqOuter_spec (aa : UInt32Array) (sa na : USize) (ha : aa.size <
     -- The diagonal term.
     have hdk : (k / 2).toNat < na.toNat := by rw [USize.toNat_div]; simp; omega
     have hdd := toNat_diagWord aa sa na ha hA k hdk la hxa
-    have hdlo : ((diagWord aa sa na ha hA k hdk) &&& 0xFFFFFFFF).toNat = (diagWord aa sa na ha hA k hdk).toNat % 2 ^ 32 := by
+    have hdlo : ((diagWord aa sa na ha hA k hdk) &&& 0xFFFFFFFF).toNat =
+        (diagWord aa sa na ha hA k hdk).toNat % 2 ^ 32 := by
       rw [UInt64.toNat_and]; exact Nat.and_two_pow_sub_one_eq_mod _ 32
-    have hdhi : ((diagWord aa sa na ha hA k hdk) >>> 32).toNat = (diagWord aa sa na ha hA k hdk).toNat / 2 ^ 32 := by
+    have hdhi : ((diagWord aa sa na ha hA k hdk) >>> 32).toNat =
+        (diagWord aa sa na ha hA k hdk).toNat / 2 ^ 32 := by
       rw [UInt64.toNat_shiftRight]; simp [Nat.shiftRight_eq_div_pow]
     have hdβ := (diagWord aa sa na ha hA k hdk).toNat_lt
     -- The products below the diagonal, from zero.
     obtain ⟨lo', hi', heq, hacc, hlo', hhi'⟩ := colLoop_spec aa sa na ha hA aa sa na ha hA k
       ((k + 1) / 2) (by rw [he]; omega) (by rw [he]; omega)
       (fun lo hi => writeCol r k hrs (by omega)
-        (lo + lo + ((diagWord aa sa na ha hA k hdk) &&& 0xFFFFFFFF) + (r.uget k (by omega)).toUInt64)
+        (lo + lo + ((diagWord aa sa na ha hA k hdk) &&& 0xFFFFFFFF) +
+          (r.uget k (by omega)).toUInt64)
         (hi + hi + ((diagWord aa sa na ha hA k hdk) >>> 32) +
           (r.uget (k + 1) (by rw [hk1']; omega)).toUInt64))
       la la hxa hxa 0 (colStart k na)
@@ -901,19 +905,25 @@ private theorem csqOuter_spec (aa : UInt32Array) (sa na : USize) (ha : aa.size <
     have hhi2 : hi'.toNat ≤ 2 ^ 62 := by
       have := Nat.mul_le_mul_right (2 ^ 32) hcnt; omega
     -- The column total: twice the products, the diagonal and the carry.
-    have hL : (lo' + lo' + ((diagWord aa sa na ha hA k hdk) &&& 0xFFFFFFFF) + (r.uget k (by omega)).toUInt64).toNat =
-        2 * lo'.toNat + (diagWord aa sa na ha hA k hdk).toNat % 2 ^ 32 + (r[k.toNat]'(by omega)).toNat := by
+    have hL : (lo' + lo' + ((diagWord aa sa na ha hA k hdk) &&& 0xFFFFFFFF) +
+          (r.uget k (by omega)).toUInt64).toNat =
+        2 * lo'.toNat + (diagWord aa sa na ha hA k hdk).toNat % 2 ^ 32 +
+          (r[k.toNat]'(by omega)).toNat := by
       simp only [UInt64.toNat_add, hdlo, hc₀]
       have := Nat.mod_lt (diagWord aa sa na ha hA k hdk).toNat (show 0 < 2 ^ 32 by decide)
       omega
-    have hH : (hi' + hi' + ((diagWord aa sa na ha hA k hdk) >>> 32) + (r.uget (k + 1) (by rw [hk1']; omega)).toUInt64).toNat =
-        2 * hi'.toNat + (diagWord aa sa na ha hA k hdk).toNat / 2 ^ 32 + (r[k.toNat + 1]'(by omega)).toNat := by
+    have hH : (hi' + hi' + ((diagWord aa sa na ha hA k hdk) >>> 32) +
+          (r.uget (k + 1) (by rw [hk1']; omega)).toUInt64).toNat =
+        2 * hi'.toNat + (diagWord aa sa na ha hA k hdk).toNat / 2 ^ 32 +
+          (r[k.toNat + 1]'(by omega)).toNat := by
       simp only [UInt64.toNat_add, hdhi, hc₁]
       have : (diagWord aa sa na ha hA k hdk).toNat / 2 ^ 32 < 2 ^ 32 := by
         rw [Nat.div_lt_iff_lt_mul (by decide)]; exact Nat.lt_of_lt_of_le hdβ (by decide)
       omega
-    have htot : 2 * lo'.toNat + (diagWord aa sa na ha hA k hdk).toNat % 2 ^ 32 + (r[k.toNat]'(by omega)).toNat +
-        2 ^ 32 * (2 * hi'.toNat + (diagWord aa sa na ha hA k hdk).toNat / 2 ^ 32 + (r[k.toNat + 1]'(by omega)).toNat) =
+    have htot : 2 * lo'.toNat + (diagWord aa sa na ha hA k hdk).toNat % 2 ^ 32 +
+          (r[k.toNat]'(by omega)).toNat +
+        2 ^ 32 * (2 * hi'.toNat + (diagWord aa sa na ha hA k hdk).toNat / 2 ^ 32 +
+          (r[k.toNat + 1]'(by omega)).toNat) =
         ((r[k.toNat]'(by omega)).toNat + 2 ^ 32 * (r[k.toNat + 1]'(by omega)).toNat) +
           colSum la la k.toNat := by
       rw [colSum_sq, ← hacc, ← hdd]

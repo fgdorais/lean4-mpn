@@ -323,7 +323,8 @@ public theorem toNat_divMod (a b : UInt32Array.Slice) :
     exact hs
 
 /-- Division is `Nat` division. -/
-@[simp] public theorem toNat_div (a b : UInt32Array.Slice) : toNat (div a b) = toNat a / toNat b := by
+@[simp] public theorem toNat_div (a b : UInt32Array.Slice) :
+    toNat (div a b) = toNat a / toNat b := by
   rw [div_eq_divMod]
   exact (toNat_divMod a b).1
 
