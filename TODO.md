@@ -89,8 +89,9 @@ division, and `topSize` usually stops at the first limb.
     double-word leading digits (`hgcd2`) would double the progress per step.
   - [x] integer square root: Newton's iteration at growing precision, from the root of the top
     half (`sqrt (n / 4ᵏ)` for `k` a quarter of the bits), which starts within `2ᵏ` above the root;
-    2–4× behind `Nat` (3–12× from a power of two). Stopping one division earlier, with a square
-    to check the last step, would save about a third.
+    one Newton step, which is at least the root by AM-GM, then steps down while `x² > n` with one
+    square (`sqrtFix`), where the iteration took a second division to stop. Faster than `Nat` up
+    to 4 limbs, 1.05–2.25× behind above.
   - [x] `toString`/`ofString?` (`Decimal`), like GMP's `mpn_get_str`/`mpn_set_str` below their
     thresholds: chunks of nine digits, by `divRem1` by `10⁹` one way and a fold over the
     characters the other. Equal to `Nat.repr` and `String.toNat?`, and 10–20× faster than

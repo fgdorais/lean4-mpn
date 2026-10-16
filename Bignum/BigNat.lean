@@ -821,12 +821,20 @@ decreasing_by all_goals omega
         congr 1
         omega
 
-/-- Newton's iteration for `⌊√n⌋` from `x`, while it decreases. -/
-def sqrtLoop (n x : BigNat) : BigNat :=
-  if _h : blt (shiftRight (add x (div n x)) 1) x then sqrtLoop n (shiftRight (add x (div n x)) 1)
+/--
+Steps down from `x ≥ ⌊√n⌋` to `⌊√n⌋`, while `x² > n`, with `sq = x²`: `(x - 1)² = x² - 2 x + 1`
+needs no product. The guard also checks what the termination needs, which always holds.
+-/
+def sqrtFix (n x sq : BigNat) : BigNat :=
+  if _h : blt n sq = true ∧ blt (small 0) x = true then
+    sqrtFix n (sub x (small 1)) (sub (add sq (small 1)) (shiftLeft x 1))
   else x
 termination_by x.toNat
-decreasing_by rw [blt_iff] at _h; exact _h
+decreasing_by
+  rw [blt_iff, blt_iff, toNat_small] at _h
+  rw [toNat_sub, toNat_small]
+  simp only [UInt64.toNat_zero, UInt64.toNat_one] at *
+  omega
 
 /-- `⌊√N⌋` is the `r` with `r² ≤ N < (r + 1)²`. -/
 private theorem eq_sqrt {r N : Nat} (h₁ : r * r ≤ N) (h₂ : N < (r + 1) * (r + 1)) :
@@ -863,72 +871,50 @@ private theorem le_newton {x s N : Nat} (hx : 0 < x) (hs : s * s ≤ N) :
   have : 2 * s * (2 * s) = 4 * (s * s) := by rw [Nat.mul_mul_mul_comm]
   omega
 
-private theorem toNat_sqrtLoop (n x : BigNat) (hn : 0 < n.toNat) (hx : 0 < x.toNat)
-    (hs : Nat.sqrt n.toNat ≤ x.toNat) : (sqrtLoop n x).toNat = Nat.sqrt n.toNat := by
-  have hs1 : 1 ≤ Nat.sqrt n.toNat := by
-    have := Nat.lt_succ_sqrt n.toNat
-    rcases Nat.eq_zero_or_pos (Nat.sqrt n.toNat) with h | h
-    · rw [h] at this; simp at this; omega
-    · exact h
-  induction x using sqrtLoop.induct n with
-  | case1 x h ih =>
-    rw [sqrtLoop, dite_eq_left h]
-    rw [blt_iff, toNat_shiftRight, toNat_add, toNat_div] at h
-    have hstep := le_newton hx (Nat.sqrt_le n.toNat)
-    rw [Nat.pow_one] at h
+private theorem toNat_sqrtFix (n x sq : BigNat) (hsq : sq.toNat = x.toNat * x.toNat)
+    (hx : n.toNat < (x.toNat + 1) * (x.toNat + 1)) :
+    (sqrtFix n x sq).toNat = Nat.sqrt n.toNat := by
+  induction x, sq using sqrtFix.induct n with
+  | case1 x sq h ih =>
+    rw [sqrtFix, dite_eq_left h]
+    rw [blt_iff, blt_iff, toNat_small, UInt64.toNat_zero] at h
+    obtain ⟨h₁, h₂⟩ := h
     apply ih
-    · rw [toNat_shiftRight, toNat_add, toNat_div, Nat.pow_one]
+    · rw [toNat_sub, toNat_add, toNat_sub, toNat_shiftLeft, toNat_small, UInt64.toNat_one, hsq,
+        Nat.pow_one]
+      -- `(x - 1)² = x² + 1 - 2 x` for `x ≥ 1`.
+      generalize x.toNat = X at h₂ ⊢
+      obtain ⟨y, rfl⟩ : ∃ y, X = y + 1 := ⟨X - 1, by omega⟩
+      simp only [Nat.add_sub_cancel, Nat.add_mul, Nat.mul_add, Nat.mul_one, Nat.one_mul]
       omega
-    · rw [toNat_shiftRight, toNat_add, toNat_div, Nat.pow_one]
-      exact hstep
-  | case2 x h =>
-    rw [sqrtLoop, dite_eq_right h]
-    rw [blt_iff, toNat_shiftRight, toNat_add, toNat_div, Nat.pow_one] at h
-    -- The iteration stopped: `x ≤ (x + n / x) / 2`, so `x² ≤ n`, and `x ≥ ⌊√n⌋`.
-    have hxx : x.toNat * x.toNat ≤ n.toNat := by
-      refine Nat.le_of_not_lt fun hlt => h ?_
-      have : n.toNat / x.toNat < x.toNat := (Nat.div_lt_iff_lt_mul hx).2 hlt
-      omega
-    have := Nat.lt_succ_sqrt n.toNat
-    have hle : x.toNat ≤ Nat.sqrt n.toNat := by
-      refine Nat.le_of_not_lt fun hlt => ?_
-      have := Nat.mul_self_le_mul_self (show Nat.sqrt n.toNat + 1 ≤ x.toNat by omega)
-      simp only [Nat.succ_eq_add_one] at *
-      omega
-    omega
-
-/-- `⌊√n⌋ < (⌊√(n / 4ᵏ)⌋ + 1) 2ᵏ`: a start above the root from the root of the top half. -/
-private theorem sqrt_lt_succ_sqrt_shift (N k : Nat) :
-    Nat.sqrt N < (Nat.sqrt (N / 2 ^ (2 * k)) + 1) * 2 ^ k := by
-  have hP : 2 ^ (2 * k) = 2 ^ k * 2 ^ k := by rw [← Nat.pow_add]; congr 1; omega
-  -- `N < (N / 4ᵏ + 1) 4ᵏ ≤ (s + 1)² 4ᵏ`.
-  have h₁ : N < (N / 2 ^ (2 * k) + 1) * 2 ^ (2 * k) := by
-    rw [Nat.succ_mul]
-    have := Nat.lt_div_mul_add (a := N) (Nat.two_pow_pos (2 * k))
-    omega
-  have h₂ := Nat.lt_succ_sqrt (N / 2 ^ (2 * k))
-  generalize Nat.sqrt (N / 2 ^ (2 * k)) = s at h₂ ⊢
-  have h₃ : N < (s + 1) * 2 ^ k * ((s + 1) * 2 ^ k) := by
-    have := Nat.mul_le_mul_right (2 ^ (2 * k)) (show N / 2 ^ (2 * k) + 1 ≤ (s + 1) * (s + 1) by
-      simp only [Nat.succ_eq_add_one] at h₂; omega)
-    rw [Nat.mul_mul_mul_comm, ← hP]
-    omega
-  refine Nat.lt_of_not_le fun hle => ?_
-  have := Nat.mul_self_le_mul_self hle
-  have := Nat.sqrt_le N
-  omega
+    · rw [toNat_sub, toNat_small, UInt64.toNat_one, Nat.sub_add_cancel (by omega)]
+      rw [hsq] at h₁
+      exact h₁
+  | case2 x sq h =>
+    rw [sqrtFix, dite_eq_right h]
+    rw [blt_iff, blt_iff, toNat_small, UInt64.toNat_zero] at h
+    -- The loop stopped: `x² ≤ n`, or `x = 0` and then `n < 1`.
+    refine eq_sqrt ?_ hx
+    rw [hsq] at h
+    rcases Nat.eq_zero_or_pos x.toNat with h0 | h0
+    · rw [h0]; omega
+    · omega
 
 /--
 `⌊√n⌋`: from `Nat.sqrt` on words, and above by Newton's iteration at growing precision: the root
 `s` of the top half `n / 4ᵏ`, for `k` about a quarter of the bits of `n`, gives the start
-`(s + 1) 2ᵏ` above `√n` and within `2ᵏ` of it, from which `sqrtLoop` needs about two divisions.
+`(s + 1) 2ᵏ` above `√n` and within `2ᵏ` of it. One Newton step from there is at least `⌊√n⌋`, by
+AM-GM, and at most two above it; `sqrtFix` steps down to `⌊√n⌋` with one square, where checking
+the step with a second division would cost more.
 -/
 public def sqrt (n : BigNat) : BigNat :=
   match hn : n with
   | small a => small (Nat.sqrt a.toNat).toUInt64
   | large _ ha =>
     let k := log2 n / 4 + 1
-    sqrtLoop n (shiftLeft (add (sqrt (shiftRight n (2 * k))) (small 1)) k)
+    let x₀ := shiftLeft (add (sqrt (shiftRight n (2 * k))) (small 1)) k
+    let x₁ := shiftRight (add x₀ (div n x₀)) 1
+    sqrtFix n x₁ (sqr x₁)
 termination_by n.toNat
 decreasing_by
   rw [toNat_shiftRight]
@@ -950,12 +936,15 @@ decreasing_by
     simp only [toNat, Nat.toUInt64, UInt64.toNat_ofNat', Nat.mod_eq_of_lt hs]
   | case2 a ha k ih =>
     rw [sqrt]
-    have hN : 0 < (large a ha).toNat := by simp only [toNat]; omega
-    apply toNat_sqrtLoop _ _ hN
-    · rw [toNat_shiftLeft, toNat_add, toNat_small, UInt64.toNat_one]
+    have hx₀ :
+        0 < (shiftLeft (add (sqrt (shiftRight (large a ha) (2 * k))) (small 1)) k).toNat := by
+      rw [toNat_shiftLeft, toNat_add, toNat_small, UInt64.toNat_one]
       exact Nat.mul_pos (by omega) (Nat.two_pow_pos _)
-    · rw [toNat_shiftLeft, toNat_add, ih, toNat_shiftRight, toNat_small, UInt64.toNat_one]
-      exact Nat.le_of_lt (sqrt_lt_succ_sqrt_shift _ _)
+    -- One Newton step stays at or above the root.
+    have hge := le_newton hx₀ (Nat.sqrt_le (large a ha).toNat)
+    apply toNat_sqrtFix _ _ _ (toNat_sqr _)
+    rw [toNat_shiftRight, toNat_add, toNat_div, Nat.pow_one]
+    exact Nat.lt_of_lt_of_le (Nat.lt_succ_sqrt _) (Nat.mul_self_le_mul_self (Nat.succ_le_succ hge))
 
 /-! ## Instances -/
 
