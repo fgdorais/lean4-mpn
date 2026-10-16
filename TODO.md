@@ -86,10 +86,15 @@ division, and `topSize` usually stops at the first limb.
   - [x] `gcd` and `lcm` (`BigNat`): Lehmer's algorithm with single-word cofactors, checked by
     their determinant, and Euclid on words. Each new number is a difference of two multiples,
     computed in one pass with a biased carry (`mulSubMul`), and the cofactors stay below `2³¹`, so
-    that their determinant is checked on `Nat` without GMP (`lehmerStep`); faster than `Nat` on
-    words, 4.6–8.3× behind GMP from 3 limbs (from 13–20×). Double-word leading digits (`hgcd2`)
-    would double the progress per step, and subquadratic `hgcd` would pay from a few hundred
-    limbs.
+    that their determinant is checked on `Nat` without GMP (`lehmerStep`); the word steps divide
+    once per quotient and stop by Jebelean's condition (`lehmerSteps`). Faster than `Nat` on
+    words, 3.4–6.8× behind GMP from 3 limbs (from 13–20×). This is already GMP's `hgcd2` in our
+    limbs (two-limb leading words, one-limb cofactors); the next size up, 124-bit words and 62-bit
+    cofactors, would need Euclid in emulated 128-bit arithmetic, already 11–21% of the time in
+    64-bit, for passes that do twice the products for half the steps, so it is not worth it.
+    Left: both new numbers in one pass (fewer loads and objects, maybe 5–10% up to 64 limbs), and
+    subquadratic `hgcd`, GMP's advantage from a few hundred limbs, where the passes are half the
+    time.
   - [x] integer square root: Newton's iteration at growing precision, from the root of the top
     half (`sqrt (n / 4ᵏ)` for `k` a quarter of the bits), which starts within `2ᵏ` above the root;
     one Newton step, which is at least the root by AM-GM, then steps down while `x² > n` with one
