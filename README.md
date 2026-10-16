@@ -30,6 +30,22 @@ leanOptions = {
   weak.bignum.div.dcThreshold = 128}
 ```
 
+## Programs
+
+Write the main file of a program that uses the library as a `module`, with a `public def main`:
+
+```lean
+module
+
+import Bignum
+
+public def main : IO Unit := IO.println (Bignum.BigNat.ofNat (2 ^ 100))
+```
+
+`Bignum.Config` imports `Lean` at compile time for its thresholds, and a main file that is not a
+`module` initializes everything its imports use at compile time too: the executable then links
+all of Lean (about 120 MB) and spends about 20 ms initializing it at startup.
+
 ## Benchmark
 
 `lake exe bench` times addition, subtraction, multiplication by a limb, multiplication, squaring

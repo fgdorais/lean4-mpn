@@ -2,6 +2,8 @@
 Copyright © 2026 François G. Dorais. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 -/
+module
+
 import Bignum
 
 /-!
@@ -167,4 +169,4 @@ def main (args : List String) : IO Unit := do
 
 end Bench
 
-def main (args : List String) : IO Unit := Bench.main args
+public def main (args : List String) : IO Unit := Bench.main args

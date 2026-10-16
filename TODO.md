@@ -144,9 +144,11 @@ usually stops at the first limb.
   the operand and the result and allocates twice per operation, so below about 64 limbs it
   measures mostly that overhead (we beat it there). Calling `mpn_*` directly needs C, so it
   belongs on the `64bit` branch.
-- [ ] **Executables initialize all of Lean.** `Config`'s `bignum_config%` elaborator imports
-  `Lean`, so every program that imports `Bignum` spends about 25 ms at startup initializing it.
-  Moving the elaborator to its own module would keep it out of programs.
+- [x] **Executables initialize all of Lean.** `Config` imports `Lean` (as `meta`) for its
+  `bignum_config%` elaborator. A main file that is not a `module` calls the meta initializers of
+  everything it imports, so it links and initializes all of Lean: 124 MB and about 20 ms at
+  startup. A main file that is a `module` calls only the runtime initializers, which skip `meta`
+  imports: `bench` and `tune` are now modules, 3.9 MB each, and the README says so for programs.
 - [ ] **CI** building and testing every push, and running `tune` occasionally as a rough check
   of the default thresholds (shared runners are noisy).
 - [ ] **Decide what to do with the `64bit` branch** (C and GMP experiments, benchmarks), which is

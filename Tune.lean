@@ -2,6 +2,8 @@
 Copyright © 2026 François G. Dorais. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 -/
+module
+
 import Bignum
 
 /-!
@@ -213,7 +215,7 @@ def tuneDivDC (log : Bool) : IO Nat := medianOf 3 do
 end Tune
 
 open Tune in
-def main (args : List String) : IO UInt32 := do
+public def main (args : List String) : IO UInt32 := do
   let log := args.contains "--verbose"
   IO.println "Tuning the bignum thresholds; this takes about a minute."
   IO.println "mulKaratsuba: one Karatsuba step against schoolbook"
