@@ -6,7 +6,7 @@ module
 
 public import Bignum.Add
 public import Bignum.Sub
-public import Bignum.Div.Limb
+public import Bignum.Bits
 public import Bignum.Mul.Limb
 
 /-!
@@ -29,8 +29,10 @@ the coefficients are, and each step of the interpolation
 * `t₃ = (s₃ - r₁) / 2 = c₂ + 4 c₃`,
 * `c₃ = t₃ - t₂`, `c₂ = t₂ - 3 c₃`, `c₁ = r₁ - c₂ - c₃`
 
-subtracts a part of what it subtracts from and divides exactly. Like `karatsuba`, `toom3` takes
-the multiplier for the five products as a parameter. `toom3Sqr` squares the same way with five
+subtracts a part of what it subtracts from and divides exactly. The divisions avoid the hardware
+divider: by `2` it is a shift by one bit, and by `3` a multiplication by the inverse of `3` modulo
+`β` from the bottom limb up, like GMP's `mpn_divexact_by3`. Like `karatsuba`, `toom3` takes the
+multiplier for the five products as a parameter. `toom3Sqr` squares the same way with five
 squares.
 -/
 
@@ -40,20 +42,164 @@ namespace Bignum
 
 /-! ## Building blocks -/
 
-/-- `x / d`, which is exact when `d` divides `x`. -/
-def divExact (x : UInt32Array) (d : UInt32) : UInt32Array := (divRem1 x d).1
+/-- `x / 2`, which is exact when `x` is even: `x` shifted right by one bit in place. -/
+def divExact2 (x : UInt32Array) : UInt32Array := shrLimbs x (1 : Nat).toUInt64
 
-private theorem toNat_divExact (x : UInt32Array) (d : UInt32) (hd : d ≠ 0) (X : Nat)
-    (hx : toNat x = d.toNat * X) : toNat (divExact x d) = X := by
-  have hd' : 0 < d.toNat := by
-    rcases Nat.eq_zero_or_pos d.toNat with h | h
-    · exact absurd (UInt32.toNat_inj.1 (by simpa using h)) hd
-    · exact h
-  obtain ⟨h₁, h₂⟩ := divRem1_spec x d hd
-  rw [hx] at h₁
-  have := (Nat.div_mod_unique (a := d.toNat * X) (b := d.toNat) (d := toNat (divRem1 x d).1)
-    (c := (divRem1 x d).2.toNat) hd').2 ⟨by rw [Nat.mul_comm d.toNat]; omega, h₂⟩
-  rw [divExact, ← this.1, Nat.mul_div_cancel_left _ hd']
+private theorem toNat_divExact2 (x : UInt32Array) (X : Nat) (hx : toNat x = 2 * X) :
+    toNat (divExact2 x) = X := by
+  rw [divExact2, toNat_shrLimbs _ _ (by decide), hx, Nat.pow_one, Nat.mul_div_cancel_left _
+    (by decide)]
+
+/--
+One limb of an exact division by `3`, like GMP's `mpn_divexact_by3`: the quotient limb `q` is
+`(v - c) 3⁻¹` modulo `β`, with `3⁻¹ = 0xAAAAAAAB`, so that `3 q + c = v + β c'`, where the carry
+out `c'` is the high limb of `3 q` plus the borrow of `v - c`.
+-/
+@[inline] def div3Step (v c : UInt32) : UInt32 × UInt32 :=
+  let t := v.toUInt64 - c.toUInt64
+  let q := t.toUInt32 * 0xAAAAAAAB
+  (q, ((q.toUInt64 * 3) >>> 32).toUInt32 + (t >>> 63).toUInt32)
+
+/-- `0xAAAAAAAB` is the inverse of `3` modulo `β`: `3 · 0xAAAAAAAB = 1 + 2 β`. -/
+private theorem mul_inv3 (s : Nat) (hs : s < 4294967296) :
+    3 * (s * 2863311531 % 4294967296) % 4294967296 = s := by
+  rw [Nat.mul_mod, Nat.mod_mod, ← Nat.mul_mod,
+    show 3 * (s * 2863311531) = s + 4294967296 * (2 * s) by omega, Nat.add_mul_mod_self_left,
+    Nat.mod_eq_of_lt hs]
+
+private theorem div3Step_spec (v c : UInt32) (hc : c.toNat ≤ 3) :
+    3 * (div3Step v c).1.toNat + c.toNat = v.toNat + 2 ^ 32 * (div3Step v c).2.toNat ∧
+      (div3Step v c).2.toNat ≤ 3 := by
+  have := v.toNat_lt
+  simp only [div3Step, UInt32.toNat_mul, UInt32.toNat_add, UInt64.toNat_toUInt32,
+    UInt64.toNat_sub, UInt64.toNat_mul, UInt64.toNat_shiftRight, UInt32.toNat_toUInt64,
+    Nat.shiftRight_eq_div_pow, UInt64.reduceToNat, UInt32.reduceToNat, Nat.reducePow,
+    Nat.reduceMod]
+  -- `t = v - c` as a 64-bit word: its low limb `s` and its borrow `b`.
+  generalize ht : (18446744073709551616 - c.toNat + v.toNat) % 18446744073709551616 = t
+  have hsb : t % 4294967296 + c.toNat = v.toNat + 4294967296 * (t / 9223372036854775808) ∧
+      t / 9223372036854775808 ≤ 1 := by
+    omega
+  have hq := mul_inv3 (t % 4294967296) (Nat.mod_lt _ (by decide))
+  have hqlt := Nat.mod_lt (t % 4294967296 * 2863311531) (show 0 < 4294967296 by decide)
+  generalize t % 4294967296 * 2863311531 % 4294967296 = q at *
+  generalize t % 4294967296 = s at *
+  generalize t / 9223372036854775808 = b at *
+  -- `3 q < 2⁶⁴` and its high limb is at most `2`, so the reductions are trivial.
+  have hhi : q * 3 / 4294967296 ≤ 2 := by omega
+  rw [Nat.mod_eq_of_lt (show q * 3 < 18446744073709551616 by omega),
+    Nat.mod_eq_of_lt (show q * 3 / 4294967296 < 4294967296 by omega),
+    Nat.mod_eq_of_lt (show b < 4294967296 by omega),
+    Nat.mod_eq_of_lt (show q * 3 / 4294967296 + b < 4294967296 by omega)]
+  omega
+
+/--
+The loop of `foldlInPlace` with `div3Step`: the first `k` limbs hold `W`, the rest still hold `O`
+from `k` on, and `3 W = (the first k limbs of O) + βᵏ c`.
+-/
+private theorem div3_loop (O : List UInt32) (n : Nat) (hn : n = O.length) (r : UInt32Array.Slice)
+    (hs : r.size = n) (k : Nat) (c : UInt32) (W : List UInt32) (h0 : r.start = 0)
+    (hl : r.array.toList = W ++ O.drop k) (hW : W.length = k) (hkn : k ≤ n)
+    (hv : 3 * ofLimbs W = ofLimbs (O.take k) + 2 ^ (32 * k) * c.toNat) (hc : c.toNat ≤ 3) :
+    ∃ W', (UInt32Array.Slice.foldlInPlace.loop n (fun _ _ v c => div3Step v c) r hs k
+        c).1.array.toList = W' ∧ W'.length = n ∧
+      3 * ofLimbs W' = ofLimbs O + 2 ^ (32 * n) * (UInt32Array.Slice.foldlInPlace.loop n
+        (fun _ _ v c => div3Step v c) r hs k c).2.toNat := by
+  induction hd : n - k generalizing k r c W with
+  | zero =>
+    have hk : k = n := by omega
+    subst hk
+    rw [UInt32Array.Slice.foldlInPlace.loop, dite_eq_right (by omega)]
+    refine ⟨W, ?_, hW, ?_⟩
+    · rw [hl, List.drop_of_length_le (by omega), List.append_nil]
+    · rw [hv, List.take_of_length_le (by omega)]
+  | succ d ih =>
+    have hk : k < n := by omega
+    have hkO : k < O.length := by omega
+    rw [UInt32Array.Slice.foldlInPlace.loop, dite_eq_left hk]
+    have hsa : k < r.array.size := by
+      have := r.stop_le_array_size; have := r.size_eq; have := r.start_le_stop; omega
+    have hdrop := List.drop_eq_getElem_cons hkO
+    have hl' := hl
+    rw [hdrop] at hl'
+    have hrk : r[k]'(by omega) = O[k] := by
+      have h := List.getElem_of_eq hl' (i := k) (by simpa using hsa)
+      rw [List.getElem_append_right (by omega)] at h
+      simp only [hW, Nat.sub_self, List.getElem_cons_zero, UInt32Array.getElem_toList] at h
+      rw [UInt32Array.Slice.getElem_eq]
+      simpa [h0] using h
+    obtain ⟨h₁, h₂⟩ := div3Step_spec (r[k]'(by omega)) c hc
+    refine ih _ _ (k + 1) _ (W ++ [(div3Step (r[k]'(by omega)) c).1]) ?_ ?_ ?_ (by omega)
+      ?_ h₂ (by omega)
+    · rw [UInt32Array.Slice.start_set, h0]
+    · rw [UInt32Array.Slice.array_set, UInt32Array.toList_set, hl', h0,
+        List.set_append_right _ _ (by simp; omega)]
+      simp [hW]
+      rw [hdrop]
+      rfl
+    · simp [hW]
+    · rw [ofLimbs_concat, hW, List.take_succ_eq_append_getElem hkO, ofLimbs_append, ofLimbs_cons,
+        ofLimbs_nil, Nat.mul_zero, Nat.add_zero, List.length_take,
+        Nat.min_eq_left (Nat.le_of_lt hkO), ← hrk, Nat.mul_succ, Nat.pow_add]
+      generalize (div3Step (r[k]'(by omega)) c).1.toNat = q at *
+      generalize (div3Step (r[k]'(by omega)) c).2.toNat = c' at *
+      generalize (r[k]'(by omega)).toNat = v at *
+      generalize ofLimbs W = A at *
+      generalize ofLimbs (O.take k) = T at *
+      generalize 2 ^ (32 * k) = P at *
+      generalize (2 : Nat) ^ 32 = B at *
+      -- `3 (A + P q) = T + P c + P (v + B c' - c) = T + P v + P B c'`.
+      have e : 3 * (A + P * q) + P * c.toNat = T + P * v + P * B * c' + P * c.toNat := by
+        rw [Nat.mul_add, hv, Nat.mul_left_comm 3 P q, Nat.mul_assoc P B c']
+        have := congrArg (P * ·) h₁
+        simp only [Nat.mul_add] at this
+        omega
+      omega
+
+/-- `βⁿ ≡ 1` modulo `3`, since `β = 2³² ≡ 1`. -/
+private theorem pow_mod_three (n : Nat) : 2 ^ (32 * n) % 3 = 1 := by
+  rw [Nat.pow_mul, Nat.pow_mod]
+  simp
+
+/--
+`x / 3`, which is exact when `3` divides `x`: one pass from the bottom limb up with `div3Step`, in
+place with `foldlInPlaceThen`, where `divRem1` divides from the top limb down with the hardware
+divider.
+-/
+def divExact3 (x : UInt32Array) : UInt32Array :=
+  x.toSlice.foldlInPlaceThen (0 : UInt32) (fun _ _ v c => div3Step v c) (fun r _ => r.array)
+
+private theorem toNat_divExact3 (x : UInt32Array) (X : Nat) (hx : toNat x = 3 * X) :
+    toNat (divExact3 x) = X := by
+  rw [divExact3, UInt32Array.Slice.foldlInPlaceThen_eq, UInt32Array.Slice.foldlInPlace,
+    toNat_toSlice]
+  obtain ⟨W, hl, hW, hv⟩ := div3_loop x.toList x.toSlice.size (by simp) x.toSlice rfl 0 0 []
+    (by simp) (by simp) rfl (Nat.zero_le _) (by simp) (by decide)
+  rw [hl]
+  generalize (UInt32Array.Slice.foldlInPlace.loop _ (fun _ _ v (c : UInt32) => div3Step v c) _ _
+    0 (0 : UInt32)).2 = cc at hv
+  generalize cc.toNat = c at hv
+  rw [toNat_toSlice] at hx
+  rw [hx] at hv
+  have hQ := ofLimbs_lt W
+  have hX := ofLimbs_lt x.toList
+  rw [hW] at hQ
+  simp only [UInt32Array.size_toSlice, UInt32Array.length_toList, Nat.min_self,
+    Nat.sub_zero] at hQ hv hX
+  rw [hx] at hX
+  have hm := pow_mod_three x.size
+  generalize 2 ^ (32 * x.size) = P at *
+  -- `3 (W - X) = P c` with `W - X < P` and `P ≡ 1 (mod 3)`, so `c = 0`.
+  have hc : c = 0 := by
+    rcases Nat.lt_or_ge c 3 with h | h
+    · rcases (show c = 0 ∨ c = 1 ∨ c = 2 by omega) with h | h | h
+      · exact h
+      · subst h; omega
+      · subst h; omega
+    · have := Nat.mul_le_mul_left P h
+      omega
+  subst hc
+  omega
 
 /-- `x₀ + x₁ + x₂`. -/
 def eval1 (x₀ x₁ x₂ : UInt32Array.Slice) : UInt32Array := addLimbs (addLimbs x₀ x₁) x₂
@@ -119,10 +265,10 @@ private theorem toNat_slice_three (s : UInt32Array.Slice) (k : Nat) (hk : 2 * k 
 /-- `c₁`, `c₂` and `c₃` from `c₀`, `w₁ = c(1)`, `w₂ = c(2)`, `w₃ = c(3)` and `c₄`. -/
 def toom3Interp (c₀ w₁ w₂ w₃ c₄ : UInt32Array) : UInt32Array × UInt32Array × UInt32Array :=
   let r₁ := subVal (subVal w₁ c₀) c₄
-  let s₂ := divExact (subVal (subVal w₂ c₀) (mulRow c₄ 16)) 2
-  let s₃ := divExact (subVal (subVal w₃ c₀) (mulRow c₄ 81)) 3
+  let s₂ := divExact2 (subVal (subVal w₂ c₀) (mulRow c₄ 16))
+  let s₃ := divExact3 (subVal (subVal w₃ c₀) (mulRow c₄ 81))
   let t₂ := subVal s₂ r₁
-  let t₃ := divExact (subVal s₃ r₁) 2
+  let t₃ := divExact2 (subVal s₃ r₁)
   let c₃ := subVal t₃ t₂
   let c₂ := subVal t₂ (mulRow c₃ 3)
   (subVal (subVal r₁ c₂) c₃, c₂, c₃)
@@ -148,26 +294,25 @@ private theorem toom3Interp_spec (c₀ w₁ w₂ w₃ c₄ : UInt32Array) (C₀ 
     rw [toNat_subVal _ _ (by rw [toNat_subVal _ _ (by omega)]; omega),
       toNat_subVal _ _ (by omega)]
     omega
-  have hs₂ : toNat (divExact (subVal (subVal w₂ c₀) (mulRow c₄ 16)) 2) = C₁ + 2 * C₂ + 4 * C₃ :=
-    toNat_divExact _ 2 (by decide) _ hs₂a
+  have hs₂ : toNat (divExact2 (subVal (subVal w₂ c₀) (mulRow c₄ 16))) = C₁ + 2 * C₂ + 4 * C₃ :=
+    toNat_divExact2 _ _ hs₂a
   have hs₃a : toNat (subVal (subVal w₃ c₀) (mulRow c₄ 81)) = 3 * (C₁ + 3 * C₂ + 9 * C₃) := by
     rw [toNat_subVal _ _ (by rw [toNat_subVal _ _ (by omega)]; omega),
       toNat_subVal _ _ (by omega)]
     omega
-  have hs₃ : toNat (divExact (subVal (subVal w₃ c₀) (mulRow c₄ 81)) 3) = C₁ + 3 * C₂ + 9 * C₃ :=
-    toNat_divExact _ 3 (by decide) _ hs₃a
+  have hs₃ : toNat (divExact3 (subVal (subVal w₃ c₀) (mulRow c₄ 81))) = C₁ + 3 * C₂ + 9 * C₃ :=
+    toNat_divExact3 _ _ hs₃a
   generalize subVal (subVal w₁ c₀) c₄ = r₁ at *
-  generalize divExact (subVal (subVal w₂ c₀) (mulRow c₄ 16)) 2 = s₂ at *
-  generalize divExact (subVal (subVal w₃ c₀) (mulRow c₄ 81)) 3 = s₃ at *
+  generalize divExact2 (subVal (subVal w₂ c₀) (mulRow c₄ 16)) = s₂ at *
+  generalize divExact3 (subVal (subVal w₃ c₀) (mulRow c₄ 81)) = s₃ at *
   clear hr₁a hs₂a hs₃a m16 m81 h₀ h₁ h₂ h₃ h₄
   -- `t₂ = c₂ + 3 c₃` and `t₃ = c₂ + 4 c₃`.
   have ht₂ : toNat (subVal s₂ r₁) = C₂ + 3 * C₃ := by
     rw [toNat_subVal _ _ (by omega)]; omega
-  have ht₃ : toNat (divExact (subVal s₃ r₁) 2) = C₂ + 4 * C₃ :=
-    toNat_divExact _ 2 (by decide) _
-      (by rw [toNat_subVal _ _ (by omega)]; simp only [UInt32.reduceToNat]; omega)
+  have ht₃ : toNat (divExact2 (subVal s₃ r₁)) = C₂ + 4 * C₃ :=
+    toNat_divExact2 _ _ (by rw [toNat_subVal _ _ (by omega)]; omega)
   generalize subVal s₂ r₁ = t₂ at *
-  generalize divExact (subVal s₃ r₁) 2 = t₃ at *
+  generalize divExact2 (subVal s₃ r₁) = t₃ at *
   clear hs₂ hs₃
   -- `c₃ = t₃ - t₂`, `c₂ = t₂ - 3 c₃` and `c₁ = r₁ - c₂ - c₃`.
   have hc₃ : toNat (subVal t₃ t₂) = C₃ := by

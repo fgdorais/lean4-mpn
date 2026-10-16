@@ -11,13 +11,10 @@ Time now goes mostly into the schoolbook product, by columns since `Mul.Comba` (
 few percent of a product from 64 limbs up. With 32-bit limbs, a product needs 4× as many limb
 products as GMP's, which is most of the gap above 64 limbs.
 
-- [ ] **Toom-3's exact divisions** by 2 and 3 go through `divRem1` and the hardware divider: 4% of
-  a product at 1024 limbs, 8% at 4096 and 10% of a square at 4096. Division by 2 is a shift, and
-  division by 3 a multiplication by its inverse modulo `2³²`, like GMP's `mpn_divexact_by3`.
 - [ ] **What is left of the Karatsuba and Toom-3 allocations:** about 100 small objects and arrays
   per 256-limb product (slices, `replicate`, and the `++` in `karatsubaCombine`, which copies);
   with `perf`, allocation and copies are 4% of a product at 256 limbs and 8–9% from 1024 up, the
-  copies themselves at most 1%. Thresholds are 64 and 576 limbs, about GMP's in bits (its 64-bit
+  copies themselves at most 1%. Thresholds are 64 and 480 limbs, about GMP's in bits (its 64-bit
   limbs). A verified `mulInto r off a b` with one scratch area, in GMP's style, would remove
   most of them, but the leaves and the passes of the combinations cost more.
 - [ ] **A shorter dependency chain in `divRem1`** (GMP's `mpn_div_qr_1n_pi1`): the loop is
@@ -27,7 +24,7 @@ products as GMP's, which is most of the gap above 64 limbs.
   there, because Zen 3's divider is fast; it would pay on CPUs with slow 64-bit division (Intel
   before Ice Lake). `div_qr_1n_pi1` keeps a partly reduced two-limb remainder and takes the
   quotient off the chain, about one multiply-add per step. `divRem1` is behind division by one
-  limb, Toom-3's exact divisions and `toString`.
+  limb and `toString`.
 - [ ] **`toNat` (the conversion to `Nat`)** is `ofLimbs`, which builds the literal `2³²` from a
   string at each limb and multiplies a growing `Nat` each time; a compiled twin (by halves, or
   from GMP's limbs once `Nat` is replaced) would make conversions much cheaper.
@@ -45,7 +42,10 @@ division by two limbs in one pass (`divRem2`); the schoolbook product by columns
 from 8 limbs up) and the square (22–25% from 64 limbs up); Karatsuba's middle term added in one
 pass over `z₁` with `addDiffInto`, which keeps a carry between `-2` and `1` as a word plus 2, where
 two subtractions and an addition took three passes (the combination 38% faster, products 2–5%
-faster from 256 limbs up); both shifts in one
+faster from 256 limbs up); Toom-3's exact divisions without the hardware divider, by 2 with
+`shrLimbs` and by 3 with the inverse of 3 modulo `2³²` (`divExact3`, 2.2× faster than `divRem1`;
+products 3–8% and squares up to 10% faster from 576 limbs up, Toom-3 from 480 and 720 limbs
+instead of 576 and 892); both shifts in one
 pass with the slice folds of lean4-scalar-arrays#27 and #28; `push` inline upstream
 (lean4-scalar-arrays#24).
 

@@ -36,7 +36,7 @@ public structure Config where
   /-- Karatsuba needs at least `4` limbs to make its products smaller. -/
   four_le_mulKaratsuba : 4 ≤ mulKaratsuba := by decide
   /-- The size of the shorter operand from which multiplication uses Toom-3 instead of Karatsuba. -/
-  mulToom3 : Nat := 576
+  mulToom3 : Nat := 480
   /-- Toom-3 needs at least `12` limbs to make its products smaller. -/
   twelve_le_mulToom3 : 12 ≤ mulToom3 := by decide
   /--
@@ -52,7 +52,7 @@ public structure Config where
   /-- Karatsuba needs at least `4` limbs to make its squares smaller. -/
   four_le_sqrKaratsuba : 4 ≤ sqrKaratsuba := by decide
   /-- The size from which squaring uses Toom-3 instead of Karatsuba. -/
-  sqrToom3 : Nat := 892
+  sqrToom3 : Nat := 720
   /-- Toom-3 needs at least `12` limbs to make its squares smaller. -/
   twelve_le_sqrToom3 : 12 ≤ sqrToom3 := by decide
   /-- The size of the divisor from which division computes its quotient in blocks of half the

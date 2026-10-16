@@ -12,7 +12,8 @@ public import Bignum.Mul.Limb
 * `shiftLeft a n` is `a * 2ⁿ`: `a` copied above `n / 32` zero limbs and shifted left by `n % 32`
   bits in place with `foldlInPlaceThen`, from the bottom limb up.
 * `shiftRight a n` is `a / 2ⁿ`: the limbs of `a` from `n / 32` on, copied and shifted right by
-  `n % 32` bits in place with `foldrInPlaceThen`, from the top limb down.
+  `n % 32` bits in place with `foldrInPlaceThen`, from the top limb down. `shrLimbs`, the shift
+  in place, also divides Toom-3's interpolation values by 2.
 
 Both results are trimmed.
 -/
@@ -309,8 +310,18 @@ Shifts the limbs of `x` right by `s < 32` bits in place, from the top limb down,
 of each limb carried into the one below, and trims. The shift is an argument so that the loop
 doesn't recompute it.
 -/
-def shrLimbs (x : UInt32Array) (s : UInt64) : UInt32Array :=
+public def shrLimbs (x : UInt32Array) (s : UInt64) : UInt32Array :=
   x.toSlice.foldrInPlaceThen (0 : UInt32) (fun _ _ v c => shrStep s v c) (fun r _ => trim r.array)
+
+@[simp] public theorem toNat_shrLimbs (x : UInt32Array) (s : Nat) (hs : s < 32) :
+    toNat (shrLimbs x s.toUInt64) = toNat x / 2 ^ s := by
+  rw [shrLimbs]
+  simp only [UInt32Array.Slice.foldrInPlaceThen_eq, UInt32Array.Slice.foldrInPlace]
+  rw [toNat_trim, toNat_toSlice, toNat_toSlice]
+  exact shr_loop s hs x.toList _ (by simp) _ _ _ _ 0 [] (by simp)
+    (by rw [List.take_of_length_le (by simp)]; simp)
+    (by rw [List.drop_of_length_le (by simp)]; simp)
+    (by rw [List.drop_of_length_le (by simp)]; simp)
 
 /-- `a / 2ⁿ`, trimmed: the limbs of `a` from `n / 32` on, copied, then `shrLimbs` by `n % 32`. -/
 public def shiftRight (a : UInt32Array.Slice) (n : Nat) : UInt32Array :=
@@ -323,16 +334,8 @@ public def shiftRight (a : UInt32Array.Slice) (n : Nat) : UInt32Array :=
     rw [← Nat.pow_add]; congr 1; omega
   by_cases hq : n / 32 < a.size
   · have hsl := toNat_slice_from a (n / 32) (by omega)
-    rw [shiftRight, ite_eq_left hq, shrLimbs]
-    simp only [UInt32Array.Slice.foldrInPlaceThen_eq, UInt32Array.Slice.foldrInPlace]
-    rw [toNat_trim, toNat_toSlice]
-    generalize hx : (a.slice (n / 32) a.size).copy = x
-    have hxv : ofLimbs x.toList = toNat a / 2 ^ (32 * (n / 32)) := by
-      rw [← toNat_toSlice, ← hx, toNat_copy, hsl]
-    rw [shr_loop (n % 32) (Nat.mod_lt _ (by decide)) x.toList _ (by simp) _ _ _ _ 0 []
-      (by simp) (by rw [List.take_of_length_le (by simp)]; simp)
-      (by rw [List.drop_of_length_le (by simp)]; simp)
-      (by rw [List.drop_of_length_le (by simp)]; simp), hxv, hn, Nat.div_div_eq_div_mul]
+    rw [shiftRight, ite_eq_left hq, toNat_shrLimbs _ _ (Nat.mod_lt _ (by decide)), toNat_copy,
+      hsl, hn, Nat.div_div_eq_div_mul]
   · have e : shiftRight a n = .empty := by rw [shiftRight, ite_eq_right hq]
     rw [e, toNat_toSlice]
     simp only [UInt32Array.toList_empty, ofLimbs_nil]

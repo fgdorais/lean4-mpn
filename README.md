@@ -23,10 +23,10 @@ prints the line to add to the `Bignum` library in `lakefile.toml`, for example:
 ```toml
 leanOptions = {
   weak.bignum.mul.karatsubaThreshold = 64,
-  weak.bignum.mul.toom3Threshold = 576,
+  weak.bignum.mul.toom3Threshold = 480,
   weak.bignum.mul.unbalancedThreshold = 96,
   weak.bignum.sqr.basecaseThreshold = 2, weak.bignum.sqr.karatsubaThreshold = 96,
-  weak.bignum.sqr.toom3Threshold = 892,
+  weak.bignum.sqr.toom3Threshold = 720,
   weak.bignum.div.dcThreshold = 128}
 ```
 
