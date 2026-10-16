@@ -16,11 +16,6 @@ as GMP's, which is most of the gap above 64 limbs; `march = "native"` (see the R
 Division is 2.3 of our own `n × n` products per `2n / n` division, where GMP's is about one, so it
 trails by 1.5× multiplication's gap; see BENCH.md for the current numbers.
 
-- [ ] **The Karatsuba threshold inside large products** (likely the best value): 48 instead of the
-  tuned 64 made products of about `1700 × 1024` 12% faster (seen by accident, through a stale
-  `-K mulKaratsuba=48` build). The tuner times one Karatsuba step over schoolbook on its own, which
-  may not match the pieces that the Toom steps hand down; tune it, or check it, within whole
-  products and squares, at several sizes and shapes.
 - [ ] **Quotient-only division** (GMP's `mpn_div_q` with `divappr`): `/` computes the remainder it
   throws away, through the low-half products of Burnikel–Ziegler and Algorithm D's last steps. An
   approximate quotient, off by at most one and then checked, would need high-half products
@@ -77,8 +72,12 @@ on `foldrInPlaceThen` over a copy (the loop is bound by the division, and buildi
 (`addMul1Set`, `addInto`, `subInto`), called once per row; passing `subMul1`'s borrow to the end of
 the step through `foldInPlaceThen` (the step still returns a pair, and the compiler already reused
 the memory of `subMul1`'s); a `USize` twin of `divRem1` (the hardware division hides the loop).
-Twins of `ltLoop` and `topSizeLoop` would not show: `lt` runs once or twice per block of the
-division, and `topSize` usually stops at the first limb.
+The Karatsuba threshold inside whole products: from 96 × 96 to 4096 × 1024, every value from
+48 to 80 is within 1% of the tuned 64 except at `1700 × 1024`, where 48 is 6% slower, and 32 and 40
+are 3–29% slower. A build that compiled the library with a stale `mulKaratsuba = 48` once ran
+`1700 × 1024` 12% faster with the same algorithm choices; that did not reproduce, so it was likely
+code layout. Twins of `ltLoop` and `topSizeLoop` would not show: `lt` runs once or twice per
+block of the division, and `topSize` usually stops at the first limb.
 
 ## Algorithms
 
