@@ -4,8 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.Add
-public import Bignum.Sub
+public import Bignum.AddDiff
 
 /-!
 # Karatsuba multiplication
@@ -25,18 +24,16 @@ open ScalarArray
 namespace Bignum
 
 /--
-`z₀ + βᵏ (z₁ - z₀ - z₂) + β²ᵏ z₂`, where `z₀` has `2 k` limbs. The middle term is computed in place
-in `z₁`, and the sum in place in `z₀ ++ z₂`.
+`z₀ + βᵏ (z₁ - z₀ - z₂) + β²ᵏ z₂`, where `z₀` has `2 k` limbs: the middle term is added to
+`z₀ ++ z₂` in one pass over `z₁` by `addDiffInto`.
 -/
 public def karatsubaCombine (k : Nat) (z₀ z₁ z₂ : UInt32Array) : UInt32Array :=
-  let m := subInto (subInto z₁ 0 z₀) 0 z₂
-  let r := z₀ ++ z₂
-  addInto r k (m.toSlice 0 (r.size - k))
+  addDiffInto (z₀ ++ z₂) k z₁ z₀ z₂
 
 public theorem karatsubaCombine_spec (k : Nat) (z₀ z₁ z₂ : UInt32Array) (A₀ A₁ B₀ B₁ : Nat)
     (h₀ : toNat z₀ = A₀ * B₀) (h₁ : toNat z₁ = (A₀ + A₁) * (B₀ + B₁)) (h₂ : toNat z₂ = A₁ * B₁)
     (hs₀ : z₀.size = 2 * k) (hs₀₁ : z₀.size ≤ z₁.size) (hs₂₁ : z₂.size ≤ z₁.size)
-    (hcross : A₀ * B₁ + A₁ * B₀ < 2 ^ (32 * (z₀.size + z₂.size - k)))
+    (hfit : k + z₁.size ≤ z₀.size + z₂.size)
     (htotal : (A₀ + 2 ^ (32 * k) * A₁) * (B₀ + 2 ^ (32 * k) * B₁) <
       2 ^ (32 * (z₀.size + z₂.size))) :
     (karatsubaCombine k z₀ z₁ z₂).size = z₀.size + z₂.size ∧
@@ -45,31 +42,15 @@ public theorem karatsubaCombine_spec (k : Nat) (z₀ z₁ z₂ : UInt32Array) (A
   have hexp : (A₀ + A₁) * (B₀ + B₁) = A₀ * B₀ + A₁ * B₁ + (A₀ * B₁ + A₁ * B₀) := by
     simp only [Nat.add_mul, Nat.mul_add]
     omega
-  -- `m = z₁ - z₀ - z₂ = A₀ B₁ + A₁ B₀`, computed in place in `z₁`.
-  have hfit₀ : 0 + z₀.toSlice.size ≤ z₁.size := by simp; omega
-  have hm₁s : (subInto z₁ 0 z₀).size = z₁.size := size_subInto _ _ _ hfit₀
-  have hm₁ : toNat (subInto z₁ 0 z₀) = A₁ * B₁ + (A₀ * B₁ + A₁ * B₀) := by
-    rw [toNat_subInto_of_le _ _ _ hfit₀ (by rw [h₀, h₁, hexp]; omega), h₀, h₁, hexp]
-    omega
-  have hfit₂ : 0 + z₂.toSlice.size ≤ (subInto z₁ 0 z₀).size := by simp [hm₁s]; omega
-  have hms : (subInto (subInto z₁ 0 z₀) 0 z₂).size = z₁.size := by
-    rw [size_subInto _ _ _ hfit₂, hm₁s]
-  have hm : toNat (subInto (subInto z₁ 0 z₀) 0 z₂) = A₀ * B₁ + A₁ * B₀ := by
-    rw [toNat_subInto_of_le _ _ _ hfit₂ (by rw [h₂, hm₁]; omega), hm₁, h₂]
+  -- The middle term `z₁ - z₀ - z₂ = A₀ B₁ + A₁ B₀`.
+  have hm : toNat z₁ - toNat z₀ - toNat z₂ = A₀ * B₁ + A₁ * B₀ := by
+    rw [h₀, h₁, h₂, hexp]
     omega
   -- `r = z₀ ++ z₂ = z₀ + β²ᵏ z₂`.
   have hrs : (z₀ ++ z₂).size = z₀.size + z₂.size := UInt32Array.size_append _ _
   have hr : toNat (z₀ ++ z₂) = A₀ * B₀ + 2 ^ (32 * (2 * k)) * (A₁ * B₁) := by
     rw [toNat_toSlice, UInt32Array.toList_append, ofLimbs_append, UInt32Array.length_toList, hs₀,
       ← toNat_toSlice, ← toNat_toSlice, h₀, h₂]
-  -- The middle term fits in the limbs above `k`.
-  have hmcut : toNat ((subInto (subInto z₁ 0 z₀) 0 z₂).toSlice 0 ((z₀ ++ z₂).size - k)) =
-      A₀ * B₁ + A₁ * B₀ := by
-    rw [toNat_toSlice_of_lt _ _ (by rw [hm, hrs]; exact hcross), hm]
-  have hfit : k + ((subInto (subInto z₁ 0 z₀) 0 z₂).toSlice 0 ((z₀ ++ z₂).size - k)).size ≤
-      (z₀ ++ z₂).size := by
-    rw [UInt32Array.size_toSlice]
-    omega
   have hpow : 2 ^ (32 * (2 * k)) = 2 ^ (32 * k) * 2 ^ (32 * k) := by
     rw [← Nat.pow_add]
     congr 1
@@ -80,10 +61,10 @@ public theorem karatsubaCombine_spec (k : Nat) (z₀ z₁ z₂ : UInt32Array) (A
     generalize 2 ^ (32 * k) = P
     simp only [Nat.add_mul, Nat.mul_add]
     grind
-  refine ⟨?_, ?_⟩
-  · rw [karatsubaCombine, size_addInto _ _ _ hfit, hrs]
-  · rw [karatsubaCombine,
-      toNat_addInto_of_lt _ _ _ hfit (by rw [hr, hmcut, hid, hrs]; exact htotal), hr, hmcut, hid]
+  obtain ⟨hs, hv⟩ := addDiffInto_spec (z₀ ++ z₂) k z₁ z₀ z₂ (by rw [hrs]; exact hfit) hs₀₁ hs₂₁
+    (by rw [h₀, h₁, h₂, hexp]; omega) (by rw [hr, hm, hid, hrs]; exact htotal)
+  refine ⟨by rw [karatsubaCombine, hs, hrs], ?_⟩
+  rw [karatsubaCombine, hv, hr, hm, hid]
 
 /--
 The product `a * b` by one step of Karatsuba, splitting at `k = b.size / 2`, for
@@ -155,22 +136,12 @@ public theorem karatsuba_spec (a b : UInt32Array.Slice) (hb : 4 ≤ b.size) (hab
       a.size + b.size := by
     rw [hs₀, hs₂]
     omega
-  -- The middle term fits above limb `k`: each cross product is below `2^(32 a.size)`.
-  have hc₁ : A₀ * B₁ < 2 ^ (32 * a.size) :=
-    Nat.lt_of_lt_of_le (Nat.mul_lt_mul'' hA₀ hB₁)
-      (by rw [← Nat.pow_add]; exact Nat.pow_le_pow_right (by decide) (by omega))
-  have hc₂ : A₁ * B₀ < 2 ^ (32 * a.size) :=
-    Nat.lt_of_lt_of_le (Nat.mul_lt_mul'' hA₁ hB₀)
-      (by rw [← Nat.pow_add]; exact Nat.pow_le_pow_right (by decide) (by omega))
-  have hc₃ : 2 * 2 ^ (32 * a.size) ≤ 2 ^ (32 * (a.size + b.size - b.size / 2)) := by
-    rw [← Nat.pow_succ']
-    exact Nat.pow_le_pow_right (by decide) (by omega)
   have htot : toNat a * toNat b < 2 ^ (32 * (a.size + b.size)) := by
     rw [Nat.mul_add, Nat.pow_add]
     exact Nat.mul_lt_mul'' hA hB
   have key := karatsubaCombine_spec (b.size / 2) _ _ _ A₀ A₁ B₀ B₁ hv₀ hv₁ hv₂
     (by rw [hs₀, hsa₀, hsb₀]; omega) (by rw [hs₀, hs₁]; omega) (by rw [hs₂, hs₁]; omega)
-    (by rw [hsum]; omega) (by rw [hsum, ha, hb']; exact htot)
+    (by rw [hsum, hs₁]; omega) (by rw [hsum, ha, hb']; exact htot)
   rw [ha, hb', hsum] at key
   exact key
 

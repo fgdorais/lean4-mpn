@@ -11,11 +11,15 @@ Time now goes mostly into the schoolbook product, by columns since `Mul.Comba` (
 few percent of a product from 64 limbs up. With 32-bit limbs, a product needs 4× as many limb
 products as GMP's, which is most of the gap above 64 limbs.
 
+- [ ] **Toom-3's exact divisions** by 2 and 3 go through `divRem1` and the hardware divider: 4% of
+  a product at 1024 limbs, 8% at 4096 and 10% of a square at 4096. Division by 2 is a shift, and
+  division by 3 a multiplication by its inverse modulo `2³²`, like GMP's `mpn_divexact_by3`.
 - [ ] **What is left of the Karatsuba and Toom-3 allocations:** about 100 small objects and arrays
-  per 256-limb product (slices, `replicate`, and the `++` in `karatsubaCombine`, which copies),
-  a few percent; thresholds are 72 and 576 limbs, about GMP's in bits (its 64-bit limbs). The
-  arrays are needed results; the `++` copies are about `2 n` limbs per node. A verified
-  `mulInto r off a b` with one scratch area, in GMP's style, would remove them.
+  per 256-limb product (slices, `replicate`, and the `++` in `karatsubaCombine`, which copies);
+  with `perf`, allocation and copies are 4% of a product at 256 limbs and 8–9% from 1024 up, the
+  copies themselves at most 1%. Thresholds are 64 and 576 limbs, about GMP's in bits (its 64-bit
+  limbs). A verified `mulInto r off a b` with one scratch area, in GMP's style, would remove
+  most of them, but the leaves and the passes of the combinations cost more.
 - [ ] **A shorter dependency chain in `divRem1`** (GMP's `mpn_div_qr_1n_pi1`): the loop is
   bound by the latency of one step, about 15 cycles (3.3 ns per limb on Zen 3), since each step
   needs the previous remainder; the rest of the loop (1.4 ns per limb) runs in parallel. A
@@ -38,7 +42,10 @@ the quotient estimate, which removed the add-backs (42% of quotient limbs at 256
 remainder of a normalized division shifted back instead of divided by a limb; `trim` without a
 closure (`popWhile`'s predicate was called through `lean_apply_1`); a quotient-only `div`;
 division by two limbs in one pass (`divRem2`); the schoolbook product by columns (Comba, 14–24%
-from 8 limbs up) and the square (22–25% from 64 limbs up); both shifts in one
+from 8 limbs up) and the square (22–25% from 64 limbs up); Karatsuba's middle term added in one
+pass over `z₁` with `addDiffInto`, which keeps a carry between `-2` and `1` as a word plus 2, where
+two subtractions and an addition took three passes (the combination 38% faster, products 2–5%
+faster from 256 limbs up); both shifts in one
 pass with the slice folds of lean4-scalar-arrays#27 and #28; `push` inline upstream
 (lean4-scalar-arrays#24).
 
@@ -57,7 +64,7 @@ usually stops at the first limb.
 ## Algorithms
 
 - [x] **Divide-and-conquer division** (`Div.DC`, Burnikel–Ziegler): blocks of half the divisor,
-  digits from recursive divisions by its top half and the low-half product, from 144 limbs.
+  digits from recursive divisions by its top half and the low-half product, from 128 limbs.
   Division is now about 5× behind `Nat` from 128 limbs up, instead of a gap growing with size
   (17× at 4096 limbs).
 - [ ] **Unbalanced Toom** (`toom32`, `toom42`) instead of halving the longer operand.

@@ -8,6 +8,7 @@ public import Bignum.Limbs
 public import Bignum.UInt
 public import Bignum.Basic
 public import Bignum.Add
+public import Bignum.AddDiff
 public import Bignum.Sub
 public import Bignum.Cmp
 public import Bignum.Mul.Limb

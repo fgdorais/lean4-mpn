@@ -200,12 +200,53 @@ the array alone, so it allocates no pair.
 -/
 
 /-- Adds one at limb `i` of `r` and propagates the carry to the end of `r`, dropping the last. -/
-def incrFrom (r : UInt32Array) (i : Nat) : UInt32Array :=
+public def incrFrom (r : UInt32Array) (i : Nat) : UInt32Array :=
   if h : i < r.size then
     if r[i] = 0xFFFFFFFF then incrFrom (r.set i 0 h) (i + 1) else r.set i (r[i] + 1) h
   else
     r
 termination_by r.size - i
+
+/-- `incrFrom r i` adds `2^(32 i)` to `r` when the sum fits. -/
+public theorem incrFrom_spec (r : UInt32Array) (i : Nat) (hi : i ≤ r.size)
+    (hlt : ofLimbs r.toList + 2 ^ (32 * i) < 2 ^ (32 * r.size)) :
+    (incrFrom r i).size = r.size ∧
+      ofLimbs (incrFrom r i).toList = ofLimbs r.toList + 2 ^ (32 * i) := by
+  induction r, i using incrFrom.induct with
+  | case1 r i h hmax ih =>
+    rw [incrFrom]
+    simp only [h, hmax, ↓reduceDIte, ↓reduceIte]
+    have hk : i < r.toList.length := by simp; omega
+    have hset := ofLimbs_set r.toList i 0 hk
+    simp only [UInt32Array.getElem_toList, hmax, UInt32.toNat_zero, Nat.mul_zero,
+      Nat.add_zero, UInt32.reduceToNat] at hset
+    have hpow : 2 ^ (32 * (i + 1)) = 2 ^ (32 * i) * 4294967296 := by
+      rw [Nat.mul_add, Nat.mul_one, Nat.pow_add]
+    simp only [UInt32Array.size_set, UInt32Array.toList_set, hpow] at ih ⊢
+    generalize ofLimbs (r.toList.set i 0) = R' at *
+    generalize ofLimbs r.toList = R at *
+    generalize 2 ^ (32 * i) = P at *
+    obtain ⟨ih₁, ih₂⟩ := ih (by omega) (by omega)
+    exact ⟨ih₁, by omega⟩
+  | case2 r i h hmax =>
+    rw [incrFrom]
+    simp only [h, hmax, ↓reduceDIte, ↓reduceIte, UInt32Array.size_set, true_and]
+    have hk : i < r.toList.length := by simp; omega
+    have hset := ofLimbs_set r.toList i (r[i] + 1) hk
+    simp only [UInt32Array.getElem_toList] at hset
+    generalize r[i] = v at hmax hset
+    have hv : (v + 1).toNat = v.toNat + 1 := by
+      have : v.toNat ≠ 4294967295 := fun e => hmax (UInt32.toNat_inj.1 e)
+      have := v.toNat_lt
+      rw [UInt32.toNat_add, UInt32.toNat_one]
+      omega
+    rw [UInt32Array.toList_set]
+    rw [hv, Nat.mul_add, Nat.mul_one] at hset
+    omega
+  | case3 r i h =>
+    have : i = r.size := by omega
+    subst this
+    omega
 
 /-- Past the limbs of `a`, `addAtLoop` only propagates the carry, which `incrFrom` does. -/
 private theorem addAtLoop_tail (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (j : Nat)

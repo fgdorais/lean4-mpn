@@ -75,18 +75,12 @@ public theorem karatsubaSqr_spec (a : UInt32Array.Slice) (ha : 4 ≤ a.size)
       (sqrRec (a.slice (a.size / 2) a.size) (by omega)).size = a.size + a.size := by
     rw [hz₀s, hz₂s, hs₀, hs₁]
     omega
-  have hc : A₀ * A₁ < 2 ^ (32 * a.size) :=
-    Nat.lt_of_lt_of_le (Nat.mul_lt_mul'' hA₀ hA₁)
-      (by rw [← Nat.pow_add]; exact Nat.pow_le_pow_right (by decide) (by omega))
-  have hc' : 2 * 2 ^ (32 * a.size) ≤ 2 ^ (32 * (a.size + a.size - a.size / 2)) := by
-    rw [← Nat.pow_succ']
-    exact Nat.pow_le_pow_right (by decide) (by omega)
   have htot : toNat a * toNat a < 2 ^ (32 * (a.size + a.size)) := by
     rw [Nat.mul_add, Nat.pow_add]
     exact Nat.mul_lt_mul'' hA hA
   have key := karatsubaCombine_spec (a.size / 2) _ _ _ A₀ A₁ A₀ A₁ hz₀ hz₁ hz₂
     (by rw [hz₀s, hs₀]; omega) (by rw [hz₀s, hz₁s, hs₀]; omega) (by rw [hz₂s, hz₁s, hs₁]; omega)
-    (by rw [hsum, Nat.mul_comm A₁ A₀]; omega) (by rw [hsum, hsplit]; exact htot)
+    (by rw [hsum, hz₁s]; omega) (by rw [hsum, hsplit]; exact htot)
   rw [hsplit, hsum] at key
   exact key
 

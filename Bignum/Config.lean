@@ -32,7 +32,7 @@ namespace Bignum
 /-- The size thresholds, in limbs, at which the arithmetic switches algorithms. -/
 public structure Config where
   /-- The size of the shorter operand from which multiplication uses Karatsuba. -/
-  mulKaratsuba : Nat := 72
+  mulKaratsuba : Nat := 64
   /-- Karatsuba needs at least `4` limbs to make its products smaller. -/
   four_le_mulKaratsuba : 4 ≤ mulKaratsuba := by decide
   /-- The size of the shorter operand from which multiplication uses Toom-3 instead of Karatsuba. -/
@@ -44,11 +44,11 @@ public structure Config where
   least twice as long, instead of using schoolbook. It only matters above `mulKaratsuba`, since the
   split pays off through Karatsuba on its pieces.
   -/
-  mulUnbalanced : Nat := 104
+  mulUnbalanced : Nat := 96
   /-- The size from which squaring uses the schoolbook square instead of multiplying. -/
   sqrBasecase : Nat := 2
   /-- The size from which squaring uses Karatsuba. -/
-  sqrKaratsuba : Nat := 112
+  sqrKaratsuba : Nat := 96
   /-- Karatsuba needs at least `4` limbs to make its squares smaller. -/
   four_le_sqrKaratsuba : 4 ≤ sqrKaratsuba := by decide
   /-- The size from which squaring uses Toom-3 instead of Karatsuba. -/
@@ -57,7 +57,7 @@ public structure Config where
   twelve_le_sqrToom3 : 12 ≤ sqrToom3 := by decide
   /-- The size of the divisor from which division computes its quotient in blocks of half the
   divisor, with recursive divisions, instead of one limb at a time. -/
-  divDC : Nat := 144
+  divDC : Nat := 128
   /-- Blocks of half the divisor need at least `4` limbs, so that the recursion has two. -/
   four_le_divDC : 4 ≤ divDC := by decide
   deriving Repr

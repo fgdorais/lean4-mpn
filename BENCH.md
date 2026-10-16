@@ -38,9 +38,9 @@ noise.
 |---|---|---|---|
 | `add`, `sub` | `add`, `sub` on limbs | `n` and `n` limbs | linear, one pass |
 | `mul1` | `mul1` | `n` limbs times a limb | linear, one pass |
-| `mul` | `mulLimbs` | `n` by `n` limbs | Comba schoolbook, Karatsuba from 72, Toom-3 from 576 |
-| `sqr` | `sqr` | `n` limbs | Comba square, Karatsuba from 112, Toom-3 from 892 |
-| `div` | `divMod` | `2n` by `n` limbs | `divRem1`, `divRem2`, Algorithm D, Burnikel–Ziegler from 144 |
+| `mul` | `mulLimbs` | `n` by `n` limbs | Comba schoolbook, Karatsuba from 64, Toom-3 from 576 |
+| `sqr` | `sqr` | `n` limbs | Comba square, Karatsuba from 96, Toom-3 from 892 |
+| `div` | `divMod` | `2n` by `n` limbs | `divRem1`, `divRem2`, Algorithm D, Burnikel–Ziegler from 128 |
 | `shr` | `shiftRight` by 37 bits | `n` limbs | one pass in place |
 | `badd` … `bdiv` | `BigNat` `+ - * /` | as above (`bdiv`: `2n` by `n`) | word fast path, then as above |
 | `bgcd` | `BigNat.gcd` | `n` and `n` limbs | Lehmer with word cofactors, Euclid on words |
@@ -100,9 +100,9 @@ Time of Bignum:
 - **Linear operations** (`add`, `sub`, `mul1`, shifts) are faster than `Nat` up to 64–128 limbs,
   where `Nat`'s wrapper dominates. They stay within 1.2–2× at large sizes, where GMP's assembly
   and 64-bit limbs win.
-- **Multiplication** is 4–8× behind from 64 limbs up, **squaring** 2.5–5×. That is mostly structural:
-  32-bit limbs need 4× as many limb products as GMP's 64-bit limbs, and Lean has no 64 × 64 →
-  128-bit multiply. Algorithm thresholds are close to GMP's in bits.
+- **Multiplication** is 4–8× behind from 64 limbs up, **squaring** 2.5–5×. That is mostly
+  structural: 32-bit limbs need 4× as many limb products as GMP's 64-bit limbs, and Lean has no
+  64 × 64 → 128-bit multiply. Algorithm thresholds are close to GMP's in bits.
 - **Division** follows multiplication, 4–5× behind; small `BigNat` divisions still pay a fixed
   cost (normalization, several arrays) that `Nat` doesn't.
 - **`gcd`** is 9–18× behind from 4 limbs: each Lehmer step allocates; see TODO.
@@ -116,6 +116,7 @@ above; ratios before `15534f8` for `BigNat` rows were inflated by the hashing ch
 
 | date | commit | change | effect |
 |---|---|---|---|
+| 2026-10-15 | (uncommitted) | Karatsuba's middle term in one pass (`addDiffInto`) | `mul` 1024: 201 → 193 µs; `sqr` 256: 13.6 → 12.9 µs; 4096: 1.15 → 1.09 ms |
 | 2026-10-15 | `8ed7b6d` | Comba squaring; thresholds retuned | `sqr` 64: 1.69 → 1.27 µs; 256: 17.4 → 13.6 µs; 4096: 1.41 → 1.15 ms |
 | 2026-10-15 | `fd1829d` | schoolbook product by columns (Comba); thresholds retuned | `mul` 64: 2.66 → 2.17 µs; 4096: 1.98 → 1.69 ms; `div` 1024: 550 → 493 µs |
 | 2026-10-15 | `df788df` | `sqrt` by Newton at growing precision | `bsqrt` 256: 786 → 233 µs; 1024: 8.47 → 1.65 ms |
