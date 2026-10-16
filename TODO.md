@@ -12,9 +12,22 @@ with `perf`, after the combinations went to one pass. The rest is a few percent 
 `addDiffInto`, Toom-3's passes, allocation), which is why the attempts below to move Toom-3 or
 Karatsuba in place gained at most 1%. With 32-bit limbs, a product needs 4× as many limb products
 as GMP's, which is most of the gap above 64 limbs; `march = "native"` (see the README) makes Comba
-7–13% faster with AVX2. What is left for products is algorithmic: unbalanced Toom and Toom-4
-below.
+7–13% faster with AVX2. What is left for products is mostly tuning and algorithms (below).
+Division is 2.3 of our own `n × n` products per `2n / n` division, where GMP's is about one, so it
+trails by 1.5× multiplication's gap; see BENCH.md for the current numbers.
 
+- [ ] **The Karatsuba threshold inside large products** (likely the best value): 48 instead of the
+  tuned 64 made products of about `1700 × 1024` 12% faster (seen by accident, through a stale
+  `-K mulKaratsuba=48` build). The tuner times one Karatsuba step over schoolbook on its own, which
+  may not match the pieces that the Toom steps hand down; tune it, or check it, within whole
+  products and squares, at several sizes and shapes.
+- [ ] **Quotient-only division** (GMP's `mpn_div_q` with `divappr`): `/` computes the remainder it
+  throws away, through the low-half products of Burnikel–Ziegler and Algorithm D's last steps. An
+  approximate quotient, off by at most one and then checked, would need high-half products
+  (`mulhi` variants of Comba, Karatsuba and Toom-3) and a proof of the error bound: a big project.
+  Its profile at 1024 limbs is Comba about 50% and `subMul1` 25%, so faster products help it most.
+  Ruled out: two quotient limbs per pass (`submul_2`, whose sums overflow 64 bits with 32-bit
+  limbs) and a carry chain under three operations in `subMul1` (LLVM reassociates it).
 - [ ] **Toom-3's interpolation in place** (low value): it makes a fresh array for each of its
   eight `subVal`s and three `mulRow`s, where GMP's `toom_interpolate_5pts` works in place; the
   assembly half, prototyped with copies, gained under 1%, so expect about as much.
@@ -71,8 +84,9 @@ division, and `topSize` usually stops at the first limb.
 
 - [x] **Divide-and-conquer division** (`Div.DC`, Burnikel–Ziegler): blocks of half the divisor,
   digits from recursive divisions by its top half and the low-half product, from 176 limbs.
-  Division is now about 5× behind `Nat` from 128 limbs up, instead of a gap growing with size
-  (17× at 4096 limbs).
+  The gap no longer grows with size: 8.3–10× behind `Nat` from 128 to 4096 limbs, measured on
+  the quotient alone (an earlier benchmark timed two divisions on the `Nat` side and showed half
+  that).
 - [x] **Toom-3 by 2** (`toom32`, GMP's `mpn_toom32_mul`): for a longer operand between four
   thirds and twice as long as the shorter, from 160 limbs, it splits them in three and two at a
   third of the longer, where `toom3` split both at a third of the shorter and left a long top part
@@ -88,10 +102,6 @@ division, and `topSize` usually stops at the first limb.
 - [ ] **Toom-4 by 3** (`toom43`) for ratios near 4:3: low value since `toom3` splits at a third of
   the longer operand (`1365 × 1024` is 4.7× GMP, against 4.1× balanced). Shapes just under 3:1
   stay the worst, 6.8× at `2816 × 1024`, which halves into two products of 1.4:1.
-- [ ] **The Karatsuba threshold inside large products**: 48 instead of the tuned 64 made products
-  of about `1700 × 1024` 12% faster (seen by accident, through a stale `-K mulKaratsuba=48` build).
-  The tuner times one Karatsuba step over schoolbook on its own, which may not match the pieces
-  that the Toom steps hand down; tune it, or check it, within whole products.
 - [ ] **Toom-4, Toom-6½, Toom-8½**, then FFT multiplication for very large numbers. One level of
   Toom-4 over Toom-3 with natural-number points (prototyped without proofs) was 9% faster to 16%
   slower depending on the size, where its seven evaluation points need larger values and
@@ -108,19 +118,19 @@ division, and `topSize` usually stops at the first limb.
     their determinant, and Euclid on words. Each new number is a difference of two multiples,
     computed in one pass with a biased carry (`mulSubMul`), and the cofactors stay below `2³¹`, so
     that their determinant is checked on `Nat` without GMP (`lehmerStep`); the word steps divide
-    once per quotient and stop by Jebelean's condition (`lehmerSteps`). Faster than `Nat` on
-    words, 3.4–6.8× behind GMP from 3 limbs (from 13–20×). This is already GMP's `hgcd2` in our
+    once per quotient and stop by Jebelean's condition (`lehmerSteps`). Faster than `Nat` on words,
+    3.5–6.2× behind GMP from 4 to 1024 limbs (from 9–18×). This is already GMP's `hgcd2` in our
     limbs (two-limb leading words, one-limb cofactors); the next size up, 124-bit words and 62-bit
     cofactors, would need Euclid in emulated 128-bit arithmetic, already 11–21% of the time in
-    64-bit, for passes that do twice the products for half the steps, so it is not worth it.
-    Left: both new numbers in one pass (fewer loads and objects, maybe 5–10% up to 64 limbs), and
+    64-bit, for passes that do twice the products for half the steps, so it is not worth it. Left:
+    both new numbers in one pass (fewer loads and objects, maybe 5–10% up to 64 limbs), and
     subquadratic `hgcd`, GMP's advantage from a few hundred limbs, where the passes are half the
     time.
   - [x] integer square root: Newton's iteration at growing precision, from the root of the top
     half (`sqrt (n / 4ᵏ)` for `k` a quarter of the bits), which starts within `2ᵏ` above the root;
     one Newton step, which is at least the root by AM-GM, then steps down while `x² > n` with one
     square (`sqrtFix`), where the iteration took a second division to stop. Faster than `Nat` up
-    to 4 limbs, 1.05–2.25× behind above.
+    to 4 limbs, 1.1–2.2× behind above (from 1.6–4×).
   - [x] `toString`/`ofString?` (`Decimal`), like GMP's `mpn_get_str`/`mpn_set_str` below their
     thresholds: chunks of nine digits, by `divRem1` by `10⁹` one way and a fold over the
     characters the other. Equal to `Nat.repr` and `String.toNat?`, and 10–20× faster than
@@ -181,7 +191,8 @@ division, and `topSize` usually stops at the first limb.
 
 ## Tooling
 
-- [x] **Benchmarks on `main`:** `lake exe bench` times each operation against `Nat`;
+- [x] **Benchmarks on `main`:** `lake exe bench` times each operation against `Nat` (the limb
+  operations by default, `shr` included, and the `BigNat` ones by name, as in BENCH.md);
   `lake exe bench --no-nat mul 256` runs one case alone, for a profiler. Results are checked in
   O(1) on both sides (a hash of a `BigNat` result once cost a pass over its limbs).
 - [ ] **A raw GMP baseline.** The `Nat` column is Lean's wrapper around GMP, which copies both

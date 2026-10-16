@@ -100,7 +100,7 @@ def row (noNat : Bool) (name : String) (n : Nat) (bn : IO Float) (nat : IO Float
 def main (args : List String) : IO Unit := do
   let noNat := args.contains "--no-nat"
   let (nums, names) := (args.filter (· != "--no-nat")).partition (·.isNat)
-  let ops := if names.isEmpty then ["add", "sub", "mul1", "mul", "sqr", "div"] else names
+  let ops := if names.isEmpty then ["add", "sub", "mul1", "mul", "sqr", "div", "shr"] else names
   let sizes := if nums.isEmpty then sizes else nums.map String.toNat!
   IO.println s!"{pad 6 "op"} {pad 6 "limbs"} {pad 10 "Bignum"} {pad 10 "Nat"} {pad 8 "ratio"}"
   for op in ops do

@@ -38,7 +38,7 @@ noise.
 |---|---|---|---|
 | `add`, `sub` | `add`, `sub` on limbs | `n` and `n` limbs | linear, one pass |
 | `mul1` | `mul1` | `n` limbs times a limb | linear, one pass |
-| `mul` | `mulLimbs` | `n` by `n` limbs | Comba schoolbook, Karatsuba from 64, Toom-3 from 480; Toom-3 by 2 from 160 between 4:3 and 2:1 |
+| `mul` | `mulLimbs` | `n` by `n` limbs | Comba schoolbook, Karatsuba from 64, Toom-3 from 480; Toom-3 by 2 from 160 between 4:3 and 15:8, Toom-4 by 2 from 192 up to 2:1 |
 | `sqr` | `sqr` | `n` limbs | Comba square, Karatsuba from 96, Toom-3 from 720 |
 | `div` | `div`, the quotient | `2n` by `n` limbs | `divRem1`, `divRem2`, Algorithm D, Burnikel–Ziegler from 176 |
 | `shr` | `shiftRight` by 37 bits | `n` limbs | one pass in place |
@@ -57,65 +57,66 @@ Ratio Bignum / Nat (below 1 is faster than Nat):
 
 | op | 1 | 2 | 4 | 8 | 16 | 32 | 64 | 128 | 256 | 512 | 1024 | 2048 | 4096 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `add` | 5.45 | 0.54 | 0.54 | 0.54 | 0.58 | 0.67 | 0.80 | 1.11 | 1.53 | 1.36 | 1.68 | 1.85 | 1.77 |
-| `sub` | 5.76 | 0.58 | 0.57 | 0.56 | 0.55 | 0.66 | 0.85 | 0.85 | 1.74 | 1.39 | 1.91 | 1.97 | 2.18 |
-| `mul1` | 3.12 | 0.27 | 0.27 | 0.28 | 0.30 | 0.36 | 0.49 | 0.69 | 1.05 | 1.02 | 1.30 | 1.43 | 1.49 |
-| `mul` | 3.79 | 0.54 | 0.56 | 1.01 | 1.79 | 2.93 | 4.33 | 5.05 | 5.53 | 5.52 | 6.23 | 7.26 | 7.42 |
-| `sqr` | 3.83 | 0.55 | 0.53 | 0.87 | 1.42 | 1.88 | 2.46 | 2.95 | 3.21 | 3.32 | 3.89 | 4.51 | 4.57 |
-| `div` | 4.83 | 2.69 | 2.29 | 3.05 | 3.84 | 6.00 | 8.92 | 12.22 | 11.69 | 9.94 | 9.66 | 9.33 | 10.29 |
-| `badd` | 1.70 | 1.26 | 0.91 | 0.86 | 0.91 | 0.96 | 1.08 | 1.38 | 1.71 | 1.46 | 1.78 |  |  |
-| `bsub` | 1.84 | 1.11 | 0.92 | 0.89 | 0.84 | 0.95 | 1.16 | 1.21 | 1.94 | 1.53 | 2.00 |  |  |
-| `bmul` | 1.80 | 1.15 | 0.80 | 1.30 | 2.03 | 2.83 | 4.24 | 5.03 | 5.47 | 5.54 | 6.25 |  |  |
-| `bdiv` | 1.82 | 3.92 | 3.45 | 3.96 | 4.97 | 7.10 | 9.87 | 12.66 | 11.99 | 10.12 | 9.82 |  |  |
-| `bgcd` | 0.45 | 1.32 | 17.33 | 13.06 | 14.46 | 14.16 | 13.30 | 12.89 | 12.49 | 11.51 | 9.32 |  |  |
-| `bshl` | 0.76 | 0.97 | 0.78 | 0.76 | 0.78 | 0.81 | 0.89 | 1.07 | 1.33 | 0.95 | 1.27 |  |  |
-| `bshr` | 1.72 | 0.38 | 0.81 | 0.79 | 0.80 | 0.82 | 0.81 | 0.92 | 1.14 | 0.84 | 1.09 |  |  |
-| `bsqrt` | 1.04 | 0.71 | 1.59 | 2.81 | 3.77 | 3.15 | 4.02 | 3.15 | 3.66 | 2.24 | 1.94 |  |  |
-| `btostr` | 0.92 | 0.83 | 0.05 | 0.04 | 0.05 | 0.05 | 0.06 | 0.08 | 0.09 | 0.09 | 0.10 |  |  |
-| `bofstr` | 2.22 | 0.98 | 0.19 | 0.11 | 0.09 | 0.09 | 0.08 | 0.08 | 0.09 | 0.09 | 0.10 |  |  |
-| `btonat` | 1.00 | 0.77 | 2.19 | 5.09 | 10.76 | 23.88 | 47.23 | 92.68 | 166.67 | 200.43 | 294.10 |  |  |
-| `bofnat` | 1.58 | 0.60 | 1.17 | 2.93 | 6.93 | 14.02 | 27.56 | 55.12 | 95.14 | 120.09 | 178.50 |  |  |
-| `shr` | 2.27 | 1.30 | 0.70 | 0.60 | 0.69 | 0.70 | 0.61 | 0.80 | 1.10 | 0.92 | 0.87 | 1.08 | 1.18 |
+| `add` | 5.31 | 0.56 | 0.57 | 0.56 | 0.60 | 0.66 | 0.81 | 1.10 | 1.50 | 1.34 | 1.68 | 1.85 | 1.77 |
+| `sub` | 6.38 | 0.66 | 0.63 | 0.62 | 0.61 | 0.69 | 0.88 | 0.89 | 1.69 | 1.42 | 1.89 | 1.97 | 2.23 |
+| `mul1` | 3.12 | 0.28 | 0.29 | 0.32 | 0.33 | 0.38 | 0.49 | 0.70 | 1.04 | 1.01 | 1.31 | 1.49 | 1.45 |
+| `mul` | 3.75 | 0.55 | 0.56 | 1.02 | 1.77 | 2.92 | 4.38 | 5.08 | 5.45 | 5.53 | 6.28 | 7.12 | 7.30 |
+| `sqr` | 3.87 | 0.54 | 0.55 | 0.90 | 1.42 | 1.94 | 2.56 | 3.00 | 3.24 | 3.36 | 4.01 | 4.65 | 4.68 |
+| `div` | 4.46 | 2.91 | 2.19 | 2.78 | 3.44 | 5.14 | 7.51 | 10.14 | 9.71 | 8.55 | 8.48 | 8.34 | 9.48 |
+| `shr` | 2.24 | 1.31 | 0.73 | 0.71 | 0.73 | 0.75 | 0.81 | 0.88 | 1.10 | 0.91 | 1.10 | 1.19 | 1.23 |
+| `badd` | 1.72 | 0.37 | 0.84 | 0.81 | 0.86 | 0.90 | 1.05 | 1.31 | 1.64 | 1.40 | 1.79 |  |  |
+| `bsub` | 1.84 | 1.19 | 0.93 | 0.90 | 0.87 | 0.99 | 1.15 | 1.22 | 1.91 | 1.55 | 2.00 |  |  |
+| `bmul` | 1.77 | 0.59 | 0.77 | 1.23 | 1.95 | 3.02 | 4.43 | 5.13 | 5.42 | 5.53 | 6.32 |  |  |
+| `bdiv` | 1.72 | 1.85 | 2.53 | 3.05 | 3.58 | 5.32 | 7.54 | 10.21 | 9.73 | 8.61 | 8.46 |  |  |
+| `bgcd` | 0.45 | 1.33 | 4.12 | 3.61 | 3.52 | 3.78 | 4.07 | 4.65 | 5.50 | 6.16 | 5.78 |  |  |
+| `bshl` | 0.73 | 0.94 | 0.76 | 0.72 | 0.74 | 0.76 | 0.83 | 0.97 | 1.21 | 0.93 | 1.25 |  |  |
+| `bshr` | 1.70 | 0.37 | 0.78 | 0.78 | 0.79 | 0.81 | 0.86 | 0.94 | 1.14 | 0.85 | 1.10 |  |  |
+| `bsqrt` | 1.04 | 0.39 | 0.89 | 1.63 | 2.12 | 1.68 | 2.18 | 1.61 | 1.48 | 1.18 | 1.06 |  |  |
+| `btostr` | 0.92 | 0.85 | 0.06 | 0.05 | 0.05 | 0.05 | 0.06 | 0.08 | 0.09 | 0.09 | 0.10 |  |  |
+| `bofstr` | 2.24 | 1.01 | 0.19 | 0.11 | 0.09 | 0.08 | 0.08 | 0.08 | 0.09 | 0.09 | 0.10 |  |  |
+| `btonat` | 1.18 | 0.78 | 2.25 | 5.17 | 11.03 | 23.71 | 46.64 | 91.13 | 163.77 | 199.57 | 289.54 |  |  |
+| `bofnat` | 2.01 | 0.59 | 1.15 | 2.89 | 7.18 | 13.90 | 28.07 | 57.82 | 100.72 | 122.41 | 177.54 |  |  |
 
 Time of Bignum:
 
 | op | 1 | 2 | 4 | 8 | 16 | 32 | 64 | 128 | 256 | 512 | 1024 | 2048 | 4096 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `add` | 44.6 ns | 43.8 ns | 44.3 ns | 45.9 ns | 49.4 ns | 58.9 ns | 74.1 ns | 118 ns | 209 ns | 367 ns | 697 ns | 1.34 µs | 2.68 µs |
-| `sub` | 51 ns | 51.5 ns | 50.7 ns | 51.6 ns | 56.7 ns | 62.5 ns | 86.1 ns | 140 ns | 245 ns | 433 ns | 813 ns | 1.57 µs | 3.14 µs |
-| `mul1` | 30.5 ns | 31.1 ns | 32.1 ns | 32.9 ns | 35.8 ns | 44 ns | 64.6 ns | 106 ns | 203 ns | 366 ns | 697 ns | 1.35 µs | 2.66 µs |
-| `mul` | 34.4 ns | 43.2 ns | 55.2 ns | 93.8 ns | 210 ns | 627 ns | 2.19 µs | 6.97 µs | 21.9 µs | 64.6 µs | 188 µs | 551 µs | 1.55 ms |
-| `sqr` | 39.1 ns | 44.7 ns | 53.2 ns | 82 ns | 167 ns | 406 ns | 1.25 µs | 4.04 µs | 12.7 µs | 38.9 µs | 116 µs | 338 µs | 956 µs |
-| `div` | 39.6 ns | 141 ns | 250 ns | 363 ns | 664 ns | 1.65 µs | 4.88 µs | 17.6 µs | 56.6 µs | 164 µs | 485 µs | 1.39 ms | 3.95 ms |
-| `badd` | 14.1 ns | 102 ns | 73.1 ns | 72.4 ns | 75.5 ns | 83 ns | 98.4 ns | 143 ns | 231 ns | 389 ns | 720 ns |  |  |
-| `bsub` | 16.4 ns | 98.1 ns | 80.9 ns | 81.2 ns | 87.8 ns | 89.9 ns | 115 ns | 168 ns | 272 ns | 461 ns | 843 ns |  |  |
-| `bmul` | 16.4 ns | 92.9 ns | 80 ns | 121 ns | 238 ns | 647 ns | 2.21 µs | 6.99 µs | 21.7 µs | 64.8 µs | 187 µs |  |  |
-| `bdiv` | 16.2 ns | 184 ns | 328 ns | 444 ns | 770 ns | 1.79 µs | 5.23 µs | 18.1 µs | 57.8 µs | 167 µs | 496 µs |  |  |
-| `bgcd` | 47.2 ns | 77.5 ns | 2.98 µs | 7.64 µs | 17.5 µs | 37.8 µs | 81.5 µs | 183 µs | 457 µs | 1.22 ms | 3.7 ms |  |  |
-| `bshl` | 71 ns | 71.3 ns | 57.8 ns | 56.8 ns | 58.4 ns | 61.7 ns | 70.3 ns | 92.6 ns | 141 ns | 216 ns | 396 ns |  |  |
-| `bshr` | 15.7 ns | 15.7 ns | 59.6 ns | 59.8 ns | 60.7 ns | 63 ns | 68.5 ns | 86.8 ns | 125 ns | 194 ns | 338 ns |  |  |
-| `bsqrt` | 100 ns | 943 ns | 2.28 µs | 4.35 µs | 7.54 µs | 10.9 µs | 22.7 µs | 64 µs | 234 µs | 541 µs | 1.53 ms |  |  |
-| `btostr` | 26.4 ns | 30.3 ns | 393 ns | 779 ns | 1.82 µs | 4.59 µs | 12.8 µs | 40.3 µs | 139 µs | 518 µs | 1.99 ms |  |  |
-| `bofstr` | 313 ns | 448 ns | 733 ns | 1.29 µs | 2.53 µs | 5.11 µs | 10.5 µs | 23.4 µs | 59.1 µs | 166 µs | 512 µs |  |  |
-| `btonat` | 9.98 ns | 87.9 ns | 248 ns | 590 ns | 1.28 µs | 2.77 µs | 5.62 µs | 11.4 µs | 23 µs | 46.9 µs | 94.7 µs |  |  |
-| `bofnat` | 16.8 ns | 67.8 ns | 132 ns | 340 ns | 832 ns | 1.64 µs | 3.28 µs | 6.78 µs | 13.7 µs | 28.1 µs | 57.3 µs |  |  |
-| `shr` | 18.6 ns | 53.8 ns | 54.3 ns | 54.5 ns | 55.3 ns | 58.1 ns | 65.4 ns | 82.3 ns | 124 ns | 190 ns | 330 ns | 595 ns | 1.19 µs |
+| `add` | 43.5 ns | 45.2 ns | 46.1 ns | 46.8 ns | 49.8 ns | 55.9 ns | 73.6 ns | 116 ns | 201 ns | 361 ns | 698 ns | 1.34 µs | 2.71 µs |
+| `sub` | 55.3 ns | 56.1 ns | 53.7 ns | 54.2 ns | 61.9 ns | 64.8 ns | 87 ns | 138 ns | 235 ns | 422 ns | 809 ns | 1.57 µs | 3.15 µs |
+| `mul1` | 31.1 ns | 31.7 ns | 34 ns | 37.5 ns | 39.4 ns | 45.8 ns | 65.3 ns | 106 ns | 200 ns | 364 ns | 710 ns | 1.41 µs | 2.59 µs |
+| `mul` | 36 ns | 44.8 ns | 55.8 ns | 97 ns | 209 ns | 623 ns | 2.17 µs | 6.96 µs | 21.7 µs | 64.7 µs | 187 µs | 542 µs | 1.54 ms |
+| `sqr` | 39.5 ns | 44.2 ns | 56 ns | 87.2 ns | 173 ns | 418 ns | 1.27 µs | 4.11 µs | 12.9 µs | 39.7 µs | 119 µs | 348 µs | 978 µs |
+| `div` | 42.6 ns | 138 ns | 214 ns | 306 ns | 529 ns | 1.31 µs | 3.99 µs | 14.5 µs | 47.1 µs | 142 µs | 429 µs | 1.26 ms | 3.66 ms |
+| `shr` | 18.4 ns | 53.9 ns | 54.7 ns | 54.7 ns | 55.5 ns | 58.2 ns | 65.2 ns | 80.7 ns | 120 ns | 189 ns | 334 ns | 600 ns | 1.2 µs |
+| `badd` | 14.2 ns | 30.2 ns | 67.7 ns | 67.5 ns | 70.7 ns | 77 ns | 93.6 ns | 136 ns | 222 ns | 379 ns | 721 ns |  |  |
+| `bsub` | 16 ns | 102 ns | 82.6 ns | 81.8 ns | 89.2 ns | 92.5 ns | 115 ns | 169 ns | 268 ns | 457 ns | 850 ns |  |  |
+| `bmul` | 15.8 ns | 47.8 ns | 76.5 ns | 116 ns | 230 ns | 644 ns | 2.19 µs | 6.98 µs | 21.7 µs | 65.2 µs | 189 µs |  |  |
+| `bdiv` | 15.4 ns | 87.4 ns | 248 ns | 336 ns | 555 ns | 1.34 µs | 4.01 µs | 14.6 µs | 47.1 µs | 142 µs | 428 µs |  |  |
+| `bgcd` | 47.4 ns | 78.3 ns | 709 ns | 2.1 µs | 4.3 µs | 10.1 µs | 24.9 µs | 66.1 µs | 202 µs | 653 µs | 2.3 ms |  |  |
+| `bshl` | 69.9 ns | 71.7 ns | 58.2 ns | 55.8 ns | 57.3 ns | 59.8 ns | 67.1 ns | 85.7 ns | 130 ns | 208 ns | 390 ns |  |  |
+| `bshr` | 15.5 ns | 15.5 ns | 59.5 ns | 60.2 ns | 61.4 ns | 64 ns | 70 ns | 86.9 ns | 124 ns | 193 ns | 338 ns |  |  |
+| `bsqrt` | 98 ns | 523 ns | 1.26 µs | 2.55 µs | 4.28 µs | 5.79 µs | 12.3 µs | 32.9 µs | 95.3 µs | 284 µs | 840 µs |  |  |
+| `btostr` | 27 ns | 31.6 ns | 413 ns | 822 ns | 1.88 µs | 4.69 µs | 13.1 µs | 40.8 µs | 141 µs | 517 µs | 1.99 ms |  |  |
+| `bofstr` | 338 ns | 463 ns | 760 ns | 1.32 µs | 2.62 µs | 5.15 µs | 10.6 µs | 23.7 µs | 59.8 µs | 166 µs | 515 µs |  |  |
+| `btonat` | 11.3 ns | 89.4 ns | 254 ns | 600 ns | 1.28 µs | 2.75 µs | 5.55 µs | 11.3 µs | 22.6 µs | 46.3 µs | 94.1 µs |  |  |
+| `bofnat` | 20.5 ns | 68.6 ns | 133 ns | 341 ns | 833 ns | 1.71 µs | 3.34 µs | 7.17 µs | 13.9 µs | 28.4 µs | 57.7 µs |  |  |
 
 ## Where it stands
 
 - **Linear operations** (`add`, `sub`, `mul1`, shifts) are faster than `Nat` up to 64–128 limbs,
-  where `Nat`'s wrapper dominates. They stay within 1.2–2× at large sizes, where GMP's assembly
+  where `Nat`'s wrapper dominates. They stay within 1.1–2.2× at large sizes, where GMP's assembly
   and 64-bit limbs win.
-- **Multiplication** is 4–7.5× behind from 64 limbs up, **squaring** 2.5–4.6×. That is mostly
+- **Multiplication** is 4.4–7.3× behind from 64 limbs up, **squaring** 2.6–4.7×. That is mostly
   structural: 32-bit limbs need 4× as many limb products as GMP's 64-bit limbs, and Lean has no
   64 × 64 → 128-bit multiply. Algorithm thresholds are close to GMP's in bits.
-- **Division** is 9–12× behind from 64 limbs up, twice multiplication's gap: GMP divides `2n` by
-  `n` limbs for about the cost of one `n × n` product, and this library for 2.6 of its own.
-  Small `BigNat` divisions still pay a fixed cost (normalization, several arrays) that `Nat`
-  doesn't.
-- **`gcd`** is 9–18× behind from 4 limbs: each Lehmer step allocates; see TODO.
-- **`sqrt`** is 1.6–4× behind; **decimal strings** are 10–25× faster than `Nat`, whose conversions
-  work digit by digit.
+- **Division** is 7.5–10× behind from 64 limbs up, about 1.5× multiplication's gap: GMP divides
+  `2n` by `n` limbs for about the cost of one `n × n` product, and this library for 2.3 of its
+  own. Small `BigNat` divisions still pay a fixed cost (normalization, several arrays): 1.9–3.6×
+  from 2 to 16 limbs.
+- **`gcd`** is 3.5–6.2× behind from 4 limbs, Lehmer with word cofactors; GMP's subquadratic
+  `hgcd` shows from a few hundred limbs.
+- **`sqrt`** is 1.1–2.2× behind from 8 limbs, and faster up to 4; **decimal strings** are 10–20×
+  faster than `Nat`, whose conversions work digit by digit.
 - **Conversions to and from `Nat`** cost about one operation on `Nat` (some 40 ns) per two
   limbs, against one linear pass for `Nat` itself; they are a boundary, not arithmetic.
 
