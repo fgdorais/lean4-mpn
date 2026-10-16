@@ -7,24 +7,25 @@ Items are roughly in order of value within each section.
 ## Performance
 
 Time now goes mostly into the schoolbook product, by columns since `Mul.Comba` (about 0.5 ns per
-32-bit limb product, vectorized by the C compiler with SSE2): 65–85% of a product or a square from
-128 to 4096 limbs, with `perf`. The combinations take 9–17% and allocation and copies 5–11% (see
-below for why the latter is hard to recover). With 32-bit limbs, a product needs 4× as many limb
-products as GMP's, which is most of the gap above 64 limbs.
+32-bit limb product, vectorized by the C compiler with SSE2): 72% of a product even at 4096 limbs,
+with `perf`, after the combinations went to one pass. The rest is a few percent each (Karatsuba's
+`addDiffInto`, Toom-3's passes, allocation), which is why the attempts below to move Toom-3 or
+Karatsuba in place gained at most 1%. With 32-bit limbs, a product needs 4× as many limb products
+as GMP's, which is most of the gap above 64 limbs; `march = "native"` (see the README) makes Comba
+7–13% faster with AVX2. What is left for products is algorithmic: unbalanced Toom and Toom-4
+below.
 
-- [ ] **Toom-3's assembly and interpolation in place:** `addInto` and `subInto` are 8–11% of a
-  product or a square from 1024 limbs, nearly all in Toom-3: the assembly adds the five
-  coefficients into a zeroed `replicate` in five passes, where `c₀` and `c₄` don't overlap and
-  could be copied in as Karatsuba's `z₀ ++ z₂`, and the interpolation makes a fresh array for each
-  of its eight `subVal`s and three `mulRow`s, where GMP's `toom_interpolate_5pts` works in place.
-- [ ] **A shorter dependency chain in `divRem1`** (GMP's `mpn_div_qr_1n_pi1`): the loop is
-  bound by the latency of one step, about 15 cycles (3.3 ns per limb on Zen 3), since each step
-  needs the previous remainder; the rest of the loop (1.4 ns per limb) runs in parallel. A
-  precomputed reciprocal (Möller–Granlund's `udiv_qrnnd_preinv`) was prototyped and is 3% *slower*
-  there, because Zen 3's divider is fast; it would pay on CPUs with slow 64-bit division (Intel
-  before Ice Lake). `div_qr_1n_pi1` keeps a partly reduced two-limb remainder and takes the
-  quotient off the chain, about one multiply-add per step. `divRem1` is behind division by one
-  limb and `toString`.
+- [ ] **Toom-3's interpolation in place** (low value): it makes a fresh array for each of its
+  eight `subVal`s and three `mulRow`s, where GMP's `toom_interpolate_5pts` works in place; the
+  assembly half, prototyped with copies, gained under 1%, so expect about as much.
+- [ ] **A shorter dependency chain in `divRem1`** (for CPUs with slow division; GMP's
+  `mpn_div_qr_1n_pi1`): the loop is bound by the latency of one step, about 15 cycles (3.3 ns per
+  limb on Zen 3), since each step needs the previous remainder; the rest of the loop (1.4 ns per
+  limb) runs in parallel. A precomputed reciprocal (Möller–Granlund's `udiv_qrnnd_preinv`) was
+  prototyped and is 3% *slower* there, because Zen 3's divider is fast; it would pay on CPUs with
+  slow 64-bit division (Intel before Ice Lake). `div_qr_1n_pi1` keeps a partly reduced two-limb
+  remainder and takes the quotient off the chain, about one multiply-add per step. `divRem1` is
+  behind division by one limb and `toString`.
 
 Done this round: word carries and hoisted slice fields in the folds; in-place Algorithm D with
 `subMul1` (34 allocations per 32 ÷ 16-limb division instead of 270); `foldInPlaceThen`
