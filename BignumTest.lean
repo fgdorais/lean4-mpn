@@ -158,6 +158,19 @@ def toom32Config : Config := { mulKaratsuba := 8, mulToom3 := 12, mulToom32 := 1
     toNat (mulLimbsWith toom32Config (ofNat (2 ^ (32 * m) - 1)) (ofNat (2 ^ (32 * n) - 1))) ==
       (2 ^ (32 * m) - 1) * (2 ^ (32 * n) - 1)
 
+-- Toom-4 by 2 from 12 limbs, on shapes between fifteen eighths and twice as long, and all ones.
+def toom42Config : Config :=
+  { mulKaratsuba := 8, mulToom3 := 12, mulToom32 := 12, mulToom42 := 12 }
+
+#guard [(23, 12), (25, 13), (30, 16), (31, 16), (38, 20), (39, 20), (40, 21), (57, 30), (59, 30),
+    (100, 51), (188, 100), (199, 100)].all fun (m, n) =>
+  let x := sample1 (32 * m) 43
+  let y := sample1 (32 * n) 47
+  let r := mulLimbsWith toom42Config (ofNat x) (ofNat y)
+  r.size == m + n && toNat r == x * y &&
+    toNat (mulLimbsWith toom42Config (ofNat (2 ^ (32 * m) - 1)) (ofNat (2 ^ (32 * n) - 1))) ==
+      (2 ^ (32 * m) - 1) * (2 ^ (32 * n) - 1)
+
 -- Toom-3 squaring from 12 limbs, over Karatsuba squaring from 4 and the schoolbook square.
 def sqrToomConfig : Config := { sqrBasecase := 2, sqrKaratsuba := 4, sqrToom3 := 12 }
 

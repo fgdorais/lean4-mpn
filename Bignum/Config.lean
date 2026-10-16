@@ -41,6 +41,13 @@ public structure Config where
   /-- Toom-3 by 2 needs at least `12` limbs to make its products smaller. -/
   twelve_le_mulToom32 : 12 ≤ mulToom32 := by decide
   /--
+  The size of the shorter operand from which multiplication uses Toom-4 by 2 when the longer one is
+  between fifteen eighths and twice as long, instead of Toom-3 by 2.
+  -/
+  mulToom42 : Nat := 192
+  /-- Toom-4 by 2 needs at least `12` limbs to make its products smaller. -/
+  twelve_le_mulToom42 : 12 ≤ mulToom42 := by decide
+  /--
   The size of the shorter operand from which multiplication splits a longer operand that is at
   least twice as long, instead of using schoolbook. It only matters above `mulKaratsuba`, since the
   split pays off through Karatsuba on its pieces.
@@ -72,6 +79,12 @@ public meta register_option bignum.mul.toom32Threshold : Nat := {
   defValue := ({} : Config).mulToom32
   descr := "the size of the shorter operand, in limbs, from which multiplication uses Toom-3 by 2 \
     when the longer one is between four thirds and twice as long"
+}
+
+public meta register_option bignum.mul.toom42Threshold : Nat := {
+  defValue := ({} : Config).mulToom42
+  descr := "the size of the shorter operand, in limbs, from which multiplication uses Toom-4 by 2 \
+    when the longer one is between fifteen eighths and twice as long"
 }
 
 public meta register_option bignum.mul.toom3Threshold : Nat := {
@@ -122,6 +135,9 @@ elab "bignum_config%" : term => do
   let mulToom32 := bignum.mul.toom32Threshold.get opts
   unless 12 ≤ mulToom32 do
     throwError "bignum.mul.toom32Threshold must be at least 12, but it is {mulToom32}"
+  let mulToom42 := bignum.mul.toom42Threshold.get opts
+  unless 12 ≤ mulToom42 do
+    throwError "bignum.mul.toom42Threshold must be at least 12, but it is {mulToom42}"
   let sqrToom3 := bignum.sqr.toom3Threshold.get opts
   unless 12 ≤ sqrToom3 do
     throwError "bignum.sqr.toom3Threshold must be at least 12, but it is {sqrToom3}"
@@ -134,6 +150,7 @@ elab "bignum_config%" : term => do
   let u := quote mulUnbalanced
   let t := quote mulToom3
   let t₂ := quote mulToom32
+  let t₄ := quote mulToom42
   let b := quote sqrBasecase
   let q := quote sqrKaratsuba
   let st := quote sqrToom3
@@ -141,6 +158,7 @@ elab "bignum_config%" : term => do
   let stx ← `(({ mulKaratsuba := $m
                  mulToom3 := $t
                  mulToom32 := $t₂
+                 mulToom42 := $t₄
                  mulUnbalanced := $u
                  sqrBasecase := $b
                  sqrKaratsuba := $q

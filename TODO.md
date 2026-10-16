@@ -79,9 +79,23 @@ division, and `topSize` usually stops at the first limb.
   in its five products; four products, at the points `0, 1, 2, ∞`. Shapes of 3:2 and 3:1 (which
   halves into 3:2) are 27–39% faster from 512 limbs (`1536 × 1024`: 406 → 247 µs, 8.2 → 5.0×
   GMP). The tuner finds 120, but direct timings are slower until about 150.
-- [ ] **Toom-4 by 2 and Toom-4 by 3** (`toom42`, `toom43`) for ratios near 2 and 4:3, where
-  halving the longer operand or `toom32` leave pieces of unequal sizes.
-- [ ] **Toom-4, Toom-6½, Toom-8½**, then FFT multiplication for very large numbers.
+- [x] **Toom-4 by 2** (`toom42`, GMP's `mpn_toom42_mul`): for a longer operand between fifteen
+  eighths and twice as long, from 192 limbs, it splits it in four and the shorter in two at half
+  the shorter; its product has degree four, like Toom-3's, so it shares Toom-3's five points and
+  interpolation (`toom3Finish`). 3–7% faster in that band (`2000 × 1024`: 382 → 357 µs,
+  `3900 × 2048`: 1062 → 988 µs). Between five thirds and fifteen eighths it is within ±2% of
+  `toom32`, and below five thirds slower, so `toom32` keeps those shapes.
+- [ ] **Toom-4 by 3** (`toom43`) for ratios near 4:3: low value since `toom3` splits at a third of
+  the longer operand (`1365 × 1024` is 4.7× GMP, against 4.1× balanced). Shapes just under 3:1
+  stay the worst, 6.8× at `2816 × 1024`, which halves into two products of 1.4:1.
+- [ ] **The Karatsuba threshold inside large products**: 48 instead of the tuned 64 made products
+  of about `1700 × 1024` 12% faster (seen by accident, through a stale `-K mulKaratsuba=48` build).
+  The tuner times one Karatsuba step over schoolbook on its own, which may not match the pieces
+  that the Toom steps hand down; tune it, or check it, within whole products.
+- [ ] **Toom-4, Toom-6½, Toom-8½**, then FFT multiplication for very large numbers. One level of
+  Toom-4 over Toom-3 with natural-number points (prototyped without proofs) was 9% faster to 16%
+  slower depending on the size, where its seven evaluation points need larger values and
+  divisions than GMP's signed ones: not worth its proof yet.
 - [ ] **The rest of `Nat`:**
   - [x] shifts by bits (`<<<`, `>>>`, `Bits`): one pass each, in place over a copy with
     `foldrInPlaceThen` and `foldlInPlaceThen`, even with `Nat` from 1 to 1024 limbs. The left

@@ -30,7 +30,7 @@ rev = "main"
 options = { march = "native", mulKaratsuba = "64", mulToom3 = "480", divDC = "176" }
 ```
 
-The keys are the fields of `Bignum.Config`: `mulKaratsuba`, `mulToom3`, `mulToom32`,
+The keys are the fields of `Bignum.Config`: `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`,
 `mulUnbalanced`, `sqrBasecase`, `sqrKaratsuba`, `sqrToom3` and `divDC`; an invalid value stops the
 build. With `march = "native"` the C compiler may use the vector instructions of the build machine
 (7–13% faster products with AVX2), and the program then runs only on processors that have them. Lake
