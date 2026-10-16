@@ -211,16 +211,136 @@ public def ofLimbs (a : UInt32Array) (h : isTrimmed a = true) : BigNat :=
     exact toNat_wordOfLimbs a hs
   · rfl
 
+/-! ## Results of two words
+
+A sum or product of two words can overflow 64 bits. `mulWide` computes the whole product of two
+words from the four products of their halves, and `wideOf` makes the `BigNat` of a two-word
+number directly, as one array of three or four limbs, where the general arithmetic would make an
+array for each word first.
+-/
+
+/-- The three or four limbs of `lo + 2⁶⁴ hi`, for `hi ≠ 0`. -/
+def limbs4 (lo hi : UInt64) : UInt32Array :=
+  let r := (((UInt32Array.emptyWithCapacity 4).push lo.toUInt32).push (lo >>> 32).toUInt32).push
+    hi.toUInt32
+  if hi < 4294967296 then r else r.push (hi >>> 32).toUInt32
+
+private theorem toList_limbs4 (lo hi : UInt64) :
+    (limbs4 lo hi).toList = [lo.toUInt32, (lo >>> 32).toUInt32, hi.toUInt32] ++
+      (if hi < 4294967296 then [] else [(hi >>> 32).toUInt32]) := by
+  unfold limbs4
+  split <;> simp
+
+private theorem limbs4_spec (lo hi : UInt64) (h : hi ≠ 0) :
+    isTrimmed (limbs4 lo hi) = true ∧
+      Bignum.toNat (limbs4 lo hi) = lo.toNat + 2 ^ 64 * hi.toNat := by
+  have hl := lo.toNat_lt
+  have hh := hi.toNat_lt
+  have h0 : hi.toNat ≠ 0 := fun e => h (UInt64.toNat_inj.1 (by simpa using e))
+  rw [toNat_toSlice, toList_limbs4]
+  by_cases hs : hi < 4294967296
+  · have hs' := hs
+    rw [UInt64.lt_iff_toNat_lt] at hs'
+    simp only [UInt64.reduceToNat] at hs'
+    refine ⟨isTrimmed_of_getLast (x := hi.toUInt32) (by rw [toList_limbs4]; simp [hs]) ?_, ?_⟩
+    · intro e
+      have := congrArg UInt32.toNat e
+      simp only [UInt64.toNat_toUInt32, UInt32.toNat_zero] at this
+      omega
+    · simp only [hs, ite_true, List.append_nil, ofLimbs_cons, ofLimbs_nil, UInt64.toNat_toUInt32,
+        UInt64.toNat_shiftRight, UInt64.reduceToNat, Nat.reduceMod, Nat.shiftRight_eq_div_pow]
+      omega
+  · have hs' := hs
+    rw [UInt64.lt_iff_toNat_lt] at hs'
+    simp only [UInt64.reduceToNat] at hs'
+    refine ⟨isTrimmed_of_getLast (x := (hi >>> 32).toUInt32) (by rw [toList_limbs4]; simp [hs])
+      ?_, ?_⟩
+    · intro e
+      have := congrArg UInt32.toNat e
+      simp only [UInt64.toNat_toUInt32, UInt64.toNat_shiftRight, UInt64.reduceToNat,
+        Nat.reduceMod, Nat.shiftRight_eq_div_pow, UInt32.toNat_zero] at this
+      omega
+    · simp only [hs, ite_false, List.cons_append, List.nil_append, ofLimbs_cons, ofLimbs_nil,
+        UInt64.toNat_toUInt32, UInt64.toNat_shiftRight, UInt64.reduceToNat, Nat.reduceMod,
+        Nat.shiftRight_eq_div_pow]
+      omega
+
+/-- The `BigNat` `lo + 2⁶⁴ hi`. -/
+def wideOf (lo hi : UInt64) : BigNat :=
+  if h : hi = 0 then small lo
+  else large (limbs4 lo hi) ⟨(limbs4_spec lo hi h).1, by
+    rw [(limbs4_spec lo hi h).2]
+    have : hi.toNat ≠ 0 := fun e => h (UInt64.toNat_inj.1 (by simpa using e))
+    have := Nat.mul_le_mul_left (2 ^ 64) (Nat.one_le_iff_ne_zero.2 this)
+    omega⟩
+
+private theorem toNat_wideOf (lo hi : UInt64) :
+    (wideOf lo hi).toNat = lo.toNat + 2 ^ 64 * hi.toNat := by
+  unfold wideOf
+  split
+  · rename_i h
+    subst h
+    simp [toNat]
+  · rename_i h
+    exact (limbs4_spec lo hi h).2
+
+/-- The product of two words as its low word and its high word, from the products of halves. -/
+def mulWide (a b : UInt64) : UInt64 × UInt64 :=
+  let a₀ := a &&& 0xFFFFFFFF
+  let a₁ := a >>> 32
+  let b₀ := b &&& 0xFFFFFFFF
+  let b₁ := b >>> 32
+  let p₀₀ := a₀ * b₀
+  let p₀₁ := a₀ * b₁
+  let p₁₀ := a₁ * b₀
+  let mid := (p₀₀ >>> 32) + (p₀₁ &&& 0xFFFFFFFF) + (p₁₀ &&& 0xFFFFFFFF)
+  ((mid <<< 32) + (p₀₀ &&& 0xFFFFFFFF), a₁ * b₁ + (p₀₁ >>> 32) + (p₁₀ >>> 32) + (mid >>> 32))
+
+private theorem mulWide_spec (a b : UInt64) :
+    (mulWide a b).1.toNat + 2 ^ 64 * (mulWide a b).2.toNat = a.toNat * b.toNat := by
+  have ha := a.toNat_lt
+  have hb := b.toNat_lt
+  have hm : ∀ x : Nat, x &&& 4294967295 = x % 2 ^ 32 := fun x =>
+    Nat.and_two_pow_sub_one_eq_mod x 32
+  simp only [mulWide, UInt64.toNat_add, UInt64.toNat_mul, UInt64.toNat_and,
+    UInt64.toNat_shiftRight, UInt64.toNat_shiftLeft, UInt64.reduceToNat, Nat.reduceMod,
+    Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq, hm]
+  -- The halves and their products.
+  have e₁ : a.toNat = 2 ^ 32 * (a.toNat / 2 ^ 32) + a.toNat % 2 ^ 32 := (Nat.div_add_mod _ _).symm
+  have e₂ : b.toNat = 2 ^ 32 * (b.toNat / 2 ^ 32) + b.toNat % 2 ^ 32 := (Nat.div_add_mod _ _).symm
+  have hA₀ : a.toNat % 2 ^ 32 < 2 ^ 32 := Nat.mod_lt _ (by decide)
+  have hB₀ : b.toNat % 2 ^ 32 < 2 ^ 32 := Nat.mod_lt _ (by decide)
+  have hA₁ : a.toNat / 2 ^ 32 < 2 ^ 32 := by omega
+  have hB₁ : b.toNat / 2 ^ 32 < 2 ^ 32 := by omega
+  generalize a.toNat % 2 ^ 32 = A₀ at *
+  generalize b.toNat % 2 ^ 32 = B₀ at *
+  generalize a.toNat / 2 ^ 32 = A₁ at *
+  generalize b.toNat / 2 ^ 32 = B₁ at *
+  have hprod : a.toNat * b.toNat =
+      2 ^ 64 * (A₁ * B₁) + 2 ^ 32 * (A₀ * B₁) + 2 ^ 32 * (A₁ * B₀) + A₀ * B₀ := by
+    rw [e₁, e₂]
+    simp only [Nat.mul_add, Nat.add_mul]
+    grind
+  have b₀₀ : A₀ * B₀ ≤ 4294967295 * 4294967295 := Nat.mul_le_mul (by omega) (by omega)
+  have b₀₁ : A₀ * B₁ ≤ 4294967295 * 4294967295 := Nat.mul_le_mul (by omega) (by omega)
+  have b₁₀ : A₁ * B₀ ≤ 4294967295 * 4294967295 := Nat.mul_le_mul (by omega) (by omega)
+  have b₁₁ : A₁ * B₁ ≤ 4294967295 * 4294967295 := Nat.mul_le_mul (by omega) (by omega)
+  rw [hprod]
+  generalize A₀ * B₀ = P₀₀ at *
+  generalize A₀ * B₁ = P₀₁ at *
+  generalize A₁ * B₀ = P₁₀ at *
+  generalize A₁ * B₁ = P₁₁ at *
+  rw [Nat.mod_eq_of_lt (show P₀₀ < 2 ^ 64 by omega), Nat.mod_eq_of_lt (show P₀₁ < 2 ^ 64 by omega),
+    Nat.mod_eq_of_lt (show P₁₀ < 2 ^ 64 by omega), Nat.mod_eq_of_lt (show P₁₁ < 2 ^ 64 by omega)]
+  omega
+
 /-! ## Arithmetic -/
 
 /-- Addition: on words unless the sum overflows. -/
 public def add : BigNat → BigNat → BigNat
   | small a, small b =>
     let s := a + b
-    if s < a then
-      ofLimbs (Bignum.add (limbsOfWord a) (limbsOfWord b)) (isTrimmed_add _ _)
-    else
-      small s
+    if s < a then wideOf s 1 else small s
   | x, y => ofLimbs (Bignum.add x.limbs y.limbs) (isTrimmed_add _ _)
 
 /-- Truncated subtraction, like `Nat`'s: `x - y = 0` when `x < y`. -/
@@ -234,7 +354,7 @@ public def sub : BigNat → BigNat → BigNat
 public def mul : BigNat → BigNat → BigNat
   | small a, small b =>
     if a < 4294967296 ∧ b < 4294967296 then small (a * b)
-    else ofLimbs (Bignum.mul (limbsOfWord a) (limbsOfWord b)) (isTrimmed_mul _ _)
+    else wideOf (mulWide a b).1 (mulWide a b).2
   | x, y => ofLimbs (Bignum.mul x.limbs y.limbs) (isTrimmed_mul _ _)
 
 /-- Division, like `Nat`'s: `x / 0 = 0`. -/
@@ -268,8 +388,10 @@ private theorem small_lt_large (a : UInt64) (b : UInt32Array)
       rw [add]
       split
       · rename_i h
-        rw [toNat_ofLimbs, Bignum.toNat_add, (limbsOfWord_spec a).1, (limbsOfWord_spec b).1]
-        rfl
+        rw [UInt64.lt_iff_toNat_lt, UInt64.toNat_add] at h
+        rw [toNat_wideOf, UInt64.toNat_add]
+        simp only [toNat, UInt64.toNat_one]
+        omega
       · rename_i h
         rw [UInt64.lt_iff_toNat_lt, UInt64.toNat_add] at h
         simp only [toNat, UInt64.toNat_add]
@@ -324,7 +446,7 @@ private theorem small_lt_large (a : UInt64) (b : UInt32Array)
         have : a.toNat * b.toNat < 2 ^ 64 :=
           Nat.lt_of_lt_of_le (Nat.mul_lt_mul'' h₁ h₂) (by decide)
         simp only [toNat, UInt64.toNat_mul, Nat.mod_eq_of_lt this]
-      · rw [toNat_ofLimbs, Bignum.toNat_mul, (limbsOfWord_spec a).1, (limbsOfWord_spec b).1]
+      · rw [toNat_wideOf, mulWide_spec]
         rfl
     | large b hb => exact hgen _ _
   | large a ha => exact hgen _ _

@@ -107,9 +107,10 @@ division, and `topSize` usually stops at the first limb.
   time, each paying the fixed cost of `subMul1` and its result pair; the copy of the normalized
   dividend into `divRemBasecase`'s buffer is another 7%, and could be avoided with a run-time check
   of its top limb against the divisor's.
-- [ ] **Words near `2⁶⁴` in `BigNat`:** a sum or product that overflows goes through
-  `limbsOfWord` and the array functions (about 100 ns); a direct `64 × 64 → 128` product would
-  help `*`.
+- [x] **Words near `2⁶⁴` in `BigNat`:** a sum or product of two words that overflows went
+  through `limbsOfWord` and the array functions (about 95 ns). `mulWide` computes the product from
+  the four products of halves, and `wideOf` makes the three or four limbs directly: `badd` at 2
+  limbs 95 → 34 ns (0.42× `Nat`), `bmul` 92 → 50 ns (0.62×).
 - [ ] **Per-dependency thresholds.** Lake builds a dependency with that dependency's own
   options, so a downstream project can't tune this library's `Config`. The usual mechanism is
   `require … with …` configuration, which needs a `lakefile.lean`.
