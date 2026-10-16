@@ -771,4 +771,70 @@ public theorem divRemBasecase_spec (u v : UInt32Array.Slice) (hn : 2 ≤ v.size)
   rw [toNat_toSlice (UInt32Array.replicate _ 0)] at h
   simpa using h
 
+/--
+`divRemBasecase` on an array `r` that already has room for the first step. When the top limb of
+`r` is below the top limb of `v`, `r < v βᵏ` with `k = r.size - v.size`, and the loop runs on `r`
+itself, without the copy and the extra top limb that `divRemBasecase` adds, whose quotient limb
+would be zero. A dividend normalized with the divisor's shift has this form: its top limb is below
+the factor `2ˢ ≤ 2³¹`, and the divisor's is at least `2³¹`.
+-/
+public def divRemBasecaseTop (r : UInt32Array) (v : UInt32Array.Slice) (hn : 2 ≤ v.size) :
+    UInt32Array × UInt32Array :=
+  if h : v.size ≤ r.size then
+    if r[r.size - 1]'(by omega) < v[v.size - 1]'(by omega) then
+      divLoop v hn (r.size - v.size) r (.replicate (r.size - v.size) 0) (by omega) (by simp)
+    else
+      divRemBasecase r.toSlice v hn
+  else
+    divRemBasecase r.toSlice v hn
+
+public theorem divRemBasecaseTop_spec (r : UInt32Array) (v : UInt32Array.Slice) (hn : 2 ≤ v.size)
+    (hvt : v[v.size - 1]'(by omega) ≠ 0) :
+    toNat (divRemBasecaseTop r v hn).1 * toNat v + toNat (divRemBasecaseTop r v hn).2 =
+        toNat r ∧
+      toNat (divRemBasecaseTop r v hn).2 < toNat v := by
+  by_cases hs : v.size ≤ r.size
+  · by_cases htop : r[r.size - 1]'(by omega) < v[v.size - 1]'(by omega)
+    · have e : divRemBasecaseTop r v hn = divLoop v hn (r.size - v.size) r
+          (.replicate (r.size - v.size) 0) (by omega) (by simp) := by
+        unfold divRemBasecaseTop
+        rw [dite_eq_left hs, ite_eq_left htop]
+      rw [e]
+      -- `r < βʳ⁻¹ (r_top + 1) ≤ βʳ⁻¹ v_top ≤ v βᵏ`.
+      have hbound : toNat r < toNat v * 2 ^ (32 * (r.size - v.size)) := by
+        have hsplit := ofLimbs_take_add_one r.toList (r.size - 1) (by simp; omega)
+        rw [show r.size - 1 + 1 = r.size by omega, List.take_of_length_le (by simp)] at hsplit
+        have hlow := ofLimbs_take_lt r.toList (r.size - 1)
+        simp only [UInt32Array.getElem_toList] at hsplit
+        have hlt : (r[r.size - 1]'(by omega)).toNat + 1 ≤ (v[v.size - 1]'(by omega)).toNat := by
+          rw [UInt32.lt_iff_toNat_lt] at htop
+          omega
+        have hv := top_limb_le v (by omega)
+        have hpow : 2 ^ (32 * (r.size - 1)) =
+            2 ^ (32 * (v.size - 1)) * 2 ^ (32 * (r.size - v.size)) := by
+          rw [← Nat.pow_add]; congr 1; omega
+        have hv' : (v[v.size - 1]'(by omega)).toNat * 2 ^ (32 * (r.size - 1)) ≤
+            toNat v * 2 ^ (32 * (r.size - v.size)) := by
+          rw [hpow, ← Nat.mul_assoc]
+          exact Nat.mul_le_mul_right _ hv
+        have h₁ := Nat.mul_le_mul_left (2 ^ (32 * (r.size - 1))) hlt
+        rw [Nat.mul_add, Nat.mul_one, Nat.mul_comm (2 ^ (32 * (r.size - 1)))
+          (v[v.size - 1]'(by omega)).toNat] at h₁
+        rw [toNat_toSlice]
+        omega
+      have h := divLoop_spec v hn hvt (r.size - v.size) r (.replicate (r.size - v.size) 0)
+        (by omega) (by simp) hbound (fun i hi => by simp)
+      rw [toNat_toSlice (UInt32Array.replicate _ 0)] at h
+      simpa using h
+    · have e : divRemBasecaseTop r v hn = divRemBasecase r.toSlice v hn := by
+        unfold divRemBasecaseTop
+        rw [dite_eq_left hs, ite_eq_right htop]
+      rw [e]
+      exact divRemBasecase_spec r.toSlice v hn hvt
+  · have e : divRemBasecaseTop r v hn = divRemBasecase r.toSlice v hn := by
+      unfold divRemBasecaseTop
+      rw [dite_eq_right hs]
+    rw [e]
+    exact divRemBasecase_spec r.toSlice v hn hvt
+
 end Bignum

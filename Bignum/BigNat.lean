@@ -357,16 +357,74 @@ public def mul : BigNat → BigNat → BigNat
     else wideOf (mulWide a b).1 (mulWide a b).2
   | x, y => ofLimbs (Bignum.mul x.limbs y.limbs) (isTrimmed_mul _ _)
 
+/--
+`a` divided by a nonzero word `b`, as untrimmed quotient limbs and the remainder, a word: `divRem1`
+below `2³²` and `divRem2` above, without an array for `b`.
+-/
+def divRemWord (a : UInt32Array) (b : UInt64) : UInt32Array × UInt64 :=
+  if b < 4294967296 then
+    let p := divRem1 a b.toUInt32
+    (p.1, p.2.toUInt64)
+  else
+    divRem2 a (b >>> 32).toUInt32 b.toUInt32
+
+private theorem divRemWord_spec (a : UInt32Array) (b : UInt64) (hb : b ≠ 0) :
+    Bignum.toNat (divRemWord a b).1 = Bignum.toNat a / b.toNat ∧
+      (divRemWord a b).2.toNat = Bignum.toNat a % b.toNat := by
+  have hb' : 0 < b.toNat := by
+    rcases Nat.eq_zero_or_pos b.toNat with h | h
+    · exact absurd (UInt64.toNat_inj.1 (by simpa using h)) hb
+    · exact h
+  have hB := b.toNat_lt
+  -- `q b + r = a` with `r < b` determines both.
+  have key : ∀ q r : Nat, q * b.toNat + r = Bignum.toNat a → r < b.toNat →
+      q = Bignum.toNat a / b.toNat ∧ r = Bignum.toNat a % b.toNat := fun q r h₁ h₂ => by
+    have := (Nat.div_mod_unique (a := Bignum.toNat a) (b := b.toNat) (d := q) (c := r) hb').2
+      ⟨by rw [Nat.mul_comm b.toNat q]; omega, h₂⟩
+    exact ⟨this.1.symm, this.2.symm⟩
+  unfold divRemWord
+  by_cases hs : b < 4294967296
+  · rw [ite_eq_left hs]
+    rw [UInt64.lt_iff_toNat_lt] at hs
+    simp only [UInt64.reduceToNat] at hs
+    have hd : b.toUInt32.toNat = b.toNat := by simp; omega
+    have hd0 : b.toUInt32 ≠ 0 := fun e => by
+      have := congrArg UInt32.toNat e
+      rw [hd, UInt32.toNat_zero] at this
+      omega
+    obtain ⟨h₁, h₂⟩ := divRem1_spec a b.toUInt32 hd0
+    rw [hd] at h₁ h₂
+    simp only [UInt32.toNat_toUInt64]
+    exact key _ _ h₁ h₂
+  · rw [ite_eq_right hs]
+    rw [UInt64.lt_iff_toNat_lt] at hs
+    simp only [UInt64.reduceToNat] at hs
+    have hd : ((b >>> 32).toUInt32).toNat * 2 ^ 32 + b.toUInt32.toNat = b.toNat := by
+      simp only [UInt64.toNat_toUInt32, UInt64.toNat_shiftRight, UInt64.reduceToNat,
+        Nat.reduceMod, Nat.shiftRight_eq_div_pow]
+      omega
+    have hd0 : (b >>> 32).toUInt32 ≠ 0 := fun e => by
+      have := congrArg UInt32.toNat e
+      simp only [UInt64.toNat_toUInt32, UInt64.toNat_shiftRight, UInt64.reduceToNat,
+        Nat.reduceMod, Nat.shiftRight_eq_div_pow, UInt32.toNat_zero] at this
+      omega
+    obtain ⟨h₁, h₂⟩ := divRem2_spec a (b >>> 32).toUInt32 b.toUInt32 hd0
+    rw [hd] at h₁ h₂
+    exact key _ _ h₁ h₂
+
 /-- Division, like `Nat`'s: `x / 0 = 0`. -/
 public def div : BigNat → BigNat → BigNat
   | small a, small b => small (a / b)
   | small _, large _ _ => small 0
+  | large a _, small b =>
+    if b = 0 then small 0 else ofLimbs (trim (divRemWord a b).1) (isTrimmed_trim _)
   | x, y => ofLimbs (Bignum.div x.limbs y.limbs) (isTrimmed_div _ _)
 
 /-- The remainder, like `Nat`'s: `x % 0 = x`. -/
 public def mod : BigNat → BigNat → BigNat
   | small a, small b => small (a % b)
   | small a, large _ _ => small a
+  | large a ha, small b => if b = 0 then large a ha else small (divRemWord a b).2
   | x, y => ofLimbs (Bignum.mod x.limbs y.limbs) (isTrimmed_mod _ _)
 
 private theorem small_lt_large (a : UInt64) (b : UInt32Array)
@@ -464,7 +522,18 @@ private theorem small_lt_large (a : UInt64) (b : UInt32Array)
       simp only [div]
       rw [Nat.div_eq_of_lt this]
       rfl
-  | large a ha => exact hgen _ _
+  | large a ha =>
+    cases y with
+    | small b =>
+      simp only [div]
+      split
+      · rename_i h
+        subst h
+        simp [toNat]
+      · rename_i h
+        rw [toNat_ofLimbs, toNat_trim, (divRemWord_spec a b h).1]
+        rfl
+    | large b hb => exact hgen _ _
 
 @[simp] public theorem toNat_mod (x y : BigNat) : (mod x y).toNat = x.toNat % y.toNat := by
   have hgen : ∀ x y : BigNat, (ofLimbs (Bignum.mod x.limbs y.limbs) (isTrimmed_mod _ _)).toNat =
@@ -478,7 +547,18 @@ private theorem small_lt_large (a : UInt64) (b : UInt32Array)
       have := small_lt_large a b hb
       simp only [mod]
       rw [Nat.mod_eq_of_lt this]
-  | large a ha => exact hgen _ _
+  | large a ha =>
+    cases y with
+    | small b =>
+      simp only [mod]
+      split
+      · rename_i h
+        subst h
+        simp [toNat]
+      · rename_i h
+        rw [toNat_small, (divRemWord_spec a b h).2]
+        rfl
+    | large b hb => exact hgen _ _
 
 /-! ## Comparison -/
 

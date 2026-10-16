@@ -101,12 +101,16 @@ division, and `topSize` usually stops at the first limb.
 - [x] **A `Nat`-like type:** `BigNat`, a word below `2⁶⁴` and trimmed limbs above, with the
   instances, truncated subtraction and the bijection with `Nat`. About 15 ns per operation on
   words, against 9–10 ns for `Nat`, whose small values need no allocation.
-- [ ] **The fixed cost of small divisions:** `BigNat.div` takes 206 ns for a divisor of 2 limbs
-  (`divRem2`, one pass like GMP's `mpn_divrem_2`; 428 ns before), 340 ns for 4 limbs and 770 ns
-  for 16, against 47, 95 and 154 ns for `Nat`. Above 2 limbs, Algorithm D's steps are half the
-  time, each paying the fixed cost of `subMul1` and its result pair; the copy of the normalized
-  dividend into `divRemBasecase`'s buffer is another 7%, and could be avoided with a run-time check
-  of its top limb against the divisor's.
+- [ ] **The fixed cost of small divisions:** `BigNat.div` takes 170 ns for a divisor of 2 limbs,
+  275 ns for 4 limbs and 707 ns for 16, against 47, 95 and 154 ns for `Nat`. Done: the normalized
+  dividend is divided in place when its top limb is below the divisor's (`divRemBasecaseTop`),
+  which saves its copy and one step of Algorithm D (12–22% from 3 to 16 limbs), and a `BigNat`
+  divided by a word goes to `divRem1` or `divRem2` without an array for the word (`divRemWord`,
+  2 limbs 192 → 170 ns; `%` by a word returns the word). Left: at 2 limbs, half the time is
+  allocation (the shifted copy of the dividend, its slices, the result pair, the trimmed
+  quotient), which normalizing on the fly in `divRem2`'s loop would remove; above, Algorithm D's
+  steps pay for `subMul1`'s result pair and the pairs that thread `(r, q)`, which storing each
+  quotient limb in the freed top limb of the window, as GMP does, would remove.
 - [x] **Words near `2⁶⁴` in `BigNat`:** a sum or product of two words that overflows went
   through `limbsOfWord` and the array functions (about 95 ns). `mulWide` computes the product from
   the four products of halves, and `wideOf` makes the three or four limbs directly: `badd` at 2

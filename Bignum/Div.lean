@@ -102,8 +102,32 @@ public theorem normFactor_ne_zero (vt : UInt32) : normFactor vt ≠ 0 := by
   exact absurd this.symm (Nat.ne_of_gt (Nat.two_pow_pos _))
 
 /--
+`divRemWith` on the normalized dividend, an array of its own: below the threshold of
+divide-and-conquer, `divRemBasecaseTop` divides it in place without a copy or an extra top limb.
+-/
+def divRemNorm (r : UInt32Array) (v : UInt32Array.Slice) (hn : 2 ≤ v.size) :
+    UInt32Array × UInt32Array :=
+  if v.size < config.divDC then divRemBasecaseTop r v hn else divRemWith config r v hn
+
+private theorem divRemNorm_spec (r : UInt32Array) (v : UInt32Array.Slice) (hn : 2 ≤ v.size)
+    (hvt : v[v.size - 1]'(by omega) ≠ 0) :
+    toNat (divRemNorm r v hn).1 * toNat v + toNat (divRemNorm r v hn).2 = toNat r ∧
+      toNat (divRemNorm r v hn).2 < toNat v := by
+  by_cases h : v.size < config.divDC
+  · have e : divRemNorm r v hn = divRemBasecaseTop r v hn := by
+      unfold divRemNorm
+      rw [ite_eq_left h]
+    rw [e]
+    exact divRemBasecaseTop_spec r v hn hvt
+  · have e : divRemNorm r v hn = divRemWith config r v hn := by
+      unfold divRemNorm
+      rw [ite_eq_right h]
+    rw [e]
+    exact divRemWith_spec config r v hn hvt
+
+/--
 `u / v` and `u % v` for a divisor of at least two limbs with a nonzero top limb, untrimmed:
-`u` and `v` are normalized, divided with `divRemWith`, and the remainder shifted back.
+`u` and `v` are normalized, divided with `divRemNorm`, and the remainder shifted back.
 -/
 def divModLimbs (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) : UInt32Array × UInt32Array :=
   let vt := v[v.size - 1]'(by omega)
@@ -111,7 +135,7 @@ def divModLimbs (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) : UInt32Array × U
   let vf := mulRow v f
   let v' := vf.toSlice.slice 0 (topSize vf)
   if h : 2 ≤ v'.size then
-    let p := divRemWith config (mulRow u f) v' h
+    let p := divRemNorm (mulRow u f) v' h
     (p.1, shiftRight p.2 (normShift vt))
   else
     divRemWith config u v hn
@@ -123,7 +147,7 @@ def divLimbsQ (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) : UInt32Array :=
   let vf := mulRow v f
   let v' := vf.toSlice.slice 0 (topSize vf)
   if h : 2 ≤ v'.size then
-    (divRemWith config (mulRow u f) v' h).1
+    (divRemNorm (mulRow u f) v' h).1
   else
     (divRemWith config u v hn).1
 
@@ -185,7 +209,7 @@ private theorem divModLimbs_spec (u v : UInt32Array.Slice) (hn : 2 ≤ v.size)
     have hpos : 0 < topSize (mulRow v f) := by
       simp only [UInt32Array.Slice.size_slice] at h
       omega
-    obtain ⟨h₁, h₂⟩ := divRemWith_spec config (mulRow u f) _ h (top_slice_topSize_ne_zero _ hpos)
+    obtain ⟨h₁, h₂⟩ := divRemNorm_spec (mulRow u f) _ h (top_slice_topSize_ne_zero _ hpos)
     rw [hv', toNat_mulRow] at h₁
     rw [hv'] at h₂
     simp only [toNat_toSlice] at h₁ h₂ ⊢
