@@ -103,15 +103,15 @@ division, and `topSize` usually stops at the first limb.
   instances, truncated subtraction and the bijection with `Nat`. About 15 ns per operation on
   words, against 9–10 ns for `Nat`, whose small values need no allocation.
 - [ ] **The fixed cost of small divisions:** `BigNat.div` takes 170 ns for a divisor of 2 limbs,
-  275 ns for 4 limbs and 707 ns for 16, against 47, 95 and 154 ns for `Nat`. Done: the normalized
+  247 ns for 4 limbs and 555 ns for 16, against 47, 95 and 154 ns for `Nat`. Done: the normalized
   dividend is divided in place when its top limb is below the divisor's (`divRemBasecaseTop`),
-  which saves its copy and one step of Algorithm D (12–22% from 3 to 16 limbs), and a `BigNat`
+  which saves its copy and one step of Algorithm D (12–22% from 3 to 16 limbs); a `BigNat`
   divided by a word goes to `divRem1` or `divRem2` without an array for the word (`divRemWord`,
-  2 limbs 192 → 170 ns; `%` by a word returns the word). Left: at 2 limbs, half the time is
+  2 limbs 192 → 170 ns; `%` by a word returns the word); Algorithm D works in one array, with
+  each quotient limb in the freed top limb of its window, and its compiled step allocates no pair
+  (`divLoopIn`, `divStepInFast`; 11–19% from 3 to 64 limbs). Left: at 2 limbs, half the time is
   allocation (the shifted copy of the dividend, its slices, the result pair, the trimmed
-  quotient), which normalizing on the fly in `divRem2`'s loop would remove; above, Algorithm D's
-  steps pay for `subMul1`'s result pair and the pairs that thread `(r, q)`, which storing each
-  quotient limb in the freed top limb of the window, as GMP does, would remove.
+  quotient), which normalizing on the fly in `divRem2`'s loop would remove.
 - [x] **Words near `2⁶⁴` in `BigNat`:** a sum or product of two words that overflows went
   through `limbsOfWord` and the array functions (about 95 ns). `mulWide` computes the product from
   the four products of halves, and `wideOf` makes the three or four limbs directly: `badd` at 2

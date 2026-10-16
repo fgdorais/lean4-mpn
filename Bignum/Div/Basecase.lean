@@ -21,9 +21,15 @@ three limbs of `W`. It is never too small, and when the top limb of `v` is at le
 at most one too large, which happens with probability about `2 / β`. The step subtracts `q̂ v`
 from the window in place with `subMul1`, like GMP's `mpn_submul_1`; the window went negative
 exactly when the borrow out of its low `n` limbs exceeds its top limb, and then `v` is added back
-and `q̂` decreased. Correctness only needs the estimate not to be too small. `Div` normalizes the
-divisor and the dividend, and divides the latter in place with `divRemBasecaseTop` when its top limb
-is below the divisor's, as it is after normalization.
+and `q̂` decreased. Correctness only needs the estimate not to be too small.
+
+The division works in one array, like GMP's: after step `j`, the window is below `v`, so its top
+limb `j + n` is zero, and the step writes the quotient limb there (`divLoopIn`). At the end the
+limbs below `n` are the remainder and the limbs from `n` on are the quotient. The compiled step
+(`divStepInFast`) ends the fold of `subMul1` with a continuation that finishes the step, so that
+it allocates no pair. `Div` normalizes the divisor and the dividend, and divides the latter in
+place with `divRemBasecaseTop` when its top limb is below the divisor's, as it is after
+normalization.
 -/
 
 open ScalarArray
@@ -452,23 +458,11 @@ def divStepCore (v : UInt32Array.Slice) (hn : 2 ≤ v.size) (j : Nat) (r : UInt3
     (r[j + v.size - 2]'(by omega)) (v[v.size - 1]'(by omega)) (v[v.size - 2]'(by omega))
   divFinish v j (subMul1 r j v qh (by omega)) qh (by rw [size_subMul1]; omega)
 
-/-- `divStepCore` with the quotient limb written into `q`. -/
-def divStepLimb (v : UInt32Array.Slice) (hn : 2 ≤ v.size) (j : Nat) (r q : UInt32Array)
-    (hr : j + v.size + 1 ≤ r.size) (hq : j < q.size) : UInt32Array × UInt32Array :=
-  let s := divStepCore v hn j r hr
-  (s.1, q.set j s.2 hq)
-
 private theorem size_divStepCore (v : UInt32Array.Slice) (hn : 2 ≤ v.size) (j : Nat)
     (r : UInt32Array) (hr : j + v.size + 1 ≤ r.size) :
     (divStepCore v hn j r hr).1.size = r.size := by
   simp only [divStepCore, divFinish]
   split <;> simp
-
-private theorem size_divStepLimb (v : UInt32Array.Slice) (hn : 2 ≤ v.size) (j : Nat)
-    (r q : UInt32Array) (hr : j + v.size + 1 ≤ r.size) (hq : j < q.size) :
-    (divStepLimb v hn j r q hr hq).1.size = r.size ∧
-      (divStepLimb v hn j r q hr hq).2.size = q.size :=
-  ⟨size_divStepCore v hn j r hr, by simp [divStepLimb]⟩
 
 /-- `r < P v (q + 1)` when `⌊⌊r / P⌋ / v⌋ ≤ q`. -/
 private theorem lt_of_div_div_le {R P V q : Nat} (hP : 0 < P) (hV : 0 < V) (h : R / P / V ≤ q) :
@@ -663,83 +657,261 @@ private theorem divStepCore_spec (v : UInt32Array.Slice) (hn : 2 ≤ v.size)
       (by omega)))
   simpa using this
 
-private theorem divStepLimb_spec (v : UInt32Array.Slice) (hn : 2 ≤ v.size)
-    (hvt : v[v.size - 1]'(by omega) ≠ 0) (j : Nat) (r q : UInt32Array)
-    (hr : j + v.size + 1 ≤ r.size) (hq : j < q.size)
-    (hbound : toNat r < toNat v * 2 ^ (32 * (j + 1)))
-    (hzj : q.toList[j]'(by simp; omega) = 0) :
-    toNat (divStepLimb v hn j r q hr hq).2 * toNat v + toNat (divStepLimb v hn j r q hr hq).1 =
-        toNat q * toNat v + toNat r ∧
-      toNat (divStepLimb v hn j r q hr hq).1 < toNat v * 2 ^ (32 * j) ∧
-      ∀ i (hi : i < j), (divStepLimb v hn j r q hr hq).2.toList[i]'(by
-        rw [UInt32Array.length_toList, (size_divStepLimb v hn j r q hr hq).2]; omega) =
-          q.toList[i]'(by simp; omega) := by
-  obtain ⟨h₁, h₂⟩ := divStepCore_spec v hn hvt j r hr hbound
-  refine ⟨?_, ?_, fun i hi => ?_⟩
-  · simp only [divStepLimb]
-    have hset := ofLimbs_set q.toList j (divStepCore v hn j r hr).2 (by simp; omega)
-    rw [hzj, UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero] at hset
-    rw [toNat_toSlice, UInt32Array.toList_set, hset, ← toNat_toSlice]
-    generalize toNat (divStepCore v hn j r hr).1 = r' at *
-    generalize (divStepCore v hn j r hr).2.toNat = qf at *
-    rw [Nat.add_mul, Nat.mul_assoc, Nat.mul_comm qf (toNat v)]
-    omega
-  · simp only [divStepLimb]
-    generalize toNat (divStepCore v hn j r hr).1 = r' at *
-    generalize (divStepCore v hn j r hr).2.toNat = qf at *
-    rw [Nat.mul_add, Nat.mul_one, Nat.mul_add] at h₂
-    rw [Nat.mul_comm (toNat v)]
-    omega
-  · simp only [divStepLimb, UInt32Array.toList_set]
-    exact List.getElem_set_ne (by omega) _
+/-! ## Framing
 
-/-- Computes the quotient limbs below `k`, from the top down, with one `divStepLimb` each. -/
-def divLoop (v : UInt32Array.Slice) (hn : 2 ≤ v.size) (k : Nat) (r q : UInt32Array)
-    (hr : k + v.size ≤ r.size) (hq : k ≤ q.size) : UInt32Array × UInt32Array :=
-  if hk : k = 0 then
-    (q, r)
+A step of the division only touches the window of limbs `j` to `j + n` of `r`. On `W ++ H` with
+the window in `W`, it acts on `W` and leaves `H` as it is, which lets the quotient limbs live above
+the window, in the limbs that the steps free.
+-/
+
+private theorem divAddBack_append (v : UInt32Array.Slice) (j : Nat) (W H : UInt32Array)
+    (qh e : UInt32) (h : j + v.size ≤ W.size) (h' : j + v.size ≤ (W ++ H).size) :
+    divAddBack v j (W ++ H) qh e h' =
+      ((divAddBack v j W qh e h).1 ++ H, (divAddBack v j W qh e h).2) := by
+  induction W, qh, e, h using divAddBack.induct v j with
+  | case1 W e h =>
+    rw [divAddBack, divAddBack]
+    simp
+  | case2 W qh e h hq p hle =>
+    simp only [p] at hle
+    rw [divAddBack, divAddBack]
+    simp only [hq, ↓reduceDIte, addMul1_append W H j v 1 h, hle, ↓reduceIte]
+  | case3 W qh e h hq p hlt ih =>
+    simp only [p] at hlt ih
+    rw [divAddBack, divAddBack]
+    simp only [hq, ↓reduceDIte, addMul1_append W H j v 1 h, hlt, ↓reduceIte]
+    exact ih _
+
+private theorem divFinish_append (v : UInt32Array.Slice) (j : Nat) (W H : UInt32Array)
+    (c qh : UInt32) (hp : j + v.size + 1 ≤ W.size) (hp' : j + v.size + 1 ≤ (W ++ H).size) :
+    divFinish v j (W ++ H, c) qh hp' =
+      ((divFinish v j (W, c) qh hp).1 ++ H, (divFinish v j (W, c) qh hp).2) := by
+  have hg : (W ++ H)[j + v.size]'(by simp; omega) = W[j + v.size] :=
+    UInt32Array.getElem_append_left (by omega)
+  simp only [divFinish, hg]
+  split
+  · simp only [set_append_left W H (j + v.size) _ (by omega)]
+  · simp only [set_append_left W H (j + v.size) _ (by omega)]
+    exact divAddBack_append v j _ H qh _ (by simp; omega) _
+
+private theorem divStepCore_append (v : UInt32Array.Slice) (hn : 2 ≤ v.size) (j : Nat)
+    (W H : UInt32Array) (hr : j + v.size + 1 ≤ W.size) (hr' : j + v.size + 1 ≤ (W ++ H).size) :
+    divStepCore v hn j (W ++ H) hr' =
+      ((divStepCore v hn j W hr).1 ++ H, (divStepCore v hn j W hr).2) := by
+  have g₀ : (W ++ H)[j + v.size]'(by simp; omega) = W[j + v.size] :=
+    UInt32Array.getElem_append_left (by omega)
+  have g₁ : (W ++ H)[j + v.size - 1]'(by simp; omega) = W[j + v.size - 1] :=
+    UInt32Array.getElem_append_left (by omega)
+  have g₂ : (W ++ H)[j + v.size - 2]'(by simp; omega) = W[j + v.size - 2] :=
+    UInt32Array.getElem_append_left (by omega)
+  simp only [divStepCore, g₀, g₁, g₂, subMul1_append W H j v _ (by omega)]
+  exact divFinish_append v j _ H _ _ (by rw [size_subMul1]; omega) _
+
+/-! ## The loop in one array -/
+
+/--
+One step of the division at quotient limb `j`, with the quotient limb written into limb `j + n`,
+which the step frees: after it, the window is below `v`, so its top limb is zero.
+-/
+public def divStepIn (v : UInt32Array.Slice) (hn : 2 ≤ v.size) (j : Nat) (r : UInt32Array)
+    (hr : j + v.size + 1 ≤ r.size) : UInt32Array :=
+  (divStepCore v hn j r hr).1.set (j + v.size) (divStepCore v hn j r hr).2
+    (by rw [size_divStepCore]; omega)
+
+@[simp] private theorem size_divStepIn (v : UInt32Array.Slice) (hn : 2 ≤ v.size) (j : Nat)
+    (r : UInt32Array) (hr : j + v.size + 1 ≤ r.size) : (divStepIn v hn j r hr).size = r.size := by
+  simp [divStepIn, size_divStepCore]
+
+/-! ### The compiled step
+
+`divStepInFast` subtracts the multiple of `v` with the fold of `subMul1Fast` and ends it with
+`foldInPlaceThen`, whose continuation finishes the step and writes the quotient limb, so that a
+step allocates no pair. `@[csimp]` makes the compiler use it in place of `divStepIn`; it comes
+before `divLoopIn` so that the loop is compiled with it.
+-/
+
+/-- The end of a step from the window `r'` and the borrow `b` out of its low `n` limbs. -/
+@[inline] def divFinishIn (v : UInt32Array.Slice) (j : Nat) (r' : UInt32Array) (b qh : UInt32)
+    (hp : j + v.size + 1 ≤ r'.size) : UInt32Array :=
+  let t := r'[j + v.size]
+  if b ≤ t then
+    r'.set (j + v.size) qh
   else
-    let s := divStepLimb v hn (k - 1) r q (by omega) (by omega)
-    divLoop v hn (k - 1) s.1 s.2
-      (by rw [(size_divStepLimb v hn (k - 1) r q (by omega) (by omega)).1]; omega)
-      (by rw [(size_divStepLimb v hn (k - 1) r q (by omega) (by omega)).2]; omega)
+    let p := divAddBack v j (r'.set (j + v.size) 0) qh (b - t) (by rw [UInt32Array.size_set]; omega)
+    p.1.set (j + v.size) p.2 (by rw [size_divAddBack, UInt32Array.size_set]; omega)
+
+/-- `divStepIn` with one fold and no pairs, which the compiler uses in its place. -/
+public def divStepInFast (v : UInt32Array.Slice) (hn : 2 ≤ v.size) (j : Nat) (r : UInt32Array)
+    (hr : j + v.size + 1 ≤ r.size) : UInt32Array :=
+  if hs : r.size < 4294967295 ∧ v.array.size < 4294967295 then
+    let qh := qEstimate3 (qEstimate (r[j + v.size]'(by omega)) (r[j + v.size - 1]'(by omega))
+      (v[v.size - 1]'(by omega))) (r[j + v.size]'(by omega)) (r[j + v.size - 1]'(by omega))
+      (r[j + v.size - 2]'(by omega)) (v[v.size - 1]'(by omega)) (v[v.size - 2]'(by omega))
+    let arr := v.array
+    let st := v.start.toUSize
+    r.foldInPlaceThen j.toUSize v.size.toUSize 0xFFFFFFFF
+      (subMul1Step arr st v.size.toUSize (lt_usizeSize hs.2) (limbU_bound v (lt_usizeSize hs.2)) qh)
+      (fun r' h => if hp : j + v.size + 1 ≤ r'.size then divFinishIn v j r' (~~~h) qh hp else r')
+      (by
+        have := USize.le_size
+        have := v.stop_le_array_size
+        have := v.start_le_stop
+        have := v.size_eq
+        rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]
+        omega)
+  else
+    divStepIn v hn j r hr
+
+private theorem set_set_same (r : UInt32Array) (i : Nat) (x y : UInt32) (h : i < r.size) (h') :
+    (r.set i x h).set i y h' = r.set i y h := by
+  apply UInt32Array.toList_inj.1
+  simp [UInt32Array.toList_set, List.set_set]
+
+/-- `divFinishIn` is `divFinish` followed by writing the quotient limb. -/
+private theorem divFinishIn_eq (v : UInt32Array.Slice) (j : Nat) (r' : UInt32Array)
+    (b qh : UInt32) (hp : j + v.size + 1 ≤ r'.size) :
+    divFinishIn v j r' b qh hp = (divFinish v j (r', b) qh hp).1.set (j + v.size)
+      (divFinish v j (r', b) qh hp).2 (by
+        simp only [divFinish]; split <;> simp <;> omega) := by
+  simp only [divFinishIn, divFinish]
+  split
+  · simp only [set_set_same]
+  · rfl
+
+@[csimp] public theorem divStepIn_eq_divStepInFast : @divStepIn = @divStepInFast := by
+  funext v hn j r hr
+  rw [divStepInFast]
+  split
+  · rename_i hs
+    rw [UInt32Array.foldInPlaceThen_eq, divStepIn]
+    simp only [divStepCore]
+    have hf : j.toUSize.toNat + v.size.toUSize.toNat ≤ r.size := by
+      have := USize.le_size
+      have := v.stop_le_array_size
+      have := v.start_le_stop
+      have := v.size_eq
+      rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]
+      omega
+    simp only [subMul1_eq_foldInPlace r j v _ (by omega) hs hf]
+    rw [dite_eq_left (by simp; omega), divFinishIn_eq]
+  · rfl
+
+/--
+The quotient limbs below `k`, from the top down, in one array: the remainder stays in the limbs
+below `k + n` and each quotient limb goes into the limb its step frees, so that at the end the
+limbs below `n` are the remainder and the limbs from `n` on are the quotient.
+-/
+def divLoopIn (v : UInt32Array.Slice) (hn : 2 ≤ v.size) (k : Nat) (r : UInt32Array)
+    (hr : k + v.size ≤ r.size) : UInt32Array :=
+  if hk : k = 0 then
+    r
+  else
+    divLoopIn v hn (k - 1) (divStepIn v hn (k - 1) r (by omega)) (by rw [size_divStepIn]; omega)
 termination_by k
 
-private theorem divLoop_spec (v : UInt32Array.Slice) (hn : 2 ≤ v.size)
-    (hvt : v[v.size - 1]'(by omega) ≠ 0) (k : Nat) (r q : UInt32Array)
-    (hr : k + v.size ≤ r.size) (hq : k ≤ q.size)
-    (hbound : toNat r < toNat v * 2 ^ (32 * k))
-    (hz : ∀ i (hi : i < k), q.toList[i]'(by simp; omega) = 0) :
-    toNat (divLoop v hn k r q hr hq).1 * toNat v + toNat (divLoop v hn k r q hr hq).2 =
-        toNat q * toNat v + toNat r ∧
-      toNat (divLoop v hn k r q hr hq).2 < toNat v := by
-  induction k generalizing r q with
+/-- An array of `m + 1` limbs with its top limb set is its first `m` limbs and that limb. -/
+private theorem set_last_eq_append (r : UInt32Array) (m : Nat) (x : UInt32) (h : m + 1 = r.size) :
+    r.set m x (by omega) = r.extract 0 m ++ UInt32Array.mk #[x] := by
+  apply UInt32Array.toList_inj.1
+  apply List.ext_getElem (by simp; omega)
+  intro i h₁ h₂
+  simp only [UInt32Array.toList_set, UInt32Array.toList_append] at h₁ h₂ ⊢
+  simp only [List.length_set, UInt32Array.length_toList] at h₁
+  by_cases hi : i < m
+  · rw [List.getElem_set_ne (by omega), List.getElem_append_left (by simp; omega)]
+    simp
+  · have him : i = m := by omega
+    subst him
+    rw [List.getElem_set_self, List.getElem_append_right (by simp; omega)]
+    simp
+
+private theorem divLoopIn_spec (v : UInt32Array.Slice) (hn : 2 ≤ v.size)
+    (hvt : v[v.size - 1]'(by omega) ≠ 0) (k : Nat) (W H : UInt32Array) (hW : W.size = k + v.size)
+    (hbound : ofLimbs W.toList < toNat v * 2 ^ (32 * k)) :
+    (divLoopIn v hn k (W ++ H) (by simp; omega)).size = W.size + H.size ∧
+      ofLimbs ((divLoopIn v hn k (W ++ H) (by simp; omega)).extract 0 v.size).toList < toNat v ∧
+      ofLimbs ((divLoopIn v hn k (W ++ H) (by simp; omega)).extract 0 v.size).toList +
+          toNat v * ofLimbs ((divLoopIn v hn k (W ++ H) (by simp; omega)).extract v.size
+            (W.size + H.size)).toList =
+        ofLimbs W.toList + toNat v * 2 ^ (32 * k) * ofLimbs H.toList := by
+  induction k generalizing W H with
   | zero =>
-    simp only [toNat_toSlice] at hbound ⊢
-    rw [divLoop]
-    simp only [↓reduceDIte]
-    exact ⟨trivial, by simpa using hbound⟩
+    have e : divLoopIn v hn 0 (W ++ H) (by simp; omega) = W ++ H := by
+      rw [divLoopIn]; simp
+    rw [e]
+    simp only [Nat.zero_add] at hW
+    have e₀ : (W ++ H).extract 0 v.size = W := by
+      rw [← hW]; exact UInt32Array.extract_append_eq_left W H
+    have e₁ : (W ++ H).extract v.size (W.size + H.size) = H := by
+      rw [← hW]; exact UInt32Array.extract_append_eq_right W H
+    simp only [Nat.mul_zero, Nat.pow_zero, Nat.mul_one] at hbound ⊢
+    rw [e₀, e₁]
+    exact ⟨by simp, hbound, rfl⟩
   | succ k ih =>
-    obtain ⟨h₁, h₂, h₃⟩ := divStepLimb_spec v hn hvt k r q (by omega) (by omega) hbound
-      (hz k (by omega))
-    obtain ⟨ih₁, ih₂⟩ := ih _ _ _ _ h₂ (fun i hi => by rw [h₃ i hi]; exact hz i (by omega))
-    simp only [toNat_toSlice] at ih₁ ih₂ h₁ ⊢
-    rw [divLoop]
-    simp only [Nat.add_one_ne_zero, ↓reduceDIte, Nat.add_sub_cancel]
-    exact ⟨by rw [ih₁, h₁], ih₂⟩
+    have hr : k + v.size + 1 ≤ W.size := by omega
+    -- The step on `W` and its quotient limb.
+    obtain ⟨s₁, s₂⟩ := divStepCore_spec v hn hvt k W hr (by rw [toNat_toSlice]; exact hbound)
+    generalize hS : divStepCore v hn k W hr = S at s₁ s₂
+    simp only [toNat_toSlice] at s₁ s₂
+    have hSs : S.1.size = W.size := by rw [← hS, size_divStepCore]
+    -- After the step, the window is below `v βᵏ`, so its top limb can go.
+    have hlt : ofLimbs S.1.toList < toNat v * 2 ^ (32 * k) := by
+      rw [Nat.mul_add, Nat.mul_one, Nat.mul_add] at s₂
+      rw [Nat.mul_comm (toNat v)]
+      omega
+    have hW₁ : ofLimbs (S.1.extract 0 (k + v.size)).toList = ofLimbs S.1.toList := by
+      have hv := toNat_lt v
+      have : toNat v * 2 ^ (32 * k) ≤ 2 ^ (32 * (k + v.size)) := by
+        rw [Nat.mul_add, Nat.pow_add, Nat.mul_comm]
+        exact Nat.mul_le_mul_left _ (Nat.le_of_lt hv)
+      rw [UInt32Array.toList_extract, List.extract_eq_take_drop, List.drop_zero, Nat.sub_zero]
+      exact ofLimbs_take_of_lt (by omega)
+    have hstep : divStepIn v hn k (W ++ H) (by simp; omega) =
+        S.1.extract 0 (k + v.size) ++ (UInt32Array.mk #[S.2] ++ H) := by
+      rw [divStepIn]
+      simp only [divStepCore_append v hn k W H hr, hS]
+      rw [set_append_left S.1 H (k + v.size) _ (by omega),
+        set_last_eq_append S.1 (k + v.size) S.2 (by omega), UInt32Array.append_assoc]
+    have e : divLoopIn v hn (k + 1) (W ++ H) (by simp; omega) =
+        divLoopIn v hn k (S.1.extract 0 (k + v.size) ++ (UInt32Array.mk #[S.2] ++ H))
+          (by simp; omega) := by
+      rw [divLoopIn]
+      simp only [Nat.add_one_ne_zero, ↓reduceDIte, Nat.add_sub_cancel, hstep]
+    obtain ⟨i₁, i₂, i₃⟩ := ih (S.1.extract 0 (k + v.size)) (UInt32Array.mk #[S.2] ++ H)
+      (by simp; omega) (by rw [hW₁]; exact hlt)
+    have hsz : (S.1.extract 0 (k + v.size)).size + (UInt32Array.mk #[S.2] ++ H).size =
+        W.size + H.size := by
+      simp; omega
+    simp only [hsz] at i₁ i₃
+    have hH : ofLimbs (UInt32Array.mk #[S.2] ++ H).toList =
+        S.2.toNat + 2 ^ 32 * ofLimbs H.toList := by
+      rw [UInt32Array.toList_append, ofLimbs_append]
+      simp
+    rw [hW₁, hH] at i₃
+    rw [e]
+    refine ⟨i₁, i₂, ?_⟩
+    rw [i₃, ← s₁, Nat.mul_add 32 k 1, Nat.mul_one, Nat.pow_add]
+    generalize ofLimbs S.1.toList = R at *
+    generalize S.2.toNat = q at *
+    generalize toNat v = V at *
+    generalize ofLimbs H.toList = Q at *
+    generalize 2 ^ (32 * k) = P at *
+    simp only [Nat.mul_add]
+    grind
 
 /-! ## Schoolbook division -/
 
 /--
 `u / v` and `u % v` by Knuth's Algorithm D, for a divisor of at least two limbs, as a quotient of
-`max (u.size + 1) v.size - v.size` limbs and a remainder of `max (u.size + 1) v.size` limbs,
-untrimmed. It is exact when the top limb of `v` is not zero.
+`max (u.size + 1) v.size - v.size` limbs and a remainder of `v.size` limbs, untrimmed: `u` is
+copied with a zero limb on top, and `divLoopIn` divides the copy in place. It is exact when the top
+limb of `v` is not zero.
 -/
 public def divRemBasecase (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) :
     UInt32Array × UInt32Array :=
-  divLoop v hn (max (u.size + 1) v.size - v.size) (copyPadded u (max (u.size + 1) v.size))
-    (.replicate (max (u.size + 1) v.size - v.size) 0)
-    (by rw [size_copyPadded _ _ (by omega)]; omega) (by simp)
+  let a := divLoopIn v hn (max (u.size + 1) v.size - v.size)
+    (copyPadded u (max (u.size + 1) v.size)) (by rw [size_copyPadded _ _ (by omega)]; omega)
+  (a.extract v.size a.size, a.extract 0 v.size)
 
 /-- `divRemBasecase` divides: `u = q v + r` with `r < v`. -/
 public theorem divRemBasecase_spec (u v : UInt32Array.Slice) (hn : 2 ≤ v.size)
@@ -763,27 +935,36 @@ public theorem divRemBasecase_spec (u v : UInt32Array.Slice) (hn : 2 ≤ v.size)
       omega
     have := Nat.mul_le_mul_right (2 ^ (32 * (max (u.size + 1) v.size - v.size))) h₂
     omega
-  have h := divLoop_spec v hn hvt (max (u.size + 1) v.size - v.size)
-    (copyPadded u (max (u.size + 1) v.size)) (.replicate (max (u.size + 1) v.size - v.size) 0)
-    (by rw [size_copyPadded _ _ (by omega)]; omega) (by simp)
-    (by rw [toNat_copyPadded]; exact hbound) (fun i hi => by simp)
-  rw [toNat_copyPadded] at h
-  simp only [divRemBasecase]
-  rw [toNat_toSlice (UInt32Array.replicate _ 0)] at h
-  simpa using h
+  have hcs : (copyPadded u (max (u.size + 1) v.size)).size =
+      max (u.size + 1) v.size - v.size + v.size := by
+    rw [size_copyPadded _ _ (by omega)]; omega
+  have hcv : ofLimbs (copyPadded u (max (u.size + 1) v.size)).toList = toNat u := by
+    rw [← toNat_toSlice, toNat_copyPadded]
+  have hspec := divLoopIn_spec v hn hvt (max (u.size + 1) v.size - v.size)
+    (copyPadded u (max (u.size + 1) v.size)) .empty hcs (by rw [hcv]; exact hbound)
+  simp only [UInt32Array.append_empty, UInt32Array.size_empty, Nat.add_zero,
+    UInt32Array.toList_empty, ofLimbs_nil, Nat.mul_zero, hcv] at hspec
+  obtain ⟨h₁, h₂, h₃⟩ := hspec
+  simp only [divRemBasecase, toNat_toSlice]
+  simp only [h₁]
+  refine ⟨?_, h₂⟩
+  rw [Nat.mul_comm]
+  omega
 
 /--
 `divRemBasecase` on an array `r` that already has room for the first step. When the top limb of
-`r` is below the top limb of `v`, `r < v βᵏ` with `k = r.size - v.size`, and the loop runs on `r`
-itself, without the copy and the extra top limb that `divRemBasecase` adds, whose quotient limb
-would be zero. A dividend normalized with the divisor's shift has this form: its top limb is below
-the factor `2ˢ ≤ 2³¹`, and the divisor's is at least `2³¹`.
+`r` is below the top limb of `v`, `r < v βᵏ` with `k = r.size - v.size`, and `divLoopIn` runs on
+`r` itself, without the copy and the extra top limb that `divRemBasecase` adds, whose quotient limb
+would be zero, and with the quotient limbs in `r`: the result is cut into the quotient, from limb
+`n` on, and the remainder, below. A dividend normalized with the divisor's shift has this form:
+its top limb is below the factor `2ˢ ≤ 2³¹`, and the divisor's is at least `2³¹`.
 -/
 public def divRemBasecaseTop (r : UInt32Array) (v : UInt32Array.Slice) (hn : 2 ≤ v.size) :
     UInt32Array × UInt32Array :=
   if h : v.size ≤ r.size then
     if r[r.size - 1]'(by omega) < v[v.size - 1]'(by omega) then
-      divLoop v hn (r.size - v.size) r (.replicate (r.size - v.size) 0) (by omega) (by simp)
+      let a := divLoopIn v hn (r.size - v.size) r (by omega)
+      (a.extract v.size a.size, a.extract 0 v.size)
     else
       divRemBasecase r.toSlice v hn
   else
@@ -796,8 +977,10 @@ public theorem divRemBasecaseTop_spec (r : UInt32Array) (v : UInt32Array.Slice) 
       toNat (divRemBasecaseTop r v hn).2 < toNat v := by
   by_cases hs : v.size ≤ r.size
   · by_cases htop : r[r.size - 1]'(by omega) < v[v.size - 1]'(by omega)
-    · have e : divRemBasecaseTop r v hn = divLoop v hn (r.size - v.size) r
-          (.replicate (r.size - v.size) 0) (by omega) (by simp) := by
+    · have e : divRemBasecaseTop r v hn =
+          ((divLoopIn v hn (r.size - v.size) r (by omega)).extract v.size
+            (divLoopIn v hn (r.size - v.size) r (by omega)).size,
+          (divLoopIn v hn (r.size - v.size) r (by omega)).extract 0 v.size) := by
         unfold divRemBasecaseTop
         rw [dite_eq_left hs, ite_eq_left htop]
       rw [e]
@@ -823,10 +1006,16 @@ public theorem divRemBasecaseTop_spec (r : UInt32Array) (v : UInt32Array.Slice) 
           (v[v.size - 1]'(by omega)).toNat] at h₁
         rw [toNat_toSlice]
         omega
-      have h := divLoop_spec v hn hvt (r.size - v.size) r (.replicate (r.size - v.size) 0)
-        (by omega) (by simp) hbound (fun i hi => by simp)
-      rw [toNat_toSlice (UInt32Array.replicate _ 0)] at h
-      simpa using h
+      have hspec := divLoopIn_spec v hn hvt (r.size - v.size) r .empty (by omega)
+        (by rw [toNat_toSlice] at hbound; exact hbound)
+      simp only [UInt32Array.append_empty, UInt32Array.size_empty, Nat.add_zero,
+        UInt32Array.toList_empty, ofLimbs_nil, Nat.mul_zero] at hspec
+      obtain ⟨h₁, h₂, h₃⟩ := hspec
+      simp only [toNat_toSlice]
+      simp only [h₁]
+      refine ⟨?_, h₂⟩
+      rw [Nat.mul_comm]
+      omega
     · have e : divRemBasecaseTop r v hn = divRemBasecase r.toSlice v hn := by
         unfold divRemBasecaseTop
         rw [dite_eq_left hs, ite_eq_right htop]

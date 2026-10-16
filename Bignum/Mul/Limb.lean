@@ -400,7 +400,7 @@ public def subMul1 (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UI
 The step of the fold of `subMul1Fast`: subtracts limb `k` of the slice `arr[st...st + len]` times
 `x` from `y`, with the borrow carried as `2³² - 1` minus it (`UInt32.subMulBiased`).
 -/
-@[inline] def subMul1Step (arr : UInt32Array) (st len : USize) (has : arr.size < USize.size)
+@[inline] public def subMul1Step (arr : UInt32Array) (st len : USize) (has : arr.size < USize.size)
     (h : st.toNat + len.toNat ≤ arr.size) (x : UInt32) (k : USize) (hk : k.toNat < len.toNat)
     (y h' : UInt32) : UInt32 × UInt32 :=
   y.subMulBiased (limbU arr st len has h k hk) x h'
@@ -461,6 +461,22 @@ private theorem foldInPlace_loop_subMul1 (r : UInt32Array) (off : Nat) (a : UInt
         (toNat_toUSize (by omega)) 0 0 h _ _]
     simp
   · rfl
+
+/--
+`subMul1` as the fold of `subMul1Fast`, for callers that end the fold themselves with
+`foldInPlaceThen`, as division does.
+-/
+public theorem subMul1_eq_foldInPlace (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
+    (x : UInt32) (h : off + a.size ≤ r.size)
+    (hs : r.size < 4294967295 ∧ a.array.size < 4294967295) (hf) :
+    subMul1 r off a x h =
+      ((r.foldInPlace off.toUSize a.size.toUSize 0xFFFFFFFF
+          (subMul1Step a.array a.start.toUSize a.size.toUSize (lt_usizeSize hs.2)
+            (limbU_bound a (lt_usizeSize hs.2)) x) hf).1,
+        ~~~(r.foldInPlace off.toUSize a.size.toUSize 0xFFFFFFFF
+          (subMul1Step a.array a.start.toUSize a.size.toUSize (lt_usizeSize hs.2)
+            (limbU_bound a (lt_usizeSize hs.2)) x) hf).2) := by
+  rw [subMul1_eq_subMul1Fast, subMul1Fast, dite_eq_left hs, UInt32Array.foldInPlaceThen_eq]
 
 private theorem subMul1Loop_spec (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
     (x : UInt32) (j : Nat) (c : UInt32) (h : off + a.size ≤ r.size) (hj : j ≤ a.size) :
@@ -535,5 +551,62 @@ public theorem toNat_subMul1 (r : UInt32Array) (off : Nat) (a : UInt32Array.Slic
       toNat r + 2 ^ (32 * (off + a.size)) * (subMul1 r off a x h).2.toNat := by
   simpa [subMul1, toNat] using (subMul1Loop_spec r off a x 0 0 h (Nat.zero_le _)).2
 
+/-! ## Framing
+
+`addMul1` and `subMul1` only touch the limbs from `off` to `off + a.size`: on `W ++ H` with those
+limbs in `W`, they act on `W` and leave `H` as it is. Division keeps its quotient limbs above the
+window it works on, and uses this to reason about the window alone.
+-/
+
+/-- Setting a limb of `W` in `W ++ H`. -/
+public theorem set_append_left (W H : UInt32Array) (i : Nat) (x : UInt32) (h : i < W.size)
+    (h' : i < (W ++ H).size) : (W ++ H).set i x h' = W.set i x h ++ H := by
+  apply UInt32Array.toList_inj.1
+  simp only [UInt32Array.toList_set, UInt32Array.toList_append]
+  exact List.set_append_left _ _ (by simpa using h)
+
+private theorem addMul1Loop_append (W H : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
+    (x : UInt32) (j : Nat) (c : UInt32) (h : off + a.size ≤ W.size)
+    (h' : off + a.size ≤ (W ++ H).size) :
+    addMul1Loop (W ++ H) off a x j c h' =
+      ((addMul1Loop W off a x j c h).1 ++ H, (addMul1Loop W off a x j c h).2) := by
+  induction W, j, c, h using addMul1Loop.induct off a x with
+  | case1 W j c h hj p ih =>
+    rw [addMul1Loop, addMul1Loop]
+    simp only [hj, ↓reduceDIte]
+    have hg : (W ++ H)[off + j]'(by simp; omega) = W[off + j] :=
+      UInt32Array.getElem_append_left (by omega)
+    simp only [hg, set_append_left W H (off + j) _ (by omega)]
+    exact ih _
+  | case2 W j c h hj =>
+    rw [addMul1Loop, addMul1Loop]
+    simp only [hj, ↓reduceDIte]
+
+public theorem addMul1_append (W H : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
+    (x : UInt32) (h : off + a.size ≤ W.size) (h' : off + a.size ≤ (W ++ H).size) :
+    addMul1 (W ++ H) off a x h' = ((addMul1 W off a x h).1 ++ H, (addMul1 W off a x h).2) :=
+  addMul1Loop_append W H off a x 0 0 h h'
+
+private theorem subMul1Loop_append (W H : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
+    (x : UInt32) (j : Nat) (c : UInt32) (h : off + a.size ≤ W.size)
+    (h' : off + a.size ≤ (W ++ H).size) :
+    subMul1Loop (W ++ H) off a x j c h' =
+      ((subMul1Loop W off a x j c h).1 ++ H, (subMul1Loop W off a x j c h).2) := by
+  induction W, j, c, h using subMul1Loop.induct off a x with
+  | case1 W j c h hj p ih =>
+    rw [subMul1Loop, subMul1Loop]
+    simp only [hj, ↓reduceDIte]
+    have hg : (W ++ H)[off + j]'(by simp; omega) = W[off + j] :=
+      UInt32Array.getElem_append_left (by omega)
+    simp only [hg, set_append_left W H (off + j) _ (by omega)]
+    exact ih _
+  | case2 W j c h hj =>
+    rw [subMul1Loop, subMul1Loop]
+    simp only [hj, ↓reduceDIte]
+
+public theorem subMul1_append (W H : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
+    (x : UInt32) (h : off + a.size ≤ W.size) (h' : off + a.size ≤ (W ++ H).size) :
+    subMul1 (W ++ H) off a x h' = ((subMul1 W off a x h).1 ++ H, (subMul1 W off a x h).2) :=
+  subMul1Loop_append W H off a x 0 0 h h'
 
 end Bignum
