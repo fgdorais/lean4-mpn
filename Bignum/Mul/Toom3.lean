@@ -531,6 +531,194 @@ public theorem toom3_spec (a b : UInt32Array.Slice) (hb : 12 ≤ b.size) (hab : 
   exact toom3Finish_spec (a.size + b.size) ((b.size + 2) / 3) _ _ _ _ _ A₀ A₁ A₂ B₀ B₁ B₂ (by omega)
     hv₀ hv₄ hw₁ hw₂ hw₃ hlt
 
+/-! ## Toom-3 by 2
+
+For `a` about one and a half times as long as `b`, `toom3` would split both at a third of `b`, which
+leaves a long top part of `a` in all five products. `toom32` splits `a` in three and `b` in two at
+`k = ⌈a.size / 3⌉`, like GMP's `mpn_toom32_mul`: `c(t) = (a₀ + a₁ t + a₂ t²) (b₀ + b₁ t)` has
+four coefficients, from `c₀ = a₀ b₀`, `c₃ = a₂ b₁` and the values `w₁ = c(1)` and `w₂ = c(2)`:
+
+* `r₁ = w₁ - c₀ - c₃ = c₁ + c₂`,
+* `s₂ = (w₂ - c₀ - 8 c₃) / 2 = c₁ + 2 c₂`,
+* `c₂ = s₂ - r₁`, `c₁ = r₁ - c₂`.
+-/
+
+/-- `x₀ + x₁`. -/
+def eval1₂ (x₀ x₁ : UInt32Array.Slice) : UInt32Array := addLimbs x₀ x₁
+
+/-- `x₀ + 2 x₁`. -/
+def eval2₂ (x₀ x₁ : UInt32Array.Slice) : UInt32Array := addLimbs x₀ (mulRow x₁ 2)
+
+private theorem size_eval1₂ (x₀ x₁ : UInt32Array.Slice) :
+    (eval1₂ x₀ x₁).size = max x₀.size x₁.size + 1 := by
+  simp [eval1₂]
+
+private theorem size_eval2₂ (x₀ x₁ : UInt32Array.Slice) :
+    (eval2₂ x₀ x₁).size = max x₀.size (x₁.size + 1) + 1 := by
+  simp [eval2₂]
+
+private theorem toNat_eval1₂ (x₀ x₁ : UInt32Array.Slice) :
+    toNat (eval1₂ x₀ x₁) = toNat x₀ + toNat x₁ := by
+  rw [eval1₂, toNat_addLimbs]
+
+private theorem toNat_eval2₂ (x₀ x₁ : UInt32Array.Slice) :
+    toNat (eval2₂ x₀ x₁) = toNat x₀ + 2 * toNat x₁ := by
+  rw [eval2₂, toNat_addLimbs, toNat_mulRow]
+  simp only [UInt32.reduceToNat]
+  omega
+
+/-- `c₁` and `c₂` from `c₀`, `w₁ = c(1)`, `w₂ = c(2)` and `c₃`. -/
+def toom32Interp (c₀ w₁ w₂ c₃ : UInt32Array) : UInt32Array × UInt32Array :=
+  let r₁ := subVal (subVal w₁ c₀) c₃
+  let s₂ := divExact2 (subVal (subVal w₂ c₀) (mulRow c₃ 8))
+  let c₂ := subVal s₂ r₁
+  (subVal r₁ c₂, c₂)
+
+private theorem toom32Interp_spec (c₀ w₁ w₂ c₃ : UInt32Array) (C₀ C₁ C₂ C₃ : Nat)
+    (h₀ : toNat c₀ = C₀) (h₃ : toNat c₃ = C₃) (h₁ : toNat w₁ = C₀ + C₁ + C₂ + C₃)
+    (h₂ : toNat w₂ = C₀ + 2 * C₁ + 4 * C₂ + 8 * C₃) :
+    toNat (toom32Interp c₀ w₁ w₂ c₃).1 = C₁ ∧ toNat (toom32Interp c₀ w₁ w₂ c₃).2 = C₂ := by
+  simp only [toom32Interp]
+  have m8 : toNat (mulRow c₃ 8) = 8 * C₃ := by
+    rw [toNat_mulRow, h₃]; simp only [UInt32.reduceToNat]; omega
+  have hr₁ : toNat (subVal (subVal w₁ c₀) c₃) = C₁ + C₂ := by
+    rw [toNat_subVal _ _ (by rw [toNat_subVal _ _ (by omega)]; omega),
+      toNat_subVal _ _ (by omega)]
+    omega
+  have hs₂a : toNat (subVal (subVal w₂ c₀) (mulRow c₃ 8)) = 2 * (C₁ + 2 * C₂) := by
+    rw [toNat_subVal _ _ (by rw [toNat_subVal _ _ (by omega)]; omega),
+      toNat_subVal _ _ (by omega)]
+    omega
+  have hs₂ : toNat (divExact2 (subVal (subVal w₂ c₀) (mulRow c₃ 8))) = C₁ + 2 * C₂ :=
+    toNat_divExact2 _ _ hs₂a
+  generalize subVal (subVal w₁ c₀) c₃ = r₁ at *
+  generalize divExact2 (subVal (subVal w₂ c₀) (mulRow c₃ 8)) = s₂ at *
+  have hc₂ : toNat (subVal s₂ r₁) = C₂ := by
+    rw [toNat_subVal _ _ (by omega)]; omega
+  generalize subVal s₂ r₁ = c₂ at *
+  refine ⟨?_, hc₂⟩
+  rw [toNat_subVal _ _ (by omega)]
+  omega
+
+/-- `c₀ + c₁ x + c₂ x² + c₃ x³` as `n` limbs, where `x = βᵏ`. -/
+def toom32Assemble (n k : Nat) (c₀ c₁ c₂ c₃ : UInt32Array) : UInt32Array :=
+  let r₀ := addInto (.replicate n 0) 0 (c₀.toSlice 0 (n - 0))
+  let r₁ := addInto r₀ k (c₁.toSlice 0 (n - k))
+  let r₂ := addInto r₁ (2 * k) (c₂.toSlice 0 (n - 2 * k))
+  addInto r₂ (3 * k) (c₃.toSlice 0 (n - 3 * k))
+
+private theorem toom32Assemble_spec (n k : Nat) (c₀ c₁ c₂ c₃ : UInt32Array) (C₀ C₁ C₂ C₃ : Nat)
+    (hk : 3 * k ≤ n) (h₀ : toNat c₀ = C₀) (h₁ : toNat c₁ = C₁) (h₂ : toNat c₂ = C₂)
+    (h₃ : toNat c₃ = C₃)
+    (hlt : C₀ + 2 ^ (32 * k) * C₁ + 2 ^ (32 * (2 * k)) * C₂ + 2 ^ (32 * (3 * k)) * C₃ <
+      2 ^ (32 * n)) :
+    (toom32Assemble n k c₀ c₁ c₂ c₃).size = n ∧
+      toNat (toom32Assemble n k c₀ c₁ c₂ c₃) = C₀ + 2 ^ (32 * k) * C₁ +
+        2 ^ (32 * (2 * k)) * C₂ + 2 ^ (32 * (3 * k)) * C₃ := by
+  generalize hS : C₀ + 2 ^ (32 * k) * C₁ + 2 ^ (32 * (2 * k)) * C₂ +
+    2 ^ (32 * (3 * k)) * C₃ = S at hlt
+  obtain ⟨s₀, v₀⟩ := addAt_term (.replicate n 0) c₀ n 0 0 C₀ S (by simp) (by omega)
+    (by rw [toNat_toSlice]; simp) h₀ (by simp; omega) hlt
+  obtain ⟨s₁, v₁⟩ := addAt_term _ c₁ n k _ C₁ S s₀ (by omega) v₀ h₁ (by
+    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; omega) hlt
+  obtain ⟨s₂, v₂⟩ := addAt_term _ c₂ n (2 * k) _ C₂ S s₁ (by omega) v₁ h₂ (by
+    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; omega) hlt
+  obtain ⟨s₃, v₃⟩ := addAt_term _ c₃ n (3 * k) _ C₃ S s₂ (by omega) v₂ h₃ (by
+    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; omega) hlt
+  refine ⟨s₃, ?_⟩
+  rw [toom32Assemble, v₃, ← hS]
+  simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul, Nat.zero_add]
+
+private theorem toom32_sum (A₀ A₁ A₂ B₀ B₁ x : Nat) :
+    A₀ * B₀ + x * (A₀ * B₁ + A₁ * B₀) + x * x * (A₁ * B₁ + A₂ * B₀) + x * x * x * (A₂ * B₁) =
+      (A₀ + x * A₁ + x * x * A₂) * (B₀ + x * B₁) := by
+  grind
+
+/--
+The product `a * b` by one step of Toom-3 by 2, splitting `a` in three and `b` in two at
+`k = ⌈a.size / 3⌉`, for `k ≤ b.size ≤ a.size` and `12 ≤ b.size`. It computes the four products
+with `mulRec`, which only receives inputs smaller than `a` and `b` together.
+-/
+public def toom32 (a b : UInt32Array.Slice) (hb : 12 ≤ b.size) (hab : b.size ≤ a.size)
+    (hk : (a.size + 2) / 3 ≤ b.size)
+    (mulRec : (x y : UInt32Array.Slice) → x.size + y.size < a.size + b.size → UInt32Array) :
+    UInt32Array :=
+  let k := (a.size + 2) / 3
+  let a₀ := a.slice 0 k
+  let a₁ := a.slice k (2 * k)
+  let a₂ := a.slice (2 * k) a.size
+  let b₀ := b.slice 0 k
+  let b₁ := b.slice k b.size
+  let c₀ := mulRec a₀ b₀ (by simp only [a₀, b₀, UInt32Array.Slice.size_slice]; omega)
+  let c₃ := mulRec a₂ b₁ (by simp only [a₂, b₁, UInt32Array.Slice.size_slice]; omega)
+  let w₁ := mulRec (eval1 a₀ a₁ a₂) (eval1₂ b₀ b₁) (by
+    simp only [UInt32Array.size_toSlice, size_eval1, size_eval1₂, a₀, a₁, a₂, b₀, b₁,
+      UInt32Array.Slice.size_slice]
+    omega)
+  let w₂ := mulRec (eval2 a₀ a₁ a₂) (eval2₂ b₀ b₁) (by
+    simp only [UInt32Array.size_toSlice, size_eval2, size_eval2₂, a₀, a₁, a₂, b₀, b₁,
+      UInt32Array.Slice.size_slice]
+    omega)
+  let i := toom32Interp c₀ w₁ w₂ c₃
+  toom32Assemble (a.size + b.size) k c₀ i.1 i.2 c₃
+
+public theorem toom32_spec (a b : UInt32Array.Slice) (hb : 12 ≤ b.size) (hab : b.size ≤ a.size)
+    (hk : (a.size + 2) / 3 ≤ b.size)
+    (mulRec : (x y : UInt32Array.Slice) → x.size + y.size < a.size + b.size → UInt32Array)
+    (hrec : ∀ x y h, (mulRec x y h).size = x.size + y.size ∧
+      toNat (mulRec x y h) = toNat x * toNat y) :
+    (toom32 a b hb hab hk mulRec).size = a.size + b.size ∧
+      toNat (toom32 a b hb hab hk mulRec) = toNat a * toNat b := by
+  have ha := toNat_slice_three a ((a.size + 2) / 3) (by omega)
+  have hb' := toNat_slice_add_toNat_slice b ((a.size + 2) / 3) hk
+  have hA := toNat_lt a
+  have hB := toNat_lt b
+  -- The four products.
+  obtain ⟨-, hv₀⟩ := hrec (a.slice 0 ((a.size + 2) / 3)) (b.slice 0 ((a.size + 2) / 3))
+    (by simp only [UInt32Array.Slice.size_slice]; omega)
+  obtain ⟨-, hv₃⟩ := hrec (a.slice (2 * ((a.size + 2) / 3)) a.size)
+    (b.slice ((a.size + 2) / 3) b.size) (by simp only [UInt32Array.Slice.size_slice]; omega)
+  obtain ⟨-, hw₁⟩ := hrec
+    (eval1 (a.slice 0 ((a.size + 2) / 3)) (a.slice ((a.size + 2) / 3) (2 * ((a.size + 2) / 3)))
+      (a.slice (2 * ((a.size + 2) / 3)) a.size))
+    (eval1₂ (b.slice 0 ((a.size + 2) / 3)) (b.slice ((a.size + 2) / 3) b.size))
+    (by simp only [UInt32Array.size_toSlice, size_eval1, size_eval1₂,
+      UInt32Array.Slice.size_slice]; omega)
+  obtain ⟨-, hw₂⟩ := hrec
+    (eval2 (a.slice 0 ((a.size + 2) / 3)) (a.slice ((a.size + 2) / 3) (2 * ((a.size + 2) / 3)))
+      (a.slice (2 * ((a.size + 2) / 3)) a.size))
+    (eval2₂ (b.slice 0 ((a.size + 2) / 3)) (b.slice ((a.size + 2) / 3) b.size))
+    (by simp only [UInt32Array.size_toSlice, size_eval2, size_eval2₂,
+      UInt32Array.Slice.size_slice]; omega)
+  rw [toNat_eval1, toNat_eval1₂] at hw₁
+  rw [toNat_eval2, toNat_eval2₂] at hw₂
+  generalize toNat (a.slice 0 ((a.size + 2) / 3)) = A₀ at *
+  generalize toNat (a.slice ((a.size + 2) / 3) (2 * ((a.size + 2) / 3))) = A₁ at *
+  generalize toNat (a.slice (2 * ((a.size + 2) / 3)) a.size) = A₂ at *
+  generalize toNat (b.slice 0 ((a.size + 2) / 3)) = B₀ at *
+  generalize toNat (b.slice ((a.size + 2) / 3) b.size) = B₁ at *
+  have hlt : toNat a * toNat b < 2 ^ (32 * (a.size + b.size)) := by
+    rw [Nat.mul_add, Nat.pow_add]
+    exact Nat.mul_lt_mul'' hA hB
+  -- Interpolation recovers the middle coefficients.
+  have hi := toom32Interp_spec _ _ _ _ (A₀ * B₀) (A₀ * B₁ + A₁ * B₀) (A₁ * B₁ + A₂ * B₀)
+    (A₂ * B₁) hv₀ hv₃ (by rw [hw₁]; grind) (by rw [hw₂]; grind)
+  have hx₂ : 2 ^ (32 * (2 * ((a.size + 2) / 3))) =
+      2 ^ (32 * ((a.size + 2) / 3)) * 2 ^ (32 * ((a.size + 2) / 3)) := by
+    rw [← Nat.pow_add]; congr 1; omega
+  have hx₃ : 2 ^ (32 * (3 * ((a.size + 2) / 3))) = 2 ^ (32 * ((a.size + 2) / 3)) *
+      2 ^ (32 * ((a.size + 2) / 3)) * 2 ^ (32 * ((a.size + 2) / 3)) := by
+    rw [← Nat.pow_add, ← Nat.pow_add]; congr 1; omega
+  have hS : A₀ * B₀ + 2 ^ (32 * ((a.size + 2) / 3)) * (A₀ * B₁ + A₁ * B₀) +
+      2 ^ (32 * (2 * ((a.size + 2) / 3))) * (A₁ * B₁ + A₂ * B₀) +
+      2 ^ (32 * (3 * ((a.size + 2) / 3))) * (A₂ * B₁) = toNat a * toNat b := by
+    rw [hx₂, hx₃, toom32_sum, ha, hb']
+  simp only [toom32]
+  have key := toom32Assemble_spec (a.size + b.size) ((a.size + 2) / 3) _ _ _ _ _ _ _ _
+    (by omega) hv₀ hi.1 hi.2 hv₃ (by rw [hS]; exact hlt)
+  rw [hS] at key
+  exact key
+
 /-! ## Toom-3 squaring -/
 
 /--

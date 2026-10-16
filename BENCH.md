@@ -38,7 +38,7 @@ noise.
 |---|---|---|---|
 | `add`, `sub` | `add`, `sub` on limbs | `n` and `n` limbs | linear, one pass |
 | `mul1` | `mul1` | `n` limbs times a limb | linear, one pass |
-| `mul` | `mulLimbs` | `n` by `n` limbs | Comba schoolbook, Karatsuba from 64, Toom-3 from 480 |
+| `mul` | `mulLimbs` | `n` by `n` limbs | Comba schoolbook, Karatsuba from 64, Toom-3 from 480; Toom-3 by 2 from 160 between 4:3 and 2:1 |
 | `sqr` | `sqr` | `n` limbs | Comba square, Karatsuba from 96, Toom-3 from 720 |
 | `div` | `div`, the quotient | `2n` by `n` limbs | `divRem1`, `divRem2`, Algorithm D, Burnikel–Ziegler from 176 |
 | `shr` | `shiftRight` by 37 bits | `n` limbs | one pass in place |
@@ -126,6 +126,7 @@ above; ratios before `15534f8` for `BigNat` rows were inflated by the hashing ch
 
 | date | commit | change | effect |
 |---|---|---|---|
+| 2026-10-16 | (uncommitted) | Toom-3 by 2 (`toom32`) between 4:3 and 2:1 | `1536 × 1024`: 406 → 247 µs; `3072 × 1024`: 814 → 495 µs; `768 × 512`: 132 → 88 µs |
 | 2026-10-16 | `13709c1` | Lehmer's word steps: one division, Jebelean's condition, unboxed cofactors | `bgcd` 4: 0.93 → 0.70 µs; 16: 5.5 → 4.3 µs; 64: 30 → 25 µs |
 | 2026-10-16 | `5029210` | up to 4 limbs by a 2-limb word on words alone (`divRem128`), quotient-only `div2` | `bdiv` 2: 159 → 86 ns; `div` 2: 151 → 137 ns |
 | 2026-10-16 | `d7c6bf5` | Lehmer steps in one pass per number (`mulSubMul`), determinant on `Nat` | `bgcd` 4: 3.10 → 0.91 µs; 64: 82 → 30 µs; 1024: 3.8 → 2.3 ms |

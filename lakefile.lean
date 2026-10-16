@@ -23,9 +23,9 @@ changing the options, build once with `-R` to reconfigure.
 * `march`: compiles the library's C code with `-march=<value>`, for example `native`, which lets
   the C compiler use the vector instructions of the machine (7–13% faster products on AVX2). The
   binaries then run only on processors with those instructions.
-* `mulKaratsuba`, `mulToom3`, `mulUnbalanced`, `sqrBasecase`, `sqrKaratsuba`, `sqrToom3`,
-  `divDC`: the thresholds, by the names of the fields of `Bignum.Config`. The keys have no dots,
-  since TOML passes a quoted key as one name.
+* `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulUnbalanced`, `sqrBasecase`, `sqrKaratsuba`,
+  `sqrToom3`, `divDC`: the thresholds, by the names of the fields of `Bignum.Config`. The keys
+  have no dots, since TOML passes a quoted key as one name.
 -/
 
 /--
@@ -42,6 +42,7 @@ def thresholdOptions : Array LeanOption :=
     | none => #[]
   opt `mul.karatsubaThreshold (get_config? mulKaratsuba) ++
     opt `mul.toom3Threshold (get_config? mulToom3) ++
+    opt `mul.toom32Threshold (get_config? mulToom32) ++
     opt `mul.unbalancedThreshold (get_config? mulUnbalanced) ++
     opt `sqr.basecaseThreshold (get_config? sqrBasecase) ++
     opt `sqr.karatsubaThreshold (get_config? sqrKaratsuba) ++

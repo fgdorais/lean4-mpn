@@ -73,7 +73,14 @@ division, and `topSize` usually stops at the first limb.
   digits from recursive divisions by its top half and the low-half product, from 176 limbs.
   Division is now about 5× behind `Nat` from 128 limbs up, instead of a gap growing with size
   (17× at 4096 limbs).
-- [ ] **Unbalanced Toom** (`toom32`, `toom42`) instead of halving the longer operand.
+- [x] **Toom-3 by 2** (`toom32`, GMP's `mpn_toom32_mul`): for a longer operand between four
+  thirds and twice as long as the shorter, from 160 limbs, it splits them in three and two at a
+  third of the longer, where `toom3` split both at a third of the shorter and left a long top part
+  in its five products; four products, at the points `0, 1, 2, ∞`. Shapes of 3:2 and 3:1 (which
+  halves into 3:2) are 27–39% faster from 512 limbs (`1536 × 1024`: 406 → 247 µs, 8.2 → 5.0×
+  GMP). The tuner finds 120, but direct timings are slower until about 150.
+- [ ] **Toom-4 by 2 and Toom-4 by 3** (`toom42`, `toom43`) for ratios near 2 and 4:3, where
+  halving the longer operand or `toom32` leave pieces of unequal sizes.
 - [ ] **Toom-4, Toom-6½, Toom-8½**, then FFT multiplication for very large numbers.
 - [ ] **The rest of `Nat`:**
   - [x] shifts by bits (`<<<`, `>>>`, `Bits`): one pass each, in place over a copy with

@@ -138,6 +138,32 @@ def tuneToom3 (karatsuba : Nat) (h : 4 ≤ karatsuba) (log : Bool) : IO Nat := m
     IO.eprintln s!"warning: Toom-3 never won up to {karatsuba + 784} limbs; using that"
     return karatsuba + 784
 
+/--
+Tunes `mulToom32`: where one step of Toom-3 by 2 beats the dispatcher without it, on operands of
+`3 n / 2` and `n` limbs, with Karatsuba and Toom-3 from the tuned thresholds below it.
+-/
+def tuneToom32 (karatsuba toom3 : Nat) (h : 4 ≤ karatsuba) (h₃ : 12 ≤ toom3) (log : Bool) :
+    IO Nat := medianOf 3 do
+  -- A threshold for Toom-3 by 2 beyond every size tried, so that only the others recurse.
+  let cfg : Config := {
+    mulKaratsuba := karatsuba, four_le_mulKaratsuba := h
+    mulToom3 := toom3, twelve_le_mulToom3 := h₃
+    mulToom32 := 100000 }
+  let toom32Step (a b : UInt32Array.Slice) : UInt32Array :=
+    if h : 12 ≤ b.size ∧ b.size ≤ a.size ∧ (a.size + 2) / 3 ≤ b.size then
+      toom32 a b h.1 h.2.1 h.2.2 fun x y _ => mulLimbsWith cfg x y
+    else
+      mulLimbsWith cfg a b
+  let sizes := (List.range 50).map (16 + 8 * ·)
+  match ← crossover (fun a b => mulLimbsWith cfg a b) toom32Step sizes
+      (shape := fun n => (3 * n / 2, n)) (log := log) with
+  | some n =>
+    if log then IO.println s!"  found {n}"
+    return n
+  | none =>
+    IO.eprintln "warning: Toom-3 by 2 never won up to 408 limbs; using 408"
+    return 408
+
 /-- Tunes `sqrBasecase`: where the schoolbook square starts to beat multiplying. -/
 def tuneSqrBasecase (log : Bool) : IO Nat := medianOf 3 do
   let sizes := (List.range 61).map (2 + 2 * ·)
@@ -222,6 +248,8 @@ public def main (args : List String) : IO UInt32 := do
   let karatsuba ← tuneKaratsuba log
   IO.println "mulToom3: one Toom-3 step against Karatsuba"
   let toom3 ← tuneToom3 (max 4 karatsuba) (by omega) log
+  IO.println "mulToom32: one step of Toom-3 by 2 against the others, at 3:2"
+  let toom32 ← tuneToom32 (max 4 karatsuba) (max 12 toom3) (by omega) (by omega) log
   IO.println "mulUnbalanced: halving the longer operand against schoolbook, at 8:1"
   let unbalanced ← tuneUnbalanced (max 4 karatsuba) (by omega) log
   IO.println "sqrBasecase: the schoolbook square against multiplying"
@@ -234,7 +262,8 @@ public def main (args : List String) : IO UInt32 := do
   let divDC ← tuneDivDC log
   let cfg : Config := {
     mulKaratsuba := max 4 karatsuba, four_le_mulKaratsuba := by omega,
-    mulToom3 := max 12 toom3, twelve_le_mulToom3 := by omega, mulUnbalanced := unbalanced
+    mulToom3 := max 12 toom3, twelve_le_mulToom3 := by omega,
+    mulToom32 := max 12 toom32, twelve_le_mulToom32 := by omega, mulUnbalanced := unbalanced
     sqrBasecase, sqrKaratsuba := max 4 sqrKaratsuba, four_le_sqrKaratsuba := by omega,
     sqrToom3 := max 12 sqrToom3, twelve_le_sqrToom3 := by omega,
     divDC := max 4 divDC, four_le_divDC := by omega }
@@ -243,6 +272,7 @@ public def main (args : List String) : IO UInt32 := do
   IO.println s!"Default: {repr ({} : Config)}"
   IO.println ""
   let opts := [("mulKaratsuba", cfg.mulKaratsuba), ("mulToom3", cfg.mulToom3),
+    ("mulToom32", cfg.mulToom32),
     ("mulUnbalanced", cfg.mulUnbalanced), ("sqrBasecase", cfg.sqrBasecase),
     ("sqrKaratsuba", cfg.sqrKaratsuba), ("sqrToom3", cfg.sqrToom3), ("divDC", cfg.divDC)]
   IO.println "To compile these into the library, add to its `require` in lakefile.toml:"
