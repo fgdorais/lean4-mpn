@@ -1287,27 +1287,37 @@ private theorem gcd_unimodular (a b : Nat) (A B C D : Int)
     · exact Int.ofNat_dvd_left.1 (Int.dvd_add (Int.dvd_trans ga (Int.dvd_mul_left C _))
         (Int.dvd_trans gb (Int.dvd_mul_left D _)))
 
+/-- The cofactors of a run of Lehmer's steps, as one object with unboxed fields. -/
+structure Cofactors where
+  A : Int64
+  B : Int64
+  C : Int64
+  D : Int64
+
 /--
-Euclid's algorithm on the leading words `x` and `y` of two numbers, with the cofactors `A`, `B`,
-`C`, `D` of the steps so far, as in Knuth's Algorithm L: a step is taken only while the quotients
-of `x + A` by `y + C` and of `x + B` by `y + D` agree, which makes it a step of the full numbers,
-and while the cofactors stay below `2³¹`, which `mulSubMul` needs. It computes in `Int64`, since
-`Int` boxes values from `2³¹`; nothing is proved about it, and `gcd` checks the cofactors it
-returns.
+Euclid's algorithm on the leading words `x ≥ y` of two numbers, with the cofactors `A`, `B`, `C`,
+`D` of the steps so far, like GMP's `hgcd2` on one word: it stops when the remainder falls below
+`2³¹`, half the bits of the words, which keeps the cofactors below `2³¹`, as `mulSubMul` needs, or
+when Jebelean's condition fails, which makes the quotients those of the full numbers. A quotient of
+`1`, the most common, costs a comparison rather than a division. It computes in `Int64`, since `Int`
+boxes values from `2³¹`; nothing is proved about it, since `lehmerStep` checks the cofactors it
+returns and `gcd` takes a step of Euclid's algorithm when they do not apply.
 -/
-def lehmerSteps (x y A B C D : Int64) : Nat → Int64 × Int64 × Int64 × Int64
-  | 0 => (A, B, C, D)
+def lehmerSteps (x y A B C D : Int64) : Nat → Cofactors
+  | 0 => ⟨A, B, C, D⟩
   | f + 1 =>
-    if y + C = 0 ∨ y + D = 0 then (A, B, C, D)
+    if y < 0x80000000 then ⟨A, B, C, D⟩
     else
-      let q := (x + A) / (y + C)
-      if q ≠ (x + B) / (y + D) then (A, B, C, D)
-      else
-        let C' := A - q * C
-        let D' := B - q * D
-        if C' ≤ -0x80000000 ∨ 0x80000000 ≤ C' ∨ D' ≤ -0x80000000 ∨ 0x80000000 ≤ D' then
-          (A, B, C, D)
-        else lehmerSteps y (x - q * y) C D C' D' f
+      let q : Int64 := if x < y + y then 1 else x / y
+      let r := x - q * y
+      let C' := A - q * C
+      let D' := B - q * D
+      -- Jebelean's condition: the quotient is that of the full numbers when the remainder and
+      -- the difference of the remainders exceed the cofactors and their differences.
+      if r < C'.abs ∨ r < D'.abs ∨ y - r < (C' - C).abs ∨ y - r < (D' - D).abs ∨
+          0x80000000 ≤ C'.abs ∨ 0x80000000 ≤ D'.abs then
+        ⟨A, B, C, D⟩
+      else lehmerSteps y r C D C' D' f
 
 /--
 The numbers `|A x + B y|` and `|C x + D y|` of a step of Lehmer's algorithm with the cofactors
@@ -1417,19 +1427,24 @@ private theorem lehmerStep_gcd (x y : BigNat) (A B C D : Int) (p : BigNat × Big
       · exact absurd h (by simp)
   · exact absurd h (by simp)
 
+/-- Two words, as one object with unboxed fields. -/
+structure LeadWords where
+  x : Int64
+  y : Int64
+
 /--
 The leading 62 bits of `a`, normalized so that its top bit is set, and the bits of `b` at the same
 positions, as the words of Lehmer's algorithm. Their values only affect its speed: every step on
 the full numbers is checked.
 -/
-def leadWords (a b : UInt32Array) : Int64 × Int64 :=
+def leadWords (a b : UInt32Array) : LeadWords :=
   let n := a.size
   let c := (31 - (a.getD (n - 1) 0).log2).toUInt64
   let lead (t₂ t₁ t₀ : UInt32) : Int64 :=
     let w := (((t₂.toUInt64 <<< 32) ||| t₁.toUInt64) <<< c) ||| (t₀.toUInt64 >>> (32 - c))
     (w >>> 2).toInt64
-  (lead (a.getD (n - 1) 0) (a.getD (n - 2) 0) (a.getD (n - 3) 0),
-    lead (b.getD (n - 1) 0) (b.getD (n - 2) 0) (b.getD (n - 3) 0))
+  ⟨lead (a.getD (n - 1) 0) (a.getD (n - 2) 0) (a.getD (n - 3) 0),
+    lead (b.getD (n - 1) 0) (b.getD (n - 2) 0) (b.getD (n - 3) 0)⟩
 
 /--
 The greatest common divisor, by Lehmer's algorithm: the cofactors of Euclid's steps on the leading
@@ -1446,8 +1461,8 @@ public def gcd (x y : BigNat) : BigNat :=
     else if blt x y then gcd y (mod x y)
     else
       let w := leadWords x.limbs y.limbs
-      let m := lehmerSteps w.1 w.2 1 0 0 1 100
-      match lehmerStep x y m.1.toInt m.2.1.toInt m.2.2.1.toInt m.2.2.2.toInt with
+      let m := lehmerSteps w.x w.y 1 0 0 1 100
+      match lehmerStep x y m.A.toInt m.B.toInt m.C.toInt m.D.toInt with
       | some p => if _hy : blt p.2 y then gcd p.1 p.2 else gcd y (mod x y)
       | none => gcd y (mod x y)
 termination_by y.toNat
