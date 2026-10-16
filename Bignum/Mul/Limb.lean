@@ -398,12 +398,12 @@ public def subMul1 (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UI
 
 /--
 The step of the fold of `subMul1Fast`: subtracts limb `k` of the slice `arr[st...st + len]` times
-`x` from `y`.
+`x` from `y`, with the borrow carried as `2³² - 1` minus it (`UInt32.subMulBiased`).
 -/
 @[inline] def subMul1Step (arr : UInt32Array) (st len : USize) (has : arr.size < USize.size)
     (h : st.toNat + len.toNat ≤ arr.size) (x : UInt32) (k : USize) (hk : k.toNat < len.toNat)
-    (y c : UInt32) : UInt32 × UInt32 :=
-  y.subMul (limbU arr st len has h k hk) x c
+    (y h' : UInt32) : UInt32 × UInt32 :=
+  y.subMulBiased (limbU arr st len has h k hk) x h'
 
 /-- `subMul1` as a `foldInPlace`, which the compiler uses in its place, as for `addMul1Fast`. -/
 public def subMul1Fast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UInt32)
@@ -411,8 +411,9 @@ public def subMul1Fast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x 
   if hs : r.size < 4294967295 ∧ a.array.size < 4294967295 then
     let arr := a.array
     let st := a.start.toUSize
-    r.foldInPlace off.toUSize a.size.toUSize 0
+    r.foldInPlaceThen off.toUSize a.size.toUSize 0xFFFFFFFF
       (subMul1Step arr st a.size.toUSize (lt_usizeSize hs.2) (limbU_bound a (lt_usizeSize hs.2)) x)
+      (fun r' h' => (r', ~~~h'))
       (by
         have := USize.le_size
         have := a.stop_le_array_size
@@ -423,20 +424,23 @@ public def subMul1Fast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x 
   else
     subMul1Loop r off a x 0 0 h
 
-/-- The fold of `subMul1Fast` from limb `k` on is `subMul1Loop` from limb `k` on. -/
+/--
+The fold of `subMul1Fast` from limb `k` on, with the borrow `c` carried as `~~~c`, is
+`subMul1Loop` from limb `k` on.
+-/
 private theorem foldInPlace_loop_subMul1 (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
     (x : UInt32) (has : a.array.size < USize.size) (s n : Nat) (hs : s = off) (hn : n = a.size)
     (k : Nat) (c : UInt32) (h : off + a.size ≤ r.size) (h' hlen) :
     UInt32Array.foldInPlace.loop a.size.toUSize
         (subMul1Step a.array a.start.toUSize a.size.toUSize has (limbU_bound a has) x) s n r h'
-        hlen k c =
-      subMul1Loop r off a x k c h := by
+        hlen k (~~~c) =
+      ((subMul1Loop r off a x k c h).1, ~~~(subMul1Loop r off a x k c h).2) := by
   subst s n
   induction r, k, c, h using subMul1Loop.induct off a x with
   | case1 r k c h hk p ih =>
     rw [UInt32Array.foldInPlace.loop, subMul1Loop]
     simp only [hk, ↓reduceDIte]
-    simp only [subMul1Step, limbU_eq a has k _ hk]
+    simp only [subMul1Step, limbU_eq a has k _ hk, UInt32.subMulBiased_not]
     exact ih _
   | case2 r k c h hk =>
     rw [UInt32Array.foldInPlace.loop, subMul1Loop]
@@ -451,8 +455,11 @@ private theorem foldInPlace_loop_subMul1 (r : UInt32Array) (off : Nat) (a : UInt
     have := a.stop_le_array_size
     have := a.start_le_stop
     have := a.size_eq
-    exact (foldInPlace_loop_subMul1 r off a x (lt_usizeSize hs.2) _ _ (toNat_toUSize (by omega))
-      (toNat_toUSize (by omega)) 0 0 h _ _).symm
+    rw [UInt32Array.foldInPlaceThen_eq, UInt32Array.foldInPlace,
+      show (0xFFFFFFFF : UInt32) = ~~~0 from rfl,
+      foldInPlace_loop_subMul1 r off a x (lt_usizeSize hs.2) _ _ (toNat_toUSize (by omega))
+        (toNat_toUSize (by omega)) 0 0 h _ _]
+    simp
   · rfl
 
 private theorem subMul1Loop_spec (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)

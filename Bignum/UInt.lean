@@ -284,3 +284,35 @@ public theorem UInt32.subMul_spec (y x v c : UInt32) :
     Nat.reduceMod, Nat.reducePow] at *
   generalize x.toNat * v.toNat = p at *
   omega
+
+/--
+`subMul` with the borrow `c` carried as `h = 2³² - 1 - c`, which shortens the dependency chain
+from one limb to the next. The value `y - x v - c` lies in `[2³² - 2⁶⁴, 2³²)`, so adding
+`2⁶⁴ - 2³²` makes it a word, whose low half is the limb and whose high half is `2³² - 1` minus the
+next borrow: the step is `y - x v - (2³³ - 1) + h`, without the negation of the borrow.
+-/
+@[inline, expose] public def UInt32.subMulBiased (y x v h : UInt32) : UInt32 × UInt32 :=
+  let t := y.toUInt64 - x.toUInt64 * v.toUInt64 - 0x1FFFFFFFF + h.toUInt64
+  (t.toUInt32, (t >>> 32).toUInt32)
+
+public theorem UInt32.subMulBiased_not (y x v c : UInt32) :
+    y.subMulBiased x v (~~~c) = ((y.subMul x v c).1, ~~~(y.subMul x v c).2) := by
+  have := y.toNat_lt
+  have := x.toNat_lt
+  have := v.toNat_lt
+  have := c.toNat_lt
+  have : x.toNat * v.toNat ≤ (2 ^ 32 - 1) * (2 ^ 32 - 1) := Nat.mul_le_mul (by omega) (by omega)
+  simp only [subMulBiased, subMul, Prod.mk.injEq]
+  constructor
+  · apply UInt32.toNat_inj.1
+    simp only [UInt64.toNat_toUInt32, UInt64.toNat_sub, UInt64.toNat_add, UInt64.toNat_mul,
+      UInt32.toNat_toUInt64, UInt32.toNat_not, UInt64.toNat_ofNat, Nat.reduceMod, Nat.reducePow,
+      UInt32.size] at *
+    generalize x.toNat * v.toNat = p at *
+    omega
+  · apply UInt32.toNat_inj.1
+    simp only [UInt64.toNat_toUInt32, UInt64.toNat_sub, UInt64.toNat_add, UInt64.toNat_mul,
+      UInt32.toNat_toUInt64, UInt32.toNat_not, UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow,
+      UInt64.toNat_ofNat, Nat.reduceMod, Nat.reducePow, UInt32.size] at *
+    generalize x.toNat * v.toNat = p at *
+    omega
