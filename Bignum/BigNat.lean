@@ -12,6 +12,7 @@ public import Bignum.Sqr
 public import Bignum.Div
 public import Bignum.Bits
 public import Bignum.Decimal
+public import Bignum.MulSubMul
 import Std.Data.String.ToNat
 import all Init.Data.Repr
 
@@ -1084,9 +1085,10 @@ private theorem gcd_unimodular (a b : Nat) (A B C D : Int)
 /--
 Euclid's algorithm on the leading words `x` and `y` of two numbers, with the cofactors `A`, `B`,
 `C`, `D` of the steps so far, as in Knuth's Algorithm L: a step is taken only while the quotients
-of `x + A` by `y + C` and of `x + B` by `y + D` agree, which makes it a step of the full numbers.
-It computes in `Int64`, since `Int` boxes values from `2³¹`; nothing is proved about it, and `gcd`
-checks the determinant of the cofactors it returns.
+of `x + A` by `y + C` and of `x + B` by `y + D` agree, which makes it a step of the full numbers,
+and while the cofactors stay below `2³¹`, which `mulSubMul` needs. It computes in `Int64`, since
+`Int` boxes values from `2³¹`; nothing is proved about it, and `gcd` checks the cofactors it
+returns.
 -/
 def lehmerSteps (x y A B C D : Int64) : Nat → Int64 × Int64 × Int64 × Int64
   | 0 => (A, B, C, D)
@@ -1095,61 +1097,120 @@ def lehmerSteps (x y A B C D : Int64) : Nat → Int64 × Int64 × Int64 × Int64
     else
       let q := (x + A) / (y + C)
       if q ≠ (x + B) / (y + D) then (A, B, C, D)
-      else lehmerSteps y (x - q * y) C D (A - q * C) (B - q * D) f
+      else
+        let C' := A - q * C
+        let D' := B - q * D
+        if C' ≤ -0x80000000 ∨ 0x80000000 ≤ C' ∨ D' ≤ -0x80000000 ∨ 0x80000000 ≤ D' then
+          (A, B, C, D)
+        else lehmerSteps y (x - q * y) C D C' D' f
 
-/-- `|A x + B y|`, from the signs of `A` and `B`. -/
-def absComb (A B : Int) (x y : BigNat) : BigNat :=
-  if (0 ≤ A ∧ 0 ≤ B) ∨ (A ≤ 0 ∧ B ≤ 0) then ofNat A.natAbs * x + ofNat B.natAbs * y
-  else if blt (ofNat A.natAbs * x) (ofNat B.natAbs * y) then
-    ofNat B.natAbs * y - ofNat A.natAbs * x
-  else
-    ofNat A.natAbs * x - ofNat B.natAbs * y
+/--
+The numbers `|A x + B y|` and `|C x + D y|` of a step of Lehmer's algorithm with the cofactors
+`A`, `B`, `C`, `D`, when the step is valid: the cofactors are below `2³¹`, their determinant is
+`±1`, their signs alternate as in Euclid's algorithm, and both numbers are nonnegative. Each
+number is a difference of two multiples, from `mulSubMul` in one pass, and the determinant is
+checked on `Nat`, where its products fit in a word.
+-/
+def lehmerStep (x y : BigNat) (A B C D : Int) : Option (BigNat × BigNat) :=
+  let a := A.natAbs
+  let b := B.natAbs
+  let c := C.natAbs
+  let d := D.natAbs
+  if a < 2 ^ 31 ∧ b < 2 ^ 31 ∧ c < 2 ^ 31 ∧ d < 2 ^ 31 ∧ (a * d = b * c + 1 ∨ b * c = a * d + 1)
+  then
+    if 0 ≤ A ∧ B ≤ 0 ∧ C ≤ 0 ∧ 0 ≤ D then
+      let u := mulSubMul x.limbs y.limbs a.toUInt32 b.toUInt32
+      let v := mulSubMul y.limbs x.limbs d.toUInt32 c.toUInt32
+      if u.2 = false ∧ v.2 = false then
+        some (ofLimbs (trim u.1) (isTrimmed_trim _), ofLimbs (trim v.1) (isTrimmed_trim _))
+      else none
+    else if A ≤ 0 ∧ 0 ≤ B ∧ 0 ≤ C ∧ D ≤ 0 then
+      let u := mulSubMul y.limbs x.limbs b.toUInt32 a.toUInt32
+      let v := mulSubMul x.limbs y.limbs c.toUInt32 d.toUInt32
+      if u.2 = false ∧ v.2 = false then
+        some (ofLimbs (trim u.1) (isTrimmed_trim _), ofLimbs (trim v.1) (isTrimmed_trim _))
+      else none
+    else none
+  else none
 
-/-- `A X` is `±(|A| X)` according to the sign of `A`. -/
-private theorem mul_eq_natAbs_mul (A : Int) (X : Nat) :
-    (0 ≤ A → A * X = ((A.natAbs * X : Nat) : Int)) ∧
-      (A ≤ 0 → A * X = -((A.natAbs * X : Nat) : Int)) := by
-  refine ⟨fun h => ?_, fun h => ?_⟩
-  · push_cast
-    rw [Int.natAbs_of_nonneg h]
-  · push_cast
-    rw [Int.ofNat_natAbs_of_nonpos h, Int.neg_mul, Int.neg_neg]
+/-- `p X - q Y` from `mulSubMul`, when it is not negative, as `|P X + Q Y|`. -/
+private theorem toNat_mulSubMul_natAbs (X Y : UInt32Array) (p q : Nat) (P Q : Int)
+    (hp : p < 2 ^ 31) (hq : q < 2 ^ 31) (hP : P = p) (hQ : Q = -(q : Int))
+    (hn : (mulSubMul X Y p.toUInt32 q.toUInt32).2 = false) :
+    Bignum.toNat (trim (mulSubMul X Y p.toUInt32 q.toUInt32).1) =
+      (P * Bignum.toNat X + Q * Bignum.toNat Y).natAbs := by
+  have hpu : p.toUInt32.toNat = p := by simp [Nat.toUInt32_eq, UInt32.toNat_ofNat']; omega
+  have hqu : q.toUInt32.toNat = q := by simp [Nat.toUInt32_eq, UInt32.toNat_ofNat']; omega
+  have h := (mulSubMul_spec X Y p.toUInt32 q.toUInt32 (by omega) (by omega)).1 hn
+  rw [hpu, hqu] at h
+  rw [toNat_trim, hP, hQ]
+  generalize Bignum.toNat (mulSubMul X Y p.toUInt32 q.toUInt32).1 = R at *
+  generalize Bignum.toNat X = Xv at *
+  generalize Bignum.toNat Y = Yv at *
+  have : (p : Int) * Xv + -(q : Int) * Yv = (R : Int) := by
+    have h' : ((R + Yv * q : Nat) : Int) = ((Xv * p : Nat) : Int) := by rw [h]
+    push_cast at h'
+    rw [Int.neg_mul]
+    rw [Int.mul_comm (p : Int), Int.mul_comm (q : Int)]
+    omega
+  rw [this, Int.natAbs_natCast]
 
-private theorem toNat_absComb (A B : Int) (x y : BigNat) :
-    (absComb A B x y).toNat = (A * x.toNat + B * y.toNat).natAbs := by
-  obtain ⟨hA₁, hA₂⟩ := mul_eq_natAbs_mul A x.toNat
-  obtain ⟨hB₁, hB₂⟩ := mul_eq_natAbs_mul B y.toNat
-  have hp : (ofNat A.natAbs * x).toNat = A.natAbs * x.toNat := by
-    rw [toNat_hMul, toNat_ofNat]
-  have hq : (ofNat B.natAbs * y).toNat = B.natAbs * y.toNat := by
-    rw [toNat_hMul, toNat_ofNat]
-  unfold absComb
-  generalize A.natAbs * x.toNat = P at *
-  generalize B.natAbs * y.toNat = Q at *
-  split
-  · rename_i h
-    rw [toNat_hAdd, hp, hq]
-    rcases h with ⟨h₁, h₂⟩ | ⟨h₁, h₂⟩
-    · rw [hA₁ h₁, hB₁ h₂]; omega
-    · rw [hA₂ h₁, hB₂ h₂]; omega
-  · rename_i h
-    split
-    · rename_i hpq
-      rw [blt_iff, hp, hq] at hpq
-      rw [toNat_hSub, hp, hq]
-      by_cases hA : 0 ≤ A
-      · have hB : B ≤ 0 := by omega
-        rw [hA₁ hA, hB₂ hB]; omega
-      · have hB : 0 ≤ B := by omega
-        rw [hA₂ (by omega), hB₁ hB]; omega
-    · rename_i hpq
-      rw [blt_iff, hp, hq] at hpq
-      rw [toNat_hSub, hp, hq]
-      by_cases hA : 0 ≤ A
-      · have hB : B ≤ 0 := by omega
-        rw [hA₁ hA, hB₂ hB]; omega
-      · have hB : 0 ≤ B := by omega
-        rw [hA₂ (by omega), hB₁ hB]; omega
+/-- A valid step of Lehmer's algorithm keeps the greatest common divisor. -/
+private theorem lehmerStep_gcd (x y : BigNat) (A B C D : Int) (p : BigNat × BigNat)
+    (h : lehmerStep x y A B C D = some p) :
+    Nat.gcd p.1.toNat p.2.toNat = Nat.gcd x.toNat y.toNat := by
+  unfold lehmerStep at h
+  simp only at h
+  split at h
+  · rename_i hc
+    obtain ⟨ha, hb, hc', hd, hdet⟩ := hc
+    -- The determinant `A D - B C = |A||D| - |B||C|` in either sign pattern.
+    have hdet' (hAD : A * D = (A.natAbs * D.natAbs : Nat))
+        (hBC : B * C = (B.natAbs * C.natAbs : Nat)) : A * D - B * C = 1 ∨ A * D - B * C = -1 := by
+      rw [hAD, hBC]
+      rcases hdet with e | e
+      · left; rw [e]; push_cast; omega
+      · right; rw [e]; push_cast; omega
+    split at h
+    · rename_i hs
+      obtain ⟨hA, hB, hC, hD⟩ := hs
+      split at h
+      · rename_i hn
+        obtain ⟨hu, hv⟩ := hn
+        rw [Option.some.injEq] at h
+        subst h
+        simp only [toNat_ofLimbs]
+        have hA' : A = (A.natAbs : Int) := (Int.natAbs_of_nonneg hA).symm
+        have hD' : D = (D.natAbs : Int) := (Int.natAbs_of_nonneg hD).symm
+        have hB' : B = -(B.natAbs : Int) := by rw [Int.ofNat_natAbs_of_nonpos hB, Int.neg_neg]
+        have hC' : C = -(C.natAbs : Int) := by rw [Int.ofNat_natAbs_of_nonpos hC, Int.neg_neg]
+        rw [toNat_mulSubMul_natAbs _ _ _ _ A B ha hb hA' hB' hu,
+          toNat_mulSubMul_natAbs _ _ _ _ D C hd hc' hD' hC' hv, toNat_limbs, toNat_limbs,
+          Int.add_comm (D * _)]
+        exact gcd_unimodular _ _ A B C D (hdet' (by rw [hA', hD']; simp)
+          (by rw [hB', hC']; simp [Int.neg_mul_neg]))
+      · exact absurd h (by simp)
+    · split at h
+      · rename_i _ hs
+        obtain ⟨hA, hB, hC, hD⟩ := hs
+        split at h
+        · rename_i hn
+          obtain ⟨hu, hv⟩ := hn
+          rw [Option.some.injEq] at h
+          subst h
+          simp only [toNat_ofLimbs]
+          have hB' : B = (B.natAbs : Int) := (Int.natAbs_of_nonneg hB).symm
+          have hC' : C = (C.natAbs : Int) := (Int.natAbs_of_nonneg hC).symm
+          have hA' : A = -(A.natAbs : Int) := by rw [Int.ofNat_natAbs_of_nonpos hA, Int.neg_neg]
+          have hD' : D = -(D.natAbs : Int) := by rw [Int.ofNat_natAbs_of_nonpos hD, Int.neg_neg]
+          rw [toNat_mulSubMul_natAbs _ _ _ _ B A hb ha hB' hA' hu,
+            toNat_mulSubMul_natAbs _ _ _ _ C D hc' hd hC' hD' hv, toNat_limbs, toNat_limbs,
+            Int.add_comm (B * _)]
+          exact gcd_unimodular _ _ A B C D
+            (hdet' (by rw [hA', hD']; simp [Int.neg_mul_neg]) (by rw [hB', hC']; simp))
+        · exact absurd h (by simp)
+      · exact absurd h (by simp)
+  · exact absurd h (by simp)
 
 /--
 The leading 62 bits of `a`, normalized so that its top bit is set, and the bits of `b` at the same
@@ -1167,9 +1228,10 @@ def leadWords (a b : UInt32Array) : Int64 × Int64 :=
 
 /--
 The greatest common divisor, by Lehmer's algorithm: the cofactors of Euclid's steps on the leading
-words, from `lehmerSteps`, are applied to the full numbers at once with `absComb`, which keeps the
-greatest common divisor since their matrix has determinant `±1`; when that does not make the second
-number smaller, one step of Euclid's algorithm is taken instead. On words when both are small.
+words, from `lehmerSteps`, are applied to the full numbers at once with `lehmerStep`, which keeps
+the greatest common divisor since their matrix has determinant `±1`; when the step is not valid
+or does not make the second number smaller, one step of Euclid's algorithm is taken instead. On
+words when both are small.
 -/
 public def gcd (x y : BigNat) : BigNat :=
   match x, y with
@@ -1180,13 +1242,9 @@ public def gcd (x y : BigNat) : BigNat :=
     else
       let w := leadWords x.limbs y.limbs
       let m := lehmerSteps w.1 w.2 1 0 0 1 100
-      let A := m.1.toInt
-      let B := m.2.1.toInt
-      let C := m.2.2.1.toInt
-      let D := m.2.2.2.toInt
-      if B = 0 ∨ ¬(A * D - B * C = 1 ∨ A * D - B * C = -1) then gcd y (mod x y)
-      else if _hy : blt (absComb C D x y) y then gcd (absComb A B x y) (absComb C D x y)
-      else gcd y (mod x y)
+      match lehmerStep x y m.1.toInt m.2.1.toInt m.2.2.1.toInt m.2.2.2.toInt with
+      | some p => if _hy : blt p.2 y then gcd p.1 p.2 else gcd y (mod x y)
+      | none => gcd y (mod x y)
 termination_by y.toNat
 decreasing_by
   all_goals first
@@ -1211,25 +1269,23 @@ private theorem gcd_mod_step (x y : BigNat) :
     rw [gcd]
     · rw [dite_eq_right h, ite_eq_left hlt, ih, gcd_mod_step]
     · exact hxy
-  | case4 x y hxy h hlt w m A B C D hB ih =>
+  | case4 x y hxy h hlt w m p hp hy ih =>
     rw [gcd]
     · rw [dite_eq_right h, ite_eq_right hlt]
-      dsimp only
-      rw [ite_eq_left hB, ih, gcd_mod_step]
+      simp only [w, m] at hp
+      simp only [hp, dite_eq_left hy, ih, lehmerStep_gcd _ _ _ _ _ _ _ hp]
     · exact hxy
-  | case5 x y hxy h hlt w m A B C D hB hy ih =>
+  | case5 x y hxy h hlt w m p hp hy ih =>
     rw [gcd]
     · rw [dite_eq_right h, ite_eq_right hlt]
-      dsimp only
-      have hdet := Decidable.not_not.1 (not_or.1 hB).2
-      rw [ite_eq_right hB, dite_eq_left hy, ih, toNat_absComb, toNat_absComb,
-        gcd_unimodular _ _ _ _ _ _ hdet]
+      simp only [w, m] at hp
+      simp only [hp, dite_eq_right hy, ih, gcd_mod_step]
     · exact hxy
-  | case6 x y hxy h hlt w m A B C D hB hy ih =>
+  | case6 x y hxy h hlt w m hp ih =>
     rw [gcd]
     · rw [dite_eq_right h, ite_eq_right hlt]
-      dsimp only
-      rw [ite_eq_right hB, dite_eq_right hy, ih, gcd_mod_step]
+      simp only [w, m] at hp
+      simp only [hp, ih, gcd_mod_step]
     · exact hxy
 
 /-- The least common multiple, `x / gcd x y * y`, and `0` when either is `0`. -/
