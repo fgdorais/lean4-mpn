@@ -10,7 +10,7 @@ the history at the end records what changed and by how much.
 lake build bench                      # `lake build` alone does not rebuild it
 taskset -c 2 .lake/build/bin/bench > bench.txt
 taskset -c 2 .lake/build/bin/bench badd bsub bmul bdiv bgcd bshl bshr bsqrt btostr bofstr \
-  1 2 4 8 16 32 64 128 256 512 1024 >> bench.txt
+  btonat bofnat 1 2 4 8 16 32 64 128 256 512 1024 >> bench.txt
 scripts/bench_md.py bench.txt         # the two tables below
 ```
 
@@ -48,6 +48,8 @@ noise.
 | `bsqrt` | `BigNat.sqrt` | `2n` limbs | Newton at growing precision |
 | `btostr` | `toString` | `n` limbs | chunks of 9 digits, `divRem1` by `10⁹` |
 | `bofstr` | `BigNat.ofString?` | the digits of `n` limbs | a fold over the characters, 9 digits per chunk |
+| `btonat` | `BigNat.toNat` | `n` limbs | by halves, joined with shifts; `Nat` column: `x + 1` |
+| `bofnat` | `BigNat.ofNat` | `n` limbs | by halves, then 64 bits at a time; `Nat` column: `x + 1` |
 
 ## Current results
 
@@ -116,6 +118,7 @@ above; ratios before `15534f8` for `BigNat` rows were inflated by the hashing ch
 
 | date | commit | change | effect |
 |---|---|---|---|
+| 2026-10-16 | (uncommitted) | conversions to and from `Nat` by halves | `btonat` 4096: 6.14 → 0.39 ms; `bofnat` 4096: 2.23 → 0.24 ms; 64: 4.59 → 3.31 µs |
 | 2026-10-16 | `a46c179` | Toom-3's exact divisions without the divider; Toom-3 thresholds retuned | `mul` 2048: 589 → 540 µs; 4096: 1.65 → 1.54 ms; `sqr` 4096: 1.08 → 0.97 ms |
 | 2026-10-15 | `8bcb570` | Karatsuba's middle term in one pass (`addDiffInto`) | `mul` 1024: 201 → 193 µs; `sqr` 256: 13.6 → 12.9 µs; 4096: 1.15 → 1.09 ms |
 | 2026-10-15 | `8ed7b6d` | Comba squaring; thresholds retuned | `sqr` 64: 1.69 → 1.27 µs; 256: 17.4 → 13.6 µs; 4096: 1.41 → 1.15 ms |

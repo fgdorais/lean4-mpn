@@ -367,4 +367,155 @@ public theorem toNat_window (r : UInt32Array) (j k : Nat) (hjk : j ≤ k)
   simp only [toNat, UInt32Array.copy_toSlice, UInt32Array.toList_extract,
     List.extract_eq_take_drop, ofLimbs_take_of_lt hbound, hdrop]
 
+/-! ## Compiled conversions
+
+`toNat` and `ofNat` go one limb at a time, as `ofLimbs` does, multiplying or dividing a growing
+`Nat` at each limb, which takes quadratic time. Their compiled twins split the limbs in halves
+and join or split the halves with shifts, which `Nat` does in linear time, so that the conversions
+take `O(n log n)`. `@[csimp]` makes the compiler use them.
+-/
+
+/-- The value of the `n` limbs of `s` from `i` on, by halves. -/
+def toNatRange (s : UInt32Array.Slice) (i n : Nat) : Nat :=
+  if n = 0 then 0
+  else if n = 1 then (s.getD i 0).toNat
+  else if n = 2 then
+    ((s.getD (i + 1) 0).toUInt64 * 4294967296 + (s.getD i 0).toUInt64).toNat
+  else
+    toNatRange s i (n / 2) + toNatRange s (i + n / 2) (n - n / 2) <<< (32 * (n / 2))
+termination_by n
+
+private theorem toNatRange_eq (s : UInt32Array.Slice) (i n : Nat) (h : i + n ≤ s.size) :
+    toNatRange s i n = ofLimbs ((s.copy.toList.drop i).take n) := by
+  induction n using Nat.strongRecOn generalizing i with
+  | ind n ih =>
+    rw [toNatRange]
+    have hg : ∀ j (hj : j < s.size), s.getD j 0 = s[j]'hj := fun j hj => by
+      simp [UInt32Array.Slice.getD_eq, hj]
+    split
+    · subst n; simp
+    · split
+      · subst n
+        rw [toList_copy_drop (by omega), hg i (by omega)]
+        simp
+      · split
+        · subst n
+          rw [toList_copy_drop (by omega), toList_copy_drop (by omega), hg i (by omega),
+            hg (i + 1) (by omega)]
+          have := (s[i]'(by omega)).toNat_lt
+          have := (s[i + 1]'(by omega)).toNat_lt
+          simp only [List.take_succ_cons, List.take_zero, ofLimbs_cons, ofLimbs_nil]
+          simp only [UInt64.toNat_add, UInt64.toNat_mul, UInt32.toNat_toUInt64,
+            UInt64.reduceToNat]
+          omega
+        · rename_i h0 h1 h2
+          rw [ih _ (by omega) i (by omega), ih _ (by omega) (i + n / 2) (by omega),
+            Nat.shiftLeft_eq]
+          have hlen : (s.copy.toList.drop i).length = s.size - i := by simp
+          have e : (s.copy.toList.drop i).take n = (s.copy.toList.drop i).take (n / 2) ++
+              (s.copy.toList.drop (i + n / 2)).take (n - n / 2) := by
+            conv => lhs; rw [show n = n / 2 + (n - n / 2) by omega]
+            rw [List.take_add, List.drop_drop]
+          rw [e, ofLimbs_append, List.length_take, hlen, Nat.min_eq_left (by omega), Nat.mul_comm]
+
+/-- `toNat` by halves, which the compiler uses in its place. -/
+public def toNatFast (s : UInt32Array.Slice) : Nat := toNatRange s 0 s.size
+
+@[csimp] public theorem toNat_eq_toNatFast : @toNat = @toNatFast := by
+  funext s
+  rw [toNatFast, toNatRange_eq s 0 s.size (by omega), List.drop_zero,
+    List.take_of_length_le (by simp), toNat]
+
+/--
+Pushes the `k` limbs of `x % 2^(32 k)` onto `acc`: by halves above `64` limbs, and below, two limbs
+at a time from the low word of `x`, which `toUInt64` reads without an operation on `Nat`.
+-/
+def ofNatPush (x k : Nat) (acc : UInt32Array) : UInt32Array :=
+  if k = 0 then acc
+  else if k = 1 then acc.push x.toUInt32
+  else if k ≤ 64 then
+    let u := x.toUInt64
+    ofNatPush (x >>> 64) (k - 2) ((acc.push u.toUInt32).push (u >>> 32).toUInt32)
+  else
+    let hi := x >>> (32 * (k / 2))
+    ofNatPush hi (k - k / 2) (ofNatPush (x - hi <<< (32 * (k / 2))) (k / 2) acc)
+termination_by k
+
+private theorem ofNatPush_spec (x k : Nat) (acc : UInt32Array) :
+    ∃ L, (ofNatPush x k acc).toList = acc.toList ++ L ∧ L.length = k ∧
+      ofLimbs L = x % 2 ^ (32 * k) := by
+  induction k using Nat.strongRecOn generalizing x acc with
+  | ind k ih =>
+    rw [ofNatPush]
+    split
+    · subst k
+      exact ⟨[], by simp, rfl, by simp [Nat.mod_one]⟩
+    · split
+      · subst k
+        refine ⟨[x.toUInt32], by simp, rfl, ?_⟩
+        simp [Nat.toUInt32_eq, UInt32.toNat_ofNat']
+      · split
+        · rename_i h0 h1 h2
+          dsimp only
+          obtain ⟨L, hL, hl, hv⟩ := ih (k - 2) (by omega) (x >>> 64)
+            ((acc.push x.toUInt64.toUInt32).push (x.toUInt64 >>> 32).toUInt32)
+          refine ⟨[x.toUInt64.toUInt32, (x.toUInt64 >>> 32).toUInt32] ++ L, by rw [hL]; simp,
+            by simp; omega, ?_⟩
+          have hu : x.toUInt64.toNat = x % 2 ^ 64 := by simp [Nat.toUInt64_eq, UInt64.toNat_ofNat']
+          rw [ofLimbs_append, hv]
+          simp only [ofLimbs_cons, ofLimbs_nil, List.length_cons, List.length_nil,
+            UInt64.toNat_toUInt32, UInt64.toNat_shiftRight, hu, Nat.shiftRight_eq_div_pow,
+            UInt64.reduceToNat, Nat.reduceMod]
+          rw [show 32 * k = 64 + 32 * (k - 2) by omega, Nat.pow_add, Nat.mod_mul]
+          omega
+        · rename_i h0 h1 h2
+          dsimp only
+          have hP : 0 < 2 ^ (32 * (k / 2)) := Nat.two_pow_pos _
+          have hlo : x - (x >>> (32 * (k / 2))) <<< (32 * (k / 2)) = x % 2 ^ (32 * (k / 2)) := by
+            rw [Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq, Nat.mod_def, Nat.mul_comm]
+          obtain ⟨L₁, h₁, hl₁, hv₁⟩ := ih (k / 2) (by omega)
+            (x - (x >>> (32 * (k / 2))) <<< (32 * (k / 2))) acc
+          obtain ⟨L₂, h₂, hl₂, hv₂⟩ := ih (k - k / 2) (by omega) (x >>> (32 * (k / 2)))
+            (ofNatPush (x - (x >>> (32 * (k / 2))) <<< (32 * (k / 2))) (k / 2) acc)
+          refine ⟨L₁ ++ L₂, by rw [h₂, h₁, List.append_assoc], by simp; omega, ?_⟩
+          rw [ofLimbs_append, hv₁, hv₂, hl₁, hlo, Nat.mod_mod, Nat.shiftRight_eq_div_pow,
+            show 32 * k = 32 * (k / 2) + 32 * (k - k / 2) by omega, Nat.pow_add, Nat.mod_mul]
+
+/-- `ofNat` by halves, which the compiler uses in its place. -/
+public def ofNatFast (n : Nat) : UInt32Array :=
+  if n = 0 then .empty
+  else ofNatPush n (n.log2 / 32 + 1) (.emptyWithCapacity (n.log2 / 32 + 1))
+
+@[csimp] public theorem ofNat_eq_ofNatFast : @ofNat = @ofNatFast := by
+  funext n
+  rw [ofNatFast]
+  split
+  · subst n
+    simp [ofNat, ofNat.loop]
+  · rename_i hn
+    obtain ⟨L, hL, hl, hv⟩ := ofNatPush_spec n (n.log2 / 32 + 1)
+      (.emptyWithCapacity (n.log2 / 32 + 1))
+    simp only [UInt32Array.emptyWithCapacity_eq_empty, UInt32Array.toList_empty,
+      List.nil_append] at hL
+    have hlt : n < 2 ^ (32 * (n.log2 / 32 + 1)) :=
+      Nat.lt_of_lt_of_le (Nat.lt_log2_self) (Nat.pow_le_pow_right (by decide) (by omega))
+    have hge : 2 ^ (32 * (n.log2 / 32)) ≤ n :=
+      Nat.le_trans (Nat.pow_le_pow_right (by decide) (by omega)) (Nat.log2_self_le hn)
+    rw [Nat.mod_eq_of_lt hlt] at hv
+    -- `L` is trimmed: its top limb is not zero, since `n ≥ 2^(32 (k - 1))`.
+    have htr : IsTrimmed L := by
+      intro hlast
+      rw [List.getLast?_eq_getElem?, hl, show n.log2 / 32 + 1 - 1 = n.log2 / 32 by omega] at hlast
+      have hk : n.log2 / 32 < L.length := by omega
+      rw [List.getElem?_eq_getElem hk, Option.some.injEq] at hlast
+      have hsplit := ofLimbs_take_add_one L (n.log2 / 32) hk
+      rw [List.take_of_length_le (by omega), hlast] at hsplit
+      have := ofLimbs_take_lt L (n.log2 / 32)
+      simp only [UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero] at hsplit
+      omega
+    apply UInt32Array.toList_inj.1
+    rw [UInt32Array.emptyWithCapacity_eq_empty, hL]
+    apply IsTrimmed.ofLimbs_inj ((isTrimmed_iff _).1 (isTrimmed_ofNat _)) htr
+    rw [← toNat_toSlice, toNat_ofNat, hv]
+
 end Bignum

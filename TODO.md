@@ -19,9 +19,12 @@ products as GMP's, which is most of the gap above 64 limbs.
   before Ice Lake). `div_qr_1n_pi1` keeps a partly reduced two-limb remainder and takes the
   quotient off the chain, about one multiply-add per step. `divRem1` is behind division by one
   limb and `toString`.
-- [ ] **`toNat` (the conversion to `Nat`)** is `ofLimbs`, which builds the literal `2³²` from a
-  string at each limb and multiplies a growing `Nat` each time; a compiled twin (by halves, or
-  from GMP's limbs once `Nat` is replaced) would make conversions much cheaper.
+- [x] **The conversions to and from `Nat`** went one limb at a time, multiplying or dividing a
+  growing `Nat` at each limb. Their compiled twins (`toNatFast`, `ofNatFast`) split the limbs in
+  halves and join or split them with shifts; `ofNat` takes 64 bits at a time below 64 limbs, with
+  `toUInt64`. From 4 limbs up, `toNat` is 2.4–16× faster (4096 limbs: 6.1 → 0.39 ms) and `ofNat`
+  1.3–9× (4096: 2.2 → 0.24 ms). They are still 2–450× behind a pass over the value, since each
+  operation on `Nat` costs about 40 ns; reading GMP's limbs directly would need C.
 
 Done this round: word carries and hoisted slice fields in the folds; in-place Algorithm D with
 `subMul1` (34 allocations per 32 ÷ 16-limb division instead of 270); `foldInPlaceThen`

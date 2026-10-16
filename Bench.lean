@@ -156,6 +156,14 @@ def main (args : List String) : IO Unit := do
         let t := toString na
         row noNat op n (time (fun t _ => BigNat.ofString? t) (fun r => checkBig r.get!) t t)
           (time (fun t _ => t.toNat?) (fun r => checkNat r.get!) t t)
+      | "btonat" =>
+        -- `Nat` has nothing to convert: its column is one linear pass, `x + 1`.
+        let x := BigNat.ofNat na
+        row noNat op n (time (fun (x : BigNat) _ => x.toNat) checkNat x x)
+          (time (fun x _ => x + 1) checkNat na na)
+      | "bofnat" =>
+        row noNat op n (time (fun x _ => BigNat.ofNat x) checkBig na na)
+          (time (fun x _ => x + 1) checkNat na na)
       | "shr" =>
         row noNat op n (time (fun (x : UInt32Array) _ => shiftRight x 37) checkArr a a)
           (time (fun x _ => x >>> 37) checkNat na na)
