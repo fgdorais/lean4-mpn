@@ -46,23 +46,22 @@ instead of 576 and 892); both shifts in one
 pass with the slice folds of lean4-scalar-arrays#27 and #28; `push` inline upstream
 (lean4-scalar-arrays#24).
 
-Tried without gain: Karatsuba into one array, products at an offset with the scratch above
-(GMP's style), prototyped without proofs on an offset copy of Comba's kernel: within ±1% of the
-allocating version from 128 to 448 limbs, with the combination in two passes or in one fused pass
-(after saving the top half of `z₀`, which it overwrites before reading). `perf` attributes 5–11%
-of a product to allocation and copies, but mimalloc's small allocations are cheap and an array
-of products still needs its evaluation sums as separate arrays (a slice of the scratch array
-would be shared with the array being written, and copied). In Comba's column loop, unrolling by
-two (no change), counting the wraps of one 64-bit sum instead of splitting the halves (faster
-below 32 limbs, slower above), and reading `b` reversed so that both operands go forward (the
-copy costs more than it saves); `divRem1` on `foldrInPlaceThen` over a copy (the loop is bound by
-the division, and building the slice costs 10–25 ns per call, 5–12% slower below 16 limbs), which also
-rules out slices for the per-row folds (`addMul1Set`, `addInto`, `subInto`), called once per row;
-passing `subMul1`'s borrow to the end of the step through `foldInPlaceThen` (the step still
-returns a pair, and the compiler already reused the memory of `subMul1`'s);
-a `USize` twin of `divRem1` (the hardware division hides the loop). Twins of `ltLoop` and
-`topSizeLoop` would not show: `lt` runs once or twice per block of the division, and `topSize`
-usually stops at the first limb.
+Tried without gain: Karatsuba into one array, products at an offset with the scratch above (GMP's
+style), prototyped without proofs on an offset copy of Comba's kernel: within ±1% of the allocating
+version from 128 to 448 limbs, with the combination in two passes or in one fused pass (after saving
+the top half of `z₀`, which it overwrites before reading). `perf` attributes 5–11% of a product to
+allocation and copies, but mimalloc's small allocations are cheap and an array of products still
+needs its evaluation sums as separate arrays (a slice of the scratch array would be shared with the
+array being written, and copied). In Comba's column loop, unrolling by two (no change), counting the
+wraps of one 64-bit sum instead of splitting the halves (faster below 32 limbs, slower above), and
+reading `b` reversed so that both operands go forward (the copy costs more than it saves); `divRem1`
+on `foldrInPlaceThen` over a copy (the loop is bound by the division, and building the slice costs
+10–25 ns per call, 5–12% slower below 16 limbs), which also rules out slices for the per-row folds
+(`addMul1Set`, `addInto`, `subInto`), called once per row; passing `subMul1`'s borrow to the end of
+the step through `foldInPlaceThen` (the step still returns a pair, and the compiler already reused
+the memory of `subMul1`'s); a `USize` twin of `divRem1` (the hardware division hides the loop).
+Twins of `ltLoop` and `topSizeLoop` would not show: `lt` runs once or twice per block of the
+division, and `topSize` usually stops at the first limb.
 
 ## Algorithms
 

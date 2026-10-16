@@ -51,6 +51,7 @@ all of Lean (about 120 MB) and spends about 20 ms initializing it at startup.
 `lake exe bench` times addition, subtraction, multiplication by a limb, multiplication, squaring
 and division against the same operations on `Nat`, which Lean implements with GMP, from 1 to 4096
 limbs; the `BigNat` operations are `badd`, `bsub`, `bmul`, `bdiv`, `bgcd`, `bshl`, `bshr`,
-`bsqrt`, `btostr`, `bofstr`, and the conversions `btonat` and `bofnat`. Arguments select operations and sizes: `lake exe bench mul div 64
-256` runs only those, and `--no-nat` skips `Nat`, which is useful under a profiler. Current
-results, how to read them, and the history of performance changes are in [BENCH.md](BENCH.md).
+`bsqrt`, `btostr`, `bofstr`, and the conversions `btonat` and `bofnat`. Arguments select
+operations and sizes: `lake exe bench mul div 64 256` runs only those, and `--no-nat` skips `Nat`,
+which is useful under a profiler. Current results, how to read them, and the history of
+performance changes are in [BENCH.md](BENCH.md).
