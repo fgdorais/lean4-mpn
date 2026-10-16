@@ -57,7 +57,7 @@ public structure Config where
   twelve_le_sqrToom3 : 12 ≤ sqrToom3 := by decide
   /-- The size of the divisor from which division computes its quotient in blocks of half the
   divisor, with recursive divisions, instead of one limb at a time. -/
-  divDC : Nat := 128
+  divDC : Nat := 176
   /-- Blocks of half the divisor need at least `4` limbs, so that the recursion has two. -/
   four_le_divDC : 4 ≤ divDC := by decide
   deriving Repr

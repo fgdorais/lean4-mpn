@@ -27,7 +27,7 @@ leanOptions = {
   weak.bignum.mul.unbalancedThreshold = 96,
   weak.bignum.sqr.basecaseThreshold = 2, weak.bignum.sqr.karatsubaThreshold = 96,
   weak.bignum.sqr.toom3Threshold = 720,
-  weak.bignum.div.dcThreshold = 128}
+  weak.bignum.div.dcThreshold = 176}
 ```
 
 ## Programs

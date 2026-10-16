@@ -67,7 +67,7 @@ division, and `topSize` usually stops at the first limb.
 ## Algorithms
 
 - [x] **Divide-and-conquer division** (`Div.DC`, Burnikel–Ziegler): blocks of half the divisor,
-  digits from recursive divisions by its top half and the low-half product, from 128 limbs.
+  digits from recursive divisions by its top half and the low-half product, from 176 limbs.
   Division is now about 5× behind `Nat` from 128 limbs up, instead of a gap growing with size
   (17× at 4096 limbs).
 - [ ] **Unbalanced Toom** (`toom32`, `toom42`) instead of halving the longer operand.
