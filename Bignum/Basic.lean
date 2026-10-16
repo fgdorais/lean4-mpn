@@ -296,7 +296,7 @@ public def padZeros (a : UInt32Array) (n : Nat) : UInt32Array := a ++ .replicate
 public def copyPadded (a : UInt32Array.Slice) (n : Nat) : UInt32Array :=
   a.array.copySlice a.start (.replicate n 0) 0 a.size
 
-private theorem toList_copyPadded (a : UInt32Array.Slice) (n : Nat) :
+public theorem toList_copyPadded (a : UInt32Array.Slice) (n : Nat) :
     (copyPadded a n).toList = a.copy.toList ++ List.replicate (n - a.size) 0 := by
   have := a.stop_le_array_size
   have := a.start_le_stop
@@ -320,6 +320,42 @@ public theorem toNat_copyPadded (a : UInt32Array.Slice) (n : Nat) :
     toNat (copyPadded a n) = toNat a := by
   rw [toNat_toSlice, toList_copyPadded a n, ofLimbs_append_replicate_zero]
   rfl
+
+/--
+Writing the first `len` limbs of `src` into `dest` at limb `off` with `copySlice`: the value
+changes by the limbs written minus those they replace, of which there are `min len src.size`.
+-/
+public theorem ofLimbs_copySlice (src dest : UInt32Array) (off len : Nat)
+    (hfit : off + len ≤ dest.size) :
+    (src.copySlice 0 dest off len).size = dest.size ∧
+      ofLimbs (src.copySlice 0 dest off len).toList +
+          2 ^ (32 * off) * ofLimbs ((dest.toList.drop off).take (min len src.size)) =
+        ofLimbs dest.toList + 2 ^ (32 * off) * ofLimbs (src.toList.take len) := by
+  rw [UInt32Array.copySlice_eq_append]
+  simp only [Nat.sub_zero, Nat.zero_add]
+  refine ⟨by simp; omega, ?_⟩
+  simp only [UInt32Array.toList_append, UInt32Array.toList_extract, List.extract_eq_take_drop,
+    List.drop_zero, Nat.sub_zero]
+  -- `src.take len` has `c = min len src.size` limbs.
+  have hc : src.toList.take len = src.toList.take (min len src.size) := by
+    rw [List.take_eq_take_iff]; simp
+  rw [hc]
+  generalize hcd : min len src.size = c
+  have hcl : c ≤ len := by omega
+  have hcs : c ≤ src.size := by omega
+  have hD := ofLimbs_append (dest.toList.take off) (dest.toList.drop off)
+  rw [List.take_append_drop] at hD
+  have hD' := ofLimbs_append ((dest.toList.drop off).take c) ((dest.toList.drop off).drop c)
+  rw [List.take_append_drop, List.drop_drop] at hD'
+  have hlo : (dest.toList.take off).length = off := by simp; omega
+  have hmid : (src.toList.take c).length = c := by simp; omega
+  have hwin : ((dest.toList.drop off).take c).length = c := by simp; omega
+  rw [hlo] at hD
+  rw [hwin] at hD'
+  rw [ofLimbs_append, ofLimbs_append, hlo, List.length_append, hlo, hmid,
+    List.take_of_length_le (l := List.drop (off + c) dest.toList) (by simp), hD, hD']
+  rw [Nat.mul_add 32 off c, Nat.pow_add, Nat.mul_add (2 ^ (32 * off)), ← Nat.mul_assoc]
+  omega
 
 /-- Shifts a number left by `k` limbs. -/
 public def shiftLimbs (a : UInt32Array) (k : Nat) : UInt32Array :=

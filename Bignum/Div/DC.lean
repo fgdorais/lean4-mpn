@@ -200,8 +200,10 @@ One step of the division at the block of quotient limbs `j` to `j + s`, for `1 �
 `m = n / 2` and `h = n - m`, as in Burnikel and Ziegler. With the window `W = Wₗ + βʰ Wₕ` and
 `v = vₗ + βʰ vₕ`, the digit `Q̂` and the remainder `R₁ = Wₕ - Q̂ vₕ` come from `divRec` on `Wₕ` and
 `vₕ`, so that `W - Q̂ v = (Wₗ + βʰ R₁) - Q̂ vₗ` needs only the product `Q̂ vₗ` of `s` by `h` limbs.
-`dcFix` corrects the digit, and the step subtracts `Q v = W - (W mod v)` from `r` at limb `j` and
-adds the digit `Q` to `q` at limb `j`. Returns the new remainder and quotient.
+`dcFix` corrects the digit. The limbs of `r` above the window are zero, so subtracting
+`Q v = W - (W mod v)` at limb `j` replaces the window with `W mod v`, and the block of `q` at limb
+`j` is zero, so adding `Q` there writes it: both are copies (`copySlice`), as is `R₁` into the
+zero limbs above `Wₗ`. Returns the new remainder and quotient.
 -/
 def divDCStep (cfg : Config) (v : UInt32Array.Slice) (h4 : 4 ≤ v.size)
     (divRec : (u' v' : UInt32Array.Slice) → v'.size < v.size → 2 ≤ v'.size →
@@ -211,12 +213,11 @@ def divDCStep (cfg : Config) (v : UInt32Array.Slice) (h4 : 4 ≤ v.size)
   let wh := w.slice (v.size - v.size / 2) w.size
   let bh := v.slice (v.size - v.size / 2) v.size
   let e := dcEstimate cfg wh bh s (divRec wh bh (by simp [bh]; omega) (by simp [bh]; omega))
-  let x := addInto (copyPadded (w.slice 0 (v.size - v.size / 2)) (v.size + s + 1))
-    (v.size - v.size / 2) (e.2.toSlice 0 (v.size / 2 + s))
+  let x := e.2.copySlice 0 (copyPadded (w.slice 0 (v.size - v.size / 2)) (v.size + s + 1))
+    (v.size - v.size / 2) (v.size / 2 + s)
   let p := mulLimbsWith cfg e.1 (v.slice 0 (v.size - v.size / 2))
   let f := dcFix v p x e.1
-  let d := subInto (copyPadded w (v.size + s)) 0 ((subInto f.1 0 p).toSlice 0 (v.size + s))
-  (subInto r j d, addInto q j f.2)
+  ((subInto f.1 0 p).copySlice 0 r j (v.size + s), f.2.copySlice 0 q j s)
 
 /-- Adding a multiple of `d` below the next multiple keeps a multiple of `d` in range. -/
 private theorem add_le_of_dvd {a b d : Nat} (ha : d ∣ a) (hb : d ∣ b) (hab : a < b) :
@@ -320,33 +321,31 @@ private theorem divDCStep_spec (cfg : Config) (v : UInt32Array.Slice) (h4 : 4 �
   -- `x = Wₗ + βʰ R₁`, where `R₁ = Wₕ - Q̂ vₕ ≤ Wₕ < β^(m + s)`.
   have hR1 : toNat (e.2.toSlice 0 (v.size / 2 + s)) = toNat e.2 :=
     toNat_toSlice_of_lt _ _ (by omega)
+  -- `R₁` goes into zero limbs above `Wₗ`, so copying it adds it.
   have hxs : (copyPadded ((r.toSlice j (j + v.size + s)).slice 0 (v.size - v.size / 2))
       (v.size + s + 1)).size = v.size + s + 1 := size_copyPadded _ _ (by simp; omega)
-  have hxfit : v.size - v.size / 2 + (e.2.toSlice 0 (v.size / 2 + s)).size ≤
-      (copyPadded ((r.toSlice j (j + v.size + s)).slice 0 (v.size - v.size / 2))
-        (v.size + s + 1)).size := by
-    rw [hxs, UInt32Array.size_toSlice]; omega
-  have hpow1 : 2 ^ (32 * (v.size + s + 1)) =
-      2 ^ (32 * (v.size - v.size / 2)) * 2 ^ (32 * (v.size / 2 + s + 1)) := by
-    rw [← Nat.pow_add]; congr 1; omega
-  have hpow2 : 2 ^ (32 * (v.size / 2 + s)) * 2 ^ 32 = 2 ^ (32 * (v.size / 2 + s + 1)) := by
-    rw [← Nat.pow_add, show 32 * (v.size / 2 + s) + 32 = 32 * (v.size / 2 + s + 1) by omega]
-  have hxv := toNat_addInto_of_lt _ _ _ hxfit (by
-    rw [toNat_copyPadded, hR1, hxs, hpow1]
-    have : toNat e.2 + 1 ≤ 2 ^ (32 * (v.size / 2 + s + 1)) := by
-      have : 1 ≤ 2 ^ 32 := Nat.one_le_two_pow
-      have := Nat.mul_le_mul_left (2 ^ (32 * (v.size / 2 + s))) this
-      omega
-    have := Nat.mul_le_mul_left (2 ^ (32 * (v.size - v.size / 2))) this
-    rw [Nat.mul_add, Nat.mul_one] at this
-    omega)
-  rw [toNat_copyPadded, hR1] at hxv
-  have hxsz : (addInto (copyPadded ((r.toSlice j (j + v.size + s)).slice 0 (v.size - v.size / 2))
-      (v.size + s + 1)) (v.size - v.size / 2) (e.2.toSlice 0 (v.size / 2 + s))).size =
-      v.size + s + 1 := by
-    rw [size_addInto _ _ _ hxfit, hxs]
-  generalize addInto (copyPadded ((r.toSlice j (j + v.size + s)).slice 0 (v.size - v.size / 2))
-    (v.size + s + 1)) (v.size - v.size / 2) (e.2.toSlice 0 (v.size / 2 + s)) = x at *
+  obtain ⟨hxsz, hxv⟩ := ofLimbs_copySlice e.2
+    (copyPadded ((r.toSlice j (j + v.size + s)).slice 0 (v.size - v.size / 2)) (v.size + s + 1))
+    (v.size - v.size / 2) (v.size / 2 + s) (by rw [hxs]; omega)
+  rw [hxs] at hxsz
+  have hz : ofLimbs (((copyPadded ((r.toSlice j (j + v.size + s)).slice 0
+      (v.size - v.size / 2)) (v.size + s + 1)).toList.drop (v.size - v.size / 2)).take
+        (min (v.size / 2 + s) e.2.size)) = 0 := by
+    rw [toList_copyPadded, List.drop_append_of_le_length (by simp; omega)]
+    simp only [UInt32Array.Slice.size_slice, UInt32Array.size_toSlice]
+    rw [List.drop_of_length_le (by simp; omega), List.nil_append, List.take_replicate,
+      ofLimbs_replicate_zero]
+  have hXd : ofLimbs (copyPadded ((r.toSlice j (j + v.size + s)).slice 0 (v.size - v.size / 2))
+      (v.size + s + 1)).toList = toNat ((r.toSlice j (j + v.size + s)).slice 0
+        (v.size - v.size / 2)) := by
+    rw [← toNat_toSlice, toNat_copyPadded]
+  have hR1' : ofLimbs (e.2.toList.take (v.size / 2 + s)) = toNat e.2 := by
+    rw [← hR1]
+    simp only [toNat, UInt32Array.copy_toSlice, UInt32Array.toList_extract,
+      List.extract_eq_take_drop, List.drop_zero, Nat.sub_zero]
+  rw [hz, Nat.mul_zero, Nat.add_zero, hXd, hR1', ← toNat_toSlice] at hxv
+  generalize e.2.copySlice 0 (copyPadded ((r.toSlice j (j + v.size + s)).slice 0
+    (v.size - v.size / 2)) (v.size + s + 1)) (v.size - v.size / 2) (v.size / 2 + s) = x at *
   generalize mulLimbsWith cfg e.1 (v.slice 0 (v.size - v.size / 2)) = p at *
   -- The numbers.
   rw [hW] at hsplitW
@@ -412,50 +411,65 @@ private theorem divDCStep_spec (cfg : Config) (v : UInt32Array.Slice) (h4 : 4 �
       Nat.pow_le_pow_right (by decide) (by omega)
     rw [toNat_toSlice_of_lt _ _ (by rw [hsub₁]; omega), hsub₁]
     omega
-  have hcw : (copyPadded (r.toSlice j (j + v.size + s)) (v.size + s)).size = v.size + s :=
-    size_copyPadded _ _ (by omega)
-  have hfit₂ : 0 + ((subInto f.1 0 p).toSlice 0 (v.size + s)).size ≤
-      (copyPadded (r.toSlice j (j + v.size + s)) (v.size + s)).size := by
-    rw [hcw, UInt32Array.size_toSlice]; omega
+  -- The window of `r` becomes `W mod v`: `r` goes down by `βʲ Q v`.
+  have hrs : (subInto f.1 0 p).size = v.size + s + 1 := by
+    rw [size_subInto _ _ _ hfit₁, hf₁, hxsz]
+  obtain ⟨hr₁, hr₂⟩ := ofLimbs_copySlice (subInto f.1 0 p) r j (v.size + s) (by omega)
+  have hwin : ofLimbs ((r.toList.drop j).take (min (v.size + s) (subInto f.1 0 p).size)) = W := by
+    rw [hrs, Nat.min_eq_left (by omega), ← hW]
+    simp only [toNat, UInt32Array.copy_toSlice, UInt32Array.toList_extract,
+      List.extract_eq_take_drop]
+    rw [show j + v.size + s - j = v.size + s by omega]
+  have hremv : ofLimbs ((subInto f.1 0 p).toList.take (v.size + s)) =
+      W - W / toNat v * toNat v := by
+    rw [← hrem]
+    simp only [toNat, UInt32Array.copy_toSlice, UInt32Array.toList_extract,
+      List.extract_eq_take_drop, List.drop_zero, Nat.sub_zero]
+  rw [hwin, hremv] at hr₂
   have hPW : W / toNat v * toNat v ≤ W := Nat.div_mul_le_self _ _
-  have hsub₂ := toNat_subInto_of_le _ 0 _ hfit₂ (by
-    rw [toNat_copyPadded, hW, hrem, Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; omega)
-  rw [toNat_copyPadded, hW, hrem, Nat.mul_zero, Nat.pow_zero, Nat.one_mul] at hsub₂
-  have hDs : (subInto (copyPadded (r.toSlice j (j + v.size + s)) (v.size + s)) 0
-      ((subInto f.1 0 p).toSlice 0 (v.size + s))).size = v.size + s := by
-    rw [size_subInto _ _ _ hfit₂, hcw]
-  generalize subInto (copyPadded (r.toSlice j (j + v.size + s)) (v.size + s)) 0
-    ((subInto f.1 0 p).toSlice 0 (v.size + s)) = D at *
-  have hD : toNat D = W / toNat v * toNat v := by rw [hsub₂]; omega
-  have hfitr : j + D.toSlice.size ≤ r.size := by
-    rw [UInt32Array.size_toSlice, hDs]; omega
-  have hler : 2 ^ (32 * j) * toNat D ≤ toNat r := by
-    rw [hD]
+  have hrW : 2 ^ (32 * j) * W ≤ toNat r := by
+    rw [← hWdef]; exact Nat.mul_div_le _ _
+  have hr' : toNat ((subInto f.1 0 p).copySlice 0 r j (v.size + s)) =
+      toNat r - 2 ^ (32 * j) * (W / toNat v * toNat v) := by
+    rw [toNat_toSlice, toNat_toSlice] at *
+    have hm : 2 ^ (32 * j) * (W - W / toNat v * toNat v) =
+        2 ^ (32 * j) * W - 2 ^ (32 * j) * (W / toNat v * toNat v) := Nat.mul_sub _ _ _
     have := Nat.mul_le_mul_left (2 ^ (32 * j)) hPW
-    have := Nat.mul_div_le (toNat r) (2 ^ (32 * j))
-    rw [hWdef] at this
     omega
-  have hfitq : j + f.2.toSlice.size ≤ q.size := by
-    rw [UInt32Array.size_toSlice, hf₂, he₁]; omega
-  -- `q` is a multiple of `βʲ⁺ˢ` below `β^q.size`, so adding `βʲ Q < βʲ⁺ˢ` does not carry.
-  have hltq : toNat q + 2 ^ (32 * j) * toNat f.2 < 2 ^ (32 * q.size) := by
-    have hqlt : toNat q < 2 ^ (32 * q.size) :=
-      Nat.lt_of_lt_of_le (toNat_lt q) (Nat.le_of_eq (by simp))
-    have hd : 2 ^ (32 * (j + s)) ∣ 2 ^ (32 * q.size) := Nat.pow_dvd_pow 2 (by omega)
-    have := add_le_of_dvd hdiv hd hqlt
-    have : 2 ^ (32 * j) * toNat f.2 < 2 ^ (32 * (j + s)) := by
-      rw [hf₄, Nat.mul_add, Nat.pow_add]
-      exact Nat.mul_lt_mul_of_pos_left hQlt hP
-    omega
-  refine ⟨size_subInto _ _ _ hfitr, size_addInto _ _ _ hfitq, ?_, ?_, ?_⟩
-  · rw [toNat_addInto_of_lt _ _ _ hfitq hltq, toNat_subInto_of_le _ _ _ hfitr hler, hD, hf₄]
-    rw [hD] at hler
+  -- The block of `q` is zero, since `βʲ⁺ˢ` divides `q`, so copying `Q` there adds `βʲ Q`.
+  obtain ⟨hq₁, hq₂⟩ := ofLimbs_copySlice f.2 q j s (by omega)
+  have hfs : f.2.size = s := by rw [hf₂, he₁]
+  have hqwin : ofLimbs ((q.toList.drop j).take (min s f.2.size)) = 0 := by
+    rw [hfs, Nat.min_self]
+    have hsplit := ofLimbs_append (q.toList.take (j + s)) (q.toList.drop (j + s))
+    rw [List.take_append_drop, List.length_take, UInt32Array.length_toList,
+      Nat.min_eq_left (by omega)] at hsplit
+    have hlow : ofLimbs (q.toList.take (j + s)) = 0 := by
+      have hd : 2 ^ (32 * (j + s)) ∣ ofLimbs (q.toList.take (j + s)) := by
+        have : 2 ^ (32 * (j + s)) ∣ ofLimbs q.toList := by rw [← toNat_toSlice]; exact hdiv
+        rw [hsplit] at this
+        exact (Nat.dvd_add_left (Nat.dvd_mul_right _ _)).1 this
+      exact Nat.eq_zero_of_dvd_of_lt hd (ofLimbs_take_lt _ _)
+    have h2 := ofLimbs_append (q.toList.take j) ((q.toList.drop j).take s)
+    rw [← List.take_add, List.length_take, UInt32Array.length_toList,
+      Nat.min_eq_left (by omega), hlow] at h2
+    have hpos : 0 < 2 ^ (32 * j) := Nat.two_pow_pos _
+    rcases Nat.eq_zero_or_pos (ofLimbs ((q.toList.drop j).take s)) with h | h
+    · exact h
+    · have := Nat.mul_pos hpos h
+      omega
+  rw [hqwin, Nat.mul_zero, Nat.add_zero, List.take_of_length_le (by simp; omega)] at hq₂
+  have hq' : toNat (f.2.copySlice 0 q j s) = toNat q + 2 ^ (32 * j) * toNat f.2 := by
+    rw [toNat_toSlice, toNat_toSlice, toNat_toSlice]; exact hq₂
+  refine ⟨hr₁, hq₁, ?_, ?_, ?_⟩
+  · rw [hq', hr', hf₄]
+    have := Nat.mul_le_mul_left (2 ^ (32 * j)) hPW
     rw [Nat.add_mul, Nat.mul_assoc]
     omega
-  · rw [toNat_subInto_of_le _ _ _ hfitr hler, hD, ← hWdef]
+  · rw [hr', ← hWdef]
     exact dc_rem_lt hP hVpos
-  · rw [toNat_addInto_of_lt _ _ _ hfitq hltq, hf₄]
-    refine Nat.dvd_add (Nat.dvd_trans (Nat.pow_dvd_pow 2 (by omega)) hdiv) (Nat.dvd_mul_right _ _)
+  · rw [hq', hf₄]
+    exact Nat.dvd_add (Nat.dvd_trans (Nat.pow_dvd_pow 2 (by omega)) hdiv) (Nat.dvd_mul_right _ _)
 
 /-! ## The blocks -/
 
