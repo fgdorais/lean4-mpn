@@ -11,12 +11,6 @@ Time now goes mostly into the schoolbook product, by columns since `Mul.Comba` (
 few percent of a product from 64 limbs up. With 32-bit limbs, a product needs 4× as many limb
 products as GMP's, which is most of the gap above 64 limbs.
 
-- [ ] **What is left of the Karatsuba and Toom-3 allocations:** about 100 small objects and arrays
-  per 256-limb product (slices, `replicate`, and the `++` in `karatsubaCombine`, which copies);
-  with `perf`, allocation and copies are 4% of a product at 256 limbs and 8–9% from 1024 up, the
-  copies themselves at most 1%. Thresholds are 64 and 480 limbs, about GMP's in bits (its 64-bit
-  limbs). A verified `mulInto r off a b` with one scratch area, in GMP's style, would remove
-  most of them, but the leaves and the passes of the combinations cost more.
 - [ ] **A shorter dependency chain in `divRem1`** (GMP's `mpn_div_qr_1n_pi1`): the loop is
   bound by the latency of one step, about 15 cycles (3.3 ns per limb on Zen 3), since each step
   needs the previous remainder; the rest of the loop (1.4 ns per limb) runs in parallel. A
@@ -49,11 +43,17 @@ instead of 576 and 892); both shifts in one
 pass with the slice folds of lean4-scalar-arrays#27 and #28; `push` inline upstream
 (lean4-scalar-arrays#24).
 
-Tried without gain: in Comba's column loop, unrolling by two (no change), counting the wraps of one
-64-bit sum instead of splitting the halves (faster below 32 limbs, slower above), and reading `b`
-reversed so that both operands go forward (the copy costs more than it saves); `divRem1` on
-`foldrInPlaceThen` over a copy (the loop is bound by the
-division, and building the slice costs 10–25 ns per call, 5–12% slower below 16 limbs), which also
+Tried without gain: Karatsuba into one array, products at an offset with the scratch above
+(GMP's style), prototyped without proofs on an offset copy of Comba's kernel: within ±1% of the
+allocating version from 128 to 448 limbs, with the combination in two passes or in one fused pass
+(after saving the top half of `z₀`, which it overwrites before reading). `perf` attributes 5–11%
+of a product to allocation and copies, but mimalloc's small allocations are cheap and an array
+of products still needs its evaluation sums as separate arrays (a slice of the scratch array
+would be shared with the array being written, and copied). In Comba's column loop, unrolling by
+two (no change), counting the wraps of one 64-bit sum instead of splitting the halves (faster
+below 32 limbs, slower above), and reading `b` reversed so that both operands go forward (the
+copy costs more than it saves); `divRem1` on `foldrInPlaceThen` over a copy (the loop is bound by
+the division, and building the slice costs 10–25 ns per call, 5–12% slower below 16 limbs), which also
 rules out slices for the per-row folds (`addMul1Set`, `addInto`, `subInto`), called once per row;
 passing `subMul1`'s borrow to the end of the step through `foldInPlaceThen` (the step still
 returns a pair, and the compiler already reused the memory of `subMul1`'s);
