@@ -40,7 +40,7 @@ noise.
 | `mul1` | `mul1` | `n` limbs times a limb | linear, one pass |
 | `mul` | `mulLimbs` | `n` by `n` limbs | Comba schoolbook, Karatsuba from 64, Toom-3 from 480 |
 | `sqr` | `sqr` | `n` limbs | Comba square, Karatsuba from 96, Toom-3 from 720 |
-| `div` | `divMod` | `2n` by `n` limbs | `divRem1`, `divRem2`, Algorithm D, Burnikel–Ziegler from 128 |
+| `div` | `div`, the quotient | `2n` by `n` limbs | `divRem1`, `divRem2`, Algorithm D, Burnikel–Ziegler from 128 |
 | `shr` | `shiftRight` by 37 bits | `n` limbs | one pass in place |
 | `badd` … `bdiv` | `BigNat` `+ - * /` | as above (`bdiv`: `2n` by `n`) | word fast path, then as above |
 | `bgcd` | `BigNat.gcd` | `n` and `n` limbs | Lehmer with word cofactors, Euclid on words |
@@ -62,7 +62,7 @@ Ratio Bignum / Nat (below 1 is faster than Nat):
 | `mul1` | 3.12 | 0.27 | 0.27 | 0.28 | 0.30 | 0.36 | 0.49 | 0.69 | 1.05 | 1.02 | 1.30 | 1.43 | 1.49 |
 | `mul` | 3.79 | 0.54 | 0.56 | 1.01 | 1.79 | 2.93 | 4.33 | 5.05 | 5.53 | 5.52 | 6.23 | 7.26 | 7.42 |
 | `sqr` | 3.83 | 0.55 | 0.53 | 0.87 | 1.42 | 1.88 | 2.46 | 2.95 | 3.21 | 3.32 | 3.89 | 4.51 | 4.57 |
-| `div` | 4.01 | 1.24 | 2.07 | 2.11 | 2.64 | 3.39 | 4.03 | 4.88 | 4.75 | 4.27 | 4.12 | 4.05 | 4.56 |
+| `div` | 4.83 | 2.69 | 2.29 | 3.05 | 3.84 | 6.00 | 8.92 | 12.22 | 11.69 | 9.94 | 9.66 | 9.33 | 10.29 |
 | `badd` | 1.70 | 1.26 | 0.91 | 0.86 | 0.91 | 0.96 | 1.08 | 1.38 | 1.71 | 1.46 | 1.78 |  |  |
 | `bsub` | 1.84 | 1.11 | 0.92 | 0.89 | 0.84 | 0.95 | 1.16 | 1.21 | 1.94 | 1.53 | 2.00 |  |  |
 | `bmul` | 1.80 | 1.15 | 0.80 | 1.30 | 2.03 | 2.83 | 4.24 | 5.03 | 5.47 | 5.54 | 6.25 |  |  |
@@ -86,7 +86,7 @@ Time of Bignum:
 | `mul1` | 30.5 ns | 31.1 ns | 32.1 ns | 32.9 ns | 35.8 ns | 44 ns | 64.6 ns | 106 ns | 203 ns | 366 ns | 697 ns | 1.35 µs | 2.66 µs |
 | `mul` | 34.4 ns | 43.2 ns | 55.2 ns | 93.8 ns | 210 ns | 627 ns | 2.19 µs | 6.97 µs | 21.9 µs | 64.6 µs | 188 µs | 551 µs | 1.55 ms |
 | `sqr` | 39.1 ns | 44.7 ns | 53.2 ns | 82 ns | 167 ns | 406 ns | 1.25 µs | 4.04 µs | 12.7 µs | 38.9 µs | 116 µs | 338 µs | 956 µs |
-| `div` | 68.9 ns | 163 ns | 385 ns | 515 ns | 861 ns | 1.92 µs | 5.36 µs | 18.5 µs | 58.4 µs | 168 µs | 494 µs | 1.41 ms | 4.01 ms |
+| `div` | 39.6 ns | 141 ns | 250 ns | 363 ns | 664 ns | 1.65 µs | 4.88 µs | 17.6 µs | 56.6 µs | 164 µs | 485 µs | 1.39 ms | 3.95 ms |
 | `badd` | 14.1 ns | 102 ns | 73.1 ns | 72.4 ns | 75.5 ns | 83 ns | 98.4 ns | 143 ns | 231 ns | 389 ns | 720 ns |  |  |
 | `bsub` | 16.4 ns | 98.1 ns | 80.9 ns | 81.2 ns | 87.8 ns | 89.9 ns | 115 ns | 168 ns | 272 ns | 461 ns | 843 ns |  |  |
 | `bmul` | 16.4 ns | 92.9 ns | 80 ns | 121 ns | 238 ns | 647 ns | 2.21 µs | 6.99 µs | 21.7 µs | 64.8 µs | 187 µs |  |  |
@@ -109,8 +109,10 @@ Time of Bignum:
 - **Multiplication** is 4–7.5× behind from 64 limbs up, **squaring** 2.5–4.6×. That is mostly
   structural: 32-bit limbs need 4× as many limb products as GMP's 64-bit limbs, and Lean has no
   64 × 64 → 128-bit multiply. Algorithm thresholds are close to GMP's in bits.
-- **Division** follows multiplication, 4–5× behind; small `BigNat` divisions still pay a fixed
-  cost (normalization, several arrays) that `Nat` doesn't.
+- **Division** is 9–12× behind from 64 limbs up, twice multiplication's gap: GMP divides `2n` by
+  `n` limbs for about the cost of one `n × n` product, and this library for 2.6 of its own.
+  Small `BigNat` divisions still pay a fixed cost (normalization, several arrays) that `Nat`
+  doesn't.
 - **`gcd`** is 9–18× behind from 4 limbs: each Lehmer step allocates; see TODO.
 - **`sqrt`** is 1.6–4× behind; **decimal strings** are 10–25× faster than `Nat`, whose conversions
   work digit by digit.
@@ -124,6 +126,7 @@ above; ratios before `15534f8` for `BigNat` rows were inflated by the hashing ch
 
 | date | commit | change | effect |
 |---|---|---|---|
+| 2026-10-16 | (uncommitted) | benchmark: `div` times the quotient alone on both sides | measurement only: its `Nat` column was two divisions, `/` and `%`, which halved the ratios (128 limbs: 4.9× → 12.2×) |
 | 2026-10-16 | `ddfac06` | normalized dividend divided in place; `BigNat` divided by a word without its array | `bdiv` 2: 192 → 170 ns; 4: 337 → 275 ns; 16: 799 → 707 ns |
 | 2026-10-16 | `7932eaf` | sums and products of two words that overflow, without arrays per word | `badd` 2: 95 → 34 ns; `bmul` 2: 92 → 50 ns |
 | 2026-10-16 | `4b92572` | conversions to and from `Nat` by halves | `btonat` 4096: 6.14 → 0.39 ms; `bofnat` 4096: 2.23 → 0.24 ms; 64: 4.59 → 3.31 µs |

@@ -56,14 +56,12 @@ def time {α β : Type} (f : α → α → β) (check : β → UInt32) (a b : α
   return (samples.qsort (· < ·))[trials / 2]!
 
 def checkArr (r : UInt32Array) : UInt32 := r.size.toUInt32 + r.getD 0 0
-def checkPair (r : UInt32Array × UInt32Array) : UInt32 := checkArr r.1 + checkArr r.2
 def checkNat (n : Nat) : UInt32 := n.toUInt32
 /-- O(1), like `checkNat`: hashing the result would add a pass over its limbs to the time. -/
 def checkBig : BigNat → UInt32
   | .small w => w.toUInt32
   | .large a _ => a.size.toUInt32 + a[0]!
 def checkStr (s : String) : UInt32 := s.utf8ByteSize.toUInt32
-def checkNatPair (r : Nat × Nat) : UInt32 := r.1.toUInt32 + r.2.toUInt32
 
 /-- `x` with `w` characters, padded on the left. -/
 def pad (w : Nat) (s : String) : String := "".pushn ' ' (w - s.length) ++ s
@@ -171,8 +169,9 @@ def main (args : List String) : IO Unit := do
         row noNat op n (time (fun x _ => sqr x) checkArr a a)
           (time (fun x _ => x * x) checkNat na na)
       | "div" =>
-        row noNat op n (time (fun x y => divMod x y) checkPair a2 b)
-          (time (fun x y => (x / y, x % y)) checkNatPair na2 nb)
+        -- The quotient alone on both sides: `Nat` has no single division with remainder, and
+        -- `(x / y, x % y)` is two divisions.
+        row noNat op n (time (fun x y => div x y) checkArr a2 b) (time (· / ·) checkNat na2 nb)
       | _ => throw <| .userError s!"unknown operation {op}"
 
 end Bench
