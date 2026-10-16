@@ -16,19 +16,26 @@ bijection, and `toString` and `ofString?` with `Nat.repr` and `String.toNat?`.
 
 ## Tuning
 
-Multiplication and squaring switch algorithms at size thresholds collected in `Bignum.Config`. The
-defaults were measured on one machine; `lake exe tune` measures them on yours in about a minute and
-prints the line to add to the `Bignum` library in `lakefile.toml`, for example:
+Multiplication, squaring and division switch algorithms at size thresholds collected in
+`Bignum.Config`. The defaults were measured on one machine; `lake exe tune` measures them on yours
+in about a minute and prints the options that set them. A project that depends on this library
+passes them with its `require`, together with `march`, which compiles the library's C code for a
+given processor:
 
 ```toml
-leanOptions = {
-  weak.bignum.mul.karatsubaThreshold = 64,
-  weak.bignum.mul.toom3Threshold = 480,
-  weak.bignum.mul.unbalancedThreshold = 96,
-  weak.bignum.sqr.basecaseThreshold = 2, weak.bignum.sqr.karatsubaThreshold = 96,
-  weak.bignum.sqr.toom3Threshold = 720,
-  weak.bignum.div.dcThreshold = 176}
+[[require]]
+name = "lean4-bignum"
+git = "https://github.com/fgdorais/lean4-bignum"
+rev = "main"
+options = { march = "native", mulKaratsuba = "64", mulToom3 = "480", divDC = "176" }
 ```
+
+The keys are the fields of `Bignum.Config`: `mulKaratsuba`, `mulToom3`, `mulUnbalanced`,
+`sqrBasecase`, `sqrKaratsuba`, `sqrToom3` and `divDC`; an invalid value stops the build. With
+`march = "native"` the C compiler may use the vector instructions of the build machine (7–13% faster
+products with AVX2), and the program then runs only on processors that have them. Lake keeps the
+configuration it elaborated, so after changing the options, build once with `lake build -R`. In
+this package itself, the same options go on the command line: `lake build -R -K march=native`.
 
 ## Programs
 

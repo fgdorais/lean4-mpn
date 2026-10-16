@@ -11,20 +11,14 @@ public meta import Lean
 
 `Config` collects the size thresholds, in limbs, at which the arithmetic switches algorithms. The
 algorithms take a `Config` as a parameter, and the library's own `Bignum.config` is built by
-`bignum_config%` from options set when the library is compiled, for example in the `lean_lib`
-section of a `lakefile.toml`:
-
-```
-leanOptions = { weak.bignum.mul.karatsubaThreshold = 48 }
-```
-
-The key must be written bare, not quoted, and the `weak.` prefix is needed because the options are
-registered by this library rather than by Lean. Options that are not set keep the defaults of
-`Config`. Each threshold carries the proof of the condition its algorithm needs, so an invalid
-value is rejected when the library is compiled.
+`bignum_config%` from the `bignum.*` options set when the library is compiled. The package's
+`lakefile.lean` sets them from the options of a project's `require`, keyed by the fields of
+`Config`, for example `options = { mulKaratsuba = "48" }` (see the README). Options that are not
+set keep the defaults of `Config`. Each threshold carries the proof of the condition its algorithm
+needs, so an invalid value is rejected when the library is compiled.
 
 The defaults were measured with `lake exe tune` on an AMD Ryzen 5 5600X. Running it on the target
-machine prints the thresholds for that machine and the `leanOptions` line that sets them.
+machine prints the thresholds for that machine and the options that set them.
 -/
 
 namespace Bignum

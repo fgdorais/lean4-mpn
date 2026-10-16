@@ -10,9 +10,9 @@ import Bignum
 # Threshold tuning
 
 `lake exe tune` measures where each algorithm starts to beat the one below it on this machine,
-like GMP's `tuneup`, and prints the `Config` it finds together with the `leanOptions` line that
-compiles it into the library. Pinning it to one core, for example with `taskset -c 2`, gives
-steadier results.
+like GMP's `tuneup`, and prints the `Config` it finds together with the options that compile it
+into the library: for a project that requires it, and on the command line. Pinning it to one
+core, for example with `taskset -c 2`, gives steadier results.
 -/
 
 open ScalarArray Bignum
@@ -242,12 +242,11 @@ public def main (args : List String) : IO UInt32 := do
   IO.println s!"Found:   {repr cfg}"
   IO.println s!"Default: {repr ({} : Config)}"
   IO.println ""
-  IO.println "To compile these into the library, add to its `lean_lib` in lakefile.toml:"
-  IO.println s!"  leanOptions = \{ weak.bignum.mul.karatsubaThreshold = {cfg.mulKaratsuba}, \
-    weak.bignum.mul.toom3Threshold = {cfg.mulToom3}, \
-    weak.bignum.mul.unbalancedThreshold = {cfg.mulUnbalanced}, \
-    weak.bignum.sqr.basecaseThreshold = {cfg.sqrBasecase}, \
-    weak.bignum.sqr.karatsubaThreshold = {cfg.sqrKaratsuba}, \
-    weak.bignum.sqr.toom3Threshold = {cfg.sqrToom3}, \
-    weak.bignum.div.dcThreshold = {cfg.divDC} }"
+  let opts := [("mulKaratsuba", cfg.mulKaratsuba), ("mulToom3", cfg.mulToom3),
+    ("mulUnbalanced", cfg.mulUnbalanced), ("sqrBasecase", cfg.sqrBasecase),
+    ("sqrKaratsuba", cfg.sqrKaratsuba), ("sqrToom3", cfg.sqrToom3), ("divDC", cfg.divDC)]
+  IO.println "To compile these into the library, add to its `require` in lakefile.toml:"
+  IO.println s!"  options = \{ {", ".intercalate (opts.map fun (k, v) => s!"{k} = \"{v}\"")} }"
+  IO.println "or build this package with:"
+  IO.println s!"  lake build -R {" ".intercalate (opts.map fun (k, v) => s!"-K {k}={v}")}"
   return 0

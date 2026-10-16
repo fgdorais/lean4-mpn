@@ -47,7 +47,9 @@ with the slice folds of lean4-scalar-arrays#27 and #28; `push` inline upstream
 and 64 bits at a time below 64 limbs for `ofNat` (`toNatFast`, `ofNatFast`; 4096 limbs: 6.1 → 0.39
 ms and 2.2 → 0.24 ms, still about one operation on `Nat`, some 40 ns, per two limbs).
 
-Tried without gain: Karatsuba into one array, products at an offset with the scratch above (GMP's
+Tried without gain: Toom-3's assembly by copies, `c₀` and `c₄` written into place and three
+`addInto`s instead of five on a zeroed array (within 1% from 512 to 4096 limbs, where Comba is
+72% of a product); Karatsuba into one array, products at an offset with the scratch above (GMP's
 style), prototyped without proofs on an offset copy of Comba's kernel: within ±1% of the allocating
 version from 128 to 448 limbs, with the combination in two passes or in one fused pass (after saving
 the top half of `z₀`, which it overwrites before reading). `perf` attributes 5–11% of a product to
@@ -116,9 +118,11 @@ division, and `topSize` usually stops at the first limb.
   through `limbsOfWord` and the array functions (about 95 ns). `mulWide` computes the product from
   the four products of halves, and `wideOf` makes the three or four limbs directly: `badd` at 2
   limbs 95 → 34 ns (0.42× `Nat`), `bmul` 92 → 50 ns (0.62×).
-- [ ] **Per-dependency thresholds.** Lake builds a dependency with that dependency's own
-  options, so a downstream project can't tune this library's `Config`. The usual mechanism is
-  `require … with …` configuration, which needs a `lakefile.lean`.
+- [x] **Per-dependency configuration.** Lake builds a dependency with that dependency's own
+  settings; the package's `lakefile.lean` now reads the options of a project's `require` (or
+  `-K`): the thresholds, keyed by the fields of `Config`, and `march`, which compiles the C code
+  with `-march=<value>` (`native`: 7–13% faster products with AVX2). Keys have no dots, since TOML
+  passes a quoted key as one name, and changed options need `lake build -R`.
 
 ## Proof engineering
 
