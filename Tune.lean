@@ -125,8 +125,8 @@ def tuneToom3 (karatsuba : Nat) (h : 4 ≤ karatsuba) (log : Bool) : IO Nat := m
   -- A threshold for Toom-3 beyond every size tried, so that only Karatsuba recurses.
   let cfg : Config := { mulKaratsuba := karatsuba, four_le_mulKaratsuba := h, mulToom3 := 100000 }
   let toom3Step (a b : UInt32Array.Slice) : UInt32Array :=
-    if h : 12 ≤ b.size ∧ b.size ≤ a.size then
-      toom3 a b h.1 h.2 fun x y _ => mulLimbsWith cfg x y
+    if h : 12 ≤ b.size ∧ b.size ≤ a.size ∧ 3 * a.size < 4 * b.size then
+      toom3 a b h.1 h.2.1 h.2.2 fun x y _ => mulLimbsWith cfg x y
     else
       mulLimbsWith cfg a b
   let sizes := (List.range 50).map (karatsuba + 16 * ·)

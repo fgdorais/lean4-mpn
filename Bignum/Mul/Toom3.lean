@@ -451,14 +451,14 @@ private theorem toom3Finish_spec (n k : Nat) (c₀ w₁ w₂ w₃ c₄ : UInt32A
 /-! ## Toom-3 -/
 
 /--
-The product `a * b` by one step of Toom-3, splitting at `k = ⌈b.size / 3⌉` limbs, for
-`12 ≤ b.size ≤ a.size`. It computes the five products with `mulRec`, which only receives inputs
-smaller than `a` and `b` together.
+The product `a * b` by one step of Toom-3, splitting both at `k` limbs, for `4 ≤ k`, `2 k ≤ b.size ≤
+3 k` and `b.size ≤ a.size ≤ 4 k`. It computes the five products with `mulRec`, which only receives
+inputs smaller than `a` and `b` together.
 -/
-public def toom3 (a b : UInt32Array.Slice) (hb : 12 ≤ b.size) (hab : b.size ≤ a.size)
+public def toom3At (a b : UInt32Array.Slice) (k : Nat) (hk : 4 ≤ k) (hkb : 2 * k ≤ b.size)
+    (hbk : b.size ≤ 3 * k) (hab : b.size ≤ a.size) (hak : a.size ≤ 4 * k)
     (mulRec : (x y : UInt32Array.Slice) → x.size + y.size < a.size + b.size → UInt32Array) :
     UInt32Array :=
-  let k := (b.size + 2) / 3
   let a₀ := a.slice 0 k
   let a₁ := a.slice k (2 * k)
   let a₂ := a.slice (2 * k) a.size
@@ -481,55 +481,92 @@ public def toom3 (a b : UInt32Array.Slice) (hb : 12 ≤ b.size) (hab : b.size �
     omega)
   toom3Finish (a.size + b.size) k c₀ w₁ w₂ w₃ c₄
 
-public theorem toom3_spec (a b : UInt32Array.Slice) (hb : 12 ≤ b.size) (hab : b.size ≤ a.size)
+public theorem toom3At_spec (a b : UInt32Array.Slice) (k : Nat) (hk : 4 ≤ k)
+    (hkb : 2 * k ≤ b.size) (hbk : b.size ≤ 3 * k) (hab : b.size ≤ a.size) (hak : a.size ≤ 4 * k)
     (mulRec : (x y : UInt32Array.Slice) → x.size + y.size < a.size + b.size → UInt32Array)
     (hrec : ∀ x y h, (mulRec x y h).size = x.size + y.size ∧
       toNat (mulRec x y h) = toNat x * toNat y) :
-    (toom3 a b hb hab mulRec).size = a.size + b.size ∧
-      toNat (toom3 a b hb hab mulRec) = toNat a * toNat b := by
-  have hk₁ : 2 * ((b.size + 2) / 3) ≤ b.size := by omega
-  have ha := toNat_slice_three a ((b.size + 2) / 3) (by omega)
-  have hb' := toNat_slice_three b ((b.size + 2) / 3) hk₁
+    (toom3At a b k hk hkb hbk hab hak mulRec).size = a.size + b.size ∧
+      toNat (toom3At a b k hk hkb hbk hab hak mulRec) = toNat a * toNat b := by
+  have hk₁ : 2 * k ≤ b.size := hkb
+  have ha := toNat_slice_three a k (by omega)
+  have hb' := toNat_slice_three b k hk₁
   have hA := toNat_lt a
   have hB := toNat_lt b
   -- The five products.
-  obtain ⟨-, hv₀⟩ := hrec (a.slice 0 ((b.size + 2) / 3)) (b.slice 0 ((b.size + 2) / 3))
+  obtain ⟨-, hv₀⟩ := hrec (a.slice 0 k) (b.slice 0 k)
     (by simp only [UInt32Array.Slice.size_slice]; omega)
-  obtain ⟨-, hv₄⟩ := hrec (a.slice (2 * ((b.size + 2) / 3)) a.size)
-    (b.slice (2 * ((b.size + 2) / 3)) b.size) (by simp only [UInt32Array.Slice.size_slice]; omega)
+  obtain ⟨-, hv₄⟩ := hrec (a.slice (2 * k) a.size)
+    (b.slice (2 * k) b.size) (by simp only [UInt32Array.Slice.size_slice]; omega)
   obtain ⟨-, hw₁⟩ := hrec
-    (eval1 (a.slice 0 ((b.size + 2) / 3)) (a.slice ((b.size + 2) / 3) (2 * ((b.size + 2) / 3)))
-      (a.slice (2 * ((b.size + 2) / 3)) a.size))
-    (eval1 (b.slice 0 ((b.size + 2) / 3)) (b.slice ((b.size + 2) / 3) (2 * ((b.size + 2) / 3)))
-      (b.slice (2 * ((b.size + 2) / 3)) b.size))
+    (eval1 (a.slice 0 k) (a.slice k (2 * k))
+      (a.slice (2 * k) a.size))
+    (eval1 (b.slice 0 k) (b.slice k (2 * k))
+      (b.slice (2 * k) b.size))
     (by simp only [UInt32Array.size_toSlice, size_eval1, UInt32Array.Slice.size_slice]; omega)
   obtain ⟨-, hw₂⟩ := hrec
-    (eval2 (a.slice 0 ((b.size + 2) / 3)) (a.slice ((b.size + 2) / 3) (2 * ((b.size + 2) / 3)))
-      (a.slice (2 * ((b.size + 2) / 3)) a.size))
-    (eval2 (b.slice 0 ((b.size + 2) / 3)) (b.slice ((b.size + 2) / 3) (2 * ((b.size + 2) / 3)))
-      (b.slice (2 * ((b.size + 2) / 3)) b.size))
+    (eval2 (a.slice 0 k) (a.slice k (2 * k))
+      (a.slice (2 * k) a.size))
+    (eval2 (b.slice 0 k) (b.slice k (2 * k))
+      (b.slice (2 * k) b.size))
     (by simp only [UInt32Array.size_toSlice, size_eval2, UInt32Array.Slice.size_slice]; omega)
   obtain ⟨-, hw₃⟩ := hrec
-    (eval3 (a.slice 0 ((b.size + 2) / 3)) (a.slice ((b.size + 2) / 3) (2 * ((b.size + 2) / 3)))
-      (a.slice (2 * ((b.size + 2) / 3)) a.size))
-    (eval3 (b.slice 0 ((b.size + 2) / 3)) (b.slice ((b.size + 2) / 3) (2 * ((b.size + 2) / 3)))
-      (b.slice (2 * ((b.size + 2) / 3)) b.size))
+    (eval3 (a.slice 0 k) (a.slice k (2 * k))
+      (a.slice (2 * k) a.size))
+    (eval3 (b.slice 0 k) (b.slice k (2 * k))
+      (b.slice (2 * k) b.size))
     (by simp only [UInt32Array.size_toSlice, size_eval3, UInt32Array.Slice.size_slice]; omega)
   rw [toNat_eval1, toNat_eval1] at hw₁
   rw [toNat_eval2, toNat_eval2] at hw₂
   rw [toNat_eval3, toNat_eval3] at hw₃
-  generalize toNat (a.slice 0 ((b.size + 2) / 3)) = A₀ at *
-  generalize toNat (a.slice ((b.size + 2) / 3) (2 * ((b.size + 2) / 3))) = A₁ at *
-  generalize toNat (a.slice (2 * ((b.size + 2) / 3)) a.size) = A₂ at *
-  generalize toNat (b.slice 0 ((b.size + 2) / 3)) = B₀ at *
-  generalize toNat (b.slice ((b.size + 2) / 3) (2 * ((b.size + 2) / 3))) = B₁ at *
-  generalize toNat (b.slice (2 * ((b.size + 2) / 3)) b.size) = B₂ at *
+  generalize toNat (a.slice 0 k) = A₀ at *
+  generalize toNat (a.slice k (2 * k)) = A₁ at *
+  generalize toNat (a.slice (2 * k) a.size) = A₂ at *
+  generalize toNat (b.slice 0 k) = B₀ at *
+  generalize toNat (b.slice k (2 * k)) = B₁ at *
+  generalize toNat (b.slice (2 * k) b.size) = B₂ at *
   have hlt : toNat a * toNat b < 2 ^ (32 * (a.size + b.size)) := by
     rw [Nat.mul_add, Nat.pow_add]
     exact Nat.mul_lt_mul'' hA hB
   rw [ha, hb'] at hlt ⊢
-  exact toom3Finish_spec (a.size + b.size) ((b.size + 2) / 3) _ _ _ _ _ A₀ A₁ A₂ B₀ B₁ B₂ (by omega)
+  exact toom3Finish_spec (a.size + b.size) k _ _ _ _ _ A₀ A₁ A₂ B₀ B₁ B₂ (by omega)
     hv₀ hv₄ hw₁ hw₂ hw₃ hlt
+
+/--
+The product `a * b` by one step of Toom-3, for `12 ≤ b.size ≤ a.size < 4 b.size / 3`: it splits
+both at a third of `a` when two such parts fit in `b`, so that the five products are balanced, and
+at a third of `b` otherwise. Splitting at a third of `b` alone left a long top part of `a` in all
+five products when `a` was longer.
+-/
+public def toom3 (a b : UInt32Array.Slice) (hb : 12 ≤ b.size) (hab : b.size ≤ a.size)
+    (h43 : 3 * a.size < 4 * b.size)
+    (mulRec : (x y : UInt32Array.Slice) → x.size + y.size < a.size + b.size → UInt32Array) :
+    UInt32Array :=
+  if h : 2 * ((a.size + 2) / 3) ≤ b.size then
+    toom3At a b ((a.size + 2) / 3) (by lia) h (by lia) hab (by lia) mulRec
+  else
+    toom3At a b ((b.size + 2) / 3) (by lia) (by lia) (by lia) hab (by lia) mulRec
+
+public theorem toom3_spec (a b : UInt32Array.Slice) (hb : 12 ≤ b.size) (hab : b.size ≤ a.size)
+    (h43 : 3 * a.size < 4 * b.size)
+    (mulRec : (x y : UInt32Array.Slice) → x.size + y.size < a.size + b.size → UInt32Array)
+    (hrec : ∀ x y h, (mulRec x y h).size = x.size + y.size ∧
+      toNat (mulRec x y h) = toNat x * toNat y) :
+    (toom3 a b hb hab h43 mulRec).size = a.size + b.size ∧
+      toNat (toom3 a b hb hab h43 mulRec) = toNat a * toNat b := by
+  by_cases h : 2 * ((a.size + 2) / 3) ≤ b.size
+  · have e : toom3 a b hb hab h43 mulRec =
+        toom3At a b ((a.size + 2) / 3) (by lia) h (by lia) hab (by lia) mulRec := by
+      unfold toom3
+      rw [dite_eq_left h]
+    rw [e]
+    exact toom3At_spec _ _ _ _ _ _ _ _ _ hrec
+  · have e : toom3 a b hb hab h43 mulRec =
+        toom3At a b ((b.size + 2) / 3) (by lia) (by lia) (by lia) hab (by lia) mulRec := by
+      unfold toom3
+      rw [dite_eq_right h]
+    rw [e]
+    exact toom3At_spec _ _ _ _ _ _ _ _ _ hrec
 
 /-! ## Toom-3 by 2
 

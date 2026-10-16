@@ -26,7 +26,8 @@ longer operand first, then `mulLongShort` chooses by the size of the shorter one
   twice as long: `mulUnbalanced`, which halves the longer operand;
 * at least `cfg.mulToom32` limbs otherwise, with the longer operand at least four thirds as long:
   `toom32`, which splits it in three and the shorter in two;
-* at least `cfg.mulToom3` limbs otherwise: `toom3`;
+* at least `cfg.mulToom3` limbs otherwise, with the longer operand less than four thirds as long:
+  `toom3`, which splits both at a third of the longer when two such parts fit in the shorter;
 * at least `cfg.mulKaratsuba` limbs otherwise: `karatsuba`;
 * otherwise: the schoolbook `mulBasecase`, with its rows over the shorter operand.
 
@@ -68,8 +69,9 @@ def mulLongShort (cfg : Config) (a b : UInt32Array.Slice) (hab : b.size ≤ a.si
     else if h₃₂ : cfg.mulToom32 ≤ b.size ∧ 4 * b.size ≤ 3 * a.size then
       toom32 a b (Nat.le_trans cfg.twelve_le_mulToom32 h₃₂.1) hab (by omega) fun x y _ =>
         mulLimbsWith cfg x y
-    else if h₃ : cfg.mulToom3 ≤ b.size then
-      toom3 a b (Nat.le_trans cfg.twelve_le_mulToom3 h₃) hab fun x y _ => mulLimbsWith cfg x y
+    else if h₃ : cfg.mulToom3 ≤ b.size ∧ 3 * a.size < 4 * b.size then
+      toom3 a b (Nat.le_trans cfg.twelve_le_mulToom3 h₃.1) hab h₃.2 fun x y _ =>
+        mulLimbsWith cfg x y
     else
       karatsuba a b (Nat.le_trans cfg.four_le_mulKaratsuba h) hab fun x y _ => mulLimbsWith cfg x y
   else
@@ -121,7 +123,7 @@ private theorem mulLongShort_ok (cfg : Config) (a b : UInt32Array.Slice) (hab : 
         · split
           · exact toom32_spec a b _ hab _ _ fun x y hxy => ih x y hxy
           · split
-            · exact toom3_spec a b _ hab _ fun x y hxy => ih x y hxy
+            · exact toom3_spec a b _ hab _ _ fun x y hxy => ih x y hxy
             · exact karatsuba_spec a b _ hab _ fun x y hxy => ih x y hxy
       · exact (show MulOK b a (mulBasecase b a) from ⟨size_mulBasecase b a,
           toNat_mulBasecase b a⟩).swap
