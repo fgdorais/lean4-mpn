@@ -151,6 +151,27 @@ private theorem UInt32.high_ne_zero (t : UInt64) : (t >>> 32 != 0) = decide (2 ^
   rw [Bool.eq_iff_iff]
   simp [← UInt64.toNat_inj, Nat.shiftRight_eq_div_pow]
 
+/--
+The low word of `p + h` from the low word of `p`. The steps of the compiled loops compute their low
+word this way, as `lo p + h` with the carry `h`, and their carry from `p + h`: using `p` twice keeps
+LLVM from adding the carry first, which would put the rest of the step on its dependency chain.
+-/
+public theorem UInt32.toUInt32_add (p : UInt64) (h : UInt32) :
+    p.toUInt32 + h = (p + h.toUInt64).toUInt32 := by
+  apply UInt32.toNat_inj.1
+  simp only [UInt32.toNat_add, UInt64.toNat_toUInt32, UInt64.toNat_add, UInt32.toNat_toUInt64]
+  have := h.toNat_lt
+  lia
+
+/-- The low word of `p - b` from the low word of `p`, as in `toUInt32_add`. -/
+public theorem UInt32.toUInt32_sub (p : UInt64) (b : UInt32) :
+    p.toUInt32 - b = (p - b.toUInt64).toUInt32 := by
+  apply UInt32.toNat_inj.1
+  simp only [UInt32.toNat_sub, UInt64.toNat_toUInt32, UInt64.toNat_sub, UInt32.toNat_toUInt64]
+  have := b.toNat_lt
+  have := p.toNat_lt
+  lia
+
 public theorem UInt32.addWithCarry_spec (x y : UInt32) (c : Bool) :
     (x.addWithCarry y c).1.toNat + (x.addWithCarry y c).2.toNat * 2 ^ 32 =
       x.toNat + y.toNat + c.toNat := by
@@ -193,10 +214,18 @@ last, and that sum is also used for the low word, so that LLVM does not add the 
   let s := x.toUInt64 + y.toUInt64
   (s.toUInt32 + c, ((s + c.toUInt64) >>> 32).toUInt32)
 
-/-- `subWithBorrow` with the borrow as a word, `0` or `1`, for the same reason. -/
+/--
+`subWithBorrow` with the borrow as a word, `0` or `1`, for the same reason, and with the borrow
+taken from `x - y` last, as in `addWithCarryWord`.
+-/
 @[inline, expose] public def UInt32.subWithBorrowWord (x y b : UInt32) : UInt32 × UInt32 :=
-  let t := x.toUInt64 - y.toUInt64 - b.toUInt64
-  (t.toUInt32, (t >>> 63).toUInt32)
+  let s := x.toUInt64 - y.toUInt64
+  (s.toUInt32 - b, ((s - b.toUInt64) >>> 63).toUInt32)
+
+private theorem UInt32.subWithBorrowWord_eq (x y b : UInt32) :
+    x.subWithBorrowWord y b = ((x.toUInt64 - y.toUInt64 - b.toUInt64).toUInt32,
+      ((x.toUInt64 - y.toUInt64 - b.toUInt64) >>> 63).toUInt32) := by
+  simp only [subWithBorrowWord, toUInt32_sub]
 
 public theorem UInt32.addWithCarryWord_toUInt32 (x y : UInt32) (c : Bool) :
     x.addWithCarryWord y c.toUInt32 =
@@ -218,7 +247,8 @@ public theorem UInt32.subWithBorrowWord_toUInt32 (x y : UInt32) (b : Bool) :
   have := x.toNat_lt
   have := y.toNat_lt
   have h : b.toUInt32.toUInt64 = b.toUInt64 := by cases b <;> rfl
-  simp only [subWithBorrowWord, subWithBorrow, h, Prod.mk.injEq, true_and]
+  rw [subWithBorrowWord_eq]
+  simp only [subWithBorrow, h, Prod.mk.injEq, true_and]
   apply UInt32.toNat_inj.1
   cases b <;> simp [UInt64.toNat_sub, Bool.toUInt64, Bool.toUInt32, bne, ← UInt64.toNat_inj,
     Nat.shiftRight_eq_div_pow] <;> split <;> simp only [UInt32.toNat_zero, UInt32.toNat_one] <;>
@@ -230,8 +260,13 @@ squaring: twice a limb of the cross products plus a limb of the diagonal and the
 at most `2`.
 -/
 @[inline, expose] public def UInt32.dblAddAdd (x d c : UInt32) : UInt32 × UInt32 :=
-  let t := x.toUInt64 + x.toUInt64 + d.toUInt64 + c.toUInt64
-  (t.toUInt32, (t >>> 32).toUInt32)
+  let p := x.toUInt64 + x.toUInt64 + d.toUInt64
+  (p.toUInt32 + c, ((p + c.toUInt64) >>> 32).toUInt32)
+
+private theorem UInt32.dblAddAdd_eq (x d c : UInt32) :
+    x.dblAddAdd d c = ((x.toUInt64 + x.toUInt64 + d.toUInt64 + c.toUInt64).toUInt32,
+      ((x.toUInt64 + x.toUInt64 + d.toUInt64 + c.toUInt64) >>> 32).toUInt32) := by
+  simp only [dblAddAdd, toUInt32_add]
 
 public theorem UInt32.dblAddAdd_spec (x d c : UInt32) :
     (x.dblAddAdd d c).1.toNat + (x.dblAddAdd d c).2.toNat * 2 ^ 32 =
@@ -239,7 +274,8 @@ public theorem UInt32.dblAddAdd_spec (x d c : UInt32) :
   have := x.toNat_lt
   have := d.toNat_lt
   have := c.toNat_lt
-  simp only [dblAddAdd, UInt64.toNat_add, UInt64.toNat_toUInt32, UInt32.toNat_toUInt64,
+  rw [dblAddAdd_eq]
+  simp only [UInt64.toNat_add, UInt64.toNat_toUInt32, UInt32.toNat_toUInt64,
     UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow, UInt64.toNat_ofNat, Nat.reduceMod,
     Nat.reducePow] at *
   lia
@@ -300,8 +336,14 @@ from one limb to the next. The value `y - x v - c` lies in `[2³² - 2⁶⁴, 2�
 next borrow: the step is `y - x v - (2³³ - 1) + h`, without the negation of the borrow.
 -/
 @[inline, expose] public def UInt32.subMulBiased (y x v h : UInt32) : UInt32 × UInt32 :=
-  let t := y.toUInt64 - x.toUInt64 * v.toUInt64 - 0x1FFFFFFFF + h.toUInt64
-  (t.toUInt32, (t >>> 32).toUInt32)
+  let p := y.toUInt64 - x.toUInt64 * v.toUInt64 - 0x1FFFFFFFF
+  (p.toUInt32 + h, ((p + h.toUInt64) >>> 32).toUInt32)
+
+private theorem UInt32.subMulBiased_eq (y x v h : UInt32) :
+    y.subMulBiased x v h =
+      ((y.toUInt64 - x.toUInt64 * v.toUInt64 - 0x1FFFFFFFF + h.toUInt64).toUInt32,
+        ((y.toUInt64 - x.toUInt64 * v.toUInt64 - 0x1FFFFFFFF + h.toUInt64) >>> 32).toUInt32) := by
+  simp only [subMulBiased, toUInt32_add]
 
 public theorem UInt32.subMulBiased_not (y x v c : UInt32) :
     y.subMulBiased x v (~~~c) = ((y.subMul x v c).1, ~~~(y.subMul x v c).2) := by
@@ -310,7 +352,8 @@ public theorem UInt32.subMulBiased_not (y x v c : UInt32) :
   have := v.toNat_lt
   have := c.toNat_lt
   have : x.toNat * v.toNat ≤ (2 ^ 32 - 1) * (2 ^ 32 - 1) := Nat.mul_le_mul (by lia) (by lia)
-  simp only [subMulBiased, subMul, Prod.mk.injEq]
+  rw [subMulBiased_eq]
+  simp only [subMul, Prod.mk.injEq]
   constructor
   · apply UInt32.toNat_inj.1
     simp only [UInt64.toNat_toUInt32, UInt64.toNat_sub, UInt64.toNat_add, UInt64.toNat_mul,

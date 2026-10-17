@@ -29,8 +29,19 @@ namespace MPN
 `0` and `3` that is the true carry plus `2`.
 -/
 @[inline, expose] public def addDiffStep (v x y z c : UInt32) : UInt32 × UInt32 :=
-  let t := v.toUInt64 + x.toUInt64 + c.toUInt64 + 0x1FFFFFFFE - y.toUInt64 - z.toUInt64
-  (t.toUInt32, (t >>> 32).toUInt32)
+  let p := v.toUInt64 + x.toUInt64 + 0x1FFFFFFFE - y.toUInt64 - z.toUInt64
+  (p.toUInt32 + c, ((p + c.toUInt64) >>> 32).toUInt32)
+
+/-- `addDiffStep` with the carry in the sum, as its specification reads it. -/
+private theorem addDiffStep_eq (v x y z c : UInt32) :
+    addDiffStep v x y z c =
+      ((v.toUInt64 + x.toUInt64 + c.toUInt64 + 0x1FFFFFFFE - y.toUInt64 - z.toUInt64).toUInt32,
+        ((v.toUInt64 + x.toUInt64 + c.toUInt64 + 0x1FFFFFFFE - y.toUInt64 - z.toUInt64) >>>
+          32).toUInt32) := by
+  have e : v.toUInt64 + x.toUInt64 + c.toUInt64 + 0x1FFFFFFFE - y.toUInt64 - z.toUInt64 =
+      v.toUInt64 + x.toUInt64 + 0x1FFFFFFFE - y.toUInt64 - z.toUInt64 + c.toUInt64 := by grind
+  rw [e]
+  simp only [addDiffStep, UInt32.toUInt32_add]
 
 public theorem addDiffStep_spec (v x y z c : UInt32) (hc : c.toNat ≤ 3) :
     (addDiffStep v x y z c).1.toNat + 2 ^ 32 * (addDiffStep v x y z c).2.toNat + y.toNat +
@@ -40,7 +51,8 @@ public theorem addDiffStep_spec (v x y z c : UInt32) (hc : c.toNat ≤ 3) :
   have := x.toNat_lt
   have := y.toNat_lt
   have := z.toNat_lt
-  simp only [addDiffStep, UInt64.toNat_sub, UInt64.toNat_add, UInt64.toNat_toUInt32,
+  rw [addDiffStep_eq]
+  simp only [UInt64.toNat_sub, UInt64.toNat_add, UInt64.toNat_toUInt32,
     UInt32.toNat_toUInt64, UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow, UInt64.toNat_ofNat,
     Nat.reduceMod, Nat.reducePow] at *
   lia

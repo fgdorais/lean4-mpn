@@ -31,9 +31,21 @@ namespace MPN
 plus `2³¹`, for `a, b < 2³¹`.
 -/
 @[inline, expose] public def mulSubMulStep (v x y a b h : UInt32) : UInt32 × UInt32 :=
-  let t := v.toUInt64 + x.toUInt64 * a.toUInt64 + h.toUInt64 + 0x7FFFFFFF80000000 -
-    y.toUInt64 * b.toUInt64
-  (t.toUInt32, (t >>> 32).toUInt32)
+  let p := v.toUInt64 + x.toUInt64 * a.toUInt64 + 0x7FFFFFFF80000000 - y.toUInt64 * b.toUInt64
+  (p.toUInt32 + h, ((p + h.toUInt64) >>> 32).toUInt32)
+
+/-- `mulSubMulStep` with the carry in the sum, as its specification reads it. -/
+private theorem mulSubMulStep_eq (v x y a b h : UInt32) :
+    mulSubMulStep v x y a b h =
+      ((v.toUInt64 + x.toUInt64 * a.toUInt64 + h.toUInt64 + 0x7FFFFFFF80000000 -
+          y.toUInt64 * b.toUInt64).toUInt32,
+        ((v.toUInt64 + x.toUInt64 * a.toUInt64 + h.toUInt64 + 0x7FFFFFFF80000000 -
+          y.toUInt64 * b.toUInt64) >>> 32).toUInt32) := by
+  have e : v.toUInt64 + x.toUInt64 * a.toUInt64 + h.toUInt64 + 0x7FFFFFFF80000000 -
+      y.toUInt64 * b.toUInt64 = v.toUInt64 + x.toUInt64 * a.toUInt64 + 0x7FFFFFFF80000000 -
+      y.toUInt64 * b.toUInt64 + h.toUInt64 := by grind
+  rw [e]
+  simp only [mulSubMulStep, UInt32.toUInt32_add]
 
 public theorem mulSubMulStep_spec (v x y a b h : UInt32) (ha : a.toNat < 2 ^ 31)
     (hb : b.toNat < 2 ^ 31) :
@@ -45,7 +57,8 @@ public theorem mulSubMulStep_spec (v x y a b h : UInt32) (ha : a.toNat < 2 ^ 31)
   have := h.toNat_lt
   have hxa : x.toNat * a.toNat ≤ (2 ^ 32 - 1) * (2 ^ 31 - 1) := Nat.mul_le_mul (by lia) (by lia)
   have hyb : y.toNat * b.toNat ≤ (2 ^ 32 - 1) * (2 ^ 31 - 1) := Nat.mul_le_mul (by lia) (by lia)
-  simp only [mulSubMulStep, UInt64.toNat_sub, UInt64.toNat_add, UInt64.toNat_mul,
+  rw [mulSubMulStep_eq]
+  simp only [UInt64.toNat_sub, UInt64.toNat_add, UInt64.toNat_mul,
     UInt64.toNat_toUInt32, UInt32.toNat_toUInt64, UInt64.toNat_shiftRight,
     Nat.shiftRight_eq_div_pow, UInt64.toNat_ofNat, Nat.reduceMod, Nat.reducePow] at *
   generalize x.toNat * a.toNat = p at *
