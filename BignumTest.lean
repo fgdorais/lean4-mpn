@@ -381,8 +381,10 @@ def decimalValues : List Nat :=
     (BigNat.sqrt (BigNat.ofNat a)).toNat == Nat.sqrt a
 
 -- Comba's columns (`mulBasecase` compiles to `combaMul`): all-ones limbs give the largest column
--- sums and carries; unbalanced shapes give columns of every length.
-#guard [(1, 1), (1, 7), (2, 2), (3, 5), (8, 8), (17, 3), (40, 40), (100, 7), (64, 129)].all
+-- sums and carries, and the most wraps from 32 limbs; unbalanced shapes give columns of every
+-- length, on both sides of 32.
+#guard [(1, 1), (1, 7), (2, 2), (3, 5), (8, 8), (17, 3), (31, 31), (31, 32), (32, 32), (33, 47),
+    (40, 40), (63, 63), (100, 7), (100, 31), (100, 32), (64, 129)].all
   fun (n, m) =>
     let x := 2 ^ (32 * n) - 1
     let y := 2 ^ (32 * m) - 1

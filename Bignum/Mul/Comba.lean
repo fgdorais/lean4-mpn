@@ -12,8 +12,10 @@ public import Bignum.Basic
 The schoolbook product column by column, after Paul Comba: limb `k` of `a * b` comes from the sum
 of the products `aᵢ b_{k-i}`, plus the carry from the column below. Within a column the products
 are independent, so there is no carry chain from one product to the next as in the rows of
-`addMul1`, and the C compiler vectorizes the loop. The low and high halves of the products go into
-two `UInt64` accumulators, which cannot overflow for fewer than `2³¹` products.
+`addMul1`. For short operands the low and high halves of the products go into two `UInt64`
+accumulators, which cannot overflow for fewer than `2³¹` products, and the C compiler vectorizes
+the loop (`colLoop`); from 32 limbs the whole products go into one accumulator that counts its
+wraps (`colLoopW`), an addition with carry per product, which is faster although not vectorized.
 
 The specification is `Σ_k βᵏ colSum k = a * b` (`weighted_eq`), where `colSum k` adds the products
 of column `k` over all `i ≤ k`, with limbs past the end read as zero.
@@ -477,6 +479,193 @@ private theorem size_combaCol (aa : UInt32Array) (sa na : USize) (ha : aa.size <
   size_colLoop _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ (fun _ _ => by simp only [writeCol_eq,
     UInt32Array.size_set]) _ _ _ _ _
 
+/--
+The products of column `k` from `i` to `iEnd` added to `acc + 2⁶⁴ w`, whole products in `acc`
+with `w` counting its wraps, then handed to `fin`. One addition with carry per product, where
+`colLoop` adds the two halves of each product into two sums: from 32 limbs up the products are
+5–13% faster this way, although the C compiler vectorizes `colLoop` and not this loop.
+-/
+@[specialize] def colLoopW (aa : UInt32Array) (sa na : USize) (ha : aa.size < USize.size)
+    (hA : sa.toNat + na.toNat ≤ aa.size) (bb : UInt32Array) (sb nb : USize)
+    (hb : bb.size < USize.size) (hB : sb.toNat + nb.toNat ≤ bb.size)
+    (k iEnd : USize) (hiE : iEnd.toNat ≤ na.toNat) (hiEk : iEnd.toNat ≤ k.toNat + 1)
+    (fin : UInt64 → UInt64 → UInt32Array)
+    (i : USize) (_hii : i.toNat ≤ iEnd.toNat) (hst : k.toNat + 1 ≤ nb.toNat + i.toNat)
+    (acc w : UInt64) : UInt32Array :=
+  if h : i < iEnd then
+    have h' : i.toNat < iEnd.toNat := h
+    let x := limbU aa sa na ha hA i (by lia)
+    let y := limbU bb sb nb hb hB (k - i)
+      (by rw [USize.toNat_sub_of_le _ _ (USize.le_iff_toNat_le.2 (by lia))]; lia)
+    let p := x.toUInt64 * y.toUInt64
+    let acc' := acc + p
+    colLoopW aa sa na ha hA bb sb nb hb hB k iEnd hiE hiEk fin (i + 1)
+      (by rw [toNat_add_usize (by simp; lia)]; simp; lia)
+      (by rw [toNat_add_usize (by simp; lia)]; simp; lia)
+      acc' (w + if acc' < p then 1 else 0)
+  else
+    fin acc w
+termination_by iEnd.toNat - i.toNat
+decreasing_by
+  rw [toNat_add_usize (by simp; lia)]; simp; lia
+
+/-- Adding a word to a word: the sum modulo `2⁶⁴` and its wrap, which the comparison detects. -/
+private theorem add_wrap (acc p : UInt64) :
+    (acc + p).toNat + 2 ^ 64 * (if acc + p < p then 1 else 0) = acc.toNat + p.toNat := by
+  have := acc.toNat_lt
+  have := p.toNat_lt
+  rw [UInt64.toNat_add]
+  by_cases hc : acc.toNat + p.toNat < 2 ^ 64
+  · rw [ite_eq_right (by rw [UInt64.lt_iff_toNat_lt, UInt64.toNat_add, Nat.mod_eq_of_lt hc]; lia),
+      Nat.mod_eq_of_lt hc]
+    simp
+  · rw [ite_eq_left (by rw [UInt64.lt_iff_toNat_lt, UInt64.toNat_add]; lia)]
+    lia
+
+private theorem colLoopW_spec (aa : UInt32Array) (sa na : USize) (ha : aa.size < USize.size)
+    (hA : sa.toNat + na.toNat ≤ aa.size) (bb : UInt32Array) (sb nb : USize)
+    (hb : bb.size < USize.size) (hB : sb.toNat + nb.toNat ≤ bb.size)
+    (k iEnd : USize) (hiE : iEnd.toNat ≤ na.toNat) (hiEk : iEnd.toNat ≤ k.toNat + 1)
+    (fin : UInt64 → UInt64 → UInt32Array) (la lb : List UInt32)
+    (hxa : ∀ j (_ : j < na.toNat), (aa[sa.toNat + j]'(by lia)).toNat = limbD la j)
+    (hxb : ∀ j (_ : j < nb.toNat), (bb[sb.toNat + j]'(by lia)).toNat = limbD lb j)
+    (c₀ : Nat) (i : USize) (hii : i.toNat ≤ iEnd.toNat) (hst : k.toNat + 1 ≤ nb.toNat + i.toNat)
+    (acc w : UInt64)
+    (hacc : acc.toNat + 2 ^ 64 * w.toNat = c₀ + colPart la lb k.toNat i.toNat)
+    (hw : w.toNat + (iEnd.toNat - i.toNat) < 2 ^ 64) :
+    ∃ acc' w' : UInt64, colLoopW aa sa na ha hA bb sb nb hb hB k iEnd hiE hiEk fin i hii hst
+        acc w = fin acc' w' ∧
+      acc'.toNat + 2 ^ 64 * w'.toNat = c₀ + colPart la lb k.toNat iEnd.toNat ∧
+      w'.toNat ≤ w.toNat + (iEnd.toNat - i.toNat) := by
+  induction hd : iEnd.toNat - i.toNat generalizing i acc w with
+  | zero =>
+    have hie : i.toNat = iEnd.toNat := by lia
+    rw [colLoopW, dite_eq_right (by rw [USize.lt_iff_toNat_lt]; lia)]
+    exact ⟨acc, w, rfl, by rw [hacc, hie], by lia⟩
+  | succ d ih =>
+    have h' : i.toNat < iEnd.toNat := by lia
+    rw [colLoopW, dite_eq_left (show i < iEnd from h')]
+    dsimp only
+    have hi1 : (i + 1).toNat = i.toNat + 1 := by rw [toNat_add_usize (by simp; lia)]; simp
+    have hki : (k - i).toNat = k.toNat - i.toNat :=
+      USize.toNat_sub_of_le _ _ (USize.le_iff_toNat_le.2 (by lia))
+    have hx : (limbU aa sa na ha hA i (by lia)).toNat = limbD la i.toNat := by
+      rw [limbU_eq_getElem _ _ _ _ _ _ _ _ rfl, hxa _ (by lia)]
+    have hy : (limbU bb sb nb hb hB (k - i) (by rw [hki]; lia)).toNat =
+        limbD lb (k.toNat - i.toNat) := by
+      rw [limbU_eq_getElem _ _ _ _ _ _ _ _ rfl]
+      simp only [hki]
+      rw [hxb _ (by lia)]
+    generalize limbU aa sa na ha hA i _ = x at hx ⊢
+    generalize limbU bb sb nb hb hB (k - i) _ = y at hy ⊢
+    have hp : (x.toUInt64 * y.toUInt64).toNat = x.toNat * y.toNat := by
+      rw [UInt64.toNat_mul, UInt32.toNat_toUInt64, UInt32.toNat_toUInt64]
+      exact Nat.mod_eq_of_lt (Nat.lt_of_lt_of_le (Nat.mul_lt_mul'' x.toNat_lt y.toNat_lt)
+        (by decide))
+    have hwrap := add_wrap acc (x.toUInt64 * y.toUInt64)
+    generalize x.toUInt64 * y.toUInt64 = p at hp hwrap ⊢
+    generalize hb' : (if acc + p < p then (1 : UInt64) else 0) = bit
+    have hbit : (if acc + p < p then 1 else 0) = bit.toNat := by
+      rw [← hb']; split <;> rfl
+    rw [hbit] at hwrap
+    have hbit1 : bit.toNat ≤ 1 := by rw [← hbit]; split <;> lia
+    have hw' : (w + bit).toNat = w.toNat + bit.toNat := by
+      rw [UInt64.toNat_add]; exact Nat.mod_eq_of_lt (by lia)
+    obtain ⟨acc', w', heq, hacc', hw''⟩ := ih (i + 1) (by rw [hi1]; lia) (by rw [hi1]; lia)
+      (acc + p) (w + bit)
+      (by
+        rw [hw', hi1, colPart, sumTo, ← colPart, ← hx, ← hy, ← hp]
+        lia)
+      (by rw [hw', hi1]; lia) (by rw [hi1]; lia)
+    refine ⟨acc', w', heq, hacc', ?_⟩
+    rw [hw'] at hw''
+    lia
+
+private theorem size_colLoopW (aa : UInt32Array) (sa na : USize) (ha : aa.size < USize.size)
+    (hA : sa.toNat + na.toNat ≤ aa.size) (bb : UInt32Array) (sb nb : USize)
+    (hb : bb.size < USize.size) (hB : sb.toNat + nb.toNat ≤ bb.size)
+    (k iEnd : USize) (hiE : iEnd.toNat ≤ na.toNat) (hiEk : iEnd.toNat ≤ k.toNat + 1)
+    (fin : UInt64 → UInt64 → UInt32Array) (S : Nat) (hfin : ∀ acc w, (fin acc w).size = S)
+    (i : USize) (hii : i.toNat ≤ iEnd.toNat) (hst : k.toNat + 1 ≤ nb.toNat + i.toNat)
+    (acc w : UInt64) :
+    (colLoopW aa sa na ha hA bb sb nb hb hB k iEnd hiE hiEk fin i hii hst acc w).size = S := by
+  induction hd : iEnd.toNat - i.toNat generalizing i acc w with
+  | zero =>
+    rw [colLoopW, dite_eq_right (by rw [USize.lt_iff_toNat_lt]; lia)]
+    exact hfin _ _
+  | succ d ih =>
+    have h' : i.toNat < iEnd.toNat := by lia
+    rw [colLoopW, dite_eq_left (show i < iEnd from h')]
+    dsimp only
+    apply ih
+    rw [toNat_add_usize (by simp; lia)]; simp; lia
+
+/--
+`colLoopW` finished by writing the column into `r`, for the product: `acc + 2⁶⁴ w` as
+`lo + β hi`, from the carry `lo + β hi` of the columns below.
+-/
+@[inline] def combaColW (aa : UInt32Array) (sa na : USize) (ha : aa.size < USize.size)
+    (hA : sa.toNat + na.toNat ≤ aa.size) (bb : UInt32Array) (sb nb : USize)
+    (hb : bb.size < USize.size) (hB : sb.toNat + nb.toNat ≤ bb.size)
+    (k iEnd : USize) (hiE : iEnd.toNat ≤ na.toNat) (hiEk : iEnd.toNat ≤ k.toNat + 1)
+    (r : UInt32Array) (hrs : r.size < USize.size) (hr : k.toNat + 2 < r.size)
+    (i : USize) (hii : i.toNat ≤ iEnd.toNat) (hst : k.toNat + 1 ≤ nb.toNat + i.toNat)
+    (lo hi : UInt64) : UInt32Array :=
+  colLoopW aa sa na ha hA bb sb nb hb hB k iEnd hiE hiEk
+    (fun acc w => writeCol r k hrs hr (acc &&& 0xFFFFFFFF) ((acc >>> 32) + (w <<< 32))) i hii hst
+    (lo + (hi <<< 32)) 0
+
+private theorem combaColW_spec (aa : UInt32Array) (sa na : USize) (ha : aa.size < USize.size)
+    (hA : sa.toNat + na.toNat ≤ aa.size) (bb : UInt32Array) (sb nb : USize)
+    (hb : bb.size < USize.size) (hB : sb.toNat + nb.toNat ≤ bb.size)
+    (k iEnd : USize) (hiE : iEnd.toNat ≤ na.toNat) (hiEk : iEnd.toNat ≤ k.toNat + 1)
+    (r : UInt32Array) (hrs : r.size < USize.size) (hr : k.toNat + 2 < r.size)
+    (la lb : List UInt32)
+    (hxa : ∀ j (hj : j < na.toNat), (aa[sa.toNat + j]'(by lia)).toNat = limbD la j)
+    (hxb : ∀ j (hj : j < nb.toNat), (bb[sb.toNat + j]'(by lia)).toNat = limbD lb j)
+    (c₀ : Nat) (i : USize) (hii : i.toNat ≤ iEnd.toNat) (hst : k.toNat + 1 ≤ nb.toNat + i.toNat)
+    (lo hi : UInt64)
+    (hacc : lo.toNat + 2 ^ 32 * hi.toNat = c₀ + colPart la lb k.toNat i.toNat)
+    (hlo : lo.toNat < 2 ^ 32) (hhi : hi.toNat < 2 ^ 32)
+    (hlen : iEnd.toNat - i.toNat ≤ 2 ^ 31) :
+    ∃ lo' hi' : UInt64, combaColW aa sa na ha hA bb sb nb hb hB k iEnd hiE hiEk r hrs hr i hii hst
+        lo hi = writeCol r k hrs hr lo' hi' ∧
+      lo'.toNat + 2 ^ 32 * hi'.toNat = c₀ + colPart la lb k.toNat iEnd.toNat ∧
+      hi'.toNat + 2 ^ 32 ≤ 2 ^ 64 := by
+  have h₀ : (lo + (hi <<< 32)).toNat = lo.toNat + 2 ^ 32 * hi.toNat := by
+    rw [UInt64.toNat_add, UInt64.toNat_shiftLeft]
+    simp only [UInt64.reduceToNat, Nat.reduceMod, Nat.shiftLeft_eq]
+    lia
+  obtain ⟨acc', w', heq, hacc', hw'⟩ := colLoopW_spec aa sa na ha hA bb sb nb hb hB k iEnd hiE
+    hiEk _ la lb hxa hxb c₀ i hii hst (lo + (hi <<< 32)) 0
+    (by rw [h₀, hacc]; simp) (by simp; lia)
+  simp only [UInt64.toNat_zero, Nat.zero_add] at hw'
+  have hacc'β := acc'.toNat_lt
+  have hl : (acc' &&& 0xFFFFFFFF).toNat = acc'.toNat % 2 ^ 32 := by
+    rw [UInt64.toNat_and]
+    exact Nat.and_two_pow_sub_one_eq_mod _ 32
+  have hh : ((acc' >>> 32) + (w' <<< 32)).toNat = acc'.toNat / 2 ^ 32 + 2 ^ 32 * w'.toNat := by
+    rw [UInt64.toNat_add, UInt64.toNat_shiftRight, UInt64.toNat_shiftLeft]
+    simp only [UInt64.reduceToNat, Nat.reduceMod, Nat.shiftLeft_eq, Nat.shiftRight_eq_div_pow]
+    lia
+  refine ⟨_, _, heq, ?_, ?_⟩
+  · rw [hl, hh, ← hacc']
+    have := Nat.div_add_mod acc'.toNat (2 ^ 32)
+    lia
+  · rw [hh]; lia
+
+private theorem size_combaColW (aa : UInt32Array) (sa na : USize) (ha : aa.size < USize.size)
+    (hA : sa.toNat + na.toNat ≤ aa.size) (bb : UInt32Array) (sb nb : USize)
+    (hb : bb.size < USize.size) (hB : sb.toNat + nb.toNat ≤ bb.size)
+    (k iEnd : USize) (hiE : iEnd.toNat ≤ na.toNat) (hiEk : iEnd.toNat ≤ k.toNat + 1)
+    (r : UInt32Array) (hrs : r.size < USize.size) (hr : k.toNat + 2 < r.size)
+    (i : USize) (hii : i.toNat ≤ iEnd.toNat) (hst : k.toNat + 1 ≤ nb.toNat + i.toNat)
+    (lo hi : UInt64) :
+    (combaColW aa sa na ha hA bb sb nb hb hB k iEnd hiE hiEk r hrs hr i hii hst lo hi).size =
+      r.size :=
+  size_colLoopW _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ (fun _ _ => by simp only [writeCol_eq,
+    UInt32Array.size_set]) _ _ _ _ _
+
 /-- The end of the products of column `k`: `min (k + 1) na`. -/
 @[inline] def colEnd (k na : USize) : USize := if k + 1 < na then k + 1 else na
 
@@ -531,6 +720,35 @@ def combaOuter (aa : UInt32Array) (sa na : USize) (ha : aa.size < USize.size)
 termination_by kEnd.toNat - k.toNat
 decreasing_by
   rw [toNat_add_usize (by simp; omega)]; simp; omega
+
+/--
+The columns `k` to `kEnd - 1` of the product, each with `combaColW`, the carry of each column
+going up in `r[k + 1]` and `r[k + 2]`.
+-/
+def combaOuterW (aa : UInt32Array) (sa na : USize) (ha : aa.size < USize.size)
+    (hA : sa.toNat + na.toNat ≤ aa.size) (bb : UInt32Array) (sb nb : USize)
+    (hb : bb.size < USize.size) (hB : sb.toNat + nb.toNat ≤ bb.size)
+    (kEnd : USize) (hkE : kEnd.toNat + 1 = na.toNat + nb.toNat)
+    (r : UInt32Array) (hrs : r.size < USize.size) (hr : r.size = kEnd.toNat + 2)
+    (k : USize) (_hk : k.toNat ≤ kEnd.toNat) : UInt32Array :=
+  if h : k < kEnd then
+    have h' : k.toNat < kEnd.toNat := h
+    have hk1 : k.toNat + 1 < USize.size := by lia
+    let lo := (r.uget k (by lia)).toUInt64
+    let hi := (r.uget (k + 1) (by rw [toNat_add_usize (by simp; lia)]; simp; lia)).toUInt64
+    let r' := combaColW aa sa na ha hA bb sb nb hb hB k (colEnd k na)
+      (by rw [toNat_colEnd _ _ hk1]; lia) (by rw [toNat_colEnd _ _ hk1]; lia) r hrs
+      (by lia) (colStart k nb)
+      (by rw [toNat_colEnd _ _ hk1, toNat_colStart _ _ hk1]; lia)
+      (by rw [toNat_colStart _ _ hk1]; lia) lo hi
+    combaOuterW aa sa na ha hA bb sb nb hb hB kEnd hkE r'
+      (by rw [size_combaColW]; exact hrs) (by rw [size_combaColW]; exact hr) (k + 1)
+      (by rw [toNat_add_usize (by simp; lia)]; simp; lia)
+  else
+    r
+termination_by kEnd.toNat - k.toNat
+decreasing_by
+  rw [toNat_add_usize (by simp; lia)]; simp; lia
 
 private theorem limbD_of_length_le {l : List UInt32} {j : Nat} (h : l.length ≤ j) :
     limbD l j = 0 := by
@@ -650,6 +868,90 @@ private theorem size_combaOuter (aa : UInt32Array) (sa na : USize) (ha : aa.size
     apply ih
     rw [toNat_add_usize (by simp; omega)]; simp; omega
 
+private theorem combaOuterW_spec (aa : UInt32Array) (sa na : USize) (ha : aa.size < USize.size)
+    (hA : sa.toNat + na.toNat ≤ aa.size) (bb : UInt32Array) (sb nb : USize)
+    (hb : bb.size < USize.size) (hB : sb.toNat + nb.toNat ≤ bb.size)
+    (kEnd : USize) (hkE : kEnd.toNat + 1 = na.toNat + nb.toNat)
+    (la lb : List UInt32) (hla : la.length = na.toNat) (hlb : lb.length = nb.toNat)
+    (hxa : ∀ j (hj : j < na.toNat), (aa[sa.toNat + j]'(by lia)).toNat = limbD la j)
+    (hxb : ∀ j (hj : j < nb.toNat), (bb[sb.toNat + j]'(by lia)).toNat = limbD lb j)
+    (hna : na.toNat < 2 ^ 31)
+    (r : UInt32Array) (hrs : r.size < USize.size) (hr : r.size = kEnd.toNat + 2)
+    (k : USize) (hk : k.toNat ≤ kEnd.toNat)
+    (hv : ofLimbs r.toList = weighted la lb k.toNat)
+    (hz : ∀ j, k.toNat + 2 ≤ j → ∀ (hj' : j < r.size), r[j] = 0) :
+    ofLimbs (combaOuterW aa sa na ha hA bb sb nb hb hB kEnd hkE r hrs hr k hk).toList =
+      weighted la lb kEnd.toNat := by
+  induction hd : kEnd.toNat - k.toNat generalizing k r with
+  | zero =>
+    rw [combaOuterW, dite_eq_right (by rw [USize.lt_iff_toNat_lt]; lia)]
+    rw [hv, show k.toNat = kEnd.toNat by lia]
+  | succ d ih =>
+    have h' : k.toNat < kEnd.toNat := by lia
+    have hk1 : k.toNat + 1 < USize.size := by lia
+    have hk1' : (k + 1).toNat = k.toNat + 1 := by rw [toNat_add_usize (by simp; lia)]; simp
+    rw [combaOuterW, dite_eq_left (show k < kEnd from h')]
+    dsimp only
+    -- The carry in `r[k]`, `r[k + 1]`, and the column with `combaCol`.
+    have hlo : ((r.uget k (by lia)).toUInt64).toNat = (r[k.toNat]'(by lia)).toNat := by
+      rw [UInt32.toNat_toUInt64, uget_eq_getElem _ _ _ rfl]
+    have hhi : ((r.uget (k + 1) (by rw [hk1']; lia)).toUInt64).toNat =
+        (r[k.toNat + 1]'(by lia)).toNat := by
+      rw [UInt32.toNat_toUInt64, uget_eq_getElem _ _ _ hk1']
+    have hr₀ := (r[k.toNat]'(by lia)).toNat_lt
+    have hr₁ := (r[k.toNat + 1]'(by lia)).toNat_lt
+    have hr₂ : r[k.toNat + 2]'(by lia) = 0 := hz _ (Nat.le_refl _) (by lia)
+    have hE := toNat_colEnd k na hk1
+    have hS := toNat_colStart k nb hk1
+    obtain ⟨lo', hi', heq, hacc, hhi'⟩ := combaColW_spec aa sa na ha hA bb sb nb hb hB k
+      (colEnd k na) (by lia) (by lia) r hrs (by lia) la lb hxa hxb
+      ((r[k.toNat]'(by lia)).toNat + 2 ^ 32 * (r[k.toNat + 1]'(by lia)).toNat)
+      (colStart k nb) (by lia) (by lia) (r.uget k (by lia)).toUInt64
+      (r.uget (k + 1) (by rw [hk1']; lia)).toUInt64
+      (by rw [hlo, hhi, hS, ← hlb, colPart_start]; rfl)
+      (by rw [hlo]; exact hr₀) (by rw [hhi]; exact hr₁) (by lia)
+    rw [hE, ← hla, colPart_end] at hacc
+    have hcol : colSum la lb k.toNat ≤ na.toNat * 2 ^ 64 := by
+      rw [← colPart_end, hla]
+      exact Nat.le_trans (colPart_le _ _ _ _) (Nat.mul_le_mul_right _ (Nat.min_le_right _ _))
+    obtain ⟨hs', hz', hv'⟩ := writeCol_spec r k hrs (by lia) lo' hi'
+      (by rw [hacc]; have := Nat.mul_le_mul_right (2 ^ 64) (Nat.le_of_lt hna); lia) hhi'
+    -- `weighted (k + 1) = weighted k + βᵏ colSum k`.
+    simp only [heq]
+    have hw : weighted la lb (k.toNat + 1) =
+        weighted la lb k.toNat + 2 ^ (32 * k.toNat) * colSum la lb k.toNat := rfl
+    apply ih
+    · rw [hk1', hw, ← hv]
+      simp only [hr₂, UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero] at hv'
+      rw [hacc] at hv'
+      generalize (r[k.toNat]'(by lia)).toNat + 2 ^ 32 * (r[k.toNat + 1]'(by lia)).toNat = A
+        at hv'
+      rw [Nat.mul_add] at hv'
+      lia
+    · intro j hj hj'
+      rw [hk1'] at hj
+      rw [hz' j (by lia) (by rw [hs'] at hj'; exact hj')]
+      exact hz j (by lia) _
+    · rw [hk1']; lia
+
+private theorem size_combaOuterW (aa : UInt32Array) (sa na : USize) (ha : aa.size < USize.size)
+    (hA : sa.toNat + na.toNat ≤ aa.size) (bb : UInt32Array) (sb nb : USize)
+    (hb : bb.size < USize.size) (hB : sb.toNat + nb.toNat ≤ bb.size)
+    (kEnd : USize) (hkE : kEnd.toNat + 1 = na.toNat + nb.toNat)
+    (r : UInt32Array) (hrs : r.size < USize.size) (hr : r.size = kEnd.toNat + 2)
+    (k : USize) (hk : k.toNat ≤ kEnd.toNat) :
+    (combaOuterW aa sa na ha hA bb sb nb hb hB kEnd hkE r hrs hr k hk).size = kEnd.toNat + 2 := by
+  induction hd : kEnd.toNat - k.toNat generalizing k r with
+  | zero =>
+    rw [combaOuterW, dite_eq_right (by rw [USize.lt_iff_toNat_lt]; lia)]
+    exact hr
+  | succ d ih =>
+    have h' : k.toNat < kEnd.toNat := by lia
+    rw [combaOuterW, dite_eq_left (show k < kEnd from h')]
+    dsimp only
+    apply ih
+    rw [toNat_add_usize (by simp; lia)]; simp; lia
+
 private theorem mod_usize {n : Nat} (h : n < USize.size) : n % 2 ^ System.Platform.numBits = n :=
   Nat.mod_eq_of_lt (by rwa [← USize.size_eq_two_pow])
 
@@ -666,23 +968,36 @@ private theorem slice_size_le (a : UInt32Array.Slice) : a.size ≤ a.array.size 
 
 /--
 All `a.size + b.size` limbs of `a * b` by Comba's method, one column at a time, into
-`a.size + b.size + 1` limbs whose top limb, which only held a carry, is dropped.
+`a.size + b.size + 1` limbs whose top limb, which only held a carry, is dropped. The columns come
+from `combaOuter` when either operand is shorter than 32 limbs and from `combaOuterW` otherwise:
+the column loop of `combaOuterW` adds whole products and counts the wraps of its sum, which is
+5–13% faster from 32 limbs, but setting up its unrolled loop for each column made products of 2
+to 16 limbs 5–8% slower, also when both loops shared one function and chose by column length.
 -/
 public def combaMul (a b : UInt32Array.Slice) (h : CombaOK a b) : UInt32Array :=
   have ha := lt_usizeSize h.2.2.2.1
   have hb := lt_usizeSize h.2.2.2.2
   have hla := slice_size_le a
   have hlb := slice_size_le b
-  have hn : a.size + b.size + 1 < USize.size := lt_usizeSize (by have := h.2.2.1; omega)
-  (combaOuter a.array a.start.toUSize a.size.toUSize ha (limbU_bound a ha)
-      b.array b.start.toUSize b.size.toUSize hb (limbU_bound b hb)
-      (a.size + b.size - 1).toUSize
-      (by have := mod_usize (n := a.size + b.size - 1) (by omega)
-          have := mod_usize (n := a.size) (by omega); have := mod_usize (n := b.size) (by omega)
-          have := h.1; simp; omega)
-      (.replicate (a.size + b.size + 1) 0) (by rw [UInt32Array.size_replicate]; exact hn)
-      (by have := mod_usize (n := a.size + b.size - 1) (by omega); have := h.1; simp; omega)
-      0 (by simp)).pop
+  have hn : a.size + b.size + 1 < USize.size := lt_usizeSize (by have := h.2.2.1; lia)
+  have hkE : (a.size + b.size - 1).toUSize.toNat + 1 =
+      a.size.toUSize.toNat + b.size.toUSize.toNat := by
+    have := mod_usize (n := a.size + b.size - 1) (by lia)
+    have := mod_usize (n := a.size) (by lia); have := mod_usize (n := b.size) (by lia)
+    have := h.1; simp; lia
+  have hrs : (UInt32Array.replicate (a.size + b.size + 1) 0).size < USize.size := by
+    rw [UInt32Array.size_replicate]; exact hn
+  have hr0 : (UInt32Array.replicate (a.size + b.size + 1) 0).size =
+      (a.size + b.size - 1).toUSize.toNat + 2 := by
+    have := mod_usize (n := a.size + b.size - 1) (by lia); have := h.1; simp; lia
+  if a.size < 32 ∨ b.size < 32 then
+    (combaOuter a.array a.start.toUSize a.size.toUSize ha (limbU_bound a ha)
+      b.array b.start.toUSize b.size.toUSize hb (limbU_bound b hb) (a.size + b.size - 1).toUSize
+      hkE (.replicate (a.size + b.size + 1) 0) hrs hr0 0 (by simp)).pop
+  else
+    (combaOuterW a.array a.start.toUSize a.size.toUSize ha (limbU_bound a ha)
+      b.array b.start.toUSize b.size.toUSize hb (limbU_bound b hb) (a.size + b.size - 1).toUSize
+      hkE (.replicate (a.size + b.size + 1) 0) hrs hr0 0 (by simp)).pop
 
 /-- The limbs of a slice as `combaOuter` reads them. -/
 private theorem limbs_read (a : UInt32Array.Slice) (has : a.array.size < USize.size) (j : Nat)
@@ -701,64 +1016,79 @@ private theorem limbs_read (a : UInt32Array.Slice) (has : a.array.size < USize.s
   rw [e _ _ (by rw [hst]), limbD, ← getD_eq_getD_toList_copy, UInt32Array.Slice.getD_eq,
     dite_eq_left hj, UInt32Array.Slice.getElem_eq]
 
-public theorem combaMul_spec (a b : UInt32Array.Slice) (h : CombaOK a b) :
-    (combaMul a b h).size = a.size + b.size ∧ toNat (combaMul a b h) = toNat a * toNat b := by
-  have ha := lt_usizeSize h.2.2.2.1
-  have hb := lt_usizeSize h.2.2.2.2
-  have hla := slice_size_le a
-  have hlb := slice_size_le b
-  have hsa : a.size.toUSize.toNat = a.size := toNat_toUSize (by omega)
-  have hsb : b.size.toUSize.toNat = b.size := toNat_toUSize (by omega)
-  have hn : a.size + b.size + 1 < USize.size := lt_usizeSize (by have := h.2.2.1; omega)
-  have hkE' : (a.size + b.size - 1).toUSize.toNat = a.size + b.size - 1 := toNat_toUSize (by omega)
-  have hkE : (a.size + b.size - 1).toUSize.toNat + 1 =
-      a.size.toUSize.toNat + b.size.toUSize.toNat := by
-    have := mod_usize (n := a.size + b.size - 1) (by omega)
-    have := mod_usize (n := a.size) (by omega); have := mod_usize (n := b.size) (by omega)
-    have := h.1; simp; omega
-  have hrs : (UInt32Array.replicate (a.size + b.size + 1) 0).size < USize.size := by
-    rw [UInt32Array.size_replicate]; exact hn
-  have hr0 : (UInt32Array.replicate (a.size + b.size + 1) 0).size =
-      (a.size + b.size - 1).toUSize.toNat + 2 := by
-    have := mod_usize (n := a.size + b.size - 1) (by omega); have := h.1; simp; omega
-  have hspec := combaOuter_spec a.array a.start.toUSize a.size.toUSize ha (limbU_bound a ha)
-    b.array b.start.toUSize b.size.toUSize hb (limbU_bound b hb) (a.size + b.size - 1).toUSize hkE
-    a.copy.toList b.copy.toList (by simp [hsa]) (by simp [hsb]) (limbs_read a ha)
-    (limbs_read b hb) (by rw [hsa]; have := h.2.2.1; omega) _ hrs hr0 0 (by simp)
-    (by simp [weighted, sumTo, UInt32Array.toList_replicate, ofLimbs_replicate_zero])
-    (fun j _ _ => by simp)
-  have hsize := size_combaOuter a.array a.start.toUSize a.size.toUSize ha (limbU_bound a ha)
-    b.array b.start.toUSize b.size.toUSize hb (limbU_bound b hb) (a.size + b.size - 1).toUSize hkE
-    _ hrs hr0 0 (by simp)
-  have heq : combaMul a b h = (combaOuter a.array a.start.toUSize a.size.toUSize ha
-      (limbU_bound a ha) b.array b.start.toUSize b.size.toUSize hb (limbU_bound b hb)
-      (a.size + b.size - 1).toUSize hkE (UInt32Array.replicate (a.size + b.size + 1) 0) hrs hr0 0
-      (by simp)).pop := rfl
-  rw [heq]
-  generalize combaOuter a.array a.start.toUSize a.size.toUSize _ _ b.array b.start.toUSize
-    b.size.toUSize _ _ (a.size + b.size - 1).toUSize _
-    (UInt32Array.replicate (a.size + b.size + 1) 0) _ _ 0 _ = r at hspec hsize ⊢
-  have hrsz : r.size = a.size + b.size + 1 := by
-    rw [hsize]
-    have := mod_usize (n := a.size + b.size - 1) (by omega); have := h.1; simp; omega
-  have hv : ofLimbs r.toList = toNat a * toNat b := by
-    rw [hspec, hkE', weighted_eq _ _ _ (by simp; omega)]
-    rfl
+/-- The limbs of `a * b` with a zero limb on top, which `pop` removes. -/
+private theorem pop_of_toNat_eq_mul (a b : UInt32Array.Slice) (r : UInt32Array)
+    (hrsz : r.size = a.size + b.size + 1) (hv : ofLimbs r.toList = toNat a * toNat b) :
+    r.pop.size = a.size + b.size ∧ toNat r.pop = toNat a * toNat b := by
   -- The top limb is zero: `a b < β^(a.size + b.size)`.
   have hlt : ofLimbs r.toList < 2 ^ (32 * (a.size + b.size)) := by
     rw [hv, Nat.mul_add, Nat.pow_add]
     have hA := toNat_lt a; have hB := toNat_lt b
     exact Nat.mul_lt_mul'' hA hB
   have htop := getElem_eq_zero_of_ofLimbs_lt (l := r.toList) (k := a.size + b.size)
-    (by simp; omega) hlt
+    (by simp; lia) hlt
   have hne : r.toList ≠ [] := by
-    intro h'; have := congrArg List.length h'; simp at this; omega
+    intro h'; have := congrArg List.length h'; simp at this; lia
   have hlast : r.toList.getLast hne = 0 := by
     rw [List.getLast_eq_getElem]; simpa [hrsz] using htop
   refine ⟨by simp [hrsz], ?_⟩
   rw [toNat_toSlice, UInt32Array.toList_pop, ← hv]
   conv => rhs; rw [← List.dropLast_concat_getLast hne, hlast]
   rw [ofLimbs_concat, UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero]
+
+public theorem combaMul_spec (a b : UInt32Array.Slice) (h : CombaOK a b) :
+    (combaMul a b h).size = a.size + b.size ∧ toNat (combaMul a b h) = toNat a * toNat b := by
+  have ha := lt_usizeSize h.2.2.2.1
+  have hb := lt_usizeSize h.2.2.2.2
+  have hla := slice_size_le a
+  have hlb := slice_size_le b
+  have hsa : a.size.toUSize.toNat = a.size := toNat_toUSize (by lia)
+  have hsb : b.size.toUSize.toNat = b.size := toNat_toUSize (by lia)
+  have hn : a.size + b.size + 1 < USize.size := lt_usizeSize (by have := h.2.2.1; lia)
+  have hkE' : (a.size + b.size - 1).toUSize.toNat = a.size + b.size - 1 := toNat_toUSize (by lia)
+  have hkE : (a.size + b.size - 1).toUSize.toNat + 1 =
+      a.size.toUSize.toNat + b.size.toUSize.toNat := by
+    have := h.1; lia
+  have hrs : (UInt32Array.replicate (a.size + b.size + 1) 0).size < USize.size := by
+    rw [UInt32Array.size_replicate]; exact hn
+  have hr0 : (UInt32Array.replicate (a.size + b.size + 1) 0).size =
+      (a.size + b.size - 1).toUSize.toNat + 2 := by
+    have := h.1; simp; lia
+  -- Both outer loops leave the weighted column sums, `a b` with a zero limb on top.
+  have hfin (r : UInt32Array) (hsize : r.size = (a.size + b.size - 1).toUSize.toNat + 2)
+      (hspec : ofLimbs r.toList =
+        weighted a.copy.toList b.copy.toList (a.size + b.size - 1).toUSize.toNat) :
+      r.pop.size = a.size + b.size ∧ toNat r.pop = toNat a * toNat b :=
+    pop_of_toNat_eq_mul a b r (by rw [hsize]; have := h.1; lia)
+      (by rw [hspec, hkE', weighted_eq _ _ _ (by simp; lia)]; rfl)
+  have hv0 : ofLimbs (UInt32Array.replicate (a.size + b.size + 1) 0).toList =
+      weighted a.copy.toList b.copy.toList (0 : USize).toNat := by
+    simp [weighted, sumTo, UInt32Array.toList_replicate, ofLimbs_replicate_zero]
+  by_cases hw : a.size < 32 ∨ b.size < 32
+  · have heq : combaMul a b h = (combaOuter a.array a.start.toUSize a.size.toUSize ha
+        (limbU_bound a ha) b.array b.start.toUSize b.size.toUSize hb (limbU_bound b hb)
+        (a.size + b.size - 1).toUSize hkE (UInt32Array.replicate (a.size + b.size + 1) 0) hrs hr0
+        0 (by simp)).pop := by
+      unfold combaMul; simp only [hw, ↓reduceIte]
+    rw [heq]
+    exact hfin _ (size_combaOuter _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+      (combaOuter_spec a.array a.start.toUSize a.size.toUSize ha (limbU_bound a ha)
+        b.array b.start.toUSize b.size.toUSize hb (limbU_bound b hb) _ hkE
+        a.copy.toList b.copy.toList (by simp [hsa]) (by simp [hsb]) (limbs_read a ha)
+        (limbs_read b hb) (by rw [hsa]; have := h.2.2.1; lia) _ hrs hr0 0 (by simp) hv0
+        (fun j _ _ => by simp))
+  · have heq : combaMul a b h = (combaOuterW a.array a.start.toUSize a.size.toUSize ha
+        (limbU_bound a ha) b.array b.start.toUSize b.size.toUSize hb (limbU_bound b hb)
+        (a.size + b.size - 1).toUSize hkE (UInt32Array.replicate (a.size + b.size + 1) 0) hrs hr0
+        0 (by simp)).pop := by
+      unfold combaMul; simp only [hw, ↓reduceIte]
+    rw [heq]
+    exact hfin _ (size_combaOuterW _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _)
+      (combaOuterW_spec a.array a.start.toUSize a.size.toUSize ha (limbU_bound a ha)
+        b.array b.start.toUSize b.size.toUSize hb (limbU_bound b hb) _ hkE
+        a.copy.toList b.copy.toList (by simp [hsa]) (by simp [hsb]) (limbs_read a ha)
+        (limbs_read b hb) (by rw [hsa]; have := h.2.2.1; lia) _ hrs hr0 0 (by simp) hv0
+        (fun j _ _ => by simp))
 
 /-! ## Squares -/
 
