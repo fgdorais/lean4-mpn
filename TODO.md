@@ -232,7 +232,7 @@ block of the division, and `topSize` usually stops at the first limb.
   measures mostly that overhead (we beat it there). Calling `mpn_*` directly needs C, so it
   belongs on the `64bit` branch.
 - [x] **Executables initialize all of Lean.** `Config` imports `Lean` (as `meta`) for its
-  `bignum_config%` elaborator. A main file that is not a `module` calls the meta initializers of
+  `mpn_config%` elaborator. A main file that is not a `module` calls the meta initializers of
   everything it imports, so it links and initializes all of Lean: 124 MB and about 20 ms at
   startup. A main file that is a `module` calls only the runtime initializers, which skip `meta`
   imports: `bench` and `tune` are now modules, 3.9 MB each, and the README says so for programs.

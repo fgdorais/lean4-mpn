@@ -4,9 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.Add
-public import Bignum.Mul.Limb
-public import Bignum.Mul.Comba
+public import MPN.Add
+public import MPN.Mul.Limb
+public import MPN.Mul.Comba
 
 /-!
 # Schoolbook squaring
@@ -25,7 +25,7 @@ place, like GMP's `mpn_sqr_diag_addlsh1`.
 
 open ScalarArray
 
-namespace Bignum
+namespace MPN
 
 /-- The value of the squares of the limbs of `l`, the square of limb `i` at limb `2 i`. -/
 @[expose] public def sqDiag : List UInt32 → Nat
@@ -395,4 +395,4 @@ public def sqrBasecaseFast (a : UInt32Array.Slice) : UInt32Array :=
     rw [← toNat_toSlice, ← toNat_toSlice, hv', hv]
   · rfl
 
-end Bignum
+end MPN

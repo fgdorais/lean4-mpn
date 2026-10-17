@@ -7,7 +7,7 @@ Turns the output of `lake exe bench` into the Markdown tables of BENCH.md.
     taskset -c 2 .lake/build/bin/bench > bench.txt
     scripts/bench_md.py bench.txt
 
-prints two tables, operations by size: the ratio Bignum / Nat, and the time of Bignum. Lines that
+prints two tables, operations by size: the ratio MPN / Nat, and the time of MPN. Lines that
 are not rows of the benchmark (the header, other output) are ignored, so the output of several
 runs can be concatenated.
 """
@@ -18,20 +18,20 @@ UNITS = {'ns': 1.0, 'µs': 1e3, 'ms': 1e6, 's': 1e9}
 
 
 def parse(lines):
-    """Rows (op, limbs, bignum ns, nat ns or None), in the order they appear."""
+    """Rows (op, limbs, mpn ns, nat ns or None), in the order they appear."""
     rows = []
     for line in lines:
         f = line.split()
         if len(f) < 4 or f[0] == 'op' or not f[1].isdigit():
             continue
         try:
-            bignum = float(f[2]) * UNITS[f[3]]
+            mpn = float(f[2]) * UNITS[f[3]]
         except (ValueError, KeyError):
             continue
         nat = None
         if len(f) >= 6 and f[5] in UNITS:
             nat = float(f[4]) * UNITS[f[5]]
-        rows.append((f[0], int(f[1]), bignum, nat))
+        rows.append((f[0], int(f[1]), mpn, nat))
     return rows
 
 
@@ -56,9 +56,9 @@ def table(rows, cell):
 
 def main():
     rows = parse(open(sys.argv[1], encoding='utf-8') if len(sys.argv) > 1 else sys.stdin)
-    print('Ratio Bignum / Nat (below 1 is faster than Nat):\n')
+    print('Ratio MPN / Nat (below 1 is faster than Nat):\n')
     print(table(rows, lambda r: f'{r[2] / r[3]:.2f}' if r[3] else ''))
-    print('\nTime of Bignum:\n')
+    print('\nTime of MPN:\n')
     print(table(rows, lambda r: fmt_time(r[2])))
 
 

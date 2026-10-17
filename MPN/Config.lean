@@ -10,8 +10,8 @@ public meta import Lean
 # Configuration
 
 `Config` collects the size thresholds, in limbs, at which the arithmetic switches algorithms. The
-algorithms take a `Config` as a parameter, and the library's own `Bignum.config` is built by
-`bignum_config%` from the `bignum.*` options set when the library is compiled. The package's
+algorithms take a `Config` as a parameter, and the library's own `MPN.config` is built by
+`mpn_config%` from the `mpn.*` options set when the library is compiled. The package's
 `lakefile.lean` sets them from the options of a project's `require`, keyed by the fields of
 `Config`, for example `options = { mulKaratsuba = "48" }` (see the README). Options that are not
 set keep the defaults of `Config`. Each threshold carries the proof of the condition its algorithm
@@ -21,7 +21,7 @@ The defaults were measured with `lake exe tune` on an AMD Ryzen 5 5600X. Running
 machine prints the thresholds for that machine and the options that set them.
 -/
 
-namespace Bignum
+namespace MPN
 
 /-- The size thresholds, in limbs, at which the arithmetic switches algorithms. -/
 public structure Config where
@@ -70,82 +70,82 @@ public structure Config where
   four_le_divDC : 4 ≤ divDC := by decide
   deriving Repr
 
-public meta register_option bignum.mul.karatsubaThreshold : Nat := {
+public meta register_option mpn.mul.karatsubaThreshold : Nat := {
   defValue := ({} : Config).mulKaratsuba
   descr := "the size of the shorter operand, in limbs, from which multiplication uses Karatsuba"
 }
 
-public meta register_option bignum.mul.toom32Threshold : Nat := {
+public meta register_option mpn.mul.toom32Threshold : Nat := {
   defValue := ({} : Config).mulToom32
   descr := "the size of the shorter operand, in limbs, from which multiplication uses Toom-3 by 2 \
     when the longer one is between four thirds and twice as long"
 }
 
-public meta register_option bignum.mul.toom42Threshold : Nat := {
+public meta register_option mpn.mul.toom42Threshold : Nat := {
   defValue := ({} : Config).mulToom42
   descr := "the size of the shorter operand, in limbs, from which multiplication uses Toom-4 by 2 \
     when the longer one is between fifteen eighths and twice as long"
 }
 
-public meta register_option bignum.mul.toom3Threshold : Nat := {
+public meta register_option mpn.mul.toom3Threshold : Nat := {
   defValue := ({} : Config).mulToom3
   descr := "the size of the shorter operand, in limbs, from which multiplication uses Toom-3"
 }
 
-public meta register_option bignum.mul.unbalancedThreshold : Nat := {
+public meta register_option mpn.mul.unbalancedThreshold : Nat := {
   defValue := ({} : Config).mulUnbalanced
   descr := "the size of the shorter operand, in limbs, from which multiplication splits a longer \
     operand that is at least twice as long"
 }
 
-public meta register_option bignum.sqr.basecaseThreshold : Nat := {
+public meta register_option mpn.sqr.basecaseThreshold : Nat := {
   defValue := ({} : Config).sqrBasecase
   descr := "the size, in limbs, from which squaring uses the schoolbook square instead of \
     multiplying"
 }
 
-public meta register_option bignum.sqr.karatsubaThreshold : Nat := {
+public meta register_option mpn.sqr.karatsubaThreshold : Nat := {
   defValue := ({} : Config).sqrKaratsuba
   descr := "the size, in limbs, from which squaring uses Karatsuba"
 }
 
-public meta register_option bignum.sqr.toom3Threshold : Nat := {
+public meta register_option mpn.sqr.toom3Threshold : Nat := {
   defValue := ({} : Config).sqrToom3
   descr := "the size, in limbs, from which squaring uses Toom-3"
 }
 
-public meta register_option bignum.div.dcThreshold : Nat := {
+public meta register_option mpn.div.dcThreshold : Nat := {
   defValue := ({} : Config).divDC
   descr := "the size of the divisor, in limbs, from which division divides by blocks recursively"
 }
 
 open Lean Elab Term in
-/-- The `Config` given by the `bignum.*` options in effect, with defaults from `Config`. -/
-elab "bignum_config%" : term => do
+/-- The `Config` given by the `mpn.*` options in effect, with defaults from `Config`. -/
+elab "mpn_config%" : term => do
   let opts ← getOptions
-  let mulKaratsuba := bignum.mul.karatsubaThreshold.get opts
+  let mulKaratsuba := mpn.mul.karatsubaThreshold.get opts
   unless 4 ≤ mulKaratsuba do
-    throwError "bignum.mul.karatsubaThreshold must be at least 4, but it is {mulKaratsuba}"
-  let sqrKaratsuba := bignum.sqr.karatsubaThreshold.get opts
+    throwError "mpn.mul.karatsubaThreshold must be at least 4, but it is {mulKaratsuba}"
+  let sqrKaratsuba := mpn.sqr.karatsubaThreshold.get opts
   unless 4 ≤ sqrKaratsuba do
-    throwError "bignum.sqr.karatsubaThreshold must be at least 4, but it is {sqrKaratsuba}"
-  let mulToom3 := bignum.mul.toom3Threshold.get opts
+    throwError "mpn.sqr.karatsubaThreshold must be at least 4, but it is {sqrKaratsuba}"
+  let mulToom3 := mpn.mul.toom3Threshold.get opts
   unless 12 ≤ mulToom3 do
-    throwError "bignum.mul.toom3Threshold must be at least 12, but it is {mulToom3}"
-  let mulToom32 := bignum.mul.toom32Threshold.get opts
+    throwError "mpn.mul.toom3Threshold must be at least 12, but it is {mulToom3}"
+  let mulToom32 := mpn.mul.toom32Threshold.get opts
   unless 12 ≤ mulToom32 do
-    throwError "bignum.mul.toom32Threshold must be at least 12, but it is {mulToom32}"
-  let mulToom42 := bignum.mul.toom42Threshold.get opts
+    throwError "mpn.mul.toom32Threshold must be at least 12, but it is {mulToom32}"
+  let mulToom42 := mpn.mul.toom42Threshold.get opts
   unless 12 ≤ mulToom42 do
-    throwError "bignum.mul.toom42Threshold must be at least 12, but it is {mulToom42}"
-  let sqrToom3 := bignum.sqr.toom3Threshold.get opts
+    throwError "mpn.mul.toom42Threshold must be at least 12, but it is {mulToom42}"
+  let sqrToom3 := mpn.sqr.toom3Threshold.get opts
   unless 12 ≤ sqrToom3 do
-    throwError "bignum.sqr.toom3Threshold must be at least 12, but it is {sqrToom3}"
-  let divDC := bignum.div.dcThreshold.get opts
+    throwError "mpn.sqr.toom3Threshold must be at least 12, but it is {sqrToom3}"
+  let divDC := mpn.div.dcThreshold.get opts
   unless 4 ≤ divDC do
-    throwError "bignum.div.dcThreshold must be at least 4, but it is {divDC}"
-  let sqrBasecase := bignum.sqr.basecaseThreshold.get opts
-  let mulUnbalanced := bignum.mul.unbalancedThreshold.get opts
+    throwError "mpn.div.dcThreshold must be at least 4, but it is {divDC}"
+  let sqrBasecase := mpn.sqr.basecaseThreshold.get opts
+  let mulUnbalanced := mpn.mul.unbalancedThreshold.get opts
   let m := quote mulKaratsuba
   let u := quote mulUnbalanced
   let t := quote mulToom3
@@ -166,4 +166,4 @@ elab "bignum_config%" : term => do
                  divDC := $dc } : Config))
   elabTerm stx (mkConst ``Config)
 
-end Bignum
+end MPN

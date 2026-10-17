@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.AddDiff
+public import MPN.AddDiff
 
 /-!
 # Karatsuba multiplication
@@ -21,7 +21,7 @@ correct on the smaller inputs it is given.
 
 open ScalarArray
 
-namespace Bignum
+namespace MPN
 
 /--
 `z₀ + βᵏ (z₁ - z₀ - z₂) + β²ᵏ z₂`, where `z₀` has `2 k` limbs: the middle term is added to
@@ -145,4 +145,4 @@ public theorem karatsuba_spec (a b : UInt32Array.Slice) (hb : 4 ≤ b.size) (hab
   rw [ha, hb', hsum] at key
   exact key
 
-end Bignum
+end MPN

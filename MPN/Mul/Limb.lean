@@ -4,8 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.Basic
-public import Bignum.UInt
+public import MPN.Basic
+public import MPN.UInt
 
 /-!
 # Multiplication by a limb
@@ -16,7 +16,7 @@ trims its result: each returns the limbs it computed and the carry limb separate
 
 open ScalarArray
 
-namespace Bignum
+namespace MPN
 
 /-- Adds `a[j...] * x + c` to the limbs of `r` from `off + j` on and returns the carry. -/
 def addMul1Loop (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UInt32) (j : Nat)
@@ -609,4 +609,4 @@ public theorem subMul1_append (W H : UInt32Array) (off : Nat) (a : UInt32Array.S
     subMul1 (W ++ H) off a x h' = ((subMul1 W off a x h).1 ++ H, (subMul1 W off a x h).2) :=
   subMul1Loop_append W H off a x 0 0 h h'
 
-end Bignum
+end MPN

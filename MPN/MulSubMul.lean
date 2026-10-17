@@ -4,8 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.Basic
-public import Bignum.UInt
+public import MPN.Basic
+public import MPN.UInt
 
 /-!
 # A difference of two multiples
@@ -22,7 +22,7 @@ numbers, and the chain from one carry to the next is an addition and a shift.
 
 open ScalarArray
 
-namespace Bignum
+namespace MPN
 
 /-! ## The step -/
 
@@ -404,4 +404,4 @@ slower from 4 to 16 limbs).
     rfl
   · rfl
 
-end Bignum
+end MPN

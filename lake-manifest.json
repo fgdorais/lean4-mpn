@@ -21,6 +21,6 @@
    "inputRev": "main",
    "inherited": true,
    "configFile": "lakefile.toml"}],
- "name": "«lean4-bignum»",
+ "name": "«lean4-mpn»",
  "lakeDir": ".lake",
  "fixedToolchain": false}

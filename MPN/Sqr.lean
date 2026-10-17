@@ -4,8 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.Sqr.Basecase
-public import Bignum.Mul
+public import MPN.Sqr.Basecase
+public import MPN.Mul
 
 /-!
 # Squaring
@@ -25,7 +25,7 @@ squares instead of three products.
 
 open ScalarArray
 
-namespace Bignum
+namespace MPN
 
 /--
 The square `a * a` by one step of Karatsuba, splitting at `k = a.size / 2`, for `4 ≤ a.size`. It
@@ -133,4 +133,4 @@ public def sqr (a : UInt32Array.Slice) : UInt32Array := trim (sqrLimbs a)
 public theorem isTrimmed_sqr (a : UInt32Array.Slice) : isTrimmed (sqr a) = true :=
   isTrimmed_trim _
 
-end Bignum
+end MPN

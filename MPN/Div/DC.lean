@@ -4,9 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.Div.Basecase
-public import Bignum.Mul
-public import Bignum.Cmp
+public import MPN.Div.Basecase
+public import MPN.Mul
+public import MPN.Cmp
 
 /-!
 # Divide-and-conquer division
@@ -28,7 +28,7 @@ Correctness only needs the estimate not to be too small.
 
 open ScalarArray
 
-namespace Bignum
+namespace MPN
 
 /-- The number `1`, as one limb. -/
 def oneLimb : UInt32Array := .replicate 1 1
@@ -618,4 +618,4 @@ public theorem divRemWith_spec (cfg : Config) (u v : UInt32Array.Slice) (hn : 2 
     rw [heq]
     exact divRemBasecase_spec u v hn hvt
 
-end Bignum
+end MPN

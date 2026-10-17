@@ -4,8 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.Div.Basecase
-public import Bignum.Bits
+public import MPN.Div.Basecase
+public import MPN.Bits
 
 /-!
 # Division by two limbs
@@ -26,7 +26,7 @@ small, so the loop stops exactly at the quotient. The comparison and the remaind
 
 open ScalarArray
 
-namespace Bignum
+namespace MPN
 
 /--
 Decreases `q` while `q (vt β + vs)` exceeds `R β + x`, then returns `q` with the remainder
@@ -951,4 +951,4 @@ public def ofWord64 (w : UInt64) : UInt32Array :=
 
 public theorem isTrimmed_ofWord64 (w : UInt64) : isTrimmed (ofWord64 w) = true := isTrimmed_trim _
 
-end Bignum
+end MPN

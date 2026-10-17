@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.Basic
+public import MPN.Basic
 
 /-!
 # Division by a limb
@@ -16,7 +16,7 @@ step divides the remainder so far, followed by the next limb, by `d`. The remain
 
 open ScalarArray
 
-namespace Bignum
+namespace MPN
 
 /-- One step of the division: `r β + x = q d + r'` with `r' < d`, computed in `UInt64`. -/
 @[inline, expose] public def divStep (r x d : UInt32) : UInt32 × UInt32 :=
@@ -139,4 +139,4 @@ public theorem divRem1_spec (a : UInt32Array.Slice) (d : UInt32) (hd : d ≠ 0) 
   rw [toNat_toSlice]
   exact ⟨(divRem1_spec' a d hd).2.1, (divRem1_spec' a d hd).2.2⟩
 
-end Bignum
+end MPN

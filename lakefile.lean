@@ -9,13 +9,13 @@ with this package's own settings, by passing options with its `require`. In a `l
 
 ```toml
 [[require]]
-name = "lean4-bignum"
-git = "https://github.com/fgdorais/lean4-bignum"
+name = "lean4-mpn"
+git = "https://github.com/fgdorais/lean4-mpn"
 rev = "main"
 options = { march = "native", mulKaratsuba = "48" }
 ```
 
-or in a `lakefile.lean`, `require «lean4-bignum» from git "…" @ "main" with
+or in a `lakefile.lean`, `require «lean4-mpn» from git "…" @ "main" with
 NameMap.empty |>.insert `march "native"`. The same options work on the command line with `-K`,
 for example `lake build -R -K march=native`. Lake keeps the configuration it elaborated, so after
 changing the options, build once with `-R` to reconfigure.
@@ -25,11 +25,11 @@ changing the options, build once with `-R` to reconfigure.
   binaries then run only on processors with those instructions.
 * `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`, `mulUnbalanced`, `sqrBasecase`,
   `sqrKaratsuba`, `sqrToom3`, `divDC`: the thresholds, by the names of the fields of
-  `Bignum.Config`. The keys have no dots, since TOML passes a quoted key as one name.
+  `MPN.Config`. The keys have no dots, since TOML passes a quoted key as one name.
 -/
 
 /--
-The thresholds given as options, as the `bignum.*` options of the library. The options are typed,
+The thresholds given as options, as the `mpn.*` options of the library. The options are typed,
 so a value is passed as a number; one that is not a number is passed as a string, which the
 library then rejects when it reads its options.
 -/
@@ -37,7 +37,7 @@ def thresholdOptions : Array LeanOption :=
   let opt (key : Name) (val? : Option String) : Array LeanOption :=
     match val? with
     | some val =>
-      #[{ name := `weak.bignum ++ key,
+      #[{ name := `weak.mpn ++ key,
           value := match val.toNat? with | some n => .ofNat n | none => .ofString val }]
     | none => #[]
   opt `mul.karatsubaThreshold (get_config? mulKaratsuba) ++
@@ -56,20 +56,20 @@ def marchArgs : Array String :=
   | some m => #[s!"-march={m}"]
   | none => #[]
 
-package «lean4-bignum» where
+package «lean4-mpn» where
   version := v!"0.1.0"
-  testDriver := "BignumTest"
+  testDriver := "MPNTest"
 
 require «lean4-scalar-arrays» from git
   "https://github.com/fgdorais/lean4-scalar-arrays" @ "main"
 
 @[default_target]
-lean_lib Bignum where
+lean_lib MPN where
   leanOptions := thresholdOptions
   moreLeancArgs := marchArgs
 
 @[default_target]
-lean_lib BignumTest where
+lean_lib MPNTest where
   precompileModules := true
 
 lean_exe tune where

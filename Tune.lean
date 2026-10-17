@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-import Bignum
+import MPN
 
 /-!
 # Threshold tuning
@@ -15,7 +15,7 @@ into the library: for a project that requires it, and on the command line. Pinni
 core, for example with `taskset -c 2`, gives steadier results.
 -/
 
-open ScalarArray Bignum
+open ScalarArray MPN
 
 namespace Tune
 
@@ -270,7 +270,7 @@ end Tune
 open Tune in
 public def main (args : List String) : IO UInt32 := do
   let log := args.contains "--verbose"
-  IO.println "Tuning the bignum thresholds; this takes about a minute."
+  IO.println "Tuning the lean4-mpn thresholds; this takes about a minute."
   IO.println "mulKaratsuba: one Karatsuba step against schoolbook"
   let karatsuba ← tuneKaratsuba log
   IO.println "mulToom3: one Toom-3 step against Karatsuba"

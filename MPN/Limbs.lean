@@ -13,7 +13,7 @@ its result. A list is *trimmed* when its last limb is nonzero, and trimmed lists
 natural number exactly once.
 -/
 
-namespace Bignum
+namespace MPN
 
 /-- The natural number that the little-endian base 2³² limbs `l` denote. -/
 @[expose] public def ofLimbs : List UInt32 → Nat
@@ -234,4 +234,4 @@ public theorem ofLimbs_take_lt (l : List UInt32) (i : Nat) : ofLimbs (l.take i) 
     Nat.pow_le_pow_right (by decide) (by simp; omega)
   omega
 
-end Bignum
+end MPN

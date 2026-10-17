@@ -4,9 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.Add
-public import Bignum.Div.Limb
-public import Bignum.Mul.Limb
+public import MPN.Add
+public import MPN.Div.Limb
+public import MPN.Mul.Limb
 
 /-!
 # Decimal strings
@@ -27,7 +27,7 @@ Both take quadratic time.
 
 open ScalarArray
 
-namespace Bignum
+namespace MPN
 
 /-! ## Digits -/
 
@@ -346,4 +346,4 @@ public theorem toNat_finish_foldl (l : List Char) (hl : ∀ c ∈ l, c.isDigit =
   rw [List.nil_append] at h
   exact toNat_finish _ _ h
 
-end Bignum
+end MPN

@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-import Bignum
+import MPN
 
 /-!
 # Benchmark
@@ -15,7 +15,7 @@ limbs by `n` limbs. Pinning it to one core, for example with `taskset -c 2`, giv
 results.
 -/
 
-open ScalarArray Bignum
+open ScalarArray MPN
 
 namespace Bench
 
@@ -102,7 +102,7 @@ def main (args : List String) : IO Unit := do
   let (nums, names) := (args.filter (· != "--no-nat")).partition (·.isNat)
   let ops := if names.isEmpty then ["add", "sub", "mul1", "mul", "sqr", "div", "shr"] else names
   let sizes := if nums.isEmpty then sizes else nums.map String.toNat!
-  IO.println s!"{pad 6 "op"} {pad 6 "limbs"} {pad 10 "Bignum"} {pad 10 "Nat"} {pad 8 "ratio"}"
+  IO.println s!"{pad 6 "op"} {pad 6 "limbs"} {pad 10 "MPN"} {pad 10 "Nat"} {pad 8 "ratio"}"
   for op in ops do
     for n in sizes do
       let a := sample n 1

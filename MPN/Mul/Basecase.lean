@@ -4,8 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.Mul.Limb
-public import Bignum.Mul.Comba
+public import MPN.Mul.Limb
+public import MPN.Mul.Comba
 
 /-!
 # Schoolbook multiplication
@@ -16,7 +16,7 @@ public import Bignum.Mul.Comba
 
 open ScalarArray
 
-namespace Bignum
+namespace MPN
 
 /-- Adds the rows `a[i] * b` from `i` on into `r`, one `addMul1` per row. -/
 def mulBasecaseLoop (a b : UInt32Array.Slice) (r : UInt32Array) (i : Nat)
@@ -99,4 +99,4 @@ public def mulBasecaseFast (a b : UInt32Array.Slice) : UInt32Array :=
     rw [← toNat_toSlice, ← toNat_toSlice, toNat_mulBasecase, hv]
   · rfl
 
-end Bignum
+end MPN

@@ -4,15 +4,15 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.Add
-public import Bignum.Sub
-public import Bignum.Cmp
-public import Bignum.Mul
-public import Bignum.Sqr
-public import Bignum.Div
-public import Bignum.Bits
-public import Bignum.Decimal
-public import Bignum.MulSubMul
+public import MPN.Add
+public import MPN.Sub
+public import MPN.Cmp
+public import MPN.Mul
+public import MPN.Sqr
+public import MPN.Div
+public import MPN.Bits
+public import MPN.Decimal
+public import MPN.MulSubMul
 import Std.Data.String.ToNat
 import all Init.Data.Repr
 
@@ -33,7 +33,7 @@ a small `BigNat` is a heap object holding its word, which costs an allocation pe
 
 open ScalarArray
 
-namespace Bignum
+namespace MPN
 
 /-! ## Limbs and words -/
 
@@ -140,21 +140,21 @@ namespace BigNat
 /-- The natural number that a `BigNat` denotes. -/
 @[expose] public def toNat : BigNat → Nat
   | small n => n.toNat
-  | large a _ => Bignum.toNat a
+  | large a _ => MPN.toNat a
 
 /-- The `BigNat` of a natural number. -/
 public def ofNat (n : Nat) : BigNat :=
   if h : n < 2 ^ 64 then
     small n.toUInt64
   else
-    large (Bignum.ofNat n) ⟨isTrimmed_ofNat n, by rw [toNat_ofNat]; omega⟩
+    large (MPN.ofNat n) ⟨isTrimmed_ofNat n, by rw [toNat_ofNat]; omega⟩
 
 @[simp] public theorem toNat_ofNat (n : Nat) : (ofNat n).toNat = n := by
   unfold ofNat
   split
   · rename_i h
     simp [toNat, Nat.mod_eq_of_lt h]
-  · exact Bignum.toNat_ofNat n
+  · exact MPN.toNat_ofNat n
 
 public theorem toNat_small (n : UInt64) : (small n).toNat = n.toNat := rfl
 
@@ -189,7 +189,7 @@ public def limbs : BigNat → UInt32Array
   | small n => limbsOfWord n
   | large a _ => a
 
-public theorem toNat_limbs (x : BigNat) : Bignum.toNat x.limbs = x.toNat := by
+public theorem toNat_limbs (x : BigNat) : MPN.toNat x.limbs = x.toNat := by
   cases x with
   | small n => exact (limbsOfWord_spec n).1
   | large a _ => rfl
@@ -205,7 +205,7 @@ public def ofLimbs (a : UInt32Array) (h : isTrimmed a = true) : BigNat :=
       omega⟩
 
 @[simp] public theorem toNat_ofLimbs (a : UInt32Array) (h : isTrimmed a = true) :
-    (ofLimbs a h).toNat = Bignum.toNat a := by
+    (ofLimbs a h).toNat = MPN.toNat a := by
   unfold ofLimbs
   split
   · rename_i hs
@@ -234,7 +234,7 @@ private theorem toList_limbs4 (lo hi : UInt64) :
 
 private theorem limbs4_spec (lo hi : UInt64) (h : hi ≠ 0) :
     isTrimmed (limbs4 lo hi) = true ∧
-      Bignum.toNat (limbs4 lo hi) = lo.toNat + 2 ^ 64 * hi.toNat := by
+      MPN.toNat (limbs4 lo hi) = lo.toNat + 2 ^ 64 * hi.toNat := by
   have hl := lo.toNat_lt
   have hh := hi.toNat_lt
   have h0 : hi.toNat ≠ 0 := fun e => h (UInt64.toNat_inj.1 (by simpa using e))
@@ -342,7 +342,7 @@ public def add : BigNat → BigNat → BigNat
   | small a, small b =>
     let s := a + b
     if s < a then wideOf s 1 else small s
-  | x, y => ofLimbs (Bignum.add x.limbs y.limbs) (isTrimmed_add _ _)
+  | x, y => ofLimbs (MPN.add x.limbs y.limbs) (isTrimmed_add _ _)
 
 /-- Truncated subtraction, like `Nat`'s: `x - y = 0` when `x < y`. -/
 public def sub : BigNat → BigNat → BigNat
@@ -356,7 +356,7 @@ public def mul : BigNat → BigNat → BigNat
   | small a, small b =>
     if a < 4294967296 ∧ b < 4294967296 then small (a * b)
     else wideOf (mulWide a b).1 (mulWide a b).2
-  | x, y => ofLimbs (Bignum.mul x.limbs y.limbs) (isTrimmed_mul _ _)
+  | x, y => ofLimbs (MPN.mul x.limbs y.limbs) (isTrimmed_mul _ _)
 
 /--
 `a` divided by a nonzero word `b`, as untrimmed quotient limbs and the remainder, a word: `divRem1`
@@ -370,17 +370,17 @@ def divRemWord (a : UInt32Array) (b : UInt64) : UInt32Array × UInt64 :=
     divRem2 a (b >>> 32).toUInt32 b.toUInt32
 
 private theorem divRemWord_spec (a : UInt32Array) (b : UInt64) (hb : b ≠ 0) :
-    Bignum.toNat (divRemWord a b).1 = Bignum.toNat a / b.toNat ∧
-      (divRemWord a b).2.toNat = Bignum.toNat a % b.toNat := by
+    MPN.toNat (divRemWord a b).1 = MPN.toNat a / b.toNat ∧
+      (divRemWord a b).2.toNat = MPN.toNat a % b.toNat := by
   have hb' : 0 < b.toNat := by
     rcases Nat.eq_zero_or_pos b.toNat with h | h
     · exact absurd (UInt64.toNat_inj.1 (by simpa using h)) hb
     · exact h
   have hB := b.toNat_lt
   -- `q b + r = a` with `r < b` determines both.
-  have key : ∀ q r : Nat, q * b.toNat + r = Bignum.toNat a → r < b.toNat →
-      q = Bignum.toNat a / b.toNat ∧ r = Bignum.toNat a % b.toNat := fun q r h₁ h₂ => by
-    have := (Nat.div_mod_unique (a := Bignum.toNat a) (b := b.toNat) (d := q) (c := r) hb').2
+  have key : ∀ q r : Nat, q * b.toNat + r = MPN.toNat a → r < b.toNat →
+      q = MPN.toNat a / b.toNat ∧ r = MPN.toNat a % b.toNat := fun q r h₁ h₂ => by
+    have := (Nat.div_mod_unique (a := MPN.toNat a) (b := b.toNat) (d := q) (c := r) hb').2
       ⟨by rw [Nat.mul_comm b.toNat q]; omega, h₂⟩
     exact ⟨this.1.symm, this.2.symm⟩
   unfold divRemWord
@@ -459,7 +459,7 @@ private theorem div_of_scaled {X Q b S r : Nat} (hS : 0 < S) (h : X * S = Q * (b
 
 /-- The value of at most four limbs. -/
 private theorem toNat_four (a : UInt32Array) (ha : a.size ≤ 4) :
-    Bignum.toNat a = (a.getD 0 0).toNat + 2 ^ 32 * (a.getD 1 0).toNat +
+    MPN.toNat a = (a.getD 0 0).toNat + 2 ^ 32 * (a.getD 1 0).toNat +
       2 ^ 64 * (a.getD 2 0).toNat + 2 ^ 96 * (a.getD 3 0).toNat := by
   rw [toNat_toSlice]
   have hl : a.toList = (a.toList.take 4) := (List.take_of_length_le (by simp; omega)).symm
@@ -472,8 +472,8 @@ private theorem toNat_four (a : UInt32Array) (ha : a.size ≤ 4) :
 
 private theorem divRem128_spec (a : UInt32Array) (b : UInt64) (ha : a.size ≤ 4)
     (hb : 4294967296 ≤ b) :
-    (divRem128 a b).1.toNat + 2 ^ 64 * (divRem128 a b).2.1.toNat = Bignum.toNat a / b.toNat ∧
-      (divRem128 a b).2.2.toNat = Bignum.toNat a % b.toNat := by
+    (divRem128 a b).1.toNat + 2 ^ 64 * (divRem128 a b).2.1.toNat = MPN.toNat a / b.toNat ∧
+      (divRem128 a b).2.2.toNat = MPN.toNat a % b.toNat := by
   rw [UInt64.le_iff_toNat_le] at hb
   simp only [UInt64.reduceToNat] at hb
   have hbβ := b.toNat_lt
@@ -528,7 +528,7 @@ private theorem divRem128_spec (a : UInt32Array) (b : UInt64) (ha : a.size ≤ 4
   generalize shlStep (31 - l).toUInt64 (a.getD 2 0) p₁.2 = p₂ at *
   generalize shlStep (31 - l).toUInt64 (a.getD 3 0) p₂.2 = p₃ at *
   have hX := toNat_four a ha
-  have hXlt : Bignum.toNat a < 2 ^ 128 := by
+  have hXlt : MPN.toNat a < 2 ^ 128 := by
     have := (a.getD 0 0).toNat_lt; have := (a.getD 1 0).toNat_lt
     have := (a.getD 2 0).toNat_lt; have := (a.getD 3 0).toNat_lt
     omega
@@ -542,7 +542,7 @@ private theorem divRem128_spec (a : UInt32Array) (b : UInt64) (ha : a.size ≤ 4
       Nat.reduceMod, Nat.shiftLeft_eq]
     omega
   generalize hSdef : 2 ^ (31 - l) = S at *
-  generalize Bignum.toNat a = X at *
+  generalize MPN.toNat a = X at *
   generalize b.toNat = B at *
   -- `X S = W`, the five words.
   have hW : X * S = p₀.1.toNat + 2 ^ 32 * p₁.1.toNat + 2 ^ 64 * p₂.1.toNat +
@@ -613,7 +613,7 @@ public def div : BigNat → BigNat → BigNat
     if b = 0 then small 0
     else if a.size ≤ 4 ∧ 4294967296 ≤ b then wideOf (divRem128 a b).1 (divRem128 a b).2.1
     else ofLimbs (trim (divWord a b)) (isTrimmed_trim _)
-  | x, y => ofLimbs (Bignum.div x.limbs y.limbs) (isTrimmed_div _ _)
+  | x, y => ofLimbs (MPN.div x.limbs y.limbs) (isTrimmed_div _ _)
 
 /-- The remainder, like `Nat`'s: `x % 0 = x`. -/
 public def mod : BigNat → BigNat → BigNat
@@ -623,18 +623,18 @@ public def mod : BigNat → BigNat → BigNat
     if b = 0 then large a ha
     else if a.size ≤ 4 ∧ 4294967296 ≤ b then small (divRem128 a b).2.2
     else small (divRemWord a b).2
-  | x, y => ofLimbs (Bignum.mod x.limbs y.limbs) (isTrimmed_mod _ _)
+  | x, y => ofLimbs (MPN.mod x.limbs y.limbs) (isTrimmed_mod _ _)
 
 private theorem small_lt_large (a : UInt64) (b : UInt32Array)
-    (hb : isTrimmed b = true ∧ 2 ^ 64 ≤ Bignum.toNat b) : (small a).toNat < (large b hb).toNat := by
+    (hb : isTrimmed b = true ∧ 2 ^ 64 ≤ MPN.toNat b) : (small a).toNat < (large b hb).toNat := by
   have := a.toNat_lt
   simp only [toNat]
   omega
 
 @[simp] public theorem toNat_add (x y : BigNat) : (add x y).toNat = x.toNat + y.toNat := by
-  have hgen : ∀ x y : BigNat, (ofLimbs (Bignum.add x.limbs y.limbs) (isTrimmed_add _ _)).toNat =
+  have hgen : ∀ x y : BigNat, (ofLimbs (MPN.add x.limbs y.limbs) (isTrimmed_add _ _)).toNat =
       x.toNat + y.toNat := fun x y => by
-    rw [toNat_ofLimbs, Bignum.toNat_add, toNat_limbs, toNat_limbs]
+    rw [toNat_ofLimbs, MPN.toNat_add, toNat_limbs, toNat_limbs]
   cases x with
   | small a =>
     cases y with
@@ -686,9 +686,9 @@ private theorem small_lt_large (a : UInt64) (b : UInt32Array)
   | large a ha => exact hgen _ _
 
 @[simp] public theorem toNat_mul (x y : BigNat) : (mul x y).toNat = x.toNat * y.toNat := by
-  have hgen : ∀ x y : BigNat, (ofLimbs (Bignum.mul x.limbs y.limbs) (isTrimmed_mul _ _)).toNat =
+  have hgen : ∀ x y : BigNat, (ofLimbs (MPN.mul x.limbs y.limbs) (isTrimmed_mul _ _)).toNat =
       x.toNat * y.toNat := fun x y => by
-    rw [toNat_ofLimbs, Bignum.toNat_mul, toNat_limbs, toNat_limbs]
+    rw [toNat_ofLimbs, MPN.toNat_mul, toNat_limbs, toNat_limbs]
   cases x with
   | small a =>
     cases y with
@@ -708,9 +708,9 @@ private theorem small_lt_large (a : UInt64) (b : UInt32Array)
   | large a ha => exact hgen _ _
 
 @[simp] public theorem toNat_div (x y : BigNat) : (div x y).toNat = x.toNat / y.toNat := by
-  have hgen : ∀ x y : BigNat, (ofLimbs (Bignum.div x.limbs y.limbs) (isTrimmed_div _ _)).toNat =
+  have hgen : ∀ x y : BigNat, (ofLimbs (MPN.div x.limbs y.limbs) (isTrimmed_div _ _)).toNat =
       x.toNat / y.toNat := fun x y => by
-    rw [toNat_ofLimbs, Bignum.toNat_div, toNat_limbs, toNat_limbs]
+    rw [toNat_ofLimbs, MPN.toNat_div, toNat_limbs, toNat_limbs]
   cases x with
   | small a =>
     cases y with
@@ -738,9 +738,9 @@ private theorem small_lt_large (a : UInt64) (b : UInt32Array)
     | large b hb => exact hgen _ _
 
 @[simp] public theorem toNat_mod (x y : BigNat) : (mod x y).toNat = x.toNat % y.toNat := by
-  have hgen : ∀ x y : BigNat, (ofLimbs (Bignum.mod x.limbs y.limbs) (isTrimmed_mod _ _)).toNat =
+  have hgen : ∀ x y : BigNat, (ofLimbs (MPN.mod x.limbs y.limbs) (isTrimmed_mod _ _)).toNat =
       x.toNat % y.toNat := fun x y => by
-    rw [toNat_ofLimbs, Bignum.toNat_mod, toNat_limbs, toNat_limbs]
+    rw [toNat_ofLimbs, MPN.toNat_mod, toNat_limbs, toNat_limbs]
   cases x with
   | small a =>
     cases y with
@@ -806,14 +806,14 @@ public def shiftLeft (x : BigNat) (n : Nat) : BigNat :=
   | small a =>
     if n = 0 then small a
     else if n < 64 ∧ a >>> (64 - n).toUInt64 = 0 then small (a <<< n.toUInt64)
-    else ofLimbs (Bignum.shiftLeft (limbsOfWord a) n) (isTrimmed_shiftLeft _ _)
-  | large a _ => ofLimbs (Bignum.shiftLeft a n) (isTrimmed_shiftLeft _ _)
+    else ofLimbs (MPN.shiftLeft (limbsOfWord a) n) (isTrimmed_shiftLeft _ _)
+  | large a _ => ofLimbs (MPN.shiftLeft a n) (isTrimmed_shiftLeft _ _)
 
 /-- `x >>> n = x / 2ⁿ`. -/
 public def shiftRight (x : BigNat) (n : Nat) : BigNat :=
   match x with
   | small a => if n < 64 then small (a >>> n.toUInt64) else small 0
-  | large a _ => ofLimbs (Bignum.shiftRight a n) (isTrimmed_shiftRight _ _)
+  | large a _ => ofLimbs (MPN.shiftRight a n) (isTrimmed_shiftRight _ _)
 
 @[simp] public theorem toNat_shiftLeft (x : BigNat) (n : Nat) :
     (shiftLeft x n).toNat = x.toNat * 2 ^ n := by
@@ -845,11 +845,11 @@ public def shiftRight (x : BigNat) (n : Nat) : BigNat :=
           rwa [← Nat.pow_add, show 64 - n + n = 64 by omega] at this
         simp only [toNat, UInt64.toNat_shiftLeft, hn', Nat.shiftLeft_eq]
         exact Nat.mod_eq_of_lt this
-      · rw [toNat_ofLimbs, Bignum.toNat_shiftLeft, (limbsOfWord_spec a).1]
+      · rw [toNat_ofLimbs, MPN.toNat_shiftLeft, (limbsOfWord_spec a).1]
         rfl
   | large a ha =>
     simp only [shiftLeft]
-    rw [toNat_ofLimbs, Bignum.toNat_shiftLeft]
+    rw [toNat_ofLimbs, MPN.toNat_shiftLeft]
     rfl
 
 @[simp] public theorem toNat_shiftRight (x : BigNat) (n : Nat) :
@@ -870,28 +870,28 @@ public def shiftRight (x : BigNat) (n : Nat) : BigNat :=
       exact (Nat.div_eq_of_lt (by omega)).symm
   | large a ha =>
     simp only [shiftRight]
-    rw [toNat_ofLimbs, Bignum.toNat_shiftRight]
+    rw [toNat_ofLimbs, MPN.toNat_shiftRight]
     rfl
 
 /-- `x &&& y`: on words when both are small. -/
 public def land : BigNat → BigNat → BigNat
   | small a, small b => small (a &&& b)
-  | x, y => ofLimbs (Bignum.land x.limbs y.limbs) (isTrimmed_land _ _)
+  | x, y => ofLimbs (MPN.land x.limbs y.limbs) (isTrimmed_land _ _)
 
 /-- `x ||| y`: on words when both are small. -/
 public def lor : BigNat → BigNat → BigNat
   | small a, small b => small (a ||| b)
-  | x, y => ofLimbs (Bignum.lor x.limbs y.limbs) (isTrimmed_lor _ _)
+  | x, y => ofLimbs (MPN.lor x.limbs y.limbs) (isTrimmed_lor _ _)
 
 /-- `x ^^^ y`: on words when both are small. -/
 public def xor : BigNat → BigNat → BigNat
   | small a, small b => small (a ^^^ b)
-  | x, y => ofLimbs (Bignum.xor x.limbs y.limbs) (isTrimmed_xor _ _)
+  | x, y => ofLimbs (MPN.xor x.limbs y.limbs) (isTrimmed_xor _ _)
 
 @[simp] public theorem toNat_land (x y : BigNat) : (land x y).toNat = x.toNat &&& y.toNat := by
-  have hgen : ∀ x y : BigNat, (ofLimbs (Bignum.land x.limbs y.limbs) (isTrimmed_land _ _)).toNat =
+  have hgen : ∀ x y : BigNat, (ofLimbs (MPN.land x.limbs y.limbs) (isTrimmed_land _ _)).toNat =
       x.toNat &&& y.toNat := fun x y => by
-    rw [toNat_ofLimbs, Bignum.toNat_land, toNat_limbs, toNat_limbs]
+    rw [toNat_ofLimbs, MPN.toNat_land, toNat_limbs, toNat_limbs]
   cases x with
   | small a => cases y with
     | small b => simp [land, toNat, UInt64.toNat_and]
@@ -899,9 +899,9 @@ public def xor : BigNat → BigNat → BigNat
   | large a ha => exact hgen _ _
 
 @[simp] public theorem toNat_lor (x y : BigNat) : (lor x y).toNat = x.toNat ||| y.toNat := by
-  have hgen : ∀ x y : BigNat, (ofLimbs (Bignum.lor x.limbs y.limbs) (isTrimmed_lor _ _)).toNat =
+  have hgen : ∀ x y : BigNat, (ofLimbs (MPN.lor x.limbs y.limbs) (isTrimmed_lor _ _)).toNat =
       x.toNat ||| y.toNat := fun x y => by
-    rw [toNat_ofLimbs, Bignum.toNat_lor, toNat_limbs, toNat_limbs]
+    rw [toNat_ofLimbs, MPN.toNat_lor, toNat_limbs, toNat_limbs]
   cases x with
   | small a => cases y with
     | small b => simp [lor, toNat, UInt64.toNat_or]
@@ -909,9 +909,9 @@ public def xor : BigNat → BigNat → BigNat
   | large a ha => exact hgen _ _
 
 @[simp] public theorem toNat_xor (x y : BigNat) : (xor x y).toNat = x.toNat ^^^ y.toNat := by
-  have hgen : ∀ x y : BigNat, (ofLimbs (Bignum.xor x.limbs y.limbs) (isTrimmed_xor _ _)).toNat =
+  have hgen : ∀ x y : BigNat, (ofLimbs (MPN.xor x.limbs y.limbs) (isTrimmed_xor _ _)).toNat =
       x.toNat ^^^ y.toNat := fun x y => by
-    rw [toNat_ofLimbs, Bignum.toNat_xor, toNat_limbs, toNat_limbs]
+    rw [toNat_ofLimbs, MPN.toNat_xor, toNat_limbs, toNat_limbs]
   cases x with
   | small a => cases y with
     | small b => simp [xor, toNat, UInt64.toNat_xor]
@@ -937,7 +937,7 @@ public def log2 : BigNat → Nat
     -- `a = L + β^(n - 1) t` with `L < β^(n - 1)` and `t ≠ 0` the top limb.
     have hsplit := toNat_slice_add_toNat_slice a (a.size - 1) (by simp)
     have hL := toNat_lt (a.toSlice.slice 0 (a.size - 1))
-    have htop : Bignum.toNat (a.toSlice.slice (a.size - 1) a.toSlice.size) =
+    have htop : MPN.toNat (a.toSlice.slice (a.size - 1) a.toSlice.size) =
         (a.getD (a.size - 1) 0).toNat := by
       rw [toNat_of_size_eq_one (by simp; omega)]
       simp [UInt32Array.getD_eq_getD_getElem?, show a.size - 1 < a.size by omega]
@@ -981,8 +981,8 @@ public def log2 : BigNat → Nat
 public def sqr : BigNat → BigNat
   | small a =>
     if a < 4294967296 then small (a * a)
-    else ofLimbs (Bignum.sqr (limbsOfWord a)) (isTrimmed_sqr _)
-  | large a _ => ofLimbs (Bignum.sqr a) (isTrimmed_sqr _)
+    else ofLimbs (MPN.sqr (limbsOfWord a)) (isTrimmed_sqr _)
+  | large a _ => ofLimbs (MPN.sqr a) (isTrimmed_sqr _)
 
 @[simp] public theorem toNat_sqr (x : BigNat) : (sqr x).toNat = x.toNat * x.toNat := by
   cases x with
@@ -994,11 +994,11 @@ public def sqr : BigNat → BigNat
       simp only [UInt64.reduceToNat] at h
       have : a.toNat * a.toNat < 2 ^ 64 := Nat.lt_of_lt_of_le (Nat.mul_lt_mul'' h h) (by decide)
       simp only [toNat, UInt64.toNat_mul, Nat.mod_eq_of_lt this]
-    · rw [toNat_ofLimbs, Bignum.toNat_sqr, (limbsOfWord_spec a).1]
+    · rw [toNat_ofLimbs, MPN.toNat_sqr, (limbsOfWord_spec a).1]
       rfl
   | large a ha =>
     simp only [sqr]
-    rw [toNat_ofLimbs, Bignum.toNat_sqr]
+    rw [toNat_ofLimbs, MPN.toNat_sqr]
     rfl
 
 /-- `xⁿ`, by repeated squaring. -/
@@ -1354,16 +1354,16 @@ def lehmerStep (x y : BigNat) (A B C D : Int) : Option (BigNat × BigNat) :=
 private theorem toNat_mulSubMul_natAbs (X Y : UInt32Array) (p q : Nat) (P Q : Int)
     (hp : p < 2 ^ 31) (hq : q < 2 ^ 31) (hP : P = p) (hQ : Q = -(q : Int))
     (hn : (mulSubMul X Y p.toUInt32 q.toUInt32).2 = false) :
-    Bignum.toNat (trim (mulSubMul X Y p.toUInt32 q.toUInt32).1) =
-      (P * Bignum.toNat X + Q * Bignum.toNat Y).natAbs := by
+    MPN.toNat (trim (mulSubMul X Y p.toUInt32 q.toUInt32).1) =
+      (P * MPN.toNat X + Q * MPN.toNat Y).natAbs := by
   have hpu : p.toUInt32.toNat = p := by simp [Nat.toUInt32_eq, UInt32.toNat_ofNat']; omega
   have hqu : q.toUInt32.toNat = q := by simp [Nat.toUInt32_eq, UInt32.toNat_ofNat']; omega
   have h := (mulSubMul_spec X Y p.toUInt32 q.toUInt32 (by omega) (by omega)).1 hn
   rw [hpu, hqu] at h
   rw [toNat_trim, hP, hQ]
-  generalize Bignum.toNat (mulSubMul X Y p.toUInt32 q.toUInt32).1 = R at *
-  generalize Bignum.toNat X = Xv at *
-  generalize Bignum.toNat Y = Yv at *
+  generalize MPN.toNat (mulSubMul X Y p.toUInt32 q.toUInt32).1 = R at *
+  generalize MPN.toNat X = Xv at *
+  generalize MPN.toNat Y = Yv at *
   have : (p : Int) * Xv + -(q : Int) * Yv = (R : Int) := by
     have h' : ((R + Yv * q : Nat) : Int) = ((Xv * p : Nat) : Int) := by rw [h]
     push_cast at h'
@@ -1526,4 +1526,4 @@ public def lcm (x y : BigNat) : BigNat :=
 
 end BigNat
 
-end Bignum
+end MPN

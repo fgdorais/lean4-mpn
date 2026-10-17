@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.Mul.Limb
+public import MPN.Mul.Limb
 
 /-!
 # Shifts and bits
@@ -20,7 +20,7 @@ Both results are trimmed.
 
 open ScalarArray
 
-namespace Bignum
+namespace MPN
 
 /-! ## Moving limbs -/
 
@@ -433,4 +433,4 @@ public theorem isTrimmed_lor (a b : UInt32Array.Slice) : isTrimmed (lor a b) = t
 public theorem isTrimmed_xor (a b : UInt32Array.Slice) : isTrimmed (xor a b) = true :=
   isTrimmed_trim _
 
-end Bignum
+end MPN

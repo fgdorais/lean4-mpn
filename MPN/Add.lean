@@ -4,8 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.Basic
-public import Bignum.UInt
+public import MPN.Basic
+public import MPN.UInt
 
 /-!
 # Addition
@@ -18,7 +18,7 @@ public import Bignum.UInt
 
 open ScalarArray
 
-namespace Bignum
+namespace MPN
 
 /-! ## Adding at an offset -/
 
@@ -369,4 +369,4 @@ public def add (a b : UInt32Array.Slice) : UInt32Array := trim (addLimbs a b)
 public theorem isTrimmed_add (a b : UInt32Array.Slice) : isTrimmed (add a b) = true :=
   isTrimmed_trim _
 
-end Bignum
+end MPN

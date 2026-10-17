@@ -4,11 +4,11 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.Div.Limb
-public import Bignum.Div.Basecase
-public import Bignum.Div.DC
-public import Bignum.Div.Two
-public import Bignum.Bits
+public import MPN.Div.Limb
+public import MPN.Div.Basecase
+public import MPN.Div.DC
+public import MPN.Div.Two
+public import MPN.Bits
 
 /-!
 # Division
@@ -23,7 +23,7 @@ of `a f` by `b f` is `a / b` and the remainder `(a % b) f` for any `f ≠ 0`.
 
 open ScalarArray
 
-namespace Bignum
+namespace MPN
 
 /-! ## The size without trailing zeros -/
 
@@ -385,4 +385,4 @@ public theorem isTrimmed_mod (a b : UInt32Array.Slice) : isTrimmed (mod a b) = t
     · rw [divMod_of_two_le_topSize a b h₃]
       exact isTrimmed_trim _
 
-end Bignum
+end MPN

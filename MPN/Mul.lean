@@ -4,11 +4,11 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.Mul.Basecase
-public import Bignum.Mul.Karatsuba
-public import Bignum.Mul.Unbalanced
-public import Bignum.Mul.Toom3
-public import Bignum.Config
+public import MPN.Mul.Basecase
+public import MPN.Mul.Karatsuba
+public import MPN.Mul.Unbalanced
+public import MPN.Mul.Toom3
+public import MPN.Config
 
 /-!
 # Multiplication
@@ -40,7 +40,7 @@ come from a `Config`, and `mulLimbs` uses the library's `config`.
 
 open ScalarArray
 
-namespace Bignum
+namespace MPN
 
 /-- An algorithm that computes all `a.size + b.size` limbs of `a * b`, without trimming. -/
 public structure IsMul (f : UInt32Array.Slice → UInt32Array.Slice → UInt32Array) : Prop where
@@ -49,8 +49,8 @@ public structure IsMul (f : UInt32Array.Slice → UInt32Array.Slice → UInt32Ar
 
 public theorem isMul_mulBasecase : IsMul mulBasecase := ⟨size_mulBasecase, toNat_mulBasecase⟩
 
-/-- The thresholds of the library, from the `bignum.*` options set when it is compiled. -/
-public def config : Config := bignum_config%
+/-- The thresholds of the library, from the `mpn.*` options set when it is compiled. -/
+public def config : Config := mpn_config%
 
 mutual
 
@@ -162,4 +162,4 @@ public def mul (a b : UInt32Array.Slice) : UInt32Array := trim (mulLimbs a b)
 public theorem isTrimmed_mul (a b : UInt32Array.Slice) : isTrimmed (mul a b) = true :=
   isTrimmed_trim _
 
-end Bignum
+end MPN

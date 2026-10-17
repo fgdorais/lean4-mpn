@@ -36,7 +36,7 @@ jobs:
         run: lake build --wfail tune bench
 
       # Shared runners are noisy, so the thresholds found are only a rough check of the defaults
-      # in `Bignum.Config`; they go into the run's summary.
+      # in `MPN.Config`; they go into the run's summary.
       - name: tune
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |

@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.Mul.Limb
+public import MPN.Mul.Limb
 
 /-!
 # Schoolbook division
@@ -34,7 +34,7 @@ normalization.
 
 open ScalarArray
 
-namespace Bignum
+namespace MPN
 
 /-! ## Arithmetic facts -/
 
@@ -1027,4 +1027,4 @@ public theorem divRemBasecaseTop_spec (r : UInt32Array) (v : UInt32Array.Slice) 
     rw [e]
     exact divRemBasecase_spec r.toSlice v hn hvt
 
-end Bignum
+end MPN

@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.Add
+public import MPN.Add
 
 /-!
 # Unbalanced multiplication
@@ -21,7 +21,7 @@ in `a.size / b.size`. `mulUnbalanced` takes the multiplier as a parameter, like 
 
 open ScalarArray
 
-namespace Bignum
+namespace MPN
 
 /--
 The product `a * b` for `1 ≤ b.size` and `2 * b.size ≤ a.size`, as `a₀ b + βᵐ (a₁ b)` with
@@ -72,4 +72,4 @@ public theorem mulUnbalanced_spec (a b : UInt32Array.Slice) (hb : 1 ≤ b.size)
   · rw [mulUnbalanced, toNat_addInto_of_lt _ _ _ hfit (by rw [hp, hr₁, hval, hps]; exact hlt), hp,
       hr₁, hval]
 
-end Bignum
+end MPN

@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.Add
+public import MPN.Add
 
 /-!
 # Adding a difference
@@ -20,7 +20,7 @@ At the end of `x` the true carry is `0` or `1`, and a carry of `1` is propagated
 
 open ScalarArray
 
-namespace Bignum
+namespace MPN
 
 /-! ## The step -/
 
@@ -308,4 +308,4 @@ private theorem foldInPlace_loop_addDiff (r : UInt32Array) (off : Nat) (x y z : 
     rfl
   · rfl
 
-end Bignum
+end MPN

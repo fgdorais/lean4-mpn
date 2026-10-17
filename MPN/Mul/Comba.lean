@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.Basic
+public import MPN.Basic
 
 /-!
 # Comba multiplication
@@ -23,7 +23,7 @@ of column `k` over all `i ≤ k`, with limbs past the end read as zero.
 
 open ScalarArray
 
-namespace Bignum
+namespace MPN
 
 /-! ## Column sums -/
 
@@ -1357,4 +1357,4 @@ public theorem csqMul_spec (a : UInt32Array.Slice) (h : SqrOK a) :
   conv => rhs; rw [← List.dropLast_concat_getLast hne, hlast]
   rw [ofLimbs_concat, UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero]
 
-end Bignum
+end MPN

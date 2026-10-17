@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.Basic
+public import MPN.Basic
 
 /-!
 # Comparison
@@ -15,7 +15,7 @@ past the end of the shorter slice as `0`, so the slices may have any sizes.
 
 open ScalarArray
 
-namespace Bignum
+namespace MPN
 
 /-- Compares the limbs of `a` and `b` below `i`, from the top down. -/
 def ltLoop (a b : UInt32Array.Slice) : Nat → Bool
@@ -70,4 +70,4 @@ public theorem lt_iff (a b : UInt32Array.Slice) : lt a b = true ↔ toNat a < to
     List.take_of_length_le (by simp; omega)]
   rfl
 
-end Bignum
+end MPN

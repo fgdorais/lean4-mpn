@@ -25,7 +25,7 @@ the same column across runs rather than the ratios.
 - **Sizes** are in 32-bit limbs. A row of 256 limbs is about 8,200 bits, or 2,500 decimal digits.
 - **The `Nat` column** is Lean's `Nat`: GMP with 64-bit limbs and assembly, behind a wrapper that
   copies operands and results. Below about 64 limbs that wrapper dominates, which is why the
-  library is often faster there. A ratio is `Bignum / Nat`, so below 1 means faster than `Nat`.
+  library is often faster there. A ratio is `MPN / Nat`, so below 1 means faster than `Nat`.
 - **One limb** compares an array with `Nat`'s unboxed small values, which need no allocation. The
   limb-level operations always allocate an array, so their 1-limb ratios are high. `BigNat` has a
   word fast path for values below `2⁶⁴`, which is what its 1- and 2-limb rows measure.
@@ -55,7 +55,7 @@ the same column across runs rather than the ratios.
 
 ## Current results
 
-Ratio Bignum / Nat (below 1 is faster than Nat):
+Ratio MPN / Nat (below 1 is faster than Nat):
 
 | op | 1 | 2 | 4 | 8 | 16 | 32 | 64 | 128 | 256 | 512 | 1024 | 2048 | 4096 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -79,7 +79,7 @@ Ratio Bignum / Nat (below 1 is faster than Nat):
 | `btonat` | 1.07 | 0.77 | 2.22 | 5.33 | 11.98 | 25.98 | 49.08 | 94.35 | 166.43 | 197.92 | 292.71 |  |  |
 | `bofnat` | 2.03 | 0.60 | 1.12 | 2.86 | 7.33 | 14.41 | 28.74 | 57.10 | 98.63 | 122.50 | 182.98 |  |  |
 
-Time of Bignum:
+Time of MPN:
 
 | op | 1 | 2 | 4 | 8 | 16 | 32 | 64 | 128 | 256 | 512 | 1024 | 2048 | 4096 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|

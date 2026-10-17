@@ -4,8 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.Basic
-public import Bignum.UInt
+public import MPN.Basic
+public import MPN.UInt
 
 /-!
 # Subtraction
@@ -18,7 +18,7 @@ public import Bignum.UInt
 
 open ScalarArray
 
-namespace Bignum
+namespace MPN
 
 /-! ## Subtracting at an offset -/
 
@@ -334,4 +334,4 @@ public theorem toNat_subVal (x y : UInt32Array) (h : toNat y ≤ toNat x) :
   have hy : toNat (y.toSlice 0 x.size) = toNat y := toNat_toSlice_of_lt y x.size (by omega)
   rw [subVal, toNat_subLimbs _ _ (by simp; omega) (by rw [hy]; exact h), hy]
 
-end Bignum
+end MPN

@@ -5,7 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import ScalarArray.UInt32
-public import Bignum.Limbs
+public import MPN.Limbs
 
 /-!
 # Natural numbers as limbs
@@ -21,7 +21,7 @@ between them and `Nat`.
 
 open ScalarArray
 
-namespace Bignum
+namespace MPN
 
 /-- Removes the trailing zero limbs. -/
 public def trim (a : UInt32Array) : UInt32Array := a.popWhile (· == 0)
@@ -554,4 +554,4 @@ public def ofNatFast (n : Nat) : UInt32Array :=
     apply IsTrimmed.ofLimbs_inj ((isTrimmed_iff _).1 (isTrimmed_ofNat _)) htr
     rw [← toNat_toSlice, toNat_ofNat, hv]
 
-end Bignum
+end MPN

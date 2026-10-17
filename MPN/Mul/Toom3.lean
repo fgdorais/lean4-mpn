@@ -4,10 +4,10 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.Add
-public import Bignum.Sub
-public import Bignum.Bits
-public import Bignum.Mul.Limb
+public import MPN.Add
+public import MPN.Sub
+public import MPN.Bits
+public import MPN.Mul.Limb
 
 /-!
 # Toom-3 multiplication
@@ -38,7 +38,7 @@ squares.
 
 open ScalarArray
 
-namespace Bignum
+namespace MPN
 
 /-! ## Building blocks -/
 
@@ -1033,4 +1033,4 @@ public theorem toom3Sqr_spec (a : UInt32Array.Slice) (ha : 12 ≤ a.size)
   exact toom3Finish_spec (a.size + a.size) ((a.size + 2) / 3) _ _ _ _ _ A₀ A₁ A₂ A₀ A₁ A₂
     (by omega) hv₀ hv₄ hw₁ hw₂ hw₃ hlt
 
-end Bignum
+end MPN
