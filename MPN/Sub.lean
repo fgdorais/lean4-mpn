@@ -118,26 +118,26 @@ public theorem toNat_subAt_of_le (r : UInt32Array) (off : Nat) (a : UInt32Array.
 
 `subAtFast` subtracts the limbs of `a` with `foldInPlace`, as `addMul1Fast` does, then
 propagates the borrow with `subAt`'s own loop, which stops as soon as the borrow is gone. The fold
-keeps the borrow as a word with `UInt32.subWithBorrowWord`, which makes a shorter dependency
-chain from limb to limb than a `Bool`. `@[csimp]` makes the compiler use `subAtFast` in place
-of `subAt`.
+keeps `1` minus the borrow as a word with `UInt32.subWithCarryWord`, which makes a shorter
+dependency chain from limb to limb than a `Bool`, and on AArch64 than the borrow itself.
+`@[csimp]` makes the compiler use `subAtFast` in place of `subAt`.
 -/
 
 /--
 The step of the fold of `subAtFast`: subtracts limb `k` of the slice `arr[st...st + len]` from
-`y`.
+`y`, with the carry word `c`, `1` minus the borrow.
 -/
 @[inline] def subAtStep (arr : UInt32Array) (st len : USize) (has : arr.size < USize.size)
     (h : st.toNat + len.toNat ≤ arr.size) (k : USize) (hk : k.toNat < len.toNat) (y c : UInt32) :
     UInt32 × UInt32 :=
-  y.subWithBorrowWord (limbU arr st len has h k hk) c
+  y.subWithCarryWord (limbU arr st len has h k hk) c
 
 /-- `subAt` with `foldInPlace` over the limbs of `a`, which the compiler uses in its place. -/
 public def subAtFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) : UInt32Array × Bool :=
   if hs : r.size < 4294967295 ∧ a.array.size < 4294967295 ∧ off + a.size ≤ r.size then
     let arr := a.array
     let st := a.start.toUSize
-    let p := r.foldInPlace off.toUSize a.size.toUSize (0 : UInt32)
+    let p := r.foldInPlace off.toUSize a.size.toUSize (1 : UInt32)
       (subAtStep arr st a.size.toUSize (lt_usizeSize hs.2.1) (limbU_bound a (lt_usizeSize hs.2.1)))
       (by
         have := USize.le_size
@@ -146,12 +146,13 @@ public def subAtFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) : UIn
         have := a.size_eq
         rw [toNat_toUSize (by lia), toNat_toUSize (by lia)]
         exact hs.2.2)
-    subAtLoop p.1 off a a.size (p.2 != 0)
+    subAtLoop p.1 off a a.size (p.2 == 0)
   else
     subAtLoop r off a 0 false
 
 /--
-The fold of `subAtFast` from limb `j` on, with the borrow `c` as a word, then the borrow, is
+The fold of `subAtFast` from limb `j` on, with the borrow `c` as the carry word `1 - c`, then the
+borrow, is
 `subAtLoop` from limb `j` on.
 -/
 private theorem foldInPlace_loop_subAt (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
@@ -159,13 +160,13 @@ private theorem foldInPlace_loop_subAt (r : UInt32Array) (off : Nat) (a : UInt32
     (c : Bool) (ha : off + a.size ≤ r.size) (hj : j ≤ a.size) (h' hlen) :
     subAtLoop (UInt32Array.foldInPlace.loop a.size.toUSize
           (subAtStep a.array a.start.toUSize a.size.toUSize has (limbU_bound a has)) s n r h'
-          hlen j c.toUInt32).1
+          hlen j (!c).toUInt32).1
         off a a.size
         ((UInt32Array.foldInPlace.loop a.size.toUSize
           (subAtStep a.array a.start.toUSize a.size.toUSize has (limbU_bound a has)) s n r h'
-          hlen j c.toUInt32).2 != 0) =
+          hlen j (!c).toUInt32).2 == 0) =
       subAtLoop r off a j c := by
-  have hc (c : Bool) : (c.toUInt32 != 0) = c := by cases c <;> rfl
+  have hc (c : Bool) : ((!c).toUInt32 == 0) = c := by cases c <;> rfl
   subst s n
   induction r, j, c using subAtLoop.induct off a with
   | case1 r j c h hstop =>
@@ -178,7 +179,7 @@ private theorem foldInPlace_loop_subAt (r : UInt32Array) (off : Nat) (a : UInt32
     · rw [UInt32Array.foldInPlace.loop]
       conv => rhs; rw [subAtLoop]
       simp only [hja, ↓reduceDIte, h, hstop, ↓reduceIte, subAtStep, limbU_eq a has j _ hja,
-        UInt32.subWithBorrowWord_toUInt32]
+        UInt32.subWithCarryWord_toUInt32]
       have hg : a.getD j 0 = a[j] := by simp [UInt32Array.Slice.getD_eq, hja]
       simp only [p, hg] at ih ⊢
       exact ih (by simpa using ha) (by lia) (by simpa using ha)
@@ -259,9 +260,9 @@ public def subIntoFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) : U
   if hs : r.size < 4294967295 ∧ a.array.size < 4294967295 ∧ off + a.size ≤ r.size then
     let arr := a.array
     let st := a.start.toUSize
-    r.foldInPlaceThen off.toUSize a.size.toUSize (0 : UInt32)
+    r.foldInPlaceThen off.toUSize a.size.toUSize (1 : UInt32)
       (subAtStep arr st a.size.toUSize (lt_usizeSize hs.2.1) (limbU_bound a (lt_usizeSize hs.2.1)))
-      (fun r' c => if c != 0 then decrFrom r' (off + a.size) else r')
+      (fun r' c => if c == 0 then decrFrom r' (off + a.size) else r')
       (by
         have := USize.le_size
         have := a.stop_le_array_size

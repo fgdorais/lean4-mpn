@@ -215,17 +215,14 @@ last, and that sum is also used for the low word, so that LLVM does not add the 
   (s.toUInt32 + c, ((s + c.toUInt64) >>> 32).toUInt32)
 
 /--
-`subWithBorrow` with the borrow as a word, `0` or `1`, for the same reason, and with the borrow
-taken from `x - y` last, as in `addWithCarryWord`.
+`x - y` with a carry word `c = 1 - b`, `0` or `1`, in place of the borrow `b`: `x + ~y + c`, which
+is `x - y - b + 2 ^ 32`, by `addWithCarryWord`, whose carry out is `1` exactly when there is no
+borrow out. A borrow taken from `x - y` last, as the sign of `x - y - b`, compiles to a compare and
+a flag read on AArch64, which makes a longer dependency chain than the add and shift of
+`addWithCarryWord`.
 -/
-@[inline, expose] public def UInt32.subWithBorrowWord (x y b : UInt32) : UInt32 × UInt32 :=
-  let s := x.toUInt64 - y.toUInt64
-  (s.toUInt32 - b, ((s - b.toUInt64) >>> 63).toUInt32)
-
-private theorem UInt32.subWithBorrowWord_eq (x y b : UInt32) :
-    x.subWithBorrowWord y b = ((x.toUInt64 - y.toUInt64 - b.toUInt64).toUInt32,
-      ((x.toUInt64 - y.toUInt64 - b.toUInt64) >>> 63).toUInt32) := by
-  simp only [subWithBorrowWord, toUInt32_sub]
+@[inline, expose] public def UInt32.subWithCarryWord (x y c : UInt32) : UInt32 × UInt32 :=
+  x.addWithCarryWord (~~~y) c
 
 public theorem UInt32.addWithCarryWord_toUInt32 (x y : UInt32) (c : Bool) :
     x.addWithCarryWord y c.toUInt32 =
@@ -241,18 +238,26 @@ public theorem UInt32.addWithCarryWord_toUInt32 (x y : UInt32) (c : Bool) :
       Nat.shiftRight_eq_div_pow] <;> split <;> simp only [UInt32.toNat_zero, UInt32.toNat_one] <;>
       omega -- `lia` and `grind` fail or time out here
 
-public theorem UInt32.subWithBorrowWord_toUInt32 (x y : UInt32) (b : Bool) :
-    x.subWithBorrowWord y b.toUInt32 =
-      ((x.subWithBorrow y b).1, (x.subWithBorrow y b).2.toUInt32) := by
+public theorem UInt32.subWithCarryWord_toUInt32 (x y : UInt32) (b : Bool) :
+    x.subWithCarryWord y (!b).toUInt32 =
+      ((x.subWithBorrow y b).1, (!(x.subWithBorrow y b).2).toUInt32) := by
+  rw [subWithCarryWord, addWithCarryWord_toUInt32]
   have := x.toNat_lt
   have := y.toNat_lt
-  have h : b.toUInt32.toUInt64 = b.toUInt64 := by cases b <;> rfl
-  rw [subWithBorrowWord_eq]
-  simp only [subWithBorrow, h, Prod.mk.injEq, true_and]
-  apply UInt32.toNat_inj.1
-  cases b <;> simp [UInt64.toNat_sub, Bool.toUInt64, Bool.toUInt32, bne, ← UInt64.toNat_inj,
-    Nat.shiftRight_eq_div_pow] <;> split <;> simp only [UInt32.toNat_zero, UInt32.toNat_one] <;>
-    omega -- `lia` and `grind` fail or time out here
+  have hy : (~~~y).toUInt64.toNat = 2 ^ 32 - 1 - y.toNat := by simp; lia
+  simp only [addWithCarry, subWithBorrow, Prod.mk.injEq]
+  refine ⟨?_, congrArg Bool.toUInt32 (Bool.eq_iff_iff.2 ?_)⟩
+  · -- The low words: `x + (β - 1 - y) + (1 - b) ≡ x - y - b` mod `β`.
+    rw [← UInt32.toNat_inj, UInt64.toNat_toUInt32, UInt64.toNat_toUInt32]
+    cases b <;> simp only [UInt64.toNat_add, UInt64.toNat_sub, hy, UInt32.toNat_toUInt64,
+      Bool.not_false, Bool.not_true, Bool.toUInt64, UInt64.reduceToNat, ite_true, ite_false,
+      Bool.false_eq_true, Nat.reducePow] <;> lia
+  · -- The carry out is `1` exactly when there is no borrow out.
+    cases b <;> simp only [bne_iff_ne, ne_eq, ← UInt64.toNat_inj, UInt64.toNat_shiftRight,
+      UInt64.toNat_add, UInt64.toNat_sub, hy, UInt32.toNat_toUInt64, Bool.not_false,
+      Bool.not_true, Bool.toUInt64, UInt64.reduceToNat, Nat.shiftRight_eq_div_pow,
+      Bool.not_eq_eq_eq_not, bne_eq_false_iff_eq, Bool.false_eq_true, ite_true, ite_false,
+      Nat.reducePow, Nat.reduceMod] <;> lia
 
 /--
 `2 x + d + c` as its low word and its high word, the step of `mpn_sqr_diag_addlsh1`-style
