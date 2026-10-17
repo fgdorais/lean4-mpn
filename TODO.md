@@ -23,6 +23,14 @@ trails by 1.5× multiplication's gap; see BENCH.md for the current numbers.
   Its profile at 1024 limbs is Comba about 50% and `subMul1` 25%, so faster products help it most.
   Ruled out: two quotient limbs per pass (`submul_2`, whose sums overflow 64 bits with 32-bit
   limbs) and a carry chain under three operations in `subMul1` (LLVM reassociates it).
+- [ ] **A 3-by-2 division step with a precomputed reciprocal** (GMP's `udiv_qr_3by2`, behind
+  `mpn_divrem_2`): division by a word of two limbs costs about 15 ns per limb (`BigNat` of 256
+  limbs by `10¹⁸`: 3.9 µs, 8.2× GMP), each step a hardware division in `div2Est` followed by
+  `qEstimate3` and `div2Fix`, all on the dependency chain. With 32-bit limbs the reciprocal step
+  of Möller–Granlund fits in 64-bit arithmetic: two products and a few corrections. The same idea
+  for `divRem1` was 3% slower on Zen 3, whose divider is fast, but this step does more work
+  around its division, so it is worth a prototype. It serves `x / w` for words `w ≥ 2³²` and
+  `toString` in chunks of `10¹⁸` if that ever replaces `10⁹`.
 - [ ] **Toom-3's interpolation in place** (low value): it makes a fresh array for each of its
   eight `subVal`s and three `mulRow`s, where GMP's `toom_interpolate_5pts` works in place; the
   assembly half, prototyped with copies, gained under 1%, so expect about as much.
@@ -115,16 +123,18 @@ block of the division, and `topSize` usually stops at the first limb.
   - [x] `pow`, by repeated squaring with `sqr`;
   - [x] `gcd` and `lcm` (`BigNat`): Lehmer's algorithm with single-word cofactors, checked by
     their determinant, and Euclid on words. Each new number is a difference of two multiples,
-    computed in one pass with a biased carry (`mulSubMul`), and the cofactors stay below `2³¹`, so
-    that their determinant is checked on `Nat` without GMP (`lehmerStep`); the word steps divide
-    once per quotient and stop by Jebelean's condition (`lehmerSteps`). Faster than `Nat` on words,
-    3.5–6.2× behind GMP from 4 to 1024 limbs (from 9–18×). This is already GMP's `hgcd2` in our
-    limbs (two-limb leading words, one-limb cofactors); the next size up, 124-bit words and 62-bit
-    cofactors, would need Euclid in emulated 128-bit arithmetic, already 11–21% of the time in
-    64-bit, for passes that do twice the products for half the steps, so it is not worth it. Left:
-    both new numbers in one pass (fewer loads and objects, maybe 5–10% up to 64 limbs), and
-    subquadratic `hgcd`, GMP's advantage from a few hundred limbs, where the passes are half the
-    time.
+    computed with a biased carry, and the cofactors stay below `2³¹`, so that their determinant is
+    checked on `Nat` without GMP (`lehmerStep`); from 32 limbs, both new numbers come from one pass
+    that reads each limb once (`mulSubMul₂`, a tail-recursive loop over both arrays: the pass 17–27%
+    faster from 64 limbs, `gcd` 6% at 64 limbs and 30% at 1024), and below, from two folds of
+    `mulSubMul`, since the loop's exclusivity checks and extra pair made `gcd` 4–6% slower from 4 to
+    16 limbs. The word steps divide once per quotient and stop by Jebelean's condition
+    (`lehmerSteps`). Faster than `Nat` on words, 3.4–4.6× behind GMP from 4 to 1024 limbs (from
+    9–18×). This is already GMP's `hgcd2` in our limbs (two-limb leading words, one-limb cofactors);
+    the next size up, 124-bit words and 62-bit cofactors, would need Euclid in emulated 128-bit
+    arithmetic, already 11–21% of the time in 64-bit, for passes that do twice the products for half
+    the steps, so it is not worth it. Left: subquadratic `hgcd`, GMP's advantage from a few hundred
+    limbs.
   - [x] integer square root: Newton's iteration at growing precision, from the root of the top
     half (`sqrt (n / 4ᵏ)` for `k` a quarter of the bits), which starts within `2ᵏ` above the root;
     one Newton step, which is at least the root by AM-GM, then steps down while `x² > n` with one
@@ -152,9 +162,11 @@ block of the division, and `topSize` usually stops at the first limb.
   limbs); a `BigNat` divided by a word goes to `divRem1` or `divRem2` without an array for the word
   (`divRemWord`, 2 limbs 192 → 170 ns; `%` by a word returns the word); Algorithm D works in one
   array, with each quotient limb in the freed top limb of its window, and its compiled step
-  allocates no pair (`divLoopIn`, `divStepInFast`; 11–19% from 3 to 64 limbs). Left: above four
-  limbs, a divisor of two limbs still goes through `divRem2`'s shifted copy of the dividend and its
-  slices, which normalizing on the fly in its loop would remove.
+  allocates no pair (`divLoopIn`, `divStepInFast`; 11–19% from 3 to 64 limbs); division by two
+  limbs reads the limbs of the normalized dividend from the dividend as it needs them, instead of
+  a shifted copy (`shlLimbU`; `BigNat` divided by `10¹⁸`: 5 limbs 180 → 149 ns, 16 limbs 312 →
+  294 ns, even from 64). Left: the 2n ÷ n rows from 8 limbs go through Algorithm D, whose fixed
+  cost is the normalization of both operands and their arrays.
 - [x] **Words near `2⁶⁴` in `BigNat`:** a sum or product of two words that overflows went
   through `limbsOfWord` and the array functions (about 95 ns). `mulWide` computes the product from
   the four products of halves, and `wideOf` makes the three or four limbs directly: `badd` at 2
