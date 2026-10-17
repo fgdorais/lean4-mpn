@@ -1323,8 +1323,8 @@ def lehmerSteps (x y A B C D : Int64) : Nat → Cofactors
 The numbers `|A x + B y|` and `|C x + D y|` of a step of Lehmer's algorithm with the cofactors
 `A`, `B`, `C`, `D`, when the step is valid: the cofactors are below `2³¹`, their determinant is
 `±1`, their signs alternate as in Euclid's algorithm, and both numbers are nonnegative. Each
-number is a difference of two multiples, from `mulSubMul` in one pass, and the determinant is
-checked on `Nat`, where its products fit in a word.
+number is a difference of two multiples, both from `mulSubMul₂` in one pass, and the
+determinant is checked on `Nat`, where its products fit in a word.
 -/
 def lehmerStep (x y : BigNat) (A B C D : Int) : Option (BigNat × BigNat) :=
   let a := A.natAbs
@@ -1334,14 +1334,16 @@ def lehmerStep (x y : BigNat) (A B C D : Int) : Option (BigNat × BigNat) :=
   if a < 2 ^ 31 ∧ b < 2 ^ 31 ∧ c < 2 ^ 31 ∧ d < 2 ^ 31 ∧ (a * d = b * c + 1 ∨ b * c = a * d + 1)
   then
     if 0 ≤ A ∧ B ≤ 0 ∧ C ≤ 0 ∧ 0 ≤ D then
-      let u := mulSubMul x.limbs y.limbs a.toUInt32 b.toUInt32
-      let v := mulSubMul y.limbs x.limbs d.toUInt32 c.toUInt32
+      let w := mulSubMul₂ x.limbs y.limbs a.toUInt32 b.toUInt32 c.toUInt32 d.toUInt32
+      let u := w.1
+      let v := w.2
       if u.2 = false ∧ v.2 = false then
         some (ofLimbs (trim u.1) (isTrimmed_trim _), ofLimbs (trim v.1) (isTrimmed_trim _))
       else none
     else if A ≤ 0 ∧ 0 ≤ B ∧ 0 ≤ C ∧ D ≤ 0 then
-      let u := mulSubMul y.limbs x.limbs b.toUInt32 a.toUInt32
-      let v := mulSubMul x.limbs y.limbs c.toUInt32 d.toUInt32
+      let w := mulSubMul₂ y.limbs x.limbs b.toUInt32 a.toUInt32 d.toUInt32 c.toUInt32
+      let u := w.1
+      let v := w.2
       if u.2 = false ∧ v.2 = false then
         some (ofLimbs (trim u.1) (isTrimmed_trim _), ofLimbs (trim v.1) (isTrimmed_trim _))
       else none
@@ -1375,7 +1377,7 @@ private theorem lehmerStep_gcd (x y : BigNat) (A B C D : Int) (p : BigNat × Big
     (h : lehmerStep x y A B C D = some p) :
     Nat.gcd p.1.toNat p.2.toNat = Nat.gcd x.toNat y.toNat := by
   unfold lehmerStep at h
-  simp only at h
+  simp only [mulSubMul₂_eq] at h
   split at h
   · rename_i hc
     obtain ⟨ha, hb, hc', hd, hdet⟩ := hc

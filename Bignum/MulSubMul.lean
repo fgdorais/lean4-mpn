@@ -275,4 +275,133 @@ public def mulSubMulFast (x y : UInt32Array) (a b : UInt32) : UInt32Array × Boo
     rfl
   · rfl
 
+/-! ## Both differences of a Lehmer step
+
+Lehmer's `gcd` needs `a x - b y` and `d y - c x` from the same `x` and `y`. `mulSubMul₂` computes
+both in one pass, which reads each limb of `x` and `y` once and keeps the two carries apart; it is
+the pair of the two `mulSubMul`s, so their specification applies. A fold runs over one array, so
+the compiled loop is a tail-recursive function over both.
+-/
+
+/-- `mulSubMulLoop` on `r` with `x`, `y`, `a`, `b` and on `s` with `y`, `x`, `d`, `c` at once. -/
+def mulSubMul₂Loop (r s x y : UInt32Array) (a b c d : UInt32) (m j : Nat) (hr hs : UInt32) :
+    (UInt32Array × UInt32) × (UInt32Array × UInt32) :=
+  if hj : j < m ∧ j < r.size ∧ j < s.size then
+    let p := mulSubMulStep r[j] (x.getD j 0) (y.getD j 0) a b hr
+    let q := mulSubMulStep s[j] (y.getD j 0) (x.getD j 0) d c hs
+    mulSubMul₂Loop (r.set j p.1 hj.2.1) (s.set j q.1 hj.2.2) x y a b c d m (j + 1) p.2 q.2
+  else
+    ((r, hr), (s, hs))
+termination_by m - j
+
+private theorem mulSubMul₂Loop_eq (r s x y : UInt32Array) (a b c d : UInt32) (m j : Nat)
+    (hr hs : UInt32) (hrs : r.size = s.size) :
+    mulSubMul₂Loop r s x y a b c d m j hr hs =
+      (mulSubMulLoop r x y a b m j hr, mulSubMulLoop s y x d c m j hs) := by
+  induction r, s, j, hr, hs using mulSubMul₂Loop.induct x y a b c d m with
+  | case1 r s j hr hs hj p q ih =>
+    rw [mulSubMul₂Loop, mulSubMulLoop, mulSubMulLoop]
+    simp only [hj, and_self, ↓reduceDIte]
+    exact ih (by simp [hrs])
+  | case2 r s j hr hs hj =>
+    rw [mulSubMul₂Loop, mulSubMulLoop, mulSubMulLoop]
+    have h₁ : ¬ (j < m ∧ j < r.size) := fun h => hj ⟨h.1, h.2, hrs ▸ h.2⟩
+    have h₂ : ¬ (j < m ∧ j < s.size) := fun h => hj ⟨h.1, hrs ▸ h.2, h.2⟩
+    simp only [hj, h₁, h₂, ↓reduceDIte]
+
+/--
+`(mulSubMul x y a b, mulSubMul y x d c)`, `a x - b y` and `d y - c x` with their signs, in one
+pass, for words below `2³¹`.
+-/
+public def mulSubMul₂ (x y : UInt32Array) (a b c d : UInt32) :
+    (UInt32Array × Bool) × (UInt32Array × Bool) :=
+  let m := max x.size y.size
+  let p := mulSubMul₂Loop (.replicate (m + 1) 0) (.replicate (m + 1) 0) x y a b c d m 0
+    0x80000000 0x80000000
+  ((p.1.1.set! m (p.1.2 - 0x80000000), decide (p.1.2 < 0x80000000)),
+    (p.2.1.set! m (p.2.2 - 0x80000000), decide (p.2.2 < 0x80000000)))
+
+public theorem mulSubMul₂_eq (x y : UInt32Array) (a b c d : UInt32) :
+    mulSubMul₂ x y a b c d = (mulSubMul x y a b, mulSubMul y x d c) := by
+  simp only [mulSubMul₂, mulSubMul, Nat.max_comm y.size x.size]
+  rw [mulSubMul₂Loop_eq _ _ _ _ _ _ _ _ _ _ _ _ rfl]
+
+/-- The compiled loop of `mulSubMul₂Fast`, which finishes both differences at the end. -/
+def mulSubMul₂LoopU (x y : UInt32Array) (nx ny : USize) (hnx : nx.toNat = x.size)
+    (hny : ny.toNat = y.size) (a b c d : UInt32) (m : USize) (r s : UInt32Array)
+    (hr : m.toNat ≤ r.size) (hs : m.toNat ≤ s.size) (k : USize) (cr cs : UInt32) :
+    (UInt32Array × Bool) × (UInt32Array × Bool) :=
+  if h : k < m then
+    have hk : k.toNat < m.toNat := USize.lt_iff_toNat_lt.1 h
+    let xk := limbOrZero x nx hnx k
+    let yk := limbOrZero y ny hny k
+    let p := mulSubMulStep (r.uget k (by lia)) xk yk a b cr
+    let q := mulSubMulStep (s.uget k (by lia)) yk xk d c cs
+    mulSubMul₂LoopU x y nx ny hnx hny a b c d m (r.uset k p.1 (by lia)) (s.uset k q.1 (by lia))
+      (by simp only [UInt32Array.size_uset]; lia) (by simp only [UInt32Array.size_uset]; lia)
+      (k + 1) p.2 q.2
+  else
+    ((r.set! m.toNat (cr - 0x80000000), decide (cr < 0x80000000)),
+      (s.set! m.toNat (cs - 0x80000000), decide (cs < 0x80000000)))
+termination_by m.toNat - k.toNat
+decreasing_by
+  have : k.toNat < m.toNat := USize.lt_iff_toNat_lt.1 h
+  rw [toNat_add_usize (by have := m.toNat_lt_size; simp; lia)]
+  simp
+  lia
+
+private theorem mulSubMul₂LoopU_eq (x y : UInt32Array) (nx ny : USize) (hnx : nx.toNat = x.size)
+    (hny : ny.toNat = y.size) (a b c d : UInt32) (m : USize) (r s : UInt32Array)
+    (hr : m.toNat ≤ r.size) (hs : m.toNat ≤ s.size) (k : USize) (j : Nat) (hkj : k.toNat = j)
+    (cr cs : UInt32) :
+    mulSubMul₂LoopU x y nx ny hnx hny a b c d m r s hr hs k cr cs =
+      let p := mulSubMul₂Loop r s x y a b c d m.toNat j cr cs
+      ((p.1.1.set! m.toNat (p.1.2 - 0x80000000), decide (p.1.2 < 0x80000000)),
+        (p.2.1.set! m.toNat (p.2.2 - 0x80000000), decide (p.2.2 < 0x80000000))) := by
+  induction r, s, j, cr, cs using mulSubMul₂Loop.induct x y a b c d m.toNat generalizing k with
+  | case1 r s j cr cs hj p q ih =>
+    rw [mulSubMul₂LoopU, mulSubMul₂Loop]
+    have h : k < m := USize.lt_iff_toNat_lt.2 (by lia)
+    simp only [h, hj, and_self, ↓reduceDIte]
+    simp only [limbOrZero_eq x nx hnx k j hkj, limbOrZero_eq y ny hny k j hkj,
+      uget_eq_getElem r k j hkj, uget_eq_getElem s k j hkj]
+    simp only [uset_eq_set _ k j hkj]
+    exact ih _ _ _ (by rw [toNat_add_usize (by have := m.toNat_lt_size; simp; lia)]; simp; lia)
+  | case2 r s j cr cs hj =>
+    rw [mulSubMul₂LoopU, mulSubMul₂Loop]
+    have h : ¬ k < m := fun h => hj ⟨by have := USize.lt_iff_toNat_lt.1 h; lia, by
+      have := USize.lt_iff_toNat_lt.1 h; lia, by have := USize.lt_iff_toNat_lt.1 h; lia⟩
+    simp only [h, hj, ↓reduceDIte]
+
+/--
+`mulSubMul₂` with `mulSubMul₂LoopU`, which the compiler uses in its place. Below 32 limbs it runs
+the two folds of `mulSubMul` instead: the loop checks that both arrays are unshared at each step and
+allocates one more pair, which costs more than the second pass saves on short numbers (`gcd` 4–6%
+slower from 4 to 16 limbs).
+-/
+@[inline] public def mulSubMul₂Fast (x y : UInt32Array) (a b c d : UInt32) :
+    (UInt32Array × Bool) × (UInt32Array × Bool) :=
+  if max x.size y.size < 32 then
+    (mulSubMul x y a b, mulSubMul y x d c)
+  else if hs : max x.size y.size + 1 < 4294967295 then
+    let m := max x.size y.size
+    mulSubMul₂LoopU x y x.size.toUSize y.size.toUSize (toNat_toUSize (lt_usizeSize (by lia)))
+      (toNat_toUSize (lt_usizeSize (by lia))) a b c d m.toUSize (.replicate (m + 1) 0)
+      (.replicate (m + 1) 0) (by rw [toNat_toUSize (lt_usizeSize (by lia))]; simp)
+      (by rw [toNat_toUSize (lt_usizeSize (by lia))]; simp) 0 0x80000000 0x80000000
+  else
+    mulSubMul₂ x y a b c d
+
+@[csimp] public theorem mulSubMul₂_eq_mulSubMul₂Fast : @mulSubMul₂ = @mulSubMul₂Fast := by
+  funext x y a b c d
+  rw [mulSubMul₂Fast]
+  split
+  · exact mulSubMul₂_eq x y a b c d
+  split
+  · rename_i hs
+    rw [mulSubMul₂LoopU_eq _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 0 rfl,
+      toNat_toUSize (lt_usizeSize (by lia))]
+    rfl
+  · rfl
+
 end Bignum
