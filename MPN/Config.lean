@@ -48,6 +48,20 @@ public structure Config where
   /-- Toom-4 by 2 needs at least `12` limbs to make its products smaller. -/
   twelve_le_mulToom42 : 12 ≤ mulToom42 := by decide
   /--
+  The size of the shorter operand from which multiplication uses Toom-4 by 3 when the longer one is
+  between six fifths and fifteen eighths as long, instead of Toom-3 by 2 or Toom-3.
+  -/
+  mulToom43 : Nat := 176
+  /-- Toom-4 by 3 needs at least `32` limbs for its split. -/
+  thirtytwo_le_mulToom43 : 32 ≤ mulToom43 := by decide
+  /--
+  The size of the shorter operand from which multiplication uses Toom-4 when the longer one is less
+  than four thirds as long, instead of Toom-3.
+  -/
+  mulToom4 : Nat := 416
+  /-- Toom-4 needs at least `32` limbs for its split. -/
+  thirtytwo_le_mulToom4 : 32 ≤ mulToom4 := by decide
+  /--
   The size of the shorter operand from which multiplication splits a longer operand that is at
   least twice as long, instead of using schoolbook. It only matters above `mulKaratsuba`, since the
   split pays off through Karatsuba on its pieces.
@@ -85,6 +99,17 @@ public meta register_option mpn.mul.toom42Threshold : Nat := {
   defValue := ({} : Config).mulToom42
   descr := "the size of the shorter operand, in limbs, from which multiplication uses Toom-4 by 2 \
     when the longer one is between fifteen eighths and twice as long"
+}
+
+public meta register_option mpn.mul.toom43Threshold : Nat := {
+  defValue := ({} : Config).mulToom43
+  descr := "the size of the shorter operand, in limbs, from which multiplication uses Toom-4 by 3 \
+    when the longer one is between six fifths and fifteen eighths as long"
+}
+
+public meta register_option mpn.mul.toom4Threshold : Nat := {
+  defValue := ({} : Config).mulToom4
+  descr := "the size of the shorter operand, in limbs, from which multiplication uses Toom-4"
 }
 
 public meta register_option mpn.mul.toom3Threshold : Nat := {
@@ -138,6 +163,12 @@ elab "mpn_config%" : term => do
   let mulToom42 := mpn.mul.toom42Threshold.get opts
   unless 12 ≤ mulToom42 do
     throwError "mpn.mul.toom42Threshold must be at least 12, but it is {mulToom42}"
+  let mulToom43 := mpn.mul.toom43Threshold.get opts
+  unless 32 ≤ mulToom43 do
+    throwError "mpn.mul.toom43Threshold must be at least 32, but it is {mulToom43}"
+  let mulToom4 := mpn.mul.toom4Threshold.get opts
+  unless 32 ≤ mulToom4 do
+    throwError "mpn.mul.toom4Threshold must be at least 32, but it is {mulToom4}"
   let sqrToom3 := mpn.sqr.toom3Threshold.get opts
   unless 12 ≤ sqrToom3 do
     throwError "mpn.sqr.toom3Threshold must be at least 12, but it is {sqrToom3}"
@@ -151,6 +182,8 @@ elab "mpn_config%" : term => do
   let t := quote mulToom3
   let t₂ := quote mulToom32
   let t₄ := quote mulToom42
+  let t₄₃ := quote mulToom43
+  let t₄₄ := quote mulToom4
   let b := quote sqrBasecase
   let q := quote sqrKaratsuba
   let st := quote sqrToom3
@@ -159,6 +192,8 @@ elab "mpn_config%" : term => do
                  mulToom3 := $t
                  mulToom32 := $t₂
                  mulToom42 := $t₄
+                 mulToom43 := $t₄₃
+                 mulToom4 := $t₄₄
                  mulUnbalanced := $u
                  sqrBasecase := $b
                  sqrKaratsuba := $q

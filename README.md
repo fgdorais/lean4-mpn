@@ -3,10 +3,10 @@
 Verified arbitrary-precision natural numbers for Lean 4, stored as `UInt32` limbs in the unboxed
 arrays of [lean4-scalar-arrays](https://github.com/fgdorais/lean4-scalar-arrays). Each operation is
 proved correct against `Nat`, the specification being the value of the list of limbs. Addition and
-subtraction are linear. Multiplication uses schoolbook, Karatsuba or Toom-3 depending on the sizes,
-and splits very unbalanced products into nearly balanced ones; squaring uses schoolbook,
-Karatsuba or Toom-3. Division is Knuth's Algorithm D, and divide-and-conquer (Burnikel–Ziegler)
-for large divisors.
+subtraction are linear. Multiplication uses schoolbook, Karatsuba, Toom-3 or Toom-4, or their
+unbalanced variants, depending on the sizes, and splits very unbalanced products into nearly
+balanced ones; squaring uses schoolbook, Karatsuba or Toom-3. Division is Knuth's Algorithm D, and
+divide-and-conquer (Burnikel–Ziegler) for large divisors.
 
 `MPN.Nat` packages this as a `Nat`-like type, with a fast path on machine words below `2⁶⁴`
 and the usual instances (`+ - * / %`, comparisons, `DecidableEq`, `Hashable`, literals, shifts,
@@ -18,7 +18,7 @@ bijection, and `toString` and `ofString?` with `Nat.repr` and `String.toNat?`.
 
 Multiplication, squaring and division switch algorithms at size thresholds collected in
 `MPN.Config`. The defaults were measured on one machine; `lake exe tune` measures them on yours
-in about a minute and prints the options that set them. A project that depends on this library
+in a few minutes and prints the options that set them. A project that depends on this library
 passes them with its `require`, together with `march`, which compiles the library's C code for a
 given processor:
 
@@ -31,12 +31,12 @@ options = { march = "native", mulKaratsuba = "64", mulToom3 = "480", divDC = "17
 ```
 
 The keys are the fields of `MPN.Config`: `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`,
-`mulUnbalanced`, `sqrBasecase`, `sqrKaratsuba`, `sqrToom3` and `divDC`; an invalid value stops the
-build. With `march = "native"` the C compiler may use the vector instructions of the build machine
-(5–12% faster products with AVX2), and the program then runs only on processors that have them. Lake
-keeps the configuration it elaborated, so after changing the options, build once with `lake build
--R`. In this package itself, the same options go on the command line: `lake build -R -K
-march=native`.
+`mulToom43`, `mulToom4`, `mulUnbalanced`, `sqrBasecase`, `sqrKaratsuba`, `sqrToom3` and `divDC`; an
+invalid value stops the build. With `march = "native"` the C compiler may use the vector
+instructions of the build machine (5–12% faster products with AVX2), and the program then runs only
+on processors that have them. Lake keeps the configuration it elaborated, so after changing the
+options, build once with `lake build -R`. In this package itself, the same options go on the command
+line: `lake build -R -K march=native`.
 
 ## Programs
 

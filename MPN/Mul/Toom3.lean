@@ -8,6 +8,7 @@ public import MPN.Add
 public import MPN.Sub
 public import MPN.Bits
 public import MPN.Mul.Limb
+public import MPN.Mul.DivExact
 
 /-!
 # Toom-3 multiplication
@@ -41,165 +42,6 @@ open ScalarArray
 namespace MPN
 
 /-! ## Building blocks -/
-
-/-- `x / 2`, which is exact when `x` is even: `x` shifted right by one bit in place. -/
-def divExact2 (x : UInt32Array) : UInt32Array := shrLimbs x (1 : Nat).toUInt64
-
-private theorem toNat_divExact2 (x : UInt32Array) (X : Nat) (hx : toNat x = 2 * X) :
-    toNat (divExact2 x) = X := by
-  rw [divExact2, toNat_shrLimbs _ _ (by decide), hx, Nat.pow_one, Nat.mul_div_cancel_left _
-    (by decide)]
-
-/--
-One limb of an exact division by `3`, like GMP's `mpn_divexact_by3`: the quotient limb `q` is
-`(v - c) 3⁻¹` modulo `β`, with `3⁻¹ = 0xAAAAAAAB`, so that `3 q + c = v + β c'`, where the carry
-out `c'` is the high limb of `3 q` plus the borrow of `v - c`.
--/
-@[inline] def div3Step (v c : UInt32) : UInt32 × UInt32 :=
-  let t := v.toUInt64 - c.toUInt64
-  let q := t.toUInt32 * 0xAAAAAAAB
-  (q, ((q.toUInt64 * 3) >>> 32).toUInt32 + (t >>> 63).toUInt32)
-
-/-- `0xAAAAAAAB` is the inverse of `3` modulo `β`: `3 · 0xAAAAAAAB = 1 + 2 β`. -/
-private theorem mul_inv3 (s : Nat) (hs : s < 4294967296) :
-    3 * (s * 2863311531 % 4294967296) % 4294967296 = s := by
-  rw [Nat.mul_mod, Nat.mod_mod, ← Nat.mul_mod,
-    show 3 * (s * 2863311531) = s + 4294967296 * (2 * s) by lia, Nat.add_mul_mod_self_left,
-    Nat.mod_eq_of_lt hs]
-
-private theorem div3Step_spec (v c : UInt32) (hc : c.toNat ≤ 3) :
-    3 * (div3Step v c).1.toNat + c.toNat = v.toNat + 2 ^ 32 * (div3Step v c).2.toNat ∧
-      (div3Step v c).2.toNat ≤ 3 := by
-  have := v.toNat_lt
-  simp only [div3Step, UInt32.toNat_mul, UInt32.toNat_add, UInt64.toNat_toUInt32,
-    UInt64.toNat_sub, UInt64.toNat_mul, UInt64.toNat_shiftRight, UInt32.toNat_toUInt64,
-    Nat.shiftRight_eq_div_pow, UInt64.reduceToNat, UInt32.reduceToNat, Nat.reducePow,
-    Nat.reduceMod]
-  -- `t = v - c` as a 64-bit word: its low limb `s` and its borrow `b`.
-  generalize ht : (18446744073709551616 - c.toNat + v.toNat) % 18446744073709551616 = t
-  have hsb : t % 4294967296 + c.toNat = v.toNat + 4294967296 * (t / 9223372036854775808) ∧
-      t / 9223372036854775808 ≤ 1 := by
-    lia
-  have hq := mul_inv3 (t % 4294967296) (Nat.mod_lt _ (by decide))
-  have hqlt := Nat.mod_lt (t % 4294967296 * 2863311531) (show 0 < 4294967296 by decide)
-  generalize t % 4294967296 * 2863311531 % 4294967296 = q at *
-  generalize t % 4294967296 = s at *
-  generalize t / 9223372036854775808 = b at *
-  -- `3 q < 2⁶⁴` and its high limb is at most `2`, so the reductions are trivial.
-  have hhi : q * 3 / 4294967296 ≤ 2 := by lia
-  rw [Nat.mod_eq_of_lt (show q * 3 < 18446744073709551616 by lia),
-    Nat.mod_eq_of_lt (show q * 3 / 4294967296 < 4294967296 by lia),
-    Nat.mod_eq_of_lt (show b < 4294967296 by lia),
-    Nat.mod_eq_of_lt (show q * 3 / 4294967296 + b < 4294967296 by lia)]
-  lia
-
-/--
-The loop of `foldlInPlace` with `div3Step`: the first `k` limbs hold `W`, the rest still hold `O`
-from `k` on, and `3 W = (the first k limbs of O) + βᵏ c`.
--/
-private theorem div3_loop (O : List UInt32) (n : Nat) (hn : n = O.length) (r : UInt32Array.Slice)
-    (hs : r.size = n) (k : Nat) (c : UInt32) (W : List UInt32) (h0 : r.start = 0)
-    (hl : r.array.toList = W ++ O.drop k) (hW : W.length = k) (hkn : k ≤ n)
-    (hv : 3 * ofLimbs W = ofLimbs (O.take k) + 2 ^ (32 * k) * c.toNat) (hc : c.toNat ≤ 3) :
-    ∃ W', (UInt32Array.Slice.foldlInPlace.loop n (fun _ _ v c => div3Step v c) r hs k
-        c).1.array.toList = W' ∧ W'.length = n ∧
-      3 * ofLimbs W' = ofLimbs O + 2 ^ (32 * n) * (UInt32Array.Slice.foldlInPlace.loop n
-        (fun _ _ v c => div3Step v c) r hs k c).2.toNat := by
-  induction hd : n - k generalizing k r c W with
-  | zero =>
-    have hk : k = n := by lia
-    subst hk
-    rw [UInt32Array.Slice.foldlInPlace.loop, dite_eq_right (by lia)]
-    refine ⟨W, ?_, hW, ?_⟩
-    · rw [hl, List.drop_of_length_le (by lia), List.append_nil]
-    · rw [hv, List.take_of_length_le (by lia)]
-  | succ d ih =>
-    have hk : k < n := by lia
-    have hkO : k < O.length := by lia
-    rw [UInt32Array.Slice.foldlInPlace.loop, dite_eq_left hk]
-    have hsa : k < r.array.size := by
-      have := r.stop_le_array_size; have := r.size_eq; have := r.start_le_stop; lia
-    have hdrop := List.drop_eq_getElem_cons hkO
-    have hl' := hl
-    rw [hdrop] at hl'
-    have hrk : r[k]'(by lia) = O[k] := by
-      have h := List.getElem_of_eq hl' (i := k) (by simpa using hsa)
-      rw [List.getElem_append_right (by lia)] at h
-      simp only [hW, Nat.sub_self, List.getElem_cons_zero, UInt32Array.getElem_toList] at h
-      rw [UInt32Array.Slice.getElem_eq]
-      simpa [h0] using h
-    obtain ⟨h₁, h₂⟩ := div3Step_spec (r[k]'(by lia)) c hc
-    refine ih _ _ (k + 1) _ (W ++ [(div3Step (r[k]'(by lia)) c).1]) ?_ ?_ ?_ (by lia)
-      ?_ h₂ (by lia)
-    · rw [UInt32Array.Slice.start_set, h0]
-    · rw [UInt32Array.Slice.array_set, UInt32Array.toList_set, hl', h0,
-        List.set_append_right _ _ (by simp; lia)]
-      simp [hW]
-      rw [hdrop]
-      rfl
-    · simp [hW]
-    · rw [ofLimbs_concat, hW, List.take_succ_eq_append_getElem hkO, ofLimbs_append, ofLimbs_cons,
-        ofLimbs_nil, Nat.mul_zero, Nat.add_zero, List.length_take,
-        Nat.min_eq_left (Nat.le_of_lt hkO), ← hrk, Nat.mul_succ, Nat.pow_add]
-      generalize (div3Step (r[k]'(by lia)) c).1.toNat = q at *
-      generalize (div3Step (r[k]'(by lia)) c).2.toNat = c' at *
-      generalize (r[k]'(by lia)).toNat = v at *
-      generalize ofLimbs W = A at *
-      generalize ofLimbs (O.take k) = T at *
-      generalize 2 ^ (32 * k) = P at *
-      generalize (2 : Nat) ^ 32 = B at *
-      -- `3 (A + P q) = T + P c + P (v + B c' - c) = T + P v + P B c'`.
-      have e : 3 * (A + P * q) + P * c.toNat = T + P * v + P * B * c' + P * c.toNat := by
-        rw [Nat.mul_add, hv, Nat.mul_left_comm 3 P q, Nat.mul_assoc P B c']
-        have := congrArg (P * ·) h₁
-        simp only [Nat.mul_add] at this
-        lia
-      lia
-
-/-- `βⁿ ≡ 1` modulo `3`, since `β = 2³² ≡ 1`. -/
-private theorem pow_mod_three (n : Nat) : 2 ^ (32 * n) % 3 = 1 := by
-  rw [Nat.pow_mul, Nat.pow_mod]
-  simp
-
-/--
-`x / 3`, which is exact when `3` divides `x`: one pass from the bottom limb up with `div3Step`, in
-place with `foldlInPlaceThen`, where `divRem1` divides from the top limb down with the hardware
-divider.
--/
-def divExact3 (x : UInt32Array) : UInt32Array :=
-  x.toSlice.foldlInPlaceThen (0 : UInt32) (fun _ _ v c => div3Step v c) (fun r _ => r.array)
-
-private theorem toNat_divExact3 (x : UInt32Array) (X : Nat) (hx : toNat x = 3 * X) :
-    toNat (divExact3 x) = X := by
-  rw [divExact3, UInt32Array.Slice.foldlInPlaceThen_eq, UInt32Array.Slice.foldlInPlace,
-    toNat_toSlice]
-  obtain ⟨W, hl, hW, hv⟩ := div3_loop x.toList x.toSlice.size (by simp) x.toSlice rfl 0 0 []
-    (by simp) (by simp) rfl (Nat.zero_le _) (by simp) (by decide)
-  rw [hl]
-  generalize (UInt32Array.Slice.foldlInPlace.loop _ (fun _ _ v (c : UInt32) => div3Step v c) _ _
-    0 (0 : UInt32)).2 = cc at hv
-  generalize cc.toNat = c at hv
-  rw [toNat_toSlice] at hx
-  rw [hx] at hv
-  have hQ := ofLimbs_lt W
-  have hX := ofLimbs_lt x.toList
-  rw [hW] at hQ
-  simp only [UInt32Array.size_toSlice, UInt32Array.length_toList, Nat.min_self,
-    Nat.sub_zero] at hQ hv hX
-  rw [hx] at hX
-  have hm := pow_mod_three x.size
-  generalize 2 ^ (32 * x.size) = P at *
-  -- `3 (W - X) = P c` with `W - X < P` and `P ≡ 1 (mod 3)`, so `c = 0`.
-  have hc : c = 0 := by
-    rcases Nat.lt_or_ge c 3 with h | h
-    · rcases (show c = 0 ∨ c = 1 ∨ c = 2 by lia) with h | h | h
-      · exact h
-      · subst h; lia
-      · subst h; lia
-    · have := Nat.mul_le_mul_left P h
-      lia
-  subst hc
-  lia
 
 /-- `x₀ + x₁ + x₂`. -/
 def eval1 (x₀ x₁ x₂ : UInt32Array.Slice) : UInt32Array := addLimbs (addLimbs x₀ x₁) x₂
@@ -241,7 +83,7 @@ private theorem toNat_eval3 (x₀ x₁ x₂ : UInt32Array.Slice) :
   lia
 
 /-- Splitting a slice at `k` and `2 k` splits its value in three. -/
-private theorem toNat_slice_three (s : UInt32Array.Slice) (k : Nat) (hk : 2 * k ≤ s.size) :
+public theorem toNat_slice_three (s : UInt32Array.Slice) (k : Nat) (hk : 2 * k ≤ s.size) :
     toNat s = toNat (s.slice 0 k) + 2 ^ (32 * k) * toNat (s.slice k (2 * k)) +
       2 ^ (32 * k) * 2 ^ (32 * k) * toNat (s.slice (2 * k) s.size) := by
   have h₁ := toNat_slice_add_toNat_slice s k (by lia)
@@ -836,7 +678,7 @@ private theorem toNat_eval3₄ (x₀ x₁ x₂ x₃ : UInt32Array.Slice) :
   lia
 
 /-- Splitting the part of a slice from `i` at `i + k`. -/
-private theorem toNat_slice_split (s : UInt32Array.Slice) (i k : Nat) (h : i + k ≤ s.size) :
+public theorem toNat_slice_split (s : UInt32Array.Slice) (i k : Nat) (h : i + k ≤ s.size) :
     toNat (s.slice i s.size) =
       toNat (s.slice i (i + k)) + 2 ^ (32 * k) * toNat (s.slice (i + k) s.size) := by
   have h₁ := toNat_slice_add_toNat_slice (s.slice i s.size) k (by simp; lia)
@@ -852,7 +694,7 @@ private theorem toNat_slice_split (s : UInt32Array.Slice) (i k : Nat) (h : i + k
   exact h₁.symm
 
 /-- Splitting a slice at `k`, `2 k` and `3 k` splits its value in four. -/
-private theorem toNat_slice_four (s : UInt32Array.Slice) (k : Nat) (hk : 3 * k ≤ s.size) :
+public theorem toNat_slice_four (s : UInt32Array.Slice) (k : Nat) (hk : 3 * k ≤ s.size) :
     toNat s = toNat (s.slice 0 k) + 2 ^ (32 * k) * toNat (s.slice k (2 * k)) +
       2 ^ (32 * k) * 2 ^ (32 * k) * toNat (s.slice (2 * k) (3 * k)) +
       2 ^ (32 * k) * 2 ^ (32 * k) * 2 ^ (32 * k) * toNat (s.slice (3 * k) s.size) := by

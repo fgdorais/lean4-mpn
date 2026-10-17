@@ -148,13 +148,21 @@ block of the division, and `topSize` usually stops at the first limb.
   interpolation (`toom3Finish`). 3–7% faster in that band (`2000 × 1024`: 382 → 357 µs,
   `3900 × 2048`: 1062 → 988 µs). Between five thirds and fifteen eighths it is within ±2% of
   `toom32`, and below five thirds slower, so `toom32` keeps those shapes.
-- [ ] **Toom-4 by 3** (`toom43`) for ratios near 4:3: low value since `toom3` splits at a third of
-  the longer operand (`1365 × 1024` is 4.7× GMP, against 4.1× balanced). Shapes just under 3:1
-  stay the worst, 6.8× at `2816 × 1024`, which halves into two products of 1.4:1.
-- [ ] **Toom-4, Toom-6½, Toom-8½**, then FFT multiplication for very large numbers. One level of
-  Toom-4 over Toom-3 with natural-number points (prototyped without proofs) was 9% faster to 16%
-  slower depending on the size, where its seven evaluation points need larger values and
-  divisions than GMP's signed ones: not worth its proof yet.
+- [x] **Toom-4 and Toom-4 by 3** (`Mul.Toom4`; GMP's `mpn_toom44_mul` and `mpn_toom43_mul`):
+  seven and six products, with natural-number points `0, 1, …, d - 1, ∞`, so that the
+  interpolation (values divided by their point, divided differences, then Horner's rule back to
+  the coefficients) only subtracts parts and divides exactly, by `2`, `3`, `4` and `5`
+  (`divExactOdd`, which division by `3` now shares). Most of its passes are `r - a v` and the
+  evaluations `r + a v`, each in one pass with `subMul1` or `addMul1` (`subMulVal`, `addMulVal`):
+  without them, Toom-4 was no faster than Toom-3, as an earlier prototype had found. Toom-4 by 3
+  takes the shapes from six fifths to fifteen eighths from 176 limbs, Toom-4 balanced ones from
+  416 (`mulToom43`, `mulToom4`, tuned on Zen 3). Shapes near 4:3 are 6–19% faster (`683 × 512`:
+  85.0 → 71.4 µs, `2730 × 2048`: 681 → 561 µs); balanced products even to 640 limbs, then
+  `1536`: −8.5%, `4096`: 1.43 → 1.31 ms (−8%); division at 4096 limbs −2%. On an Apple M2 the
+  unverified prototype gained about as much (Toom-4 3.5–8% from 768 limbs, Toom-4 by 3 6–20%).
+- [ ] **Toom-4 squaring**: `toom44Interp` and the evaluations would serve a square with seven
+  squares, like `toom3Sqr`.
+- [ ] **Toom-6½, Toom-8½**, then FFT multiplication for very large numbers.
 - [ ] **The rest of `Nat`:**
   - [x] shifts by bits (`<<<`, `>>>`, `Bits`): one pass each, in place over a copy with
     `foldrInPlaceThen` and `foldlInPlaceThen`, even with `Nat` from 1 to 1024 limbs. The left
