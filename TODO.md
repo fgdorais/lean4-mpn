@@ -51,7 +51,10 @@ trails by 1.5× multiplication's gap; see BENCH.md for the current numbers.
   machines, ruled out splitting the sum into 32-bit halves (shifted and extended operands cost a
   cycle each on Apple cores), a carry select for addition, and a 64-bit carry in the folds (no
   faster than a 32-bit one). Zen 3: `add` −16%, `sub` −26%, division −16% at 64 limbs; Apple M2
-  (prototype): `mul1` 1.9× and `add` 1.3× faster.
+  (bench at 1024 limbs): `mul1` 1.9×, `add` 1.36×, division 1.34× faster. Subtraction's borrow,
+  taken as a sign bit, compiled to a compare and a flag read on AArch64 and barely gained; it now
+  adds the complement and keeps `1` minus the borrow (`subWithCarryWord`), the chain of addition:
+  0.99 → 0.70 ns per limb on the M2 (prototype), +4% on Zen 3.
 - [ ] **Toom-3's evaluations and interpolation in fused passes** (3–4% of large products): each
   operand takes ten passes for its three values (`eval1`, `eval2`, `eval3`, two `addLimbs` and
   up to two `mulRow`s each), and the interpolation eight `subVal`s, three `mulRow`s and three exact
