@@ -28,18 +28,21 @@ jobs:
           build-args: "bench"
 
       # Shared runners are noisy and their machines vary, so these numbers are a sanity check, not
-      # the ones in BENCH.md. The tables go into the run's summary, the raw output into an artifact.
+      # the ones in BENCH.md. The tables go into the run's summary, the raw output into the log
+      # and an artifact.
       - name: bench
         env:
           OPS: ${{ inputs.ops }}
           SIZES: ${{ inputs.sizes }}
         run: |
+          cpu="Runner: $(nproc) cores, $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2)"
+          echo "$cpu" | tee bench.txt
           # shellcheck disable=SC2086
-          taskset -c 0 .lake/build/bin/bench $OPS $SIZES | tee bench.txt
+          taskset -c 0 .lake/build/bin/bench $OPS $SIZES | tee -a bench.txt
           {
             echo '## Bench on the runner'
             echo
-            echo "Runner: $(nproc) cores, $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2)"
+            echo "$cpu"
             echo
             python3 scripts/bench_md.py bench.txt
           } >> "$GITHUB_STEP_SUMMARY"

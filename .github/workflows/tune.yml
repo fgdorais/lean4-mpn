@@ -22,15 +22,22 @@ jobs:
           build-args: "tune"
 
       # Shared runners are noisy and their machines vary, so the thresholds found are only a rough
-      # check of the defaults; they go into the run's summary.
+      # check of the defaults. They go into the log, the run's summary and an artifact.
       - name: tune
         run: |
+          cpu="Runner: $(nproc) cores, $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2)"
+          echo "$cpu" | tee tune.txt
+          lake exe tune | tee -a tune.txt
           {
             echo '## Thresholds on the runner'
             echo
-            echo "Runner: $(nproc) cores, $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2)"
-            echo
             echo '```'
-            lake exe tune
+            cat tune.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tune
+          path: tune.txt
