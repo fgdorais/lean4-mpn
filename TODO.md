@@ -41,16 +41,17 @@ trails by 1.5× multiplication's gap; see BENCH.md for the current numbers.
   reciprocal threaded through Algorithm D and its compiled twin. Small divisions spend more on
   allocation (15–25% at 4–8 limbs) and on the `subMul1` pass. Worth it only on CPUs with slow
   64-bit division.
-- [ ] **Carry chains on ARM** (Apple M2, 2026-10-17): `mul1`, `add` and division run 1.4–2.1×
-  slower on the M2 than on Zen 3 while GMP runs as fast or faster. The disassembly shows why: LLVM
-  puts the loop-carried carry first in each step's sum, so in `addMul1Fast` the chain per limb is
-  add → `umaddl` (multiply-accumulate, at least 3 cycles) → shift, with no unrolling (about 1.5 ns
-  per limb), and in `addIntoFast` add → add → shift. On x86 the same C is unrolled twice and the
-  carry-first order hits only every other limb, with the multiply off the chain (x86 has no
-  multiply-accumulate to fuse it into). It is the reassociation found earlier in `subMul1`.
-  Formulations that keep the carry last (the product and limb split into 32-bit halves before
-  the carry joins, or two interleaved carry chains) need timing on both targets before a proof;
-  they would speed up `add`, `mul1`, `subMul1` and the wrap-counting Comba kernel together.
+- [x] **Carry chains on ARM** (Apple M2, 2026-10-17): `mul1`, `add` and division ran 1.4–2.1×
+  slower on the M2 than on Zen 3 while GMP ran as fast or faster. LLVM put the loop-carried carry
+  first in each step's sum, so in `addMul1Fast` the chain per limb was add → `umaddl`
+  (multiply-accumulate) → shift, with no unrolling, and on x86 the same order hit every other limb.
+  Every carry-chain step now computes the part that does not depend on the carry first and uses it
+  twice, for the low word plus the carry and for the carry out (`UInt32.toUInt32_add`), which keeps
+  the carry last: one add and one shift per limb on both targets. Prototyped variants, timed on both
+  machines, ruled out splitting the sum into 32-bit halves (shifted and extended operands cost a
+  cycle each on Apple cores), a carry select for addition, and a 64-bit carry in the folds (no
+  faster than a 32-bit one). Zen 3: `add` −16%, `sub` −26%, division −16% at 64 limbs; Apple M2
+  (prototype): `mul1` 1.9× and `add` 1.3× faster.
 - [ ] **Toom-3's evaluations and interpolation in fused passes** (3–4% of large products): each
   operand takes ten passes for its three values (`eval1`, `eval2`, `eval3`, two `addLimbs` and
   up to two `mulRow`s each), and the interpolation eight `subVal`s, three `mulRow`s and three exact
