@@ -236,11 +236,11 @@ block of the division, and `topSize` usually stops at the first limb.
   everything it imports, so it links and initializes all of Lean: 124 MB and about 20 ms at
   startup. A main file that is a `module` calls only the runtime initializers, which skip `meta`
   imports: `bench` and `tune` are now modules, 3.9 MB each, and the README says so for programs.
-- [x] **CI** (`.github/workflows/ci.yml`): every push to `main` and every pull request builds the
-  library with warnings as errors, runs `lake test` and builds `tune` and `bench`; a weekly run
-  (or one started by hand) also runs `tune` and puts the thresholds in the run's summary, a rough
-  check of the defaults, since shared runners are noisy. Not yet run: the repository has no
-  remote.
+- [x] **CI** (`.github/workflows`): `CI` builds the library with warnings as errors, runs
+  `lake test` and builds `tune` and `bench` on every push to `main` and every pull request; `Tune`
+  runs weekly and on demand and `Bench` on demand (operations and sizes as inputs), each with its
+  results in the run's summary. Shared runners are noisy and their machines vary, so these are a
+  rough check of the defaults and a sanity check of the speed, not the numbers of BENCH.md.
 - [ ] **Decide what to do with the `64bit` branch** (C and GMP experiments, benchmarks), which is
   kept off `main` on purpose.
 

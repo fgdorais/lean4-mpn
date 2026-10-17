@@ -6,9 +6,6 @@ on:
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
-  schedule:
-    # Weekly, for the rough check of the default thresholds.
-    - cron: "17 5 * * 1"
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -34,15 +31,3 @@ jobs:
       # `lake build` does not build the executables.
       - name: build tune and bench
         run: lake build --wfail tune bench
-
-      # Shared runners are noisy, so the thresholds found are only a rough check of the defaults
-      # in `MPN.Config`; they go into the run's summary.
-      - name: tune
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-        run: |
-          {
-            echo '## Thresholds on the runner'
-            echo '```'
-            lake exe tune
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"

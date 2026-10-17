@@ -1,0 +1,36 @@
+name: Tune
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Weekly, as a rough check of the default thresholds in `MPN.Config`.
+    - cron: "17 5 * * 1"
+
+jobs:
+  tune:
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: build
+        uses: leanprover/lean-action@f061402b660e0c34644504b324e830f2991d4865 # v1.6.1
+        with:
+          auto-config: false
+          build: true
+          build-args: "tune"
+
+      # Shared runners are noisy and their machines vary, so the thresholds found are only a rough
+      # check of the defaults; they go into the run's summary.
+      - name: tune
+        run: |
+          {
+            echo '## Thresholds on the runner'
+            echo
+            echo "Runner: $(nproc) cores, $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2)"
+            echo
+            echo '```'
+            lake exe tune
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
