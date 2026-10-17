@@ -135,13 +135,13 @@ block of the division, and `topSize` usually stops at the first limb.
   the quotient alone (an earlier benchmark timed two divisions on the `Nat` side and showed half
   that).
 - [x] **Toom-3 by 2** (`toom32`, GMP's `mpn_toom32_mul`): for a longer operand between four
-  thirds and twice as long as the shorter, from 160 limbs, it splits them in three and two at a
+  thirds and twice as long as the shorter, from 128 limbs, it splits them in three and two at a
   third of the longer, where `toom3` split both at a third of the shorter and left a long top part
   in its five products; four products, at the points `0, 1, 2, ∞`. Shapes of 3:2 and 3:1 (which
   halves into 3:2) are 27–39% faster from 512 limbs (`1536 × 1024`: 406 → 247 µs, 8.2 → 5.0×
   GMP). The tuner finds 120, but direct timings are slower until about 150.
 - [x] **Toom-4 by 2** (`toom42`, GMP's `mpn_toom42_mul`): for a longer operand between fifteen
-  eighths and twice as long, from 192 limbs, it splits it in four and the shorter in two at half
+  eighths and twice as long, from 224 limbs, it splits it in four and the shorter in two at half
   the shorter; its product has degree four, like Toom-3's, so it shares Toom-3's five points and
   interpolation (`toom3Finish`). 3–7% faster in that band (`2000 × 1024`: 382 → 357 µs,
   `3900 × 2048`: 1062 → 988 µs). Between five thirds and fifteen eighths it is within ±2% of

@@ -37,14 +37,14 @@ public structure Config where
   The size of the shorter operand from which multiplication uses Toom-3 by 2 when the longer one is
   between four thirds and twice as long, instead of Toom-3 or Karatsuba.
   -/
-  mulToom32 : Nat := 160
+  mulToom32 : Nat := 128
   /-- Toom-3 by 2 needs at least `12` limbs to make its products smaller. -/
   twelve_le_mulToom32 : 12 ≤ mulToom32 := by decide
   /--
   The size of the shorter operand from which multiplication uses Toom-4 by 2 when the longer one is
   between fifteen eighths and twice as long, instead of Toom-3 by 2.
   -/
-  mulToom42 : Nat := 192
+  mulToom42 : Nat := 224
   /-- Toom-4 by 2 needs at least `12` limbs to make its products smaller. -/
   twelve_le_mulToom42 : 12 ≤ mulToom42 := by decide
   /--
@@ -52,7 +52,7 @@ public structure Config where
   least twice as long, instead of using schoolbook. It only matters above `mulKaratsuba`, since the
   split pays off through Karatsuba on its pieces.
   -/
-  mulUnbalanced : Nat := 96
+  mulUnbalanced : Nat := 128
   /-- The size from which squaring uses the schoolbook square instead of multiplying. -/
   sqrBasecase : Nat := 2
   /-- The size from which squaring uses Karatsuba. -/
