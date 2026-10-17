@@ -33,11 +33,14 @@ trails by 1.5× multiplication's gap; see BENCH.md for the current numbers.
   GMP; 5 limbs even with GMP). Branches in the step cost more than the step itself: the compiler
   joins `if`s between pairs, even two component `if`s on the same condition, and boxes the words of
   the pair, an allocation per limb, which held a checked version with branches at 12 ns per limb.
-- [ ] **The 3-by-2 step for Algorithm D's quotient estimates**: each quotient limb of
-  `divRem2Basecase` estimates with a hardware division (`div2Est`, `qEstimate3`), where GMP's
-  `mpn_sbpi1_div_qr` uses `udiv_qr_3by2` with the reciprocal of the top two divisor limbs. The
-  estimate is one step per quotient limb against a pass of `subMul1` over the divisor, so it
-  matters most for small divisions (`bdiv` is 2.8–3.4× behind GMP at 8–16 limbs).
+- [ ] **The 3-by-2 step for Algorithm D's quotient estimates** (low value on Zen 3): each
+  quotient limb of `divRemBasecase` estimates with a hardware division (`qEstimate`, then
+  `qEstimate3`), where GMP's `mpn_sbpi1_div_qr` uses `udiv_qr_3by2`. Profiled on 8 ÷ 4 and 16 ÷ 8
+  limbs, that division is 4–6% of the time (in `divStepInFast`, 18–25%), and on Zen 3 a reciprocal
+  step costs about as much as the division (see `divRem1`), so a few percent at best, for a
+  reciprocal threaded through Algorithm D and its compiled twin. Small divisions spend more on
+  allocation (15–25% at 4–8 limbs) and on the `subMul1` pass. Worth it only on CPUs with slow
+  64-bit division.
 - [ ] **Toom-3's evaluations and interpolation in fused passes** (3–4% of large products): each
   operand takes ten passes for its three values (`eval1`, `eval2`, `eval3`, two `addLimbs` and
   up to two `mulRow`s each), and the interpolation eight `subVal`s, three `mulRow`s and three exact
@@ -56,9 +59,11 @@ trails by 1.5× multiplication's gap; see BENCH.md for the current numbers.
   prototyped and is 3% *slower* there, because Zen 3's divider is fast; it would pay on CPUs with
   slow 64-bit division (Intel before Ice Lake). `div_qr_1n_pi1` keeps a partly reduced two-limb
   remainder and takes the quotient off the chain, about one multiply-add per step. `divRem1` is
-  behind division by one limb and `toString`. The prototype may have paid for pairs boxed at a
-  join, which held the first checked 3-by-2 step at 12 ns per limb instead of 6.5, so the
-  branch-free, checked form of `div32Step` is worth one more measurement.
+  behind division by one limb and `toString`. Measured again with the branch-free, checked form of
+  `div32Step` (2026-10-17), in case the first prototype had paid for pairs boxed at a join: 3.17
+  ns per limb against 3.31 at 1024 limbs, slower below, before normalizing the operands, which it
+  would add. Both steps are a chain of about 14 cycles, so only `div_qr_1n_pi1`, which takes the
+  quotient off the chain, could pay here.
 
 Done this round: word carries and hoisted slice fields in the folds; in-place Algorithm D with
 `subMul1` (34 allocations per 32 ÷ 16-limb division instead of 270); `foldInPlaceThen`
