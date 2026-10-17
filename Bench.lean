@@ -58,7 +58,7 @@ def time {α β : Type} (f : α → α → β) (check : β → UInt32) (a b : α
 def checkArr (r : UInt32Array) : UInt32 := r.size.toUInt32 + r.getD 0 0
 def checkNat (n : Nat) : UInt32 := n.toUInt32
 /-- O(1), like `checkNat`: hashing the result would add a pass over its limbs to the time. -/
-def checkBig : BigNat → UInt32
+def checkBig : MPN.Nat → UInt32
   | .small w => w.toUInt32
   | .large a _ => a.size.toUInt32 + a[0]!
 def checkStr (s : String) : UInt32 := s.utf8ByteSize.toUInt32
@@ -120,47 +120,47 @@ def main (args : List String) : IO Unit := do
         row noNat op n (time (fun x _ => mul1 x 7) (fun p => checkArr p.1) a a)
           (time (fun x _ => x * 7) checkNat na na)
       | "badd" =>
-        let (x, y) := (BigNat.ofNat na, BigNat.ofNat nb)
+        let (x, y) := (MPN.Nat.ofNat na, MPN.Nat.ofNat nb)
         row noNat op n (time (· + ·) checkBig x y) (time (· + ·) checkNat na nb)
       | "bsub" =>
-        let (x, y) := (BigNat.ofNat ns, BigNat.ofNat nb)
+        let (x, y) := (MPN.Nat.ofNat ns, MPN.Nat.ofNat nb)
         row noNat op n (time (· - ·) checkBig x y) (time (· - ·) checkNat ns nb)
       | "bmul" =>
-        let (x, y) := (BigNat.ofNat na, BigNat.ofNat nb)
+        let (x, y) := (MPN.Nat.ofNat na, MPN.Nat.ofNat nb)
         row noNat op n (time (· * ·) checkBig x y) (time (· * ·) checkNat na nb)
       | "bdiv" =>
-        let (x, y) := (BigNat.ofNat na2, BigNat.ofNat nb)
+        let (x, y) := (MPN.Nat.ofNat na2, MPN.Nat.ofNat nb)
         row noNat op n (time (· / ·) checkBig x y) (time (· / ·) checkNat na2 nb)
       | "bgcd" =>
-        let (x, y) := (BigNat.ofNat na, BigNat.ofNat nb)
-        row noNat op n (time BigNat.gcd checkBig x y) (time Nat.gcd checkNat na nb)
+        let (x, y) := (MPN.Nat.ofNat na, MPN.Nat.ofNat nb)
+        row noNat op n (time MPN.Nat.gcd checkBig x y) (time Nat.gcd checkNat na nb)
       | "bshl" =>
-        let x := BigNat.ofNat na
-        row noNat op n (time (fun (x : BigNat) _ => x <<< (37 : Nat)) checkBig x x)
+        let x := MPN.Nat.ofNat na
+        row noNat op n (time (fun (x : MPN.Nat) _ => x <<< (37 : Nat)) checkBig x x)
           (time (fun x _ => x <<< 37) checkNat na na)
       | "bshr" =>
-        let x := BigNat.ofNat na
-        row noNat op n (time (fun (x : BigNat) _ => x >>> (37 : Nat)) checkBig x x)
+        let x := MPN.Nat.ofNat na
+        row noNat op n (time (fun (x : MPN.Nat) _ => x >>> (37 : Nat)) checkBig x x)
           (time (fun x _ => x >>> 37) checkNat na na)
       | "bsqrt" =>
-        let x := BigNat.ofNat na2
-        row noNat op n (time (fun x _ => BigNat.sqrt x) checkBig x x)
+        let x := MPN.Nat.ofNat na2
+        row noNat op n (time (fun x _ => MPN.Nat.sqrt x) checkBig x x)
           (time (fun x _ => Nat.sqrt x) checkNat na2 na2)
       | "btostr" =>
-        let x := BigNat.ofNat na
-        row noNat op n (time (fun (x : BigNat) _ => toString x) checkStr x x)
+        let x := MPN.Nat.ofNat na
+        row noNat op n (time (fun (x : MPN.Nat) _ => toString x) checkStr x x)
           (time (fun (x : Nat) _ => toString x) checkStr na na)
       | "bofstr" =>
         let t := toString na
-        row noNat op n (time (fun t _ => BigNat.ofString? t) (fun r => checkBig r.get!) t t)
+        row noNat op n (time (fun t _ => MPN.Nat.ofString? t) (fun r => checkBig r.get!) t t)
           (time (fun t _ => t.toNat?) (fun r => checkNat r.get!) t t)
       | "btonat" =>
         -- `Nat` has nothing to convert: its column is one linear pass, `x + 1`.
-        let x := BigNat.ofNat na
-        row noNat op n (time (fun (x : BigNat) _ => x.toNat) checkNat x x)
+        let x := MPN.Nat.ofNat na
+        row noNat op n (time (fun (x : MPN.Nat) _ => x.toNat) checkNat x x)
           (time (fun x _ => x + 1) checkNat na na)
       | "bofnat" =>
-        row noNat op n (time (fun x _ => BigNat.ofNat x) checkBig na na)
+        row noNat op n (time (fun x _ => MPN.Nat.ofNat x) checkBig na na)
           (time (fun x _ => x + 1) checkNat na na)
       | "shr" =>
         row noNat op n (time (fun (x : UInt32Array) _ => shiftRight x 37) checkArr a a)

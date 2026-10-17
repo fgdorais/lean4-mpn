@@ -8,10 +8,10 @@ and splits very unbalanced products into nearly balanced ones; squaring uses sch
 Karatsuba or Toom-3. Division is Knuth's Algorithm D, and divide-and-conquer (Burnikel–Ziegler)
 for large divisors.
 
-`MPN.BigNat` packages this as a `Nat`-like type, with a fast path on machine words below `2⁶⁴`
+`MPN.Nat` packages this as a `Nat`-like type, with a fast path on machine words below `2⁶⁴`
 and the usual instances (`+ - * / %`, comparisons, `DecidableEq`, `Hashable`, literals, shifts,
 bitwise operations, `^`, `ToString`, `Repr`), as well as `gcd`, `lcm`, `log2`, `sqrt` and
-`ofString?`: every operation is proved to agree with `Nat` through `BigNat.toNat`, which is a
+`ofString?`: every operation is proved to agree with `Nat` through `MPN.Nat.toNat`, which is a
 bijection, and `toString` and `ofString?` with `Nat.repr` and `String.toNat?`.
 
 ## Tuning
@@ -47,7 +47,7 @@ module
 
 import MPN
 
-public def main : IO Unit := IO.println (MPN.BigNat.ofNat (2 ^ 100))
+public def main : IO Unit := IO.println (MPN.Nat.ofNat (2 ^ 100))
 ```
 
 `MPN.Config` imports `Lean` at compile time for its thresholds, and a main file that is not a
@@ -58,7 +58,7 @@ all of Lean (about 120 MB) and spends about 20 ms initializing it at startup.
 
 `lake exe bench` times addition, subtraction, multiplication by a limb, multiplication, squaring
 and division against the same operations on `Nat`, which Lean implements with GMP, from 1 to 4096
-limbs; the `BigNat` operations are `badd`, `bsub`, `bmul`, `bdiv`, `bgcd`, `bshl`, `bshr`,
+limbs; the `MPN.Nat` operations are `badd`, `bsub`, `bmul`, `bdiv`, `bgcd`, `bshl`, `bshr`,
 `bsqrt`, `btostr`, `bofstr`, and the conversions `btonat` and `bofnat`. Arguments select
 operations and sizes: `lake exe bench mul div 64 256` runs only those, and `--no-nat` skips `Nat`,
 which is useful under a profiler. Current results, how to read them, and the history of

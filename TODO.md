@@ -29,7 +29,7 @@ trails by 1.5× multiplication's gap; see BENCH.md for the current numbers.
   result exactly (`q D + r = R β + x`, `r < D`), so neither the reciprocal nor the error bound needs
   a proof; a failed check leaves the remainder `D`, after which every check fails, and the division
   tests the last remainder once and redoes the work with `div2Step` if needed, which never happens.
-  `BigNat` divided by `10¹⁸`: 6.5 ns per limb instead of 15 (256 limbs: 3.81 → 1.75 µs, 8.2 → 3.6×
+  `MPN.Nat` divided by `10¹⁸`: 6.5 ns per limb instead of 15 (256 limbs: 3.81 → 1.75 µs, 8.2 → 3.6×
   GMP; 5 limbs even with GMP). Branches in the step cost more than the step itself: the compiler
   joins `if`s between pairs, even two component `if`s on the same condition, and boxes the words of
   the pair, an allocation per limb, which held a checked version with branches at 12 ns per limb.
@@ -142,7 +142,7 @@ block of the division, and `topSize` usually stops at the first limb.
   - [x] bitwise `&&&`, `|||`, `^^^` (limbwise with `ofFn`, then trimmed);
   - [x] `log2`;
   - [x] `pow`, by repeated squaring with `sqr`;
-  - [x] `gcd` and `lcm` (`BigNat`): Lehmer's algorithm with single-word cofactors, checked by
+  - [x] `gcd` and `lcm` (`MPN.Nat`): Lehmer's algorithm with single-word cofactors, checked by
     their determinant, and Euclid on words. Each new number is a difference of two multiples,
     computed with a biased carry, and the cofactors stay below `2³¹`, so that their determinant is
     checked on `Nat` without GMP (`lehmerStep`); from 32 limbs, both new numbers come from one pass
@@ -171,24 +171,24 @@ block of the division, and `topSize` usually stops at the first limb.
 
 ## API
 
-- [x] **A `Nat`-like type:** `BigNat`, a word below `2⁶⁴` and trimmed limbs above, with the
+- [x] **A `Nat`-like type:** `MPN.Nat`, a word below `2⁶⁴` and trimmed limbs above, with the
   instances, truncated subtraction and the bijection with `Nat`. About 15 ns per operation on
   words, against 9–10 ns for `Nat`, whose small values need no allocation.
-- [ ] **The fixed cost of small divisions:** `BigNat.div` takes 86 ns for 4 limbs by 2, 245 ns for 8
-  by 4 and 555 ns for 32 by 16, against 47, 95 and 154 ns for `Nat`. Done: up to four limbs by a
-  word of two, the division runs on words alone, with three `div2Step`s after the shift
+- [ ] **The fixed cost of small divisions:** `MPN.Nat.div` takes 86 ns for 4 limbs by 2, 245 ns
+  for 8 by 4 and 555 ns for 32 by 16, against 47, 95 and 154 ns for `Nat`. Done: up to four limbs
+  by a word of two, the division runs on words alone, with three `div2Step`s after the shift
   (`divRem128`; 159 → 86 ns), and `/` by a word uses `div2`, which allocates no remainder; the
   normalized dividend is divided in place when its top limb is below the divisor's
   (`divRemBasecaseTop`), which saves its copy and one step of Algorithm D (12–22% from 3 to 16
-  limbs); a `BigNat` divided by a word goes to `divRem1` or `divRem2` without an array for the word
-  (`divRemWord`, 2 limbs 192 → 170 ns; `%` by a word returns the word); Algorithm D works in one
-  array, with each quotient limb in the freed top limb of its window, and its compiled step
+  limbs); an `MPN.Nat` divided by a word goes to `divRem1` or `divRem2` without an array for the
+  word (`divRemWord`, 2 limbs 192 → 170 ns; `%` by a word returns the word); Algorithm D works in
+  one array, with each quotient limb in the freed top limb of its window, and its compiled step
   allocates no pair (`divLoopIn`, `divStepInFast`; 11–19% from 3 to 64 limbs); division by two
   limbs reads the limbs of the normalized dividend from the dividend as it needs them, instead of
-  a shifted copy (`shlLimbU`; `BigNat` divided by `10¹⁸`: 5 limbs 180 → 149 ns, 16 limbs 312 →
+  a shifted copy (`shlLimbU`; `MPN.Nat` divided by `10¹⁸`: 5 limbs 180 → 149 ns, 16 limbs 312 →
   294 ns, even from 64). Left: the 2n ÷ n rows from 8 limbs go through Algorithm D, whose fixed
   cost is the normalization of both operands and their arrays.
-- [x] **Words near `2⁶⁴` in `BigNat`:** a sum or product of two words that overflows went
+- [x] **Words near `2⁶⁴` in `MPN.Nat`:** a sum or product of two words that overflows went
   through `limbsOfWord` and the array functions (about 95 ns). `mulWide` computes the product from
   the four products of halves, and `wideOf` makes the three or four limbs directly: `badd` at 2
   limbs 95 → 34 ns (0.42× `Nat`), `bmul` 92 → 50 ns (0.62×).
@@ -224,9 +224,9 @@ block of the division, and `topSize` usually stops at the first limb.
 ## Tooling
 
 - [x] **Benchmarks on `main`:** `lake exe bench` times each operation against `Nat` (the limb
-  operations by default, `shr` included, and the `BigNat` ones by name, as in BENCH.md);
+  operations by default, `shr` included, and the `MPN.Nat` ones by name, as in BENCH.md);
   `lake exe bench --no-nat mul 256` runs one case alone, for a profiler. Results are checked in
-  O(1) on both sides (a hash of a `BigNat` result once cost a pass over its limbs).
+  O(1) on both sides (a hash of an `MPN.Nat` result once cost a pass over its limbs).
 - [ ] **A raw GMP baseline.** The `Nat` column is Lean's wrapper around GMP, which copies both
   the operand and the result and allocates twice per operation, so below about 64 limbs it
   measures mostly that overhead (we beat it there). Calling `mpn_*` directly needs C, so it

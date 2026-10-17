@@ -28,4 +28,4 @@ public import MPN.Div.Two
 public import MPN.Div
 public import MPN.Bits
 public import MPN.Decimal
-public import MPN.BigNat
+public import MPN.Nat
