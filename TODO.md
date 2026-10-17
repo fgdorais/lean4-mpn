@@ -6,14 +6,14 @@ Items are roughly in order of value within each section.
 
 ## Performance
 
-Time now goes mostly into the schoolbook product, by columns since `Mul.Comba` (about 0.5 ns per
-32-bit limb product, vectorized by the C compiler with SSE2): 72% of a product even at 4096 limbs,
-with `perf`, after the combinations went to one pass. The rest is a few percent each (Karatsuba's
-`addDiffInto`, Toom-3's passes, allocation), which is why the attempts below to move Toom-3 or
-Karatsuba in place gained at most 1%. With 32-bit limbs, a product needs 4× as many limb products
-as GMP's, which is most of the gap above 64 limbs; `march = "native"` (see the README) makes Comba
-7–13% faster with AVX2. What is left for products is mostly tuning and algorithms (below).
-Division is 2.3 of our own `n × n` products per `2n / n` division, where GMP's is about one, so it
+Time now goes mostly into the schoolbook product, by columns since `Mul.Comba`: 75–77% of a
+product at 1024 and 4096 limbs and 70% of a square, with `perf` (2026-10-16). The linear passes
+(`addInto`, `subInto`, `addDiffInto`, Toom-3's evaluations and interpolation) take 14% of a product
+and 19% of a square, allocation 2–3%. With 32-bit limbs, a product needs 4× as many limb products
+as GMP's, which is most of the gap above 64 limbs; `march = "native"` (see the README) makes
+products 5–12% faster with AVX2. What is left for products is mostly the linear passes and
+algorithms (below).
+Division is 2.4 of our own `n × n` products per `2n / n` division, where GMP's is about one, so it
 trails by 1.5× multiplication's gap; see BENCH.md for the current numbers.
 
 - [ ] **Quotient-only division** (GMP's `mpn_div_q` with `divappr`): `/` computes the remainder it
@@ -31,9 +31,17 @@ trails by 1.5× multiplication's gap; see BENCH.md for the current numbers.
   for `divRem1` was 3% slower on Zen 3, whose divider is fast, but this step does more work
   around its division, so it is worth a prototype. It serves `x / w` for words `w ≥ 2³²` and
   `toString` in chunks of `10¹⁸` if that ever replaces `10⁹`.
-- [ ] **Toom-3's interpolation in place** (low value): it makes a fresh array for each of its
-  eight `subVal`s and three `mulRow`s, where GMP's `toom_interpolate_5pts` works in place; the
-  assembly half, prototyped with copies, gained under 1%, so expect about as much.
+- [ ] **Toom-3's evaluations and interpolation in fused passes** (3–4% of large products): each
+  operand takes ten passes for its three values (`eval1`, `eval2`, `eval3`, two `addLimbs` and
+  up to two `mulRow`s each), and the interpolation eight `subVal`s, three `mulRow`s and three exact
+  divisions, each pass with its own array. One pass that reads the three parts once and writes the
+  three values, prototyped without proofs as a tail-recursive loop over the arrays (like
+  `mulSubMul₂`), is 2.7× faster than the three evaluations (`k = 342`: 2.55 → 0.91 µs), which is
+  1.7% of a product of 1024 limbs and 2.1% at 4096, since Toom-3 runs only one or two levels; the
+  interpolation should give about as much, and `toom32`, `toom42` and `toom3Sqr` share the
+  pieces. (Moving it in place, without fusing, was estimated under 1% from the assembly half.) A
+  fold over several arrays in lean4-scalar-arrays, checking that they are unshared once instead
+  of at each step, would make such passes cheaper still, and `mulSubMul₂` faster below 32 limbs.
 - [ ] **A shorter dependency chain in `divRem1`** (for CPUs with slow division; GMP's
   `mpn_div_qr_1n_pi1`): the loop is bound by the latency of one step, about 15 cycles (3.3 ns per
   limb on Zen 3), since each step needs the previous remainder; the rest of the loop (1.4 ns per
@@ -62,7 +70,12 @@ from 576 limbs up, Toom-3 from 480 and 720 limbs instead of 576 and 892); both s
 with the slice folds of lean4-scalar-arrays#27 and #28; `push` inline upstream
 (lean4-scalar-arrays#24); the conversions to and from `Nat` by halves, joined or split with shifts,
 and 64 bits at a time below 64 limbs for `ofNat` (`toNatFast`, `ofNatFast`; 4096 limbs: 6.1 → 0.39
-ms and 2.2 → 0.24 ms, still about one operation on `Nat`, some 40 ns, per two limbs).
+ms and 2.2 → 0.24 ms, still about one operation on `Nat`, some 40 ns, per two limbs); Comba's
+columns from 32 limbs as whole products in one sum that counts its wraps (`colLoopW`, an addition
+with carry per product, not vectorized but faster than the vectorized halves: products −5% from
+64 limbs, −7% at 1024 and −10% at 4096). An earlier try of that loop, when the column loops still
+returned pairs, was slower above 32 limbs; with both loops in one function, products below 16
+limbs lost 5–8% to the setup of the unrolled loop, so `combaMul` chooses once per product.
 
 Tried without gain: Toom-3's assembly by copies, `c₀` and `c₄` written into place and three
 `addInto`s instead of five on a zeroed array (within 1% from 512 to 4096 limbs, where Comba is
@@ -72,8 +85,7 @@ version from 128 to 448 limbs, with the combination in two passes or in one fuse
 the top half of `z₀`, which it overwrites before reading). `perf` attributes 5–11% of a product to
 allocation and copies, but mimalloc's small allocations are cheap and an array of products still
 needs its evaluation sums as separate arrays (a slice of the scratch array would be shared with the
-array being written, and copied). In Comba's column loop, unrolling by two (no change), counting the
-wraps of one 64-bit sum instead of splitting the halves (faster below 32 limbs, slower above), and
+array being written, and copied). In Comba's column loop, unrolling by two (no change), and
 reading `b` reversed so that both operands go forward (the copy costs more than it saves); `divRem1`
 on `foldrInPlaceThen` over a copy (the loop is bound by the division, and building the slice costs
 10–25 ns per call, 5–12% slower below 16 limbs), which also rules out slices for the per-row folds
@@ -174,7 +186,7 @@ block of the division, and `topSize` usually stops at the first limb.
 - [x] **Per-dependency configuration.** Lake builds a dependency with that dependency's own
   settings; the package's `lakefile.lean` now reads the options of a project's `require` (or
   `-K`): the thresholds, keyed by the fields of `Config`, and `march`, which compiles the C code
-  with `-march=<value>` (`native`: 7–13% faster products with AVX2). Keys have no dots, since TOML
+  with `-march=<value>` (`native`: 5–12% faster products with AVX2). Keys have no dots, since TOML
   passes a quoted key as one name, and changed options need `lake build -R`.
 
 ## Proof engineering

@@ -21,7 +21,7 @@ for example `lake build -R -K march=native`. Lake keeps the configuration it ela
 changing the options, build once with `-R` to reconfigure.
 
 * `march`: compiles the library's C code with `-march=<value>`, for example `native`, which lets
-  the C compiler use the vector instructions of the machine (7–13% faster products on AVX2). The
+  the C compiler use the vector instructions of the machine (5–12% faster products on AVX2). The
   binaries then run only on processors with those instructions.
 * `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`, `mulUnbalanced`, `sqrBasecase`,
   `sqrKaratsuba`, `sqrToom3`, `divDC`: the thresholds, by the names of the fields of
