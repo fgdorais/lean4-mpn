@@ -22,12 +22,13 @@ jobs:
           build-args: "tune"
 
       # Shared runners are noisy and their machines vary, so the thresholds found are only a rough
-      # check of the defaults. They go into the log, the run's summary and an artifact.
+      # check of the defaults; with `--verbose` the log shows the timings at each size, so how clear
+      # each crossover is. They go into the log, the run's summary and an artifact.
       - name: tune
         run: |
           cpu="Runner: $(nproc) cores, $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2)"
           echo "$cpu" | tee tune.txt
-          lake exe tune | tee -a tune.txt
+          lake exe tune --verbose | tee -a tune.txt
           {
             echo '## Thresholds on the runner'
             echo
