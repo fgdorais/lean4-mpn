@@ -131,7 +131,7 @@ block of the division, and `topSize` usually stops at the first limb.
 
 - [x] **Divide-and-conquer division** (`Div.DC`, Burnikel–Ziegler): blocks of half the divisor,
   digits from recursive divisions by its top half and the low-half product, from 176 limbs.
-  The gap no longer grows with size: 8.3–10× behind `Nat` from 128 to 4096 limbs, measured on
+  The gap no longer grows with size: 7.9–8.9× behind `Nat` from 128 to 4096 limbs, measured on
   the quotient alone (an earlier benchmark timed two divisions on the `Nat` side and showed half
   that).
 - [x] **Toom-3 by 2** (`toom32`, GMP's `mpn_toom32_mul`): for a longer operand between four
@@ -139,7 +139,9 @@ block of the division, and `topSize` usually stops at the first limb.
   third of the longer, where `toom3` split both at a third of the shorter and left a long top part
   in its five products; four products, at the points `0, 1, 2, ∞`. Shapes of 3:2 and 3:1 (which
   halves into 3:2) are 27–39% faster from 512 limbs (`1536 × 1024`: 406 → 247 µs, 8.2 → 5.0×
-  GMP). The tuner finds 120, but direct timings are slower until about 150.
+  GMP). From 160 limbs at first: the tuner found 120, but direct timings were slower until about
+  150; after the carry-last steps the tuner finds 128–136 on four machines (Zen 3, an Apple M2,
+  two GitHub runners), so 128 since `2f9c5e6`.
 - [x] **Toom-4 by 2** (`toom42`, GMP's `mpn_toom42_mul`): for a longer operand between fifteen
   eighths and twice as long, from 224 limbs, it splits it in four and the shorter in two at half
   the shorter; its product has degree four, like Toom-3's, so it shares Toom-3's five points and
@@ -169,7 +171,7 @@ block of the division, and `topSize` usually stops at the first limb.
     faster from 64 limbs, `gcd` 6% at 64 limbs and 30% at 1024), and below, from two folds of
     `mulSubMul`, since the loop's exclusivity checks and extra pair made `gcd` 4–6% slower from 4 to
     16 limbs. The word steps divide once per quotient and stop by Jebelean's condition
-    (`lehmerSteps`). Faster than `Nat` on words, 3.4–4.6× behind GMP from 4 to 1024 limbs (from
+    (`lehmerSteps`). Faster than `Nat` on words, 3.6–4.8× behind GMP from 4 to 1024 limbs (from
     9–18×). This is already GMP's `hgcd2` in our limbs (two-limb leading words, one-limb cofactors);
     the next size up, 124-bit words and 62-bit cofactors, would need Euclid in emulated 128-bit
     arithmetic, already 11–21% of the time in 64-bit, for passes that do twice the products for half
@@ -179,7 +181,7 @@ block of the division, and `topSize` usually stops at the first limb.
     half (`sqrt (n / 4ᵏ)` for `k` a quarter of the bits), which starts within `2ᵏ` above the root;
     one Newton step, which is at least the root by AM-GM, then steps down while `x² > n` with one
     square (`sqrtFix`), where the iteration took a second division to stop. Faster than `Nat` up
-    to 4 limbs, 1.1–2.2× behind above (from 1.6–4×).
+    to 4 limbs, 1.0–2.2× behind above (from 1.6–4×).
   - [x] `toString`/`ofString?` (`Decimal`), like GMP's `mpn_get_str`/`mpn_set_str` below their
     thresholds: chunks of nine digits, by `divRem1` by `10⁹` one way and a fold over the
     characters the other. Equal to `Nat.repr` and `String.toNat?`, and 10–20× faster than
@@ -246,6 +248,16 @@ block of the division, and `topSize` usually stops at the first limb.
   operations by default, `shr` included, and the `MPN.Nat` ones by name, as in BENCH.md);
   `lake exe bench --no-nat mul 256` runs one case alone, for a profiler. Results are checked in
   O(1) on both sides (a hash of an `MPN.Nat` result once cost a pass over its limbs).
+- [ ] **Defaults that suit more machines.** `lake exe tune --verbose`, run again on four machines
+  after the carry-last steps (2026-10-17: Zen 3, the dev box; an Apple M2; GitHub's EPYC 7763 and
+  Xeon 6973P-C), agreed on Toom-3 by 2, Toom-4 by 2 and unbalanced products, whose defaults moved
+  to 128, 224 and 128 (`2f9c5e6`). The faster basecases also pulled the M2's thresholds close to
+  the others (divide-and-conquer division from 56 to 168 limbs). Still split: `mulKaratsuba`
+  (Zen 3 and the EPYC 76–80, the M2 and the Xeon 64; flat within 1% in whole products), `divDC`
+  (Zen 3 now 224, the M2 168, the runners 104–136, default 176) and squaring on the M2
+  (Karatsuba from about 196 and Toom-3 not below 980, against about 96 and 670–720 on x86), which
+  would need defaults per architecture (`mpn_config%` choosing by the build target). Wait for
+  more machines before changing these.
 - [ ] **A raw GMP baseline.** The `Nat` column is Lean's wrapper around GMP, which copies both
   the operand and the result and allocates twice per operation, so below about 64 limbs it
   measures mostly that overhead (we beat it there). Calling `mpn_*` directly needs C, so it
