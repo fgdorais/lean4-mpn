@@ -214,6 +214,20 @@ public theorem ofLimbs_take_add_one_getD (l : List UInt32) (i : Nat) :
   · rw [List.take_of_length_le (by omega), List.take_of_length_le (by omega)]
     simp [List.getD_eq_getElem?_getD, List.getElem?_eq_none (by omega : l.length ≤ i)]
 
+/-- Limb `j` of a list, `0` past its end, is digit `j` of its value in base `β`. -/
+public theorem toNat_getD_eq (l : List UInt32) (j : Nat) :
+    (l.getD j 0).toNat = ofLimbs l / 2 ^ (32 * j) % 2 ^ 32 := by
+  induction l generalizing j with
+  | nil => simp
+  | cons d l ih =>
+    have := d.toNat_lt
+    cases j with
+    | zero => simp
+    | succ j =>
+      rw [List.getD_cons_succ, ih, ofLimbs_cons, show 32 * (j + 1) = 32 + 32 * j by lia,
+        Nat.pow_add, ← Nat.div_div_eq_div_mul,
+        show (d.toNat + 2 ^ 32 * ofLimbs l) / 2 ^ 32 = ofLimbs l by lia]
+
 public theorem ofLimbs_take_lt (l : List UInt32) (i : Nat) : ofLimbs (l.take i) < 2 ^ (32 * i) := by
   have := ofLimbs_lt (l.take i)
   have : 2 ^ (32 * (l.take i).length) ≤ 2 ^ (32 * i) :=

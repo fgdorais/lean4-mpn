@@ -318,6 +318,12 @@ def bigNatValues : List Nat :=
     (BigNat.ofNat a / BigNat.ofNat b).toNat == a / b &&
       (BigNat.ofNat a % BigNat.ofNat b).toNat == a % b
 
+-- Division of more than four limbs by a word of two limbs, normalized on the fly (`div2`).
+#guard [2 ^ 128, 2 ^ 160 - 1, sample1 160 83, sample1 300 89, sample1 641 97, 2 ^ 1024 - 1].all
+  fun a => [2 ^ 32, 2 ^ 32 + 1, 2 ^ 63, 2 ^ 64 - 1, 10 ^ 18, 3 * 2 ^ 40 + 5].all fun b =>
+    (BigNat.ofNat a / BigNat.ofNat b).toNat == a / b &&
+      (BigNat.ofNat a % BigNat.ofNat b).toNat == a % b
+
 -- Literals and the representation.
 #guard ((12345678901234567890123 : BigNat) * 1000).toNat == 12345678901234567890123000
 #guard (BigNat.ofNat (2 ^ 64 - 1) + 1).toNat == 2 ^ 64
