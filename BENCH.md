@@ -16,9 +16,12 @@ scripts/bench_md.py bench.txt         # the two tables below
 
 Arguments select operations and sizes, and `--no-nat` skips `Nat`, for a profiler. Pinning the
 process to one core with `taskset` makes the results steadier; differences below about 5% are
-noise. Below 64 limbs, changing the library moves the code of both columns in the binary, and
-either side can shift by 5–20% from that alone (the `Nat` column too), so compare the times of
-the same column across runs rather than the ratios.
+noise. Each time is the median of five trials, and the last two columns, `±MPN` and `±Nat`, are
+the spread of those trials (sample standard deviation over mean, from `Batteries.RunningStats`):
+usually ±0.1–2%, the noise within one run. Between builds the noise is larger: below 64 limbs,
+changing the library moves the code of both columns in the binary, and either side can shift by
+5–20% from that alone (the `Nat` column too), so compare the times of the same column across runs
+rather than the ratios.
 
 ## How to read the tables
 

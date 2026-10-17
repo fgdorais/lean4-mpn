@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 import MPN
+import Batteries.Data.RunningStats
 
 /-!
 # Benchmark
@@ -13,6 +14,10 @@ import MPN
 Lean implements with GMP, on pseudorandom operands from 1 to 4096 limbs. Division divides `2 n`
 limbs by `n` limbs. Pinning it to one core, for example with `taskset -c 2`, gives steadier
 results.
+
+Each time is the median of five trials. The last two columns are the spread of the trials of each
+side, their sample standard deviation relative to their mean (`Batteries.RunningStats`), which
+tells how far to trust a difference between two runs.
 -/
 
 open ScalarArray MPN
@@ -37,9 +42,18 @@ def sample (n seed : Nat) : UInt32Array := Id.run do
     acc := acc + check (f a b)
   return acc
 
-/-- The median time of `f a b` in nanoseconds, over trials of at least `minNs` each. -/
+/-- The median time in nanoseconds of a set of trials, and their running statistics. -/
+structure Timing where
+  median : Float
+  stats : Batteries.RunningStats
+
+/-- The sample standard deviation of the trials relative to their mean. -/
+def Timing.spread (t : Timing) : Float :=
+  if t.stats.mean > 0 then t.stats.sampleStandardDeviation / t.stats.mean else 0
+
+/-- The time of `f a b` in nanoseconds, over trials of at least `minNs` each. -/
 def time {α β : Type} (f : α → α → β) (check : β → UInt32) (a b : α) (trials := 5)
-    (minNs := 2_000_000) : IO Float := do
+    (minNs := 2_000_000) : IO Timing := do
   let mut reps := 1
   repeat
     let t₀ ← IO.monoNanosNow
@@ -53,7 +67,8 @@ def time {α β : Type} (f : α → α → β) (check : β → UInt32) (a b : α
     let _ ← IO.lazyPure fun _ => repeatOp f check a b reps
     let t₁ ← IO.monoNanosNow
     samples := samples.push ((t₁ - t₀).toFloat / reps.toFloat)
-  return (samples.qsort (· < ·))[trials / 2]!
+  let stats := samples.foldl (fun s x => s.push x) ({} : Batteries.RunningStats)
+  return { median := (samples.qsort (· < ·))[trials / 2]!, stats }
 
 def checkArr (r : UInt32Array) : UInt32 := r.size.toUInt32 + r.getD 0 0
 def checkNat (n : Nat) : UInt32 := n.toUInt32
@@ -78,6 +93,11 @@ def fmt (t : Float) : String :=
   let s := if digits = 0 then int else int ++ "." ++ "".pushn '0' (digits - frac.length) ++ frac
   s ++ " " ++ unit
 
+/-- A spread as a percentage with one decimal, `±1.2%`. -/
+def fmtSpread (x : Float) : String :=
+  let n := (x * 1000).round.toUInt64.toNat
+  "±" ++ toString (n / 10) ++ "." ++ toString (n % 10) ++ "%"
+
 /-- A ratio with two decimals. -/
 def fmtRatio (x : Float) : String :=
   let n := (x * 100).round.toUInt64.toNat
@@ -86,23 +106,31 @@ def fmtRatio (x : Float) : String :=
 
 def sizes : List Nat := [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096]
 
-/-- Times one operation at one size against `Nat`, unless `noNat`, and prints a table row. -/
-def row (noNat : Bool) (name : String) (n : Nat) (bn : IO Float) (nat : IO Float) : IO Unit := do
+/--
+Times one operation at one size against `Nat`, unless `noNat`, and prints a table row: the two
+median times, their ratio and the spreads of their trials, last so that the columns before them
+read as before.
+-/
+def row (noNat : Bool) (name : String) (n : Nat) (bn : IO Timing) (nat : IO Timing) :
+    IO Unit := do
   let tb ← bn
   if noNat then
-    IO.println s!"{pad 6 name} {pad 6 (toString n)} {pad 10 (fmt tb)}"
+    IO.println <| s!"{pad 6 name} {pad 6 (toString n)} {pad 10 (fmt tb.median)} " ++
+      s!"{pad 8 (fmtSpread tb.spread)}"
   else
     let tn ← nat
     IO.println <|
-      s!"{pad 6 name} {pad 6 (toString n)} {pad 10 (fmt tb)} {pad 10 (fmt tn)} " ++
-        s!"{pad 8 (fmtRatio (tb / tn))}"
+      s!"{pad 6 name} {pad 6 (toString n)} {pad 10 (fmt tb.median)} {pad 10 (fmt tn.median)} " ++
+        s!"{pad 8 (fmtRatio (tb.median / tn.median))} {pad 8 (fmtSpread tb.spread)} " ++
+        s!"{pad 8 (fmtSpread tn.spread)}"
 
 def main (args : List String) : IO Unit := do
   let noNat := args.contains "--no-nat"
   let (nums, names) := (args.filter (· != "--no-nat")).partition (·.isNat)
   let ops := if names.isEmpty then ["add", "sub", "mul1", "mul", "sqr", "div", "shr"] else names
   let sizes := if nums.isEmpty then sizes else nums.map String.toNat!
-  IO.println s!"{pad 6 "op"} {pad 6 "limbs"} {pad 10 "MPN"} {pad 10 "Nat"} {pad 8 "ratio"}"
+  IO.println <| s!"{pad 6 "op"} {pad 6 "limbs"} {pad 10 "MPN"} {pad 10 "Nat"} {pad 8 "ratio"} " ++
+    s!"{pad 8 "±MPN"} {pad 8 "±Nat"}"
   for op in ops do
     for n in sizes do
       let a := sample n 1
