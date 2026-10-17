@@ -52,15 +52,15 @@ private theorem subAtLoop_spec (r : UInt32Array) (off : Nat) (a : UInt32Array.Sl
   | case1 r j β h hstop =>
     rw [subAtLoop]
     simp only [h, hstop, ↓reduceDIte, ↓reduceIte, and_self]
-    have : a.copy.toList.drop j = [] := List.drop_of_length_le (by simp; omega)
+    have : a.copy.toList.drop j = [] := List.drop_of_length_le (by simp; lia)
     simp [this]
   | case2 r j β h hstop p ih =>
     rw [subAtLoop]
     simp only [h, hstop, ↓reduceDIte, ↓reduceIte]
-    obtain ⟨ih₁, ih₂⟩ := ih (by simpa using ha) (by simp; omega)
+    obtain ⟨ih₁, ih₂⟩ := ih (by simpa using ha) (by simp; lia)
     simp only [UInt32Array.size_set] at ih₁ ih₂
     refine ⟨ih₁, ?_⟩
-    have hk : off + j < r.toList.length := by simp; omega
+    have hk : off + j < r.toList.length := by simp; lia
     have hset := ofLimbs_set r.toList (off + j) p.1 hk
     have : p.1.toNat + (a.getD j 0).toNat + β.toNat = r[off + j].toNat + p.2.toNat * 2 ^ 32 :=
       UInt32.subWithBorrow_spec r[off + j] (a.getD j 0) β
@@ -83,19 +83,19 @@ private theorem subAtLoop_spec (r : UInt32Array) (off : Nat) (a : UInt32Array.Sl
   | case3 r j β h =>
     rw [subAtLoop]
     simp only [h, ↓reduceDIte]
-    have h₁ : a.copy.toList.drop j = [] := List.drop_of_length_le (by simp; omega)
-    have h₂ : off + j = r.size := by omega
+    have h₁ : a.copy.toList.drop j = [] := List.drop_of_length_le (by simp; lia)
+    have h₂ : off + j = r.size := by lia
     simp [h₁, h₂]
 
 @[simp] public theorem size_subAt (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
     (ha : off + a.size ≤ r.size) : (subAt r off a).1.size = r.size :=
-  (subAtLoop_spec r off a 0 false ha (by omega)).1
+  (subAtLoop_spec r off a 0 false ha (by lia)).1
 
 public theorem toNat_subAt (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
     (ha : off + a.size ≤ r.size) :
     toNat (subAt r off a).1 + 2 ^ (32 * off) * toNat a =
       toNat r + 2 ^ (32 * r.size) * (subAt r off a).2.toNat := by
-  have := (subAtLoop_spec r off a 0 false ha (by omega)).2
+  have := (subAtLoop_spec r off a 0 false ha (by lia)).2
   simpa [subAt, toNat] using this
 
 /-- When the difference is not negative, `subAt` has no borrow out. -/
@@ -110,9 +110,9 @@ public theorem toNat_subAt_of_le (r : UInt32Array) (off : Nat) (a : UInt32Array.
   rw [toNat_toSlice, toNat_toSlice]
   cases hβ : (subAt r off a).2
   · simp only [hβ, Bool.toNat_false, Nat.mul_zero, Nat.add_zero] at h
-    omega
+    lia
   · simp only [hβ, Bool.toNat_true, Nat.mul_one] at h
-    omega
+    lia
 
 /-! ## The compiled loop
 
@@ -144,7 +144,7 @@ public def subAtFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) : UIn
         have := a.stop_le_array_size
         have := a.start_le_stop
         have := a.size_eq
-        rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]
+        rw [toNat_toUSize (by lia), toNat_toUSize (by lia)]
         exact hs.2.2)
     subAtLoop p.1 off a a.size (p.2 != 0)
   else
@@ -169,7 +169,7 @@ private theorem foldInPlace_loop_subAt (r : UInt32Array) (off : Nat) (a : UInt32
   subst s n
   induction r, j, c using subAtLoop.induct off a with
   | case1 r j c h hstop =>
-    have : j = a.size := by omega
+    have : j = a.size := by lia
     subst this
     rw [UInt32Array.foldInPlace.loop]
     simp [hc]
@@ -181,13 +181,13 @@ private theorem foldInPlace_loop_subAt (r : UInt32Array) (off : Nat) (a : UInt32
         UInt32.subWithBorrowWord_toUInt32]
       have hg : a.getD j 0 = a[j] := by simp [UInt32Array.Slice.getD_eq, hja]
       simp only [p, hg] at ih ⊢
-      exact ih (by simpa using ha) (by omega) (by simpa using ha)
-    · have : j = a.size := by omega
+      exact ih (by simpa using ha) (by lia) (by simpa using ha)
+    · have : j = a.size := by lia
       subst this
       rw [UInt32Array.foldInPlace.loop]
       simp [hc]
   | case3 r j c h =>
-    have : j = a.size := by omega
+    have : j = a.size := by lia
     subst this
     rw [UInt32Array.foldInPlace.loop]
     simp [hc]
@@ -201,8 +201,8 @@ private theorem foldInPlace_loop_subAt (r : UInt32Array) (off : Nat) (a : UInt32
     have := a.stop_le_array_size
     have := a.start_le_stop
     have := a.size_eq
-    exact (foldInPlace_loop_subAt r off a (lt_usizeSize hs.2.1) _ _ (toNat_toUSize (by omega))
-      (toNat_toUSize (by omega)) 0 false hs.2.2 (by omega) _ _).symm
+    exact (foldInPlace_loop_subAt r off a (lt_usizeSize hs.2.1) _ _ (toNat_toUSize (by lia))
+      (toNat_toUSize (by lia)) 0 false hs.2.2 (by lia) _ _).symm
   · rfl
 
 /-! ## Subtracting without the borrow out
@@ -232,8 +232,8 @@ private theorem subAtLoop_tail (r : UInt32Array) (off : Nat) (a : UInt32Array.Sl
     subst hc
     rw [subAtLoop]
     simp only [h, hstop, ↓reduceDIte, ↓reduceIte]
-    rw [ih (by omega)]
-    have hg : a.getD j 0 = 0 := by simp [UInt32Array.Slice.getD_eq, show ¬ j < a.size by omega]
+    rw [ih (by lia)]
+    have hg : a.getD j 0 = 0 := by simp [UInt32Array.Slice.getD_eq, show ¬ j < a.size by lia]
     have hp := UInt32.subWithBorrow_zero_true r[off + j]
     simp only [p, hg, hp] at *
     conv => rhs; rw [decrFrom]
@@ -267,7 +267,7 @@ public def subIntoFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) : U
         have := a.stop_le_array_size
         have := a.start_le_stop
         have := a.size_eq
-        rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]
+        rw [toNat_toUSize (by lia), toNat_toUSize (by lia)]
         exact hs.2.2)
   else
     (subAtLoop r off a 0 false).1
@@ -282,8 +282,8 @@ public def subIntoFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) : U
     have := a.start_le_stop
     have := a.size_eq
     rw [UInt32Array.foldInPlaceThen_eq]
-    rw [← foldInPlace_loop_subAt r off a (lt_usizeSize hs.2.1) _ _ (toNat_toUSize (by omega))
-      (toNat_toUSize (by omega)) 0 false hs.2.2 (by omega) _ _, subAtLoop_tail _ _ _ _ _ (by omega)]
+    rw [← foldInPlace_loop_subAt r off a (lt_usizeSize hs.2.1) _ _ (toNat_toUSize (by lia))
+      (toNat_toUSize (by lia)) 0 false hs.2.2 (by lia) _ _, subAtLoop_tail _ _ _ _ _ (by lia)]
     rfl
   · rfl
 
@@ -308,12 +308,12 @@ public def subLimbs (a b : UInt32Array.Slice) : UInt32Array :=
 
 @[simp] public theorem size_subLimbs (a b : UInt32Array.Slice) (hb : b.size ≤ a.size) :
     (subLimbs a b).size = a.size := by
-  rw [subLimbs, size_subInto _ _ _ (by rw [size_copyPadded _ _ (Nat.le_refl _)]; omega),
+  rw [subLimbs, size_subInto _ _ _ (by rw [size_copyPadded _ _ (Nat.le_refl _)]; lia),
     size_copyPadded _ _ (Nat.le_refl _)]
 
 public theorem toNat_subLimbs (a b : UInt32Array.Slice) (hb : b.size ≤ a.size)
     (hle : toNat b ≤ toNat a) : toNat (subLimbs a b) = toNat a - toNat b := by
-  rw [subLimbs, toNat_subInto_of_le _ _ _ (by rw [size_copyPadded _ _ (Nat.le_refl _)]; omega)
+  rw [subLimbs, toNat_subInto_of_le _ _ _ (by rw [size_copyPadded _ _ (Nat.le_refl _)]; lia)
     (by rw [toNat_copyPadded]; simpa using hle), toNat_copyPadded]
   simp
 
@@ -324,14 +324,14 @@ limbs, which keeps its value when `y ≤ x`.
 public def subVal (x y : UInt32Array) : UInt32Array := subLimbs x (y.toSlice 0 x.size)
 
 @[simp] public theorem size_subVal (x y : UInt32Array) : (subVal x y).size = x.size := by
-  rw [subVal, size_subLimbs _ _ (by simp; omega)]
+  rw [subVal, size_subLimbs _ _ (by simp; lia)]
   simp
 
 public theorem toNat_subVal (x y : UInt32Array) (h : toNat y ≤ toNat x) :
     toNat (subVal x y) = toNat x - toNat y := by
   have hx := toNat_lt x
   simp only [UInt32Array.size_toSlice, Nat.min_self, Nat.sub_zero] at hx
-  have hy : toNat (y.toSlice 0 x.size) = toNat y := toNat_toSlice_of_lt y x.size (by omega)
-  rw [subVal, toNat_subLimbs _ _ (by simp; omega) (by rw [hy]; exact h), hy]
+  have hy : toNat (y.toSlice 0 x.size) = toNat y := toNat_toSlice_of_lt y x.size (by lia)
+  rw [subVal, toNat_subLimbs _ _ (by simp; lia) (by rw [hy]; exact h), hy]
 
 end MPN

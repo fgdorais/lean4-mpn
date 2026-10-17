@@ -23,7 +23,7 @@ def addMul1Loop (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UInt3
     (c : UInt32) (h : off + a.size ≤ r.size) : UInt32Array × UInt32 :=
   if hj : j < a.size then
     let p := a[j].mulAddAdd x r[off + j] c
-    addMul1Loop (r.set (off + j) p.1 (by omega)) off a x (j + 1) p.2 (by simpa using h)
+    addMul1Loop (r.set (off + j) p.1 (by lia)) off a x (j + 1) p.2 (by simpa using h)
   else
     (r, c)
 termination_by a.size - j
@@ -68,7 +68,7 @@ public def addMul1Fast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x 
         have := a.stop_le_array_size
         have := a.start_le_stop
         have := a.size_eq
-        rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]
+        rw [toNat_toUSize (by lia), toNat_toUSize (by lia)]
         exact h)
   else
     addMul1Loop r off a x 0 0 h
@@ -101,8 +101,8 @@ private theorem foldInPlace_loop_addMul1 (r : UInt32Array) (off : Nat) (a : UInt
     have := a.stop_le_array_size
     have := a.start_le_stop
     have := a.size_eq
-    exact (foldInPlace_loop_addMul1 r off a x (lt_usizeSize hs.2) _ _ (toNat_toUSize (by omega))
-      (toNat_toUSize (by omega)) 0 0 h _ _).symm
+    exact (foldInPlace_loop_addMul1 r off a x (lt_usizeSize hs.2) _ _ (toNat_toUSize (by lia))
+      (toNat_toUSize (by lia)) 0 0 h _ _).symm
   · rfl
 
 /-! ## Correctness -/
@@ -118,10 +118,10 @@ private theorem addMul1Loop_spec (r : UInt32Array) (off : Nat) (a : UInt32Array.
   | case1 r j c h hj' p ih =>
     rw [addMul1Loop]
     simp only [hj', ↓reduceDIte]
-    obtain ⟨ih₁, ih₂⟩ := ih (by omega)
+    obtain ⟨ih₁, ih₂⟩ := ih (by lia)
     simp only [UInt32Array.size_set] at ih₁
     refine ⟨ih₁, ?_⟩
-    have hk : off + j < r.toList.length := by simp; omega
+    have hk : off + j < r.toList.length := by simp; lia
     have hset := ofLimbs_set r.toList (off + j) p.1 hk
     have : p.1.toNat + p.2.toNat * 2 ^ 32 = a[j].toNat * x.toNat + r[off + j].toNat + c.toNat :=
       UInt32.mulAddAdd_spec a[j] x r[off + j] c
@@ -140,8 +140,8 @@ private theorem addMul1Loop_spec (r : UInt32Array) (off : Nat) (a : UInt32Array.
   | case2 r j c h hj' =>
     rw [addMul1Loop]
     simp only [hj', ↓reduceDIte]
-    have h₂ : a.copy.toList.drop j = [] := List.drop_of_length_le (by simp; omega)
-    have h₃ : j = a.size := by omega
+    have h₂ : a.copy.toList.drop j = [] := List.drop_of_length_le (by simp; lia)
+    have h₃ : j = a.size := by lia
     rw [h₂, h₃]
     simp
 
@@ -153,7 +153,7 @@ private theorem getElem?_toList_addMul1Loop (r : UInt32Array) (off : Nat)
   | case1 r j c h hj' p ih =>
     rw [addMul1Loop]
     simp only [hj', ↓reduceDIte]
-    rw [ih (by omega), UInt32Array.toList_set, List.getElem?_set_ne (by omega)]
+    rw [ih (by lia), UInt32Array.toList_set, List.getElem?_set_ne (by lia)]
   | case2 r j c h hj' =>
     rw [addMul1Loop]
     simp only [hj', ↓reduceDIte]
@@ -167,7 +167,7 @@ public theorem getElem?_addMul1 (r : UInt32Array) (off : Nat) (a : UInt32Array.S
     (x : UInt32) (h : off + a.size ≤ r.size) (k : Nat) (hk : k < off ∨ off + a.size ≤ k) :
     (addMul1 r off a x h).1[k]? = r[k]? := by
   rw [← UInt32Array.getElem?_toList, ← UInt32Array.getElem?_toList]
-  exact getElem?_toList_addMul1Loop r off a x 0 0 h k (by omega)
+  exact getElem?_toList_addMul1Loop r off a x 0 0 h k (by lia)
 
 public theorem toNat_addMul1 (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UInt32)
     (h : off + a.size ≤ r.size) :
@@ -183,7 +183,7 @@ the schoolbook loops, where that limb is still zero.
 -/
 public def addMul1Set (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UInt32)
     (h : off + a.size < r.size) : UInt32Array :=
-  let p := addMul1 r off a x (by omega)
+  let p := addMul1 r off a x (by lia)
   p.1.set (off + a.size) p.2 (by rw [size_addMul1]; exact h)
 
 /--
@@ -203,15 +203,15 @@ public def addMul1SetFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) 
         have := a.stop_le_array_size
         have := a.start_le_stop
         have := a.size_eq
-        rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]
-        omega)
+        rw [toNat_toUSize (by lia), toNat_toUSize (by lia)]
+        lia)
   else
-    let p := addMul1Loop r off a x 0 0 (by omega)
+    let p := addMul1Loop r off a x 0 0 (by lia)
     if h' : off + a.size < p.1.size then p.1.set (off + a.size) p.2 h' else p.1
 
 @[csimp] public theorem addMul1Set_eq_addMul1SetFast : @addMul1Set = @addMul1SetFast := by
   funext r off a x h
-  have hsz := size_addMul1 r off a x (by omega)
+  have hsz := size_addMul1 r off a x (by lia)
   rw [addMul1Set, addMul1SetFast]
   split
   · rename_i hs
@@ -223,10 +223,10 @@ public def addMul1SetFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) 
     have heq : r.foldInPlace off.toUSize a.size.toUSize 0
         (addMul1Step a.array a.start.toUSize a.size.toUSize (lt_usizeSize hs.2)
           (limbU_bound a (lt_usizeSize hs.2)) x)
-        (by rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]; omega) =
-        addMul1 r off a x (by omega) :=
-      foldInPlace_loop_addMul1 r off a x (lt_usizeSize hs.2) _ _ (toNat_toUSize (by omega))
-        (toNat_toUSize (by omega)) 0 0 (by omega) _ _
+        (by rw [toNat_toUSize (by lia), toNat_toUSize (by lia)]; lia) =
+        addMul1 r off a x (by lia) :=
+      foldInPlace_loop_addMul1 r off a x (lt_usizeSize hs.2) _ _ (toNat_toUSize (by lia))
+        (toNat_toUSize (by lia)) 0 0 (by lia) _ _
     simp only [heq, hsz, h, ↓reduceDIte]
   · simp only [addMul1] at hsz ⊢
     simp only [hsz, h, ↓reduceDIte]
@@ -241,12 +241,12 @@ directly, without the slice object, for the rows of the schoolbook square.
 -/
 public def addMul1SetPre (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (n : Nat)
     (x : UInt32) (hn : n ≤ a.size) (h : off + n < r.size) : UInt32Array :=
-  addMul1Set r off (a.slice 0 n) x (by rw [UInt32Array.Slice.size_slice]; omega)
+  addMul1Set r off (a.slice 0 n) x (by rw [UInt32Array.Slice.size_slice]; lia)
 
 public theorem addMul1SetPre_eq (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (n : Nat)
     (x : UInt32) (hn : n ≤ a.size) (h : off + n < r.size) :
     addMul1SetPre r off a n x hn h =
-      addMul1Set r off (a.slice 0 n) x (by rw [UInt32Array.Slice.size_slice]; omega) := by
+      addMul1Set r off (a.slice 0 n) x (by rw [UInt32Array.Slice.size_slice]; lia) := by
   rw [addMul1SetPre]
 
 private theorem prefix_bound (a : UInt32Array.Slice) (n : Nat) (hn : n ≤ a.size)
@@ -255,18 +255,18 @@ private theorem prefix_bound (a : UInt32Array.Slice) (n : Nat) (hn : n ≤ a.siz
   have := a.stop_le_array_size
   have := a.start_le_stop
   have := a.size_eq
-  rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]
-  omega
+  rw [toNat_toUSize (by lia), toNat_toUSize (by lia)]
+  lia
 
 private theorem limbU_prefix_eq (a : UInt32Array.Slice) (n : Nat) (hn : n ≤ a.size)
     (has : a.array.size < USize.size) (k : Nat) (hk) (hk' : k < n) :
     limbU a.array a.start.toUSize n.toUSize has (prefix_bound a n hn has) k.toUSize hk =
-      (a.slice 0 n)[k]'(by rw [UInt32Array.Slice.size_slice]; omega) := by
+      (a.slice 0 n)[k]'(by rw [UInt32Array.Slice.size_slice]; lia) := by
   have := a.stop_le_array_size
   have := a.start_le_stop
   have := a.size_eq
   rw [limbU_eq_getElem _ _ _ _ _ _ _ (a.start + k)
-    (by rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]), UInt32Array.Slice.getElem_slice]
+    (by rw [toNat_toUSize (by lia), toNat_toUSize (by lia)]), UInt32Array.Slice.getElem_slice]
   simp only [Nat.zero_add]
   rfl
 
@@ -279,17 +279,17 @@ private theorem foldInPlace_loop_addMul1Pre (r : UInt32Array) (off : Nat) (a : U
         (addMul1Step a.array a.start.toUSize n.toUSize has (prefix_bound a n hn has) x) s m r h'
         hlen k c =
       addMul1Loop r off (a.slice 0 n) x k c h := by
-  have hsz : (a.slice 0 n).size = n := by rw [UInt32Array.Slice.size_slice]; omega
+  have hsz : (a.slice 0 n).size = n := by rw [UInt32Array.Slice.size_slice]; lia
   subst s m
   induction r, k, c, h using addMul1Loop.induct off (a.slice 0 n) x with
   | case1 r k c h hk p ih =>
     rw [UInt32Array.foldInPlace.loop, addMul1Loop]
-    simp only [show k < n by omega, hk, ↓reduceDIte]
-    simp only [addMul1Step, limbU_prefix_eq a n hn has k _ (by omega)]
+    simp only [show k < n by lia, hk, ↓reduceDIte]
+    simp only [addMul1Step, limbU_prefix_eq a n hn has k _ (by lia)]
     exact ih _
   | case2 r k c h hk =>
     rw [UInt32Array.foldInPlace.loop, addMul1Loop]
-    simp only [show ¬ k < n by omega, hk, ↓reduceDIte]
+    simp only [show ¬ k < n by lia, hk, ↓reduceDIte]
 
 /-- `addMul1SetPre` with `foldInPlaceThen` over the array of `a`, used by the compiler. -/
 public def addMul1SetPreFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (n : Nat)
@@ -302,15 +302,15 @@ public def addMul1SetPreFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slic
       (fun r' c => if h' : off + n < r'.size then r'.set (off + n) c h' else r')
       (by
         have := USize.le_size
-        rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]; omega)
+        rw [toNat_toUSize (by lia), toNat_toUSize (by lia)]; lia)
   else
-    addMul1Set r off (a.slice 0 n) x (by rw [UInt32Array.Slice.size_slice]; omega)
+    addMul1Set r off (a.slice 0 n) x (by rw [UInt32Array.Slice.size_slice]; lia)
 
 @[csimp] public theorem addMul1SetPre_eq_addMul1SetPreFast :
     @addMul1SetPre = @addMul1SetPreFast := by
   funext r off a n x hn h
-  have hsz : (a.slice 0 n).size = n := by rw [UInt32Array.Slice.size_slice]; omega
-  have hsize := size_addMul1 r off (a.slice 0 n) x (by omega)
+  have hsz : (a.slice 0 n).size = n := by rw [UInt32Array.Slice.size_slice]; lia
+  have hsize := size_addMul1 r off (a.slice 0 n) x (by lia)
   rw [addMul1SetPre, addMul1SetPreFast]
   split
   · rename_i hs
@@ -319,10 +319,10 @@ public def addMul1SetPreFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slic
     have heq : r.foldInPlace off.toUSize n.toUSize 0
         (addMul1Step a.array a.start.toUSize n.toUSize (lt_usizeSize hs.2)
           (prefix_bound a n hn (lt_usizeSize hs.2)) x)
-        (by rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]; omega) =
-        addMul1 r off (a.slice 0 n) x (by omega) :=
-      foldInPlace_loop_addMul1Pre r off a n hn x (lt_usizeSize hs.2) _ _ (toNat_toUSize (by omega))
-        (toNat_toUSize (by omega)) 0 0 (by omega) _ _
+        (by rw [toNat_toUSize (by lia), toNat_toUSize (by lia)]; lia) =
+        addMul1 r off (a.slice 0 n) x (by lia) :=
+      foldInPlace_loop_addMul1Pre r off a n hn x (lt_usizeSize hs.2) _ _ (toNat_toUSize (by lia))
+        (toNat_toUSize (by lia)) 0 0 (by lia) _ _
     rw [heq, addMul1Set]
     simp only [hsz, hsize, h, ↓reduceDIte]
   · rfl
@@ -331,15 +331,15 @@ public def addMul1SetPreFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slic
 public theorem toNat_addMul1Set (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
     (x : UInt32) (h : off + a.size < r.size) (hz : r[off + a.size] = 0) :
     toNat (addMul1Set r off a x h) = toNat r + 2 ^ (32 * off) * (toNat a * x.toNat) := by
-  have hadd := toNat_addMul1 r off a x (by omega)
+  have hadd := toNat_addMul1 r off a x (by lia)
   -- The limb at `off + a.size` is still zero, so writing the carry there adds `β^(off + n) c`.
-  have hz' : (addMul1 r off a x (by omega)).1[off + a.size]'(by simp; omega) = 0 := by
-    have := getElem?_addMul1 r off a x (by omega) (off + a.size) (by omega)
-    rw [getElem?_pos (addMul1 r off a x (by omega)).1 (off + a.size) (by simp; omega),
+  have hz' : (addMul1 r off a x (by lia)).1[off + a.size]'(by simp; lia) = 0 := by
+    have := getElem?_addMul1 r off a x (by lia) (off + a.size) (by lia)
+    rw [getElem?_pos (addMul1 r off a x (by lia)).1 (off + a.size) (by simp; lia),
       getElem?_pos r (off + a.size) h, Option.some.injEq] at this
     rw [this, hz]
-  have hset := ofLimbs_set (addMul1 r off a x (by omega)).1.toList (off + a.size)
-    (addMul1 r off a x (by omega)).2 (by simp; omega)
+  have hset := ofLimbs_set (addMul1 r off a x (by lia)).1.toList (off + a.size)
+    (addMul1 r off a x (by lia)).2 (by simp; lia)
   simp only [UInt32Array.getElem_toList, hz', UInt32.toNat_zero, Nat.mul_zero,
     Nat.add_zero] at hset
   simp only [toNat_toSlice] at hadd
@@ -383,7 +383,7 @@ def subMul1Loop (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UInt3
     (c : UInt32) (h : off + a.size ≤ r.size) : UInt32Array × UInt32 :=
   if hj : j < a.size then
     let p := r[off + j].subMul a[j] x c
-    subMul1Loop (r.set (off + j) p.1 (by omega)) off a x (j + 1) p.2 (by simpa using h)
+    subMul1Loop (r.set (off + j) p.1 (by lia)) off a x (j + 1) p.2 (by simpa using h)
   else
     (r, c)
 termination_by a.size - j
@@ -419,7 +419,7 @@ public def subMul1Fast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x 
         have := a.stop_le_array_size
         have := a.start_le_stop
         have := a.size_eq
-        rw [toNat_toUSize (by omega), toNat_toUSize (by omega)]
+        rw [toNat_toUSize (by lia), toNat_toUSize (by lia)]
         exact h)
   else
     subMul1Loop r off a x 0 0 h
@@ -457,8 +457,8 @@ private theorem foldInPlace_loop_subMul1 (r : UInt32Array) (off : Nat) (a : UInt
     have := a.size_eq
     rw [UInt32Array.foldInPlaceThen_eq, UInt32Array.foldInPlace,
       show (0xFFFFFFFF : UInt32) = ~~~0 from rfl,
-      foldInPlace_loop_subMul1 r off a x (lt_usizeSize hs.2) _ _ (toNat_toUSize (by omega))
-        (toNat_toUSize (by omega)) 0 0 h _ _]
+      foldInPlace_loop_subMul1 r off a x (lt_usizeSize hs.2) _ _ (toNat_toUSize (by lia))
+        (toNat_toUSize (by lia)) 0 0 h _ _]
     simp
   · rfl
 
@@ -489,10 +489,10 @@ private theorem subMul1Loop_spec (r : UInt32Array) (off : Nat) (a : UInt32Array.
   | case1 r j c h hj' p ih =>
     rw [subMul1Loop]
     simp only [hj', ↓reduceDIte]
-    obtain ⟨ih₁, ih₂⟩ := ih (by omega)
+    obtain ⟨ih₁, ih₂⟩ := ih (by lia)
     simp only [UInt32Array.size_set] at ih₁ ih₂
     refine ⟨ih₁, ?_⟩
-    have hk : off + j < r.toList.length := by simp; omega
+    have hk : off + j < r.toList.length := by simp; lia
     have hset := ofLimbs_set r.toList (off + j) p.1 hk
     have : p.1.toNat + a[j].toNat * x.toNat + c.toNat = r[off + j].toNat + p.2.toNat * 2 ^ 32 :=
       UInt32.subMul_spec r[off + j] a[j] x c
@@ -500,7 +500,7 @@ private theorem subMul1Loop_spec (r : UInt32Array) (off : Nat) (a : UInt32Array.
     rw [UInt32Array.toList_set, ← Nat.add_assoc off j 1, Nat.mul_add 32 (off + j) 1, Nat.mul_one,
       Nat.pow_add] at ih₂
     rw [toList_copy_drop hj', ofLimbs_cons]
-    generalize subMul1Loop (r.set (off + j) p.1 (by omega)) off a x (j + 1) p.2
+    generalize subMul1Loop (r.set (off + j) p.1 (by lia)) off a x (j + 1) p.2
       (by simpa using h) = q at *
     generalize ofLimbs q.1.toList = F at *
     generalize q.2.toNat = b at *
@@ -516,8 +516,8 @@ private theorem subMul1Loop_spec (r : UInt32Array) (off : Nat) (a : UInt32Array.
   | case2 r j c h hj' =>
     rw [subMul1Loop]
     simp only [hj', ↓reduceDIte]
-    have h₂ : a.copy.toList.drop j = [] := List.drop_of_length_le (by simp; omega)
-    have h₃ : j = a.size := by omega
+    have h₂ : a.copy.toList.drop j = [] := List.drop_of_length_le (by simp; lia)
+    have h₃ : j = a.size := by lia
     rw [h₂, h₃]
     simp
 
@@ -529,7 +529,7 @@ private theorem getElem?_toList_subMul1Loop (r : UInt32Array) (off : Nat)
   | case1 r j c h hj' p ih =>
     rw [subMul1Loop]
     simp only [hj', ↓reduceDIte]
-    rw [ih (by omega), UInt32Array.toList_set, List.getElem?_set_ne (by omega)]
+    rw [ih (by lia), UInt32Array.toList_set, List.getElem?_set_ne (by lia)]
   | case2 r j c h hj' =>
     rw [subMul1Loop]
     simp only [hj', ↓reduceDIte]
@@ -543,7 +543,7 @@ public theorem getElem?_subMul1 (r : UInt32Array) (off : Nat) (a : UInt32Array.S
     (x : UInt32) (h : off + a.size ≤ r.size) (k : Nat) (hk : k < off ∨ off + a.size ≤ k) :
     (subMul1 r off a x h).1[k]? = r[k]? := by
   rw [← UInt32Array.getElem?_toList, ← UInt32Array.getElem?_toList]
-  exact getElem?_toList_subMul1Loop r off a x 0 0 h k (by omega)
+  exact getElem?_toList_subMul1Loop r off a x 0 0 h k (by lia)
 
 public theorem toNat_subMul1 (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UInt32)
     (h : off + a.size ≤ r.size) :
@@ -574,9 +574,9 @@ private theorem addMul1Loop_append (W H : UInt32Array) (off : Nat) (a : UInt32Ar
   | case1 W j c h hj p ih =>
     rw [addMul1Loop, addMul1Loop]
     simp only [hj, ↓reduceDIte]
-    have hg : (W ++ H)[off + j]'(by simp; omega) = W[off + j] :=
-      UInt32Array.getElem_append_left (by omega)
-    simp only [hg, set_append_left W H (off + j) _ (by omega)]
+    have hg : (W ++ H)[off + j]'(by simp; lia) = W[off + j] :=
+      UInt32Array.getElem_append_left (by lia)
+    simp only [hg, set_append_left W H (off + j) _ (by lia)]
     exact ih _
   | case2 W j c h hj =>
     rw [addMul1Loop, addMul1Loop]
@@ -596,9 +596,9 @@ private theorem subMul1Loop_append (W H : UInt32Array) (off : Nat) (a : UInt32Ar
   | case1 W j c h hj p ih =>
     rw [subMul1Loop, subMul1Loop]
     simp only [hj, ↓reduceDIte]
-    have hg : (W ++ H)[off + j]'(by simp; omega) = W[off + j] :=
-      UInt32Array.getElem_append_left (by omega)
-    simp only [hg, set_append_left W H (off + j) _ (by omega)]
+    have hg : (W ++ H)[off + j]'(by simp; lia) = W[off + j] :=
+      UInt32Array.getElem_append_left (by lia)
+    simp only [hg, set_append_left W H (off + j) _ (by lia)]
     exact ih _
   | case2 W j c h hj =>
     rw [subMul1Loop, subMul1Loop]

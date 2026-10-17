@@ -22,7 +22,7 @@ namespace MPN
 def mulBasecaseLoop (a b : UInt32Array.Slice) (r : UInt32Array) (i : Nat)
     (h : r.size = a.size + b.size) : UInt32Array :=
   if hi : i < a.size then
-    mulBasecaseLoop a b (addMul1Set r i b a[i] (by omega)) (i + 1) (by simp [h])
+    mulBasecaseLoop a b (addMul1Set r i b a[i] (by lia)) (i + 1) (by simp [h])
   else
     r
 termination_by a.size - i
@@ -43,7 +43,7 @@ private theorem mulBasecaseLoop_spec (a b : UInt32Array.Slice) (r : UInt32Array)
   | case1 r i h hi' ih =>
     rw [mulBasecaseLoop]
     simp only [hi', ↓reduceDIte]
-    apply ih (by omega)
+    apply ih (by lia)
     -- The limb at `i + b.size` is zero, since the value so far is below `2^(32 (i + b.size))`.
     have hA := ofLimbs_lt (a.copy.toList.take i)
     have hB := toNat_lt b
@@ -52,10 +52,10 @@ private theorem mulBasecaseLoop_spec (a b : UInt32Array.Slice) (r : UInt32Array)
     have hlt : ofLimbs r.toList < 2 ^ (32 * (i + b.size)) := by
       rw [hr, Nat.mul_add, Nat.pow_add]
       exact Nat.mul_lt_mul'' hA hB
-    have hk : i + b.size < r.toList.length := by simp; omega
+    have hk : i + b.size < r.toList.length := by simp; lia
     have hz : r.toList[i + b.size] = 0 := getElem_eq_zero_of_ofLimbs_lt hk hlt
     simp only [UInt32Array.getElem_toList] at hz
-    have hadd := toNat_addMul1Set r i b a[i] (by omega) hz
+    have hadd := toNat_addMul1Set r i b a[i] (by lia) hz
     simp only [toNat_toSlice] at hadd
     rw [hadd, hr, ofLimbs_take_add_one _ _ (by simpa using hi'), toNat]
     simp only [UInt32Array.getElem_toList, UInt32Array.Slice.getElem_copy]
@@ -64,7 +64,7 @@ private theorem mulBasecaseLoop_spec (a b : UInt32Array.Slice) (r : UInt32Array)
     rw [mulBasecaseLoop]
     simp only [hi', ↓reduceDIte]
     refine ⟨h, ?_⟩
-    have : i = a.size := by omega
+    have : i = a.size := by lia
     rw [hr, this, List.take_of_length_le (by simp)]
     rfl
 

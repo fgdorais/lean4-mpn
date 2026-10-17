@@ -44,7 +44,7 @@ public theorem UInt8.addWithCarry_spec (x y : UInt8) (c : Bool) :
   have := x.toNat_lt
   have := y.toNat_lt
   rw [addWithCarry, high_ne_zero]
-  cases c <;> simp [UInt16.toNat_add, Bool.toUInt16, Bool.toNat] <;> split <;> omega
+  cases c <;> simp [UInt16.toNat_add, Bool.toUInt16, Bool.toNat] <;> split <;> lia
 
 public theorem UInt8.subWithBorrow_spec (x y : UInt8) (b : Bool) :
     (x.subWithBorrow y b).1.toNat + y.toNat + b.toNat =
@@ -55,7 +55,7 @@ public theorem UInt8.subWithBorrow_spec (x y : UInt8) (b : Bool) :
   cases b <;>
     simp only [UInt16.toNat_toUInt8, UInt16.toNat_sub, UInt8.toNat_toUInt16, Bool.toUInt16,
       Bool.toNat, Bool.cond_false, Bool.cond_true, UInt16.toNat_zero, UInt16.toNat_one,
-      Bool.false_eq_true, ↓reduceIte, Bool.cond_decide, Nat.reducePow] <;> split <;> omega
+      Bool.false_eq_true, ↓reduceIte, Bool.cond_decide, Nat.reducePow] <;> split <;> lia
 
 public theorem UInt8.mulAddAdd_spec (x y a b : UInt8) :
     (x.mulAddAdd y a b).1.toNat + (x.mulAddAdd y a b).2.toNat * 2 ^ 8 =
@@ -64,12 +64,12 @@ public theorem UInt8.mulAddAdd_spec (x y a b : UInt8) :
   have := y.toNat_lt
   have := a.toNat_lt
   have := b.toNat_lt
-  have : x.toNat * y.toNat ≤ (2 ^ 8 - 1) * (2 ^ 8 - 1) := Nat.mul_le_mul (by omega) (by omega)
+  have : x.toNat * y.toNat ≤ (2 ^ 8 - 1) * (2 ^ 8 - 1) := Nat.mul_le_mul (by lia) (by lia)
   simp only [mulAddAdd, UInt16.toNat_add, UInt16.toNat_mul, UInt16.toNat_toUInt8,
     UInt8.toNat_toUInt16, UInt16.toNat_shiftRight, Nat.shiftRight_eq_div_pow, UInt16.toNat_ofNat,
     Nat.reduceMod, Nat.reducePow] at *
   generalize x.toNat * y.toNat = p at *
-  omega
+  lia
 
 /-! ## `UInt16` -/
 
@@ -98,7 +98,7 @@ public theorem UInt16.addWithCarry_spec (x y : UInt16) (c : Bool) :
   have := x.toNat_lt
   have := y.toNat_lt
   rw [addWithCarry, high_ne_zero]
-  cases c <;> simp [UInt32.toNat_add, Bool.toUInt32, Bool.toNat] <;> split <;> omega
+  cases c <;> simp [UInt32.toNat_add, Bool.toUInt32, Bool.toNat] <;> split <;> lia
 
 public theorem UInt16.subWithBorrow_spec (x y : UInt16) (b : Bool) :
     (x.subWithBorrow y b).1.toNat + y.toNat + b.toNat =
@@ -109,7 +109,7 @@ public theorem UInt16.subWithBorrow_spec (x y : UInt16) (b : Bool) :
   cases b <;>
     simp only [UInt32.toNat_toUInt16, UInt32.toNat_sub, UInt16.toNat_toUInt32, Bool.toUInt32,
       Bool.toNat, Bool.cond_false, Bool.cond_true, UInt32.toNat_zero, UInt32.toNat_one,
-      Bool.false_eq_true, ↓reduceIte, Bool.cond_decide, Nat.reducePow] <;> split <;> omega
+      Bool.false_eq_true, ↓reduceIte, Bool.cond_decide, Nat.reducePow] <;> split <;> lia
 
 public theorem UInt16.mulAddAdd_spec (x y a b : UInt16) :
     (x.mulAddAdd y a b).1.toNat + (x.mulAddAdd y a b).2.toNat * 2 ^ 16 =
@@ -118,12 +118,12 @@ public theorem UInt16.mulAddAdd_spec (x y a b : UInt16) :
   have := y.toNat_lt
   have := a.toNat_lt
   have := b.toNat_lt
-  have : x.toNat * y.toNat ≤ (2 ^ 16 - 1) * (2 ^ 16 - 1) := Nat.mul_le_mul (by omega) (by omega)
+  have : x.toNat * y.toNat ≤ (2 ^ 16 - 1) * (2 ^ 16 - 1) := Nat.mul_le_mul (by lia) (by lia)
   simp only [mulAddAdd, UInt32.toNat_add, UInt32.toNat_mul, UInt32.toNat_toUInt16,
     UInt16.toNat_toUInt32, UInt32.toNat_shiftRight, Nat.shiftRight_eq_div_pow, UInt32.toNat_ofNat,
     Nat.reduceMod, Nat.reducePow] at *
   generalize x.toNat * y.toNat = p at *
-  omega
+  lia
 
 /-! ## `UInt32` -/
 
@@ -152,7 +152,7 @@ public theorem UInt32.addWithCarry_spec (x y : UInt32) (c : Bool) :
   have := x.toNat_lt
   have := y.toNat_lt
   rw [addWithCarry, high_ne_zero]
-  cases c <;> simp [UInt64.toNat_add, Bool.toUInt64, Bool.toNat] <;> split <;> omega
+  cases c <;> simp [UInt64.toNat_add, Bool.toUInt64, Bool.toNat] <;> split <;> lia
 
 public theorem UInt32.subWithBorrow_spec (x y : UInt32) (b : Bool) :
     (x.subWithBorrow y b).1.toNat + y.toNat + b.toNat =
@@ -163,7 +163,7 @@ public theorem UInt32.subWithBorrow_spec (x y : UInt32) (b : Bool) :
   cases b <;>
     simp only [UInt64.toNat_toUInt32, UInt64.toNat_sub, UInt32.toNat_toUInt64, Bool.toUInt64,
       Bool.toNat, Bool.cond_false, Bool.cond_true, UInt64.toNat_zero, UInt64.toNat_one,
-      Bool.false_eq_true, ↓reduceIte, Bool.cond_decide, Nat.reducePow] <;> split <;> omega
+      Bool.false_eq_true, ↓reduceIte, Bool.cond_decide, Nat.reducePow] <;> split <;> lia
 
 public theorem UInt32.mulAddAdd_spec (x y a b : UInt32) :
     (x.mulAddAdd y a b).1.toNat + (x.mulAddAdd y a b).2.toNat * 2 ^ 32 =
@@ -172,12 +172,12 @@ public theorem UInt32.mulAddAdd_spec (x y a b : UInt32) :
   have := y.toNat_lt
   have := a.toNat_lt
   have := b.toNat_lt
-  have : x.toNat * y.toNat ≤ (2 ^ 32 - 1) * (2 ^ 32 - 1) := Nat.mul_le_mul (by omega) (by omega)
+  have : x.toNat * y.toNat ≤ (2 ^ 32 - 1) * (2 ^ 32 - 1) := Nat.mul_le_mul (by lia) (by lia)
   simp only [mulAddAdd, UInt64.toNat_add, UInt64.toNat_mul, UInt64.toNat_toUInt32,
     UInt32.toNat_toUInt64, UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow, UInt64.toNat_ofNat,
     Nat.reduceMod, Nat.reducePow] at *
   generalize x.toNat * y.toNat = p at *
-  omega
+  lia
 
 /--
 `addWithCarry` with the carry as a word, `0` or `1`. The compiled loops thread this carry, which
@@ -202,7 +202,7 @@ public theorem UInt32.addWithCarryWord_toUInt32 (x y : UInt32) (c : Bool) :
   apply UInt32.toNat_inj.1
   cases c <;> simp [UInt64.toNat_add, Bool.toUInt64, Bool.toUInt32, bne, ← UInt64.toNat_inj,
     Nat.shiftRight_eq_div_pow] <;> split <;> simp only [UInt32.toNat_zero, UInt32.toNat_one] <;>
-    omega
+    omega -- `lia` and `grind` fail or time out here
 
 public theorem UInt32.subWithBorrowWord_toUInt32 (x y : UInt32) (b : Bool) :
     x.subWithBorrowWord y b.toUInt32 =
@@ -214,7 +214,7 @@ public theorem UInt32.subWithBorrowWord_toUInt32 (x y : UInt32) (b : Bool) :
   apply UInt32.toNat_inj.1
   cases b <;> simp [UInt64.toNat_sub, Bool.toUInt64, Bool.toUInt32, bne, ← UInt64.toNat_inj,
     Nat.shiftRight_eq_div_pow] <;> split <;> simp only [UInt32.toNat_zero, UInt32.toNat_one] <;>
-    omega
+    omega -- `lia` and `grind` fail or time out here
 
 /--
 `2 x + d + c` as its low word and its high word, the step of `mpn_sqr_diag_addlsh1`-style
@@ -234,7 +234,7 @@ public theorem UInt32.dblAddAdd_spec (x d c : UInt32) :
   simp only [dblAddAdd, UInt64.toNat_add, UInt64.toNat_toUInt32, UInt32.toNat_toUInt64,
     UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow, UInt64.toNat_ofNat, Nat.reduceMod,
     Nat.reducePow] at *
-  omega
+  lia
 
 /-- Adding a carry alone: `x + 1`, with a carry out exactly when `x` is the largest word. -/
 public theorem UInt32.addWithCarry_zero_true (x : UInt32) :
@@ -247,7 +247,7 @@ public theorem UInt32.addWithCarry_zero_true (x : UInt32) :
   · rw [Bool.eq_iff_iff]
     simp only [bne_iff_ne, ne_eq, beq_iff_eq, ← UInt64.toNat_inj, ← UInt32.toNat_inj]
     simp [UInt64.toNat_add, Nat.shiftRight_eq_div_pow, Bool.toUInt64]
-    omega
+    lia
 
 /-- Subtracting a borrow alone: `x - 1`, with a borrow out exactly when `x` is zero. -/
 public theorem UInt32.subWithBorrow_zero_true (x : UInt32) :
@@ -260,7 +260,7 @@ public theorem UInt32.subWithBorrow_zero_true (x : UInt32) :
   · rw [Bool.eq_iff_iff]
     simp only [bne_iff_ne, ne_eq, beq_iff_eq, ← UInt64.toNat_inj, ← UInt32.toNat_inj]
     simp [UInt64.toNat_sub, Nat.shiftRight_eq_div_pow, Bool.toUInt64]
-    omega
+    lia
 
 /--
 `y - (x * v + c)` as its low word, wrapping, and the borrow word `b`, so that
@@ -278,12 +278,12 @@ public theorem UInt32.subMul_spec (y x v c : UInt32) :
   have := x.toNat_lt
   have := v.toNat_lt
   have := c.toNat_lt
-  have : x.toNat * v.toNat ≤ (2 ^ 32 - 1) * (2 ^ 32 - 1) := Nat.mul_le_mul (by omega) (by omega)
+  have : x.toNat * v.toNat ≤ (2 ^ 32 - 1) * (2 ^ 32 - 1) := Nat.mul_le_mul (by lia) (by lia)
   simp only [subMul, UInt64.toNat_sub, UInt64.toNat_add, UInt64.toNat_mul, UInt64.toNat_toUInt32,
     UInt32.toNat_toUInt64, UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow, UInt64.toNat_ofNat,
     Nat.reduceMod, Nat.reducePow] at *
   generalize x.toNat * v.toNat = p at *
-  omega
+  lia
 
 /--
 `subMul` with the borrow `c` carried as `h = 2³² - 1 - c`, which shortens the dependency chain
@@ -301,7 +301,7 @@ public theorem UInt32.subMulBiased_not (y x v c : UInt32) :
   have := x.toNat_lt
   have := v.toNat_lt
   have := c.toNat_lt
-  have : x.toNat * v.toNat ≤ (2 ^ 32 - 1) * (2 ^ 32 - 1) := Nat.mul_le_mul (by omega) (by omega)
+  have : x.toNat * v.toNat ≤ (2 ^ 32 - 1) * (2 ^ 32 - 1) := Nat.mul_le_mul (by lia) (by lia)
   simp only [subMulBiased, subMul, Prod.mk.injEq]
   constructor
   · apply UInt32.toNat_inj.1
@@ -309,10 +309,10 @@ public theorem UInt32.subMulBiased_not (y x v c : UInt32) :
       UInt32.toNat_toUInt64, UInt32.toNat_not, UInt64.toNat_ofNat, Nat.reduceMod, Nat.reducePow,
       UInt32.size] at *
     generalize x.toNat * v.toNat = p at *
-    omega
+    lia
   · apply UInt32.toNat_inj.1
     simp only [UInt64.toNat_toUInt32, UInt64.toNat_sub, UInt64.toNat_add, UInt64.toNat_mul,
       UInt32.toNat_toUInt64, UInt32.toNat_not, UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow,
       UInt64.toNat_ofNat, Nat.reduceMod, Nat.reducePow, UInt32.size] at *
     generalize x.toNat * v.toNat = p at *
-    omega
+    omega -- `lia` and `grind` fail or time out here

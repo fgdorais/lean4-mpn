@@ -52,7 +52,7 @@ private theorem toNat_allOnes (m : Nat) : toNat (allOnes m) = 2 ^ (32 * m) - 1 :
     simp only [UInt32.reduceToNat]
     generalize 2 ^ (32 * m) = P at *
     rw [Nat.mul_sub, Nat.mul_one, Nat.mul_comm]
-    omega
+    lia
 
 /--
 The estimate of a block digit and the remainder of the top limbs `wh` of the window by the top
@@ -81,10 +81,10 @@ private theorem dcEstimate_spec (cfg : Config) (wh bh : UInt32Array.Slice) (s : 
     rw [heq]
     dsimp only
     have hq : toNat (copyPadded (d.1.toSlice 0 s) s) = toNat d.1 := by
-      rw [toNat_copyPadded, toNat_toSlice_of_lt _ _ (by omega)]
-    refine ⟨size_copyPadded _ _ (by simp; omega), by rw [hq]; omega, ?_⟩
+      rw [toNat_copyPadded, toNat_toSlice_of_lt _ _ (by lia)]
+    refine ⟨size_copyPadded _ _ (by simp; lia), by rw [hq]; lia, ?_⟩
     rw [hq]
-    omega
+    lia
   · have heq : dcEstimate cfg wh bh s d = (allOnes s, subInto (copyPadded wh (bh.size + s + 1)) 0
         (mulLimbsWith cfg (allOnes s) bh)) := by
       rw [dcEstimate, ite_eq_right h]
@@ -96,20 +96,20 @@ private theorem dcEstimate_spec (cfg : Config) (wh bh : UInt32Array.Slice) (s : 
     have hmv := hM.toNat_eq (allOnes s) bh
     rw [toNat_allOnes] at hmv
     -- `(βˢ - 1) bh ≤ q₁ bh ≤ wh`.
-    have h' : 2 ^ (32 * s) - 1 ≤ toNat d.1 := by omega
+    have h' : 2 ^ (32 * s) - 1 ≤ toNat d.1 := by lia
     have hle : (2 ^ (32 * s) - 1) * toNat bh ≤ toNat wh :=
-      Nat.le_trans (Nat.mul_le_mul_right (toNat bh) h') (by omega)
+      Nat.le_trans (Nat.mul_le_mul_right (toNat bh) h') (by lia)
     have hfit : 0 + (mulLimbsWith cfg (allOnes s) bh).toSlice.size ≤
         (copyPadded wh (bh.size + s + 1)).size := by
-      rw [UInt32Array.size_toSlice, hms, size_copyPadded _ _ (by omega)]
+      rw [UInt32Array.size_toSlice, hms, size_copyPadded _ _ (by lia)]
       simp [allOnes]
-      omega
+      lia
     have hsub := toNat_subInto_of_le _ _ _ hfit (by
       rw [toNat_copyPadded, hmv, Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; exact hle)
     rw [toNat_copyPadded, hmv, Nat.mul_zero, Nat.pow_zero, Nat.one_mul] at hsub
-    refine ⟨by simp [allOnes], by rw [toNat_allOnes]; omega, ?_⟩
+    refine ⟨by simp [allOnes], by rw [toNat_allOnes]; lia, ?_⟩
     rw [hsub, toNat_allOnes]
-    omega
+    lia
 
 /--
 The correction of a block digit: while `x < p`, adds `v` to `x` and decreases the estimate `qh`
@@ -130,10 +130,10 @@ decreasing_by
     rw [h'] at h₂
     exact Bool.noConfusion h₂
   rw [toNat_oneLimb] at hle
-  rw [toNat_subInto_of_le _ _ _ (by simp [oneLimb]; omega)
-    (by rw [toNat_oneLimb, Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; omega), toNat_oneLimb,
+  rw [toNat_subInto_of_le _ _ _ (by simp [oneLimb]; lia)
+    (by rw [toNat_oneLimb, Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; lia), toNat_oneLimb,
     Nat.mul_zero, Nat.pow_zero, Nat.one_mul]
-  omega
+  lia
 
 private theorem dcFix_spec (v p : UInt32Array.Slice) (x qh : UInt32Array) (W : Nat)
     (hV : 0 < toNat v) (hq : 1 ≤ qh.size) (hvx : v.size ≤ x.size)
@@ -153,14 +153,14 @@ private theorem dcFix_spec (v p : UInt32Array.Slice) (x qh : UInt32Array) (W : N
     -- `x < p` makes `qh v > W`, so `qh > ⌊W / v⌋ ≥ 0`.
     have hgt : W / toNat v < toNat qh := by
       have := Nat.div_mul_le_self W (toNat v)
-      exact Nat.lt_of_mul_lt_mul_right (a := toNat v) (by omega)
+      exact Nat.lt_of_mul_lt_mul_right (a := toNat v) (by lia)
     have hqpos : 0 < toNat qh := Nat.lt_of_le_of_lt (Nat.zero_le _) hgt
-    have hfit₁ : 0 + oneLimb.toSlice.size ≤ qh.size := by simp [oneLimb]; omega
-    have hfit₂ : 0 + v.size ≤ x.size := by omega
+    have hfit₁ : 0 + oneLimb.toSlice.size ≤ qh.size := by simp [oneLimb]; lia
+    have hfit₂ : 0 + v.size ≤ x.size := by lia
     have hq' := toNat_subInto_of_le qh 0 oneLimb hfit₁
       (by rw [toNat_oneLimb, Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; exact hqpos)
     have hx' := toNat_addInto_of_lt x 0 v hfit₂
-      (by rw [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; omega)
+      (by rw [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; lia)
     rw [toNat_oneLimb] at hq'
     simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul] at hq' hx'
     obtain ⟨i₁, i₂, i₃, i₄, i₅⟩ := ih (by rw [size_subInto _ _ _ hfit₁]; exact hq)
@@ -168,8 +168,8 @@ private theorem dcFix_spec (v p : UInt32Array.Slice) (x qh : UInt32Array) (W : N
       (by
         rw [hx', hq', Nat.sub_mul, Nat.one_mul]
         have : toNat v ≤ toNat qh * toNat v := Nat.le_mul_of_pos_left _ hqpos
-        omega)
-      (by rw [hq']; omega)
+        lia)
+      (by rw [hq']; lia)
     rw [size_addInto _ _ _ hfit₂] at i₁
     rw [size_subInto _ _ _ hfit₁] at i₂
     exact ⟨i₁, i₂, i₃, i₄, i₅⟩
@@ -183,12 +183,12 @@ private theorem dcFix_spec (v p : UInt32Array.Slice) (x qh : UInt32Array) (W : N
       cases hc : lt qh oneLimb
       · rfl
       · rw [lt_iff, toNat_oneLimb] at hc
-        have : toNat qh = 0 := by omega
+        have : toNat qh = 0 := by lia
         rw [this, Nat.zero_mul] at hinv
-        omega
+        lia
     -- So `qh v ≤ W`, and `qh = ⌊W / v⌋`.
-    have hle' : toNat qh ≤ W / toNat v := (Nat.le_div_iff_mul_le hV).2 (by omega)
-    have heq : toNat qh = W / toNat v := by omega
+    have hle' : toNat qh ≤ W / toNat v := (Nat.le_div_iff_mul_le hV).2 (by lia)
+    have heq : toNat qh = W / toNat v := by lia
     refine ⟨hle, heq, ?_⟩
     rw [← heq]
     exact hinv
@@ -212,7 +212,7 @@ def divDCStep (cfg : Config) (v : UInt32Array.Slice) (h4 : 4 ≤ v.size)
   let w := r.toSlice j (j + v.size + s)
   let wh := w.slice (v.size - v.size / 2) w.size
   let bh := v.slice (v.size - v.size / 2) v.size
-  let e := dcEstimate cfg wh bh s (divRec wh bh (by simp [bh]; omega) (by simp [bh]; omega))
+  let e := dcEstimate cfg wh bh s (divRec wh bh (by simp [bh]; lia) (by simp [bh]; lia))
   let x := e.2.copySlice 0 (copyPadded (w.slice 0 (v.size - v.size / 2)) (v.size + s + 1))
     (v.size - v.size / 2) (v.size / 2 + s)
   let p := mulLimbsWith cfg e.1 (v.slice 0 (v.size - v.size / 2))
@@ -246,15 +246,15 @@ private theorem dc_rem_lt {R P V : Nat} (hP : 0 < P) (hV : 0 < V) :
   rw [Nat.mul_add, Nat.mul_one] at this
   rw [← h₂, Nat.mul_add] at h₁
   rw [Nat.mul_comm V P, Nat.mul_comm qs V]
-  omega
+  lia
 
 private theorem divDCStep_spec (cfg : Config) (v : UInt32Array.Slice) (h4 : 4 ≤ v.size)
     (divRec : (u' v' : UInt32Array.Slice) → v'.size < v.size → 2 ≤ v'.size →
       UInt32Array × UInt32Array)
-    (hrec : ∀ u' v' h h', v'[v'.size - 1]'(by omega) ≠ 0 →
+    (hrec : ∀ u' v' h h', v'[v'.size - 1]'(by lia) ≠ 0 →
       toNat (divRec u' v' h h').1 * toNat v' + toNat (divRec u' v' h h').2 = toNat u' ∧
         toNat (divRec u' v' h h').2 < toNat v')
-    (hvt : v[v.size - 1]'(by omega) ≠ 0) (s j : Nat) (hs : 1 ≤ s) (hsm : s ≤ v.size / 2)
+    (hvt : v[v.size - 1]'(by lia) ≠ 0) (s j : Nat) (hs : 1 ≤ s) (hsm : s ≤ v.size / 2)
     (r q : UInt32Array) (hr : j + v.size + s ≤ r.size) (hq : j + s ≤ q.size)
     (hbound : toNat r < toNat v * 2 ^ (32 * (j + s)))
     (hdiv : 2 ^ (32 * (j + s)) ∣ toNat q) :
@@ -270,42 +270,42 @@ private theorem divDCStep_spec (cfg : Config) (v : UInt32Array.Slice) (h4 : 4 �
   have hR : toNat r < 2 ^ (32 * (j + v.size + s)) := by
     have : toNat v * 2 ^ (32 * (j + s)) ≤ 2 ^ (32 * v.size) * 2 ^ (32 * (j + s)) :=
       Nat.mul_le_mul_right _ (Nat.le_of_lt hV)
-    rw [← Nat.pow_add, show 32 * v.size + 32 * (j + s) = 32 * (j + v.size + s) by omega] at this
-    omega
+    rw [← Nat.pow_add, show 32 * v.size + 32 * (j + s) = 32 * (j + v.size + s) by lia] at this
+    lia
   -- The window `W = ⌊r / βʲ⌋ = Wₗ + βʰ Wₕ` and the divisor `v = vₗ + βʰ vₕ`.
-  have hws : (r.toSlice j (j + v.size + s)).size = v.size + s := by simp; omega
-  have hW := toNat_window r j (j + v.size + s) (by omega) hR
+  have hws : (r.toSlice j (j + v.size + s)).size = v.size + s := by simp; lia
+  have hW := toNat_window r j (j + v.size + s) (by lia) hR
   have hsplitW := toNat_slice_add_toNat_slice (r.toSlice j (j + v.size + s))
-    (v.size - v.size / 2) (by omega)
-  have hsplitV := toNat_slice_add_toNat_slice v (v.size - v.size / 2) (by omega)
+    (v.size - v.size / 2) (by lia)
+  have hsplitV := toNat_slice_add_toNat_slice v (v.size - v.size / 2) (by lia)
   have hWl : toNat ((r.toSlice j (j + v.size + s)).slice 0 (v.size - v.size / 2)) <
       2 ^ (32 * (v.size - v.size / 2)) := by
     have := toNat_lt ((r.toSlice j (j + v.size + s)).slice 0 (v.size - v.size / 2))
     simp only [UInt32Array.Slice.size_slice, hws] at this
-    rwa [show min (v.size - v.size / 2) (v.size + s) - 0 = v.size - v.size / 2 by omega] at this
+    rwa [show min (v.size - v.size / 2) (v.size + s) - 0 = v.size - v.size / 2 by lia] at this
   have hWh : toNat ((r.toSlice j (j + v.size + s)).slice (v.size - v.size / 2)
       (r.toSlice j (j + v.size + s)).size) < 2 ^ (32 * (v.size / 2 + s)) := by
     have hsz : ((r.toSlice j (j + v.size + s)).slice (v.size - v.size / 2)
         (r.toSlice j (j + v.size + s)).size).size = v.size / 2 + s := by
-      simp only [UInt32Array.Slice.size_slice, hws]; omega
+      simp only [UInt32Array.Slice.size_slice, hws]; lia
     have := toNat_lt ((r.toSlice j (j + v.size + s)).slice (v.size - v.size / 2)
       (r.toSlice j (j + v.size + s)).size)
     rwa [hsz] at this
   -- The top limb of `vₕ` is that of `v`.
   have hvh : (v.slice (v.size - v.size / 2) v.size)[(v.slice (v.size - v.size / 2)
-      v.size).size - 1]'(by simp; omega) ≠ 0 := by
+      v.size).size - 1]'(by simp; lia) ≠ 0 := by
     simp only [UInt32Array.Slice.getElem_slice, UInt32Array.Slice.size_slice]
     have : v.size - v.size / 2 + (min v.size v.size - (v.size - v.size / 2) - 1) = v.size - 1 := by
-      omega
+      lia
     simp only [this]
     exact hvt
   -- The recursive division of `Wₕ` by `vₕ`, and the estimate.
   obtain ⟨hd₁, hd₂⟩ := hrec ((r.toSlice j (j + v.size + s)).slice (v.size - v.size / 2)
     (r.toSlice j (j + v.size + s)).size) (v.slice (v.size - v.size / 2) v.size)
-    (by simp; omega) (by simp; omega) hvh
+    (by simp; lia) (by simp; lia) hvh
   obtain ⟨he₁, he₂, he₃⟩ := dcEstimate_spec cfg ((r.toSlice j (j + v.size + s)).slice
     (v.size - v.size / 2) (r.toSlice j (j + v.size + s)).size)
-    (v.slice (v.size - v.size / 2) v.size) s _ (by simp; omega) hd₁
+    (v.slice (v.size - v.size / 2) v.size) s _ (by simp; lia) hd₁
   simp only [divDCStep]
   generalize divRec ((r.toSlice j (j + v.size + s)).slice (v.size - v.size / 2)
     (r.toSlice j (j + v.size + s)).size) (v.slice (v.size - v.size / 2) v.size) _ _ = d at *
@@ -316,24 +316,24 @@ private theorem divDCStep_spec (cfg : Config) (v : UInt32Array.Slice) (h4 : 4 �
   have hps : (mulLimbsWith cfg e.1 (v.slice 0 (v.size - v.size / 2))).size =
       s + (v.size - v.size / 2) := by
     rw [hM.size_eq, UInt32Array.size_toSlice, he₁, UInt32Array.Slice.size_slice]
-    omega
+    lia
   have hpv := hM.toNat_eq e.1 (v.slice 0 (v.size - v.size / 2))
   -- `x = Wₗ + βʰ R₁`, where `R₁ = Wₕ - Q̂ vₕ ≤ Wₕ < β^(m + s)`.
   have hR1 : toNat (e.2.toSlice 0 (v.size / 2 + s)) = toNat e.2 :=
-    toNat_toSlice_of_lt _ _ (by omega)
+    toNat_toSlice_of_lt _ _ (by lia)
   -- `R₁` goes into zero limbs above `Wₗ`, so copying it adds it.
   have hxs : (copyPadded ((r.toSlice j (j + v.size + s)).slice 0 (v.size - v.size / 2))
-      (v.size + s + 1)).size = v.size + s + 1 := size_copyPadded _ _ (by simp; omega)
+      (v.size + s + 1)).size = v.size + s + 1 := size_copyPadded _ _ (by simp; lia)
   obtain ⟨hxsz, hxv⟩ := ofLimbs_copySlice e.2
     (copyPadded ((r.toSlice j (j + v.size + s)).slice 0 (v.size - v.size / 2)) (v.size + s + 1))
-    (v.size - v.size / 2) (v.size / 2 + s) (by rw [hxs]; omega)
+    (v.size - v.size / 2) (v.size / 2 + s) (by rw [hxs]; lia)
   rw [hxs] at hxsz
   have hz : ofLimbs (((copyPadded ((r.toSlice j (j + v.size + s)).slice 0
       (v.size - v.size / 2)) (v.size + s + 1)).toList.drop (v.size - v.size / 2)).take
         (min (v.size / 2 + s) e.2.size)) = 0 := by
-    rw [toList_copyPadded, List.drop_append_of_le_length (by simp; omega)]
+    rw [toList_copyPadded, List.drop_append_of_le_length (by simp; lia)]
     simp only [UInt32Array.Slice.size_slice, UInt32Array.size_toSlice]
-    rw [List.drop_of_length_le (by simp; omega), List.nil_append, List.take_replicate,
+    rw [List.drop_of_length_le (by simp; lia), List.nil_append, List.take_replicate,
       ofLimbs_replicate_zero]
   have hXd : ofLimbs (copyPadded ((r.toSlice j (j + v.size + s)).slice 0 (v.size - v.size / 2))
       (v.size + s + 1)).toList = toNat ((r.toSlice j (j + v.size + s)).slice 0
@@ -360,19 +360,19 @@ private theorem divDCStep_spec (cfg : Config) (v : UInt32Array.Slice) (h4 : 4 �
   have hBh : 0 < Bh := Nat.lt_of_le_of_lt (Nat.zero_le _) hd₂
   have hVpos : 0 < toNat v := by
     have : Bh ≤ β * Bh := Nat.le_mul_of_pos_left _ hβpos
-    omega
+    lia
   -- The digit `Q = ⌊W / v⌋` is below `βˢ` and at most the estimate.
   have hQlt : W / toNat v < 2 ^ (32 * s) := by
     rw [Nat.div_lt_iff_lt_mul hVpos, ← hWdef, Nat.div_lt_iff_lt_mul hP, Nat.mul_comm (2 ^ _),
-      Nat.mul_assoc, ← Nat.pow_add, show 32 * s + 32 * j = 32 * (j + s) by omega]
+      Nat.mul_assoc, ← Nat.pow_add, show 32 * s + 32 * j = 32 * (j + s) by lia]
     exact hbound
   have hq₁ : toNat d.1 = Wh / Bh :=
-    (Nat.div_eq_of_lt_le (by omega) (by rw [Nat.add_mul, Nat.one_mul]; omega)).symm
+    (Nat.div_eq_of_lt_le (by lia) (by rw [Nat.add_mul, Nat.one_mul]; lia)).symm
   have hQle : W / toNat v ≤ Wh / Bh :=
     le_div_of_estimate (Nat.div_mul_le_self W (toNat v))
-      (by rw [Nat.add_mul, Nat.one_mul, Nat.mul_comm Wh β]; omega)
-      (by rw [Nat.mul_comm]; omega) hBh
-  have hge : W / toNat v ≤ toNat e.1 := by rw [he₂, hq₁]; omega
+      (by rw [Nat.add_mul, Nat.one_mul, Nat.mul_comm Wh β]; lia)
+      (by rw [Nat.mul_comm]; lia) hBh
+  have hge : W / toNat v ≤ toNat e.1 := by rw [he₂, hq₁]; lia
   -- The correction.
   have hPlt : toNat p < 2 ^ (32 * (s + (v.size - v.size / 2))) :=
     calc toNat p < 2 ^ (32 * p.size) := Nat.lt_of_lt_of_le (toNat_lt p) (Nat.le_of_eq (by simp))
@@ -380,19 +380,19 @@ private theorem divDCStep_spec (cfg : Config) (v : UInt32Array.Slice) (h4 : 4 �
   have hcap : toNat p + toNat v < 2 ^ (32 * x.size) := by
     rw [hxsz]
     have h₁ : 2 ^ (32 * (s + (v.size - v.size / 2))) ≤ 2 ^ (32 * (v.size + s)) :=
-      Nat.pow_le_pow_right (by decide) (by omega)
+      Nat.pow_le_pow_right (by decide) (by lia)
     have h₂ : 2 ^ (32 * v.size) ≤ 2 ^ (32 * (v.size + s)) :=
-      Nat.pow_le_pow_right (by decide) (by omega)
+      Nat.pow_le_pow_right (by decide) (by lia)
     have h₃ : 2 ^ (32 * (v.size + s + 1)) = 2 ^ (32 * (v.size + s)) * 2 ^ 32 := by
-      rw [← Nat.pow_add, show 32 * (v.size + s) + 32 = 32 * (v.size + s + 1) by omega]
+      rw [← Nat.pow_add, show 32 * (v.size + s) + 32 = 32 * (v.size + s + 1) by lia]
     have : 2 ^ (32 * (v.size + s)) * 2 ≤ 2 ^ (32 * (v.size + s)) * 2 ^ 32 :=
       Nat.mul_le_mul_left _ (by decide)
-    omega
+    lia
   have hinv : toNat x + toNat e.1 * toNat v = toNat p + W := by
     rw [hxv, hpv, ← hsplitV, ← hsplitW, ← he₃, Nat.mul_add, Nat.mul_add]
     rw [Nat.mul_comm (toNat e.1) (β * Bh), Nat.mul_assoc, Nat.mul_comm Bh (toNat e.1)]
-    omega
-  obtain ⟨hf₁, hf₂, hf₃, hf₄, hf₅⟩ := dcFix_spec v p x e.1 W hVpos (by omega) (by omega) hcap hinv
+    lia
+  obtain ⟨hf₁, hf₂, hf₃, hf₄, hf₅⟩ := dcFix_spec v p x e.1 W hVpos (by lia) (by lia) hcap hinv
     hge
   generalize dcFix v p x e.1 = f at *
   -- The remainder of the window, `W mod v = f.1 - p`, and `Q v = W - (W mod v)`.
@@ -400,26 +400,26 @@ private theorem divDCStep_spec (cfg : Config) (v : UInt32Array.Slice) (h4 : 4 �
     have := Nat.div_add_mod W (toNat v)
     have := Nat.mod_lt W hVpos
     have : W / toNat v * toNat v = toNat v * (W / toNat v) := Nat.mul_comm _ _
-    omega
+    lia
   have hfit₁ : 0 + p.toSlice.size ≤ f.1.size := by
-    rw [UInt32Array.size_toSlice, hps, hf₁, hxsz]; omega
+    rw [UInt32Array.size_toSlice, hps, hf₁, hxsz]; lia
   have hsub₁ := toNat_subInto_of_le f.1 0 p hfit₁
     (by rw [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; exact hf₃)
   rw [Nat.mul_zero, Nat.pow_zero, Nat.one_mul] at hsub₁
   have hrem : toNat ((subInto f.1 0 p).toSlice 0 (v.size + s)) = W - W / toNat v * toNat v := by
     have : 2 ^ (32 * v.size) ≤ 2 ^ (32 * (v.size + s)) :=
-      Nat.pow_le_pow_right (by decide) (by omega)
-    rw [toNat_toSlice_of_lt _ _ (by rw [hsub₁]; omega), hsub₁]
-    omega
+      Nat.pow_le_pow_right (by decide) (by lia)
+    rw [toNat_toSlice_of_lt _ _ (by rw [hsub₁]; lia), hsub₁]
+    lia
   -- The window of `r` becomes `W mod v`: `r` goes down by `βʲ Q v`.
   have hrs : (subInto f.1 0 p).size = v.size + s + 1 := by
     rw [size_subInto _ _ _ hfit₁, hf₁, hxsz]
-  obtain ⟨hr₁, hr₂⟩ := ofLimbs_copySlice (subInto f.1 0 p) r j (v.size + s) (by omega)
+  obtain ⟨hr₁, hr₂⟩ := ofLimbs_copySlice (subInto f.1 0 p) r j (v.size + s) (by lia)
   have hwin : ofLimbs ((r.toList.drop j).take (min (v.size + s) (subInto f.1 0 p).size)) = W := by
-    rw [hrs, Nat.min_eq_left (by omega), ← hW]
+    rw [hrs, Nat.min_eq_left (by lia), ← hW]
     simp only [toNat, UInt32Array.copy_toSlice, UInt32Array.toList_extract,
       List.extract_eq_take_drop]
-    rw [show j + v.size + s - j = v.size + s by omega]
+    rw [show j + v.size + s - j = v.size + s by lia]
   have hremv : ofLimbs ((subInto f.1 0 p).toList.take (v.size + s)) =
       W - W / toNat v * toNat v := by
     rw [← hrem]
@@ -435,15 +435,15 @@ private theorem divDCStep_spec (cfg : Config) (v : UInt32Array.Slice) (h4 : 4 �
     have hm : 2 ^ (32 * j) * (W - W / toNat v * toNat v) =
         2 ^ (32 * j) * W - 2 ^ (32 * j) * (W / toNat v * toNat v) := Nat.mul_sub _ _ _
     have := Nat.mul_le_mul_left (2 ^ (32 * j)) hPW
-    omega
+    lia
   -- The block of `q` is zero, since `βʲ⁺ˢ` divides `q`, so copying `Q` there adds `βʲ Q`.
-  obtain ⟨hq₁, hq₂⟩ := ofLimbs_copySlice f.2 q j s (by omega)
+  obtain ⟨hq₁, hq₂⟩ := ofLimbs_copySlice f.2 q j s (by lia)
   have hfs : f.2.size = s := by rw [hf₂, he₁]
   have hqwin : ofLimbs ((q.toList.drop j).take (min s f.2.size)) = 0 := by
     rw [hfs, Nat.min_self]
     have hsplit := ofLimbs_append (q.toList.take (j + s)) (q.toList.drop (j + s))
     rw [List.take_append_drop, List.length_take, UInt32Array.length_toList,
-      Nat.min_eq_left (by omega)] at hsplit
+      Nat.min_eq_left (by lia)] at hsplit
     have hlow : ofLimbs (q.toList.take (j + s)) = 0 := by
       have hd : 2 ^ (32 * (j + s)) ∣ ofLimbs (q.toList.take (j + s)) := by
         have : 2 ^ (32 * (j + s)) ∣ ofLimbs q.toList := by rw [← toNat_toSlice]; exact hdiv
@@ -452,24 +452,24 @@ private theorem divDCStep_spec (cfg : Config) (v : UInt32Array.Slice) (h4 : 4 �
       exact Nat.eq_zero_of_dvd_of_lt hd (ofLimbs_take_lt _ _)
     have h2 := ofLimbs_append (q.toList.take j) ((q.toList.drop j).take s)
     rw [← List.take_add, List.length_take, UInt32Array.length_toList,
-      Nat.min_eq_left (by omega), hlow] at h2
+      Nat.min_eq_left (by lia), hlow] at h2
     have hpos : 0 < 2 ^ (32 * j) := Nat.two_pow_pos _
     rcases Nat.eq_zero_or_pos (ofLimbs ((q.toList.drop j).take s)) with h | h
     · exact h
     · have := Nat.mul_pos hpos h
-      omega
-  rw [hqwin, Nat.mul_zero, Nat.add_zero, List.take_of_length_le (by simp; omega)] at hq₂
+      lia
+  rw [hqwin, Nat.mul_zero, Nat.add_zero, List.take_of_length_le (by simp; lia)] at hq₂
   have hq' : toNat (f.2.copySlice 0 q j s) = toNat q + 2 ^ (32 * j) * toNat f.2 := by
     rw [toNat_toSlice, toNat_toSlice, toNat_toSlice]; exact hq₂
   refine ⟨hr₁, hq₁, ?_, ?_, ?_⟩
   · rw [hq', hr', hf₄]
     have := Nat.mul_le_mul_left (2 ^ (32 * j)) hPW
     rw [Nat.add_mul, Nat.mul_assoc]
-    omega
+    lia
   · rw [hr', ← hWdef]
     exact dc_rem_lt hP hVpos
   · rw [hq', hf₄]
-    exact Nat.dvd_add (Nat.dvd_trans (Nat.pow_dvd_pow 2 (by omega)) hdiv) (Nat.dvd_mul_right _ _)
+    exact Nat.dvd_add (Nat.dvd_trans (Nat.pow_dvd_pow 2 (by lia)) hdiv) (Nat.dvd_mul_right _ _)
 
 /-! ## The blocks -/
 
@@ -486,10 +486,10 @@ def divDCLoop (cfg : Config) (v : UInt32Array.Slice) (h4 : 4 ≤ v.size)
 private theorem divDCLoop_spec (cfg : Config) (v : UInt32Array.Slice) (h4 : 4 ≤ v.size)
     (divRec : (u' v' : UInt32Array.Slice) → v'.size < v.size → 2 ≤ v'.size →
       UInt32Array × UInt32Array)
-    (hrec : ∀ u' v' h h', v'[v'.size - 1]'(by omega) ≠ 0 →
+    (hrec : ∀ u' v' h h', v'[v'.size - 1]'(by lia) ≠ 0 →
       toNat (divRec u' v' h h').1 * toNat v' + toNat (divRec u' v' h h').2 = toNat u' ∧
         toNat (divRec u' v' h h').2 < toNat v')
-    (hvt : v[v.size - 1]'(by omega) ≠ 0) (t : Nat) (r q : UInt32Array)
+    (hvt : v[v.size - 1]'(by lia) ≠ 0) (t : Nat) (r q : UInt32Array)
     (hr : t * (v.size / 2) + v.size ≤ r.size) (hq : t * (v.size / 2) ≤ q.size)
     (hbound : toNat r < toNat v * 2 ^ (32 * (t * (v.size / 2))))
     (hdiv : 2 ^ (32 * (t * (v.size / 2))) ∣ toNat q) :
@@ -505,8 +505,8 @@ private theorem divDCLoop_spec (cfg : Config) (v : UInt32Array.Slice) (h4 : 4 �
       rw [Nat.add_mul, Nat.one_mul]
     rw [ht] at hr hq hbound hdiv
     obtain ⟨s₁, s₂, s₃, s₄, s₅⟩ := divDCStep_spec cfg v h4 divRec hrec hvt (v.size / 2)
-      (t * (v.size / 2)) (by omega) (Nat.le_refl _) r q (by omega) hq hbound hdiv
-    obtain ⟨i₁, i₂⟩ := ih _ _ (by rw [s₁]; omega) (by rw [s₂]; omega) s₄ s₅
+      (t * (v.size / 2)) (by lia) (Nat.le_refl _) r q (by lia) hq hbound hdiv
+    obtain ⟨i₁, i₂⟩ := ih _ _ (by rw [s₁]; lia) (by rw [s₂]; lia) s₄ s₅
     simp only [divDCLoop]
     exact ⟨by rw [i₁, s₃], i₂⟩
 
@@ -532,38 +532,38 @@ public def divRemDC (cfg : Config) (u v : UInt32Array.Slice) (h4 : 4 ≤ v.size)
 public theorem divRemDC_spec (cfg : Config) (u v : UInt32Array.Slice) (h4 : 4 ≤ v.size)
     (divRec : (u' v' : UInt32Array.Slice) → v'.size < v.size → 2 ≤ v'.size →
       UInt32Array × UInt32Array)
-    (hrec : ∀ u' v' h h', v'[v'.size - 1]'(by omega) ≠ 0 →
+    (hrec : ∀ u' v' h h', v'[v'.size - 1]'(by lia) ≠ 0 →
       toNat (divRec u' v' h h').1 * toNat v' + toNat (divRec u' v' h h').2 = toNat u' ∧
         toNat (divRec u' v' h h').2 < toNat v')
-    (hvt : v[v.size - 1]'(by omega) ≠ 0) :
+    (hvt : v[v.size - 1]'(by lia) ≠ 0) :
     toNat (divRemDC cfg u v h4 divRec).1 * toNat v + toNat (divRemDC cfg u v h4 divRec).2 =
         toNat u ∧
       toNat (divRemDC cfg u v h4 divRec).2 < toNat v := by
-  have hvt' : 1 ≤ (v[v.size - 1]'(by omega)).toNat := by
-    rcases Nat.eq_zero_or_pos (v[v.size - 1]'(by omega)).toNat with h | h
+  have hvt' : 1 ≤ (v[v.size - 1]'(by lia)).toNat := by
+    rcases Nat.eq_zero_or_pos (v[v.size - 1]'(by lia)).toNat with h | h
     · exact absurd (UInt32.toNat_inj.1 (by simpa using h)) hvt
     · exact h
   have hU := toNat_lt u
   unfold divRemDC
   dsimp only
   have hKm := Nat.div_add_mod (max (u.size + 1) v.size - v.size) (v.size / 2)
-  have hKu : u.size + 1 ≤ max (u.size + 1) v.size - v.size + v.size := by omega
+  have hKu : u.size + 1 ≤ max (u.size + 1) v.size - v.size + v.size := by lia
   generalize max (u.size + 1) v.size - v.size = K at *
   -- `u < β^u.size ≤ β^(n - 1) β^K ≤ v β^K`.
   have hbound : toNat u < toNat v * 2 ^ (32 * K) := by
     have h₁ : 2 ^ (32 * u.size) ≤ 2 ^ (32 * (v.size - 1)) * 2 ^ (32 * K) := by
       rw [← Nat.pow_add]
-      exact Nat.pow_le_pow_right (by decide) (by omega)
+      exact Nat.pow_le_pow_right (by decide) (by lia)
     have h₂ : 2 ^ (32 * (v.size - 1)) ≤ toNat v := by
-      have := top_limb_le v (by omega)
+      have := top_limb_le v (by lia)
       have := Nat.mul_le_mul_right (2 ^ (32 * (v.size - 1))) hvt'
-      omega
+      lia
     have := Nat.mul_le_mul_right (2 ^ (32 * K)) h₂
-    omega
+    lia
   have h0 : toNat (UInt32Array.replicate K 0) = 0 := by
     rw [toNat_toSlice, UInt32Array.toList_replicate, ← List.nil_append (List.replicate _ _),
       ofLimbs_append_replicate_zero, ofLimbs_nil]
-  have hrs : (copyPadded u (K + v.size)).size = K + v.size := size_copyPadded _ _ (by omega)
+  have hrs : (copyPadded u (K + v.size)).size = K + v.size := size_copyPadded _ _ (by lia)
   have hr0 := toNat_copyPadded u (K + v.size)
   generalize copyPadded u (K + v.size) = r at *
   generalize hqdef : UInt32Array.replicate K 0 = q at *
@@ -572,17 +572,17 @@ public theorem divRemDC_spec (cfg : Config) (u v : UInt32Array.Slice) (h4 : 4 �
   by_cases hz : K % (v.size / 2) = 0
   · rw [ite_eq_left hz]
     rw [hz, Nat.add_zero] at hKm
-    have h := divDCLoop_spec cfg v h4 divRec hrec hvt (K / (v.size / 2)) r q (by omega) (by omega)
+    have h := divDCLoop_spec cfg v h4 divRec hrec hvt (K / (v.size / 2)) r q (by lia) (by lia)
       (by rw [hKm, hr0]; exact hbound) (by rw [h0]; exact Nat.dvd_zero _)
     rw [h0, Nat.zero_mul, Nat.zero_add, hr0] at h
     exact h
   · rw [ite_eq_right hz]
     obtain ⟨s₁, s₂, s₃, s₄, s₅⟩ := divDCStep_spec cfg v h4 divRec hrec hvt
-      (K % (v.size / 2)) (K / (v.size / 2) * (v.size / 2)) (by omega)
-      (Nat.le_of_lt (Nat.mod_lt _ (by omega))) r q (by omega) (by omega)
+      (K % (v.size / 2)) (K / (v.size / 2) * (v.size / 2)) (by lia)
+      (Nat.le_of_lt (Nat.mod_lt _ (by lia))) r q (by lia) (by lia)
       (by rw [hKm, hr0]; exact hbound) (by rw [h0]; exact Nat.dvd_zero _)
-    have h := divDCLoop_spec cfg v h4 divRec hrec hvt (K / (v.size / 2)) _ _ (by rw [s₁]; omega)
-      (by rw [s₂]; omega) s₄ s₅
+    have h := divDCLoop_spec cfg v h4 divRec hrec hvt (K / (v.size / 2)) _ _ (by rw [s₁]; lia)
+      (by rw [s₂]; lia) s₄ s₅
     rw [s₃, h0, Nat.zero_mul, Nat.zero_add, hr0] at h
     exact h
 
@@ -602,7 +602,7 @@ public def divRemWith (cfg : Config) (u v : UInt32Array.Slice) (hn : 2 ≤ v.siz
 termination_by v.size
 
 public theorem divRemWith_spec (cfg : Config) (u v : UInt32Array.Slice) (hn : 2 ≤ v.size)
-    (hvt : v[v.size - 1]'(by omega) ≠ 0) :
+    (hvt : v[v.size - 1]'(by lia) ≠ 0) :
     toNat (divRemWith cfg u v hn).1 * toNat v + toNat (divRemWith cfg u v hn).2 = toNat u ∧
       toNat (divRemWith cfg u v hn).2 < toNat v := by
   induction u, v, hn using divRemWith.induct cfg with

@@ -45,9 +45,9 @@ decreasing_by
   rw [UInt32.toNat_sub_of_le _ _ (by
     rw [UInt32.le_iff_toNat_le]
     have : q.toNat ≠ 0 := fun h => ‹q ≠ 0 ∧ _›.1 (UInt32.toNat_inj.1 (by simpa using h))
-    simp; omega)]
+    simp; lia)]
   have : q.toNat ≠ 0 := fun h => ‹q ≠ 0 ∧ _›.1 (UInt32.toNat_inj.1 (by simpa using h))
-  simp; omega
+  simp; lia
 
 /-- `div2Fix` divides `W = R β + x` by `V = vt β + vs` when it starts at or above the quotient. -/
 private theorem div2Fix_spec (vt vs : UInt32) (R : UInt64) (x q : UInt32) (V W : Nat)
@@ -71,7 +71,7 @@ private theorem div2Fix_spec (vt vs : UInt32) (R : UInt64) (x q : UInt32) (V W :
       rw [UInt64.toNat_mul, UInt32.toNat_toUInt64, UInt32.toNat_toUInt64]
       exact Nat.mod_eq_of_lt (Nat.lt_of_lt_of_le (Nat.mul_lt_mul'' hq32 hvt) (by decide))
     have hle₁ : q.toNat * vt.toNat ≤ (2 ^ 32 - 1) * (2 ^ 32 - 1) :=
-      Nat.mul_le_mul (by omega) (by omega)
+      Nat.mul_le_mul (by lia) (by lia)
     have hle₂ : q.toNat * vs.toNat / 2 ^ 32 < 2 ^ 32 := by
       rw [Nat.div_lt_iff_lt_mul (by decide)]
       exact Nat.lt_of_lt_of_le (Nat.mul_lt_mul'' hq32 hvs) (by decide)
@@ -79,7 +79,7 @@ private theorem div2Fix_spec (vt vs : UInt32) (R : UInt64) (x q : UInt32) (V W :
         q.toNat * vt.toNat + q.toNat * vs.toNat / 2 ^ 32 := by
       rw [UInt64.toNat_add, hqv, UInt64.toNat_shiftRight, hav]
       simp only [UInt64.reduceToNat, Nat.reduceMod, Nat.shiftRight_eq_div_pow]
-      exact Nat.mod_eq_of_lt (by omega)
+      exact Nat.mod_eq_of_lt (by lia)
     have ha₀ : ((q.toUInt64 * vs.toUInt64).toUInt32).toNat = q.toNat * vs.toNat % 2 ^ 32 := by
       rw [UInt64.toNat_toUInt32, hav]
     -- `q V = ph β + a₀`, and the condition says `W < q V`.
@@ -87,21 +87,21 @@ private theorem div2Fix_spec (vt vs : UInt32) (R : UInt64) (x q : UInt32) (V W :
         q.toNat * vs.toNat % 2 ^ 32 := by
       have := Nat.div_add_mod (q.toNat * vs.toNat) (2 ^ 32)
       rw [hV, Nat.mul_add, Nat.add_mul, ← Nat.mul_assoc]
-      omega
+      lia
     have hlt : W < q.toNat * V := by
       have h2 := hc.2
       simp only [UInt64.lt_iff_toNat_lt, UInt32.lt_iff_toNat_lt, hph, ha₀] at h2
       rcases h2 with h2 | ⟨h2, h3⟩
-      · rw [hP, hW]; omega
+      · rw [hP, hW]; lia
       · have hR' : R.toNat = q.toNat * vt.toNat + q.toNat * vs.toNat / 2 ^ 32 := by
           rw [h2, hph]
-        rw [hP, hW, hR']; omega
+        rw [hP, hW, hR']; lia
     have hdiv : W / V < q.toNat := (Nat.div_lt_iff_lt_mul hVpos).2 (by
       rw [Nat.mul_comm] at hlt; first | exact hlt | (rw [Nat.mul_comm]; exact hlt))
     apply ih
-    rw [UInt32.toNat_sub_of_le _ _ (by rw [UInt32.le_iff_toNat_le]; simp; omega)]
+    rw [UInt32.toNat_sub_of_le _ _ (by rw [UInt32.le_iff_toNat_le]; simp; lia)]
     simp only [UInt32.reduceToNat]
-    omega
+    lia
   | case2 q a ph a₀ hc =>
     rw [div2Fix]
     simp only [a, ph, a₀] at hc
@@ -118,7 +118,7 @@ private theorem div2Fix_spec (vt vs : UInt32) (R : UInt64) (x q : UInt32) (V W :
       rw [UInt64.toNat_mul, UInt32.toNat_toUInt64, UInt32.toNat_toUInt64]
       exact Nat.mod_eq_of_lt (Nat.lt_of_lt_of_le (Nat.mul_lt_mul'' hq32 hvt) (by decide))
     have hle₁ : q.toNat * vt.toNat ≤ (2 ^ 32 - 1) * (2 ^ 32 - 1) :=
-      Nat.mul_le_mul (by omega) (by omega)
+      Nat.mul_le_mul (by lia) (by lia)
     have hle₂ : q.toNat * vs.toNat / 2 ^ 32 < 2 ^ 32 := by
       rw [Nat.div_lt_iff_lt_mul (by decide)]
       exact Nat.lt_of_lt_of_le (Nat.mul_lt_mul'' hq32 hvs) (by decide)
@@ -126,14 +126,14 @@ private theorem div2Fix_spec (vt vs : UInt32) (R : UInt64) (x q : UInt32) (V W :
         q.toNat * vt.toNat + q.toNat * vs.toNat / 2 ^ 32 := by
       rw [UInt64.toNat_add, hqv, UInt64.toNat_shiftRight, hav]
       simp only [UInt64.reduceToNat, Nat.reduceMod, Nat.shiftRight_eq_div_pow]
-      exact Nat.mod_eq_of_lt (by omega)
+      exact Nat.mod_eq_of_lt (by lia)
     have ha₀ : ((q.toUInt64 * vs.toUInt64).toUInt32).toNat = q.toNat * vs.toNat % 2 ^ 32 := by
       rw [UInt64.toNat_toUInt32, hav]
     have hP : q.toNat * V = (q.toNat * vt.toNat + q.toNat * vs.toNat / 2 ^ 32) * 2 ^ 32 +
         q.toNat * vs.toNat % 2 ^ 32 := by
       have := Nat.div_add_mod (q.toNat * vs.toNat) (2 ^ 32)
       rw [hV, Nat.mul_add, Nat.add_mul, ← Nat.mul_assoc]
-      omega
+      lia
     generalize q.toNat * vt.toNat + q.toNat * vs.toNat / 2 ^ 32 = PH at hph hP
     generalize q.toNat * vs.toNat % 2 ^ 32 = A₀ at ha₀ hP
     have hA₀ : A₀ < 2 ^ 32 := by rw [← ha₀]; exact UInt32.toNat_lt _
@@ -150,8 +150,8 @@ private theorem div2Fix_spec (vt vs : UInt32) (R : UInt64) (x q : UInt32) (V W :
         rw [hP, hW]
         by_cases he : R.toNat = PH
         · have := h2.2 (UInt64.toNat_inj.1 (by rw [he, hph]))
-          omega
-        · omega
+          lia
+        · lia
     have hqq : q.toNat = W / V :=
       Nat.le_antisymm ((Nat.le_div_iff_mul_le hVpos).2 hge) hq
     refine ⟨hqq, ?_⟩
@@ -159,8 +159,8 @@ private theorem div2Fix_spec (vt vs : UInt32) (R : UInt64) (x q : UInt32) (V W :
     have hmod : W % V = W - q.toNat * V := by
       rw [hqq, Nat.mod_eq_sub_mul_div, Nat.mul_comm]
     have hrem := Nat.mod_lt W hVpos
-    have hV64 : V ≤ 2 ^ 64 := by rw [hV]; omega
-    have hRph : PH ≤ R.toNat := by rw [hP, hW] at hge; omega
+    have hV64 : V ≤ 2 ^ 64 := by rw [hV]; lia
+    have hRph : PH ≤ R.toNat := by rw [hP, hW] at hge; lia
     rw [hmod]
     rw [hmod, hP, hW] at hrem
     rw [hP, hW]
@@ -168,7 +168,7 @@ private theorem div2Fix_spec (vt vs : UInt32) (R : UInt64) (x q : UInt32) (V W :
       UInt64.toNat_sub_of_le _ _ (by rw [UInt64.le_iff_toNat_le, hph]; exact hRph), hph,
       UInt32.toNat_toUInt64, UInt32.toNat_toUInt64, ha₀]
     simp only [UInt64.reduceToNat, Nat.reduceMod, Nat.shiftLeft_eq]
-    omega
+    lia
 
 /--
 `min ⌊R / vt⌋ (β - 1)`, the first estimate of a quotient limb (`qEstimate` of the two limbs of
@@ -196,8 +196,8 @@ private theorem toNat_div2Est (R : UInt64) (vt : UInt32) :
     have : R.toNat / vt.toNat < 2 ^ 32 := by
       rcases Nat.lt_or_ge (R.toNat / vt.toNat) (2 ^ 32) with h'' | h''
       · exact h''
-      · have := Nat.div_le_div_right (c := 2 ^ 32) h''; simp at this; omega
-    omega
+      · have := Nat.div_le_div_right (c := 2 ^ 32) h''; simp at this; lia
+    lia
   · rename_i h
     have h' : (R / vt.toUInt64).toNat / 2 ^ 32 ≠ 0 := by
       intro h''
@@ -211,7 +211,7 @@ private theorem toNat_div2Est (R : UInt64) (vt : UInt32) :
       · exact absurd (Nat.div_eq_of_lt h'') h'
       · exact h''
     simp only [UInt32.reduceToNat]
-    omega
+    lia
 
 /-- One step: the quotient limb and remainder of `R β + x` by `vt β + vs`, for `R < vt β + vs`. -/
 @[inline] public def div2Step (vt vs : UInt32) (R : UInt64) (x : UInt32) : UInt32 × UInt64 :=
@@ -230,30 +230,30 @@ public theorem div2Step_spec (vt vs : UInt32) (R : UInt64) (x : UInt32) (hvt : 0
   have hwt : ((R >>> 32).toUInt32).toNat = R.toNat / 2 ^ 32 := by
     rw [UInt64.toNat_toUInt32, UInt64.toNat_shiftRight]
     simp only [UInt64.reduceToNat, Nat.reduceMod, Nat.shiftRight_eq_div_pow]
-    exact Nat.mod_eq_of_lt (by omega)
+    exact Nat.mod_eq_of_lt (by lia)
   have hwn : (R.toUInt32).toNat = R.toNat % 2 ^ 32 := UInt64.toNat_toUInt32 _
   have hRsplit : R.toNat / 2 ^ 32 * 2 ^ 32 + R.toNat % 2 ^ 32 = R.toNat := by
-    have := Nat.div_add_mod R.toNat (2 ^ 32); omega
+    have := Nat.div_add_mod R.toNat (2 ^ 32); lia
   obtain ⟨V, hVdef⟩ : ∃ V, vt.toNat * 2 ^ 32 + vs.toNat = V := ⟨_, rfl⟩
   obtain ⟨W, hW⟩ : ∃ W, R.toNat * 2 ^ 32 + x.toNat = W := ⟨_, rfl⟩
   rw [hVdef] at hR ⊢
   rw [hW]
-  have hVpos : 0 < V := by omega
+  have hVpos : 0 < V := by lia
   -- The quotient `Q` is at most both estimates.
   have hQV : W / V * V ≤ W := Nat.div_mul_le_self W V
   have hQβ : W / V < 2 ^ 32 := by
     rw [Nat.div_lt_iff_lt_mul hVpos]
-    have := Nat.mul_le_mul_right (2 ^ 32) (show R.toNat + 1 ≤ V by omega)
+    have := Nat.mul_le_mul_right (2 ^ 32) (show R.toNat + 1 ≤ V by lia)
     rw [Nat.succ_mul] at this
     rw [Nat.mul_comm (2 ^ 32) V]
-    omega
+    lia
   have hQ₀ : W / V * vt.toNat ≤ R.toNat := by
     -- `Q vt β ≤ Q V ≤ W < (R + 1) β`.
     have h₁ : W / V * vt.toNat * 2 ^ 32 ≤ W / V * V := by
       rw [Nat.mul_assoc]
-      exact Nat.mul_le_mul_left _ (by omega)
+      exact Nat.mul_le_mul_left _ (by lia)
     have h₂ : W / V * vt.toNat * 2 ^ 32 < (R.toNat + 1) * 2 ^ 32 := by
-      rw [Nat.succ_mul]; omega
+      rw [Nat.succ_mul]; lia
     exact Nat.le_of_lt_succ (Nat.lt_of_mul_lt_mul_right h₂)
   have hest := toNat_div2Est R vt
   have hle : (div2Est R vt).toNat * vt.toNat ≤
@@ -262,7 +262,7 @@ public theorem div2Step_spec (vt vs : UInt32) (R : UInt64) (x : UInt32) (hvt : 0
     exact Nat.le_trans (Nat.mul_le_mul_right _ (Nat.min_le_left _ _)) (Nat.div_mul_le_self _ _)
   have h₀ : W / V ≤ (div2Est R vt).toNat := by
     rw [hest]
-    exact Nat.le_min.2 ⟨(Nat.le_div_iff_mul_le hvt).2 hQ₀, by omega⟩
+    exact Nat.le_min.2 ⟨(Nat.le_div_iff_mul_le hvt).2 hQ₀, by lia⟩
   have h₁ : W / V * (vt.toNat * 2 ^ 32 + vs.toNat) ≤
       (((R >>> 32).toUInt32).toNat * 2 ^ 32 + (R.toUInt32).toNat) * 2 ^ 32 + x.toNat := by
     rw [hwt, hwn, hRsplit, hW, hVdef]
@@ -947,7 +947,7 @@ public def ofWord64 (w : UInt64) : UInt32Array :=
     UInt64.toNat_toUInt32, UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow]
   have := w.toNat_lt
   simp only [UInt64.reduceToNat, Nat.reduceMod]
-  omega
+  lia
 
 public theorem isTrimmed_ofWord64 (w : UInt64) : isTrimmed (ofWord64 w) = true := isTrimmed_trim _
 

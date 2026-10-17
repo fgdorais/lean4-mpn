@@ -274,30 +274,30 @@ public def main (args : List String) : IO UInt32 := do
   IO.println "mulKaratsuba: one Karatsuba step against schoolbook"
   let karatsuba ← tuneKaratsuba log
   IO.println "mulToom3: one Toom-3 step against Karatsuba"
-  let toom3 ← tuneToom3 (max 4 karatsuba) (by omega) log
+  let toom3 ← tuneToom3 (max 4 karatsuba) (by lia) log
   IO.println "mulToom32: one step of Toom-3 by 2 against the others, at 3:2"
-  let toom32 ← tuneToom32 (max 4 karatsuba) (max 12 toom3) (by omega) (by omega) log
+  let toom32 ← tuneToom32 (max 4 karatsuba) (max 12 toom3) (by lia) (by lia) log
   IO.println "mulToom42: one step of Toom-4 by 2 against the others, at 15:8"
   let toom42 ← tuneToom42 (max 4 karatsuba) (max 12 toom3) (max 12 toom32) (by lia) (by lia)
     (by lia) log
   IO.println "mulUnbalanced: halving the longer operand against schoolbook, at 8:1"
-  let unbalanced ← tuneUnbalanced (max 4 karatsuba) (by omega) log
+  let unbalanced ← tuneUnbalanced (max 4 karatsuba) (by lia) log
   IO.println "sqrBasecase: the schoolbook square against multiplying"
   let sqrBasecase ← tuneSqrBasecase log
   IO.println "sqrKaratsuba: one Karatsuba square against the schoolbook square"
   let sqrKaratsuba ← tuneSqrKaratsuba log
   IO.println "sqrToom3: one Toom-3 square against Karatsuba squaring"
-  let sqrToom3 ← tuneSqrToom3 sqrBasecase (max 4 sqrKaratsuba) (by omega) log
+  let sqrToom3 ← tuneSqrToom3 sqrBasecase (max 4 sqrKaratsuba) (by lia) log
   IO.println "divDC: one level of division by blocks against Algorithm D, at 2n / n"
   let divDC ← tuneDivDC log
   let cfg : Config := {
-    mulKaratsuba := max 4 karatsuba, four_le_mulKaratsuba := by omega,
-    mulToom3 := max 12 toom3, twelve_le_mulToom3 := by omega,
-    mulToom32 := max 12 toom32, twelve_le_mulToom32 := by omega,
+    mulKaratsuba := max 4 karatsuba, four_le_mulKaratsuba := by lia,
+    mulToom3 := max 12 toom3, twelve_le_mulToom3 := by lia,
+    mulToom32 := max 12 toom32, twelve_le_mulToom32 := by lia,
     mulToom42 := max 12 toom42, twelve_le_mulToom42 := by lia, mulUnbalanced := unbalanced
-    sqrBasecase, sqrKaratsuba := max 4 sqrKaratsuba, four_le_sqrKaratsuba := by omega,
-    sqrToom3 := max 12 sqrToom3, twelve_le_sqrToom3 := by omega,
-    divDC := max 4 divDC, four_le_divDC := by omega }
+    sqrBasecase, sqrKaratsuba := max 4 sqrKaratsuba, four_le_sqrKaratsuba := by lia,
+    sqrToom3 := max 12 sqrToom3, twelve_le_sqrToom3 := by lia,
+    divDC := max 4 divDC, four_le_divDC := by lia }
   IO.println ""
   IO.println s!"Found:   {repr cfg}"
   IO.println s!"Default: {repr ({} : Config)}"

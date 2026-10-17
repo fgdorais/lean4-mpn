@@ -42,10 +42,10 @@ private theorem pow_le_toNat_of_isTrimmed {a : UInt32Array} (h : isTrimmed a = t
     (hpos : 0 < a.size) : 2 ^ (32 * (a.size - 1)) ≤ toNat a := by
   refine Nat.le_of_not_lt fun hlt => ?_
   rw [toNat_toSlice] at hlt
-  have := getElem_eq_zero_of_ofLimbs_lt (l := a.toList) (k := a.size - 1) (by simp; omega) hlt
+  have := getElem_eq_zero_of_ofLimbs_lt (l := a.toList) (k := a.size - 1) (by simp; lia) hlt
   rw [isTrimmed_iff, IsTrimmed, List.getLast?_eq_getElem?] at h
   simp only [UInt32Array.length_toList] at h
-  rw [List.getElem?_eq_getElem (by simp; omega), this] at h
+  rw [List.getElem?_eq_getElem (by simp; lia), this] at h
   exact h rfl
 
 /-- The limbs of a word: none for `0`, one below `2³²`, two otherwise. -/
@@ -81,11 +81,11 @@ private theorem limbsOfWord_spec (n : UInt64) :
       have hx : n.toUInt32 ≠ 0 := fun h'' => by
         have := congrArg UInt32.toNat h''
         simp only [UInt64.toNat_toUInt32, UInt32.toNat_zero] at this
-        omega
+        lia
       refine ⟨?_, isTrimmed_of_getLast (by rw [hl]; rfl) hx⟩
       rw [toNat_toSlice, hl]
       simp only [ofLimbs_cons, ofLimbs_nil, Nat.mul_zero, Nat.add_zero, UInt64.toNat_toUInt32]
-      omega
+      lia
     · have heq : limbsOfWord n =
           ((UInt32Array.emptyWithCapacity 2).push n.toUInt32).push (n >>> 32).toUInt32 := by
         rw [limbsOfWord, ite_eq_right h, ite_eq_right h']
@@ -99,13 +99,13 @@ private theorem limbsOfWord_spec (n : UInt64) :
       have hx : (n >>> 32).toUInt32 ≠ 0 := fun h'' => by
         have := congrArg UInt32.toNat h''
         simp only [UInt64.toNat_toUInt32, UInt32.toNat_zero, hhi] at this
-        omega
+        lia
       refine ⟨?_, isTrimmed_of_getLast (by rw [hl]; rfl) hx⟩
       rw [toNat_toSlice, hl]
       simp only [ofLimbs_cons, ofLimbs_nil, Nat.mul_zero, Nat.add_zero, UInt64.toNat_toUInt32, hhi]
-      have : n.toNat / 2 ^ 32 < 2 ^ 32 := by omega
+      have : n.toNat / 2 ^ 32 < 2 ^ 32 := by lia
       rw [Nat.mod_eq_of_lt this]
-      omega
+      lia
 
 /-- The word of an array of at most two limbs. -/
 def wordOfLimbs (a : UInt32Array) : UInt64 :=
@@ -118,13 +118,13 @@ private theorem toNat_wordOfLimbs (a : UInt32Array) (h : a.size ≤ 2) :
   have hw : (wordOfLimbs a).toNat = (a.getD 0 0).toNat + (a.getD 1 0).toNat * 2 ^ 32 := by
     simp only [wordOfLimbs, UInt64.toNat_add, UInt64.toNat_shiftLeft, UInt32.toNat_toUInt64,
       UInt64.reduceToNat, Nat.reduceMod, Nat.shiftLeft_eq]
-    rw [Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)]
+    rw [Nat.mod_eq_of_lt (by lia), Nat.mod_eq_of_lt (by lia)]
   rw [hw, toNat_toSlice]
-  have hl : a.toList = (a.toList.take 2) := (List.take_of_length_le (by simp; omega)).symm
+  have hl : a.toList = (a.toList.take 2) := (List.take_of_length_le (by simp; lia)).symm
   rw [hl, ofLimbs_take_add_one_getD, ofLimbs_take_add_one_getD]
   simp only [List.take_zero, ofLimbs_nil, Nat.mul_zero, Nat.pow_zero, Nat.one_mul, Nat.zero_add,
     UInt32Array.getD_eq_getD_getElem?, List.getD_eq_getElem?_getD, UInt32Array.getElem?_toList]
-  omega
+  lia
 
 /-! ## The type -/
 
@@ -147,7 +147,7 @@ public def ofNat (n : Nat) : MPN.Nat :=
   if h : n < 2 ^ 64 then
     small n.toUInt64
   else
-    large (MPN.ofNat n) ⟨isTrimmed_ofNat n, by rw [toNat_ofNat]; omega⟩
+    large (MPN.ofNat n) ⟨isTrimmed_ofNat n, by rw [toNat_ofNat]; lia⟩
 
 @[simp] public theorem toNat_ofNat (n : Nat) : (ofNat n).toNat = n := by
   unfold ofNat
@@ -168,13 +168,13 @@ public theorem toNat_inj {x y : MPN.Nat} : x.toNat = y.toNat ↔ x = y := by
     | large b hb =>
       have := m.toNat_lt
       simp only [toNat] at h
-      omega
+      lia
   | large a ha =>
     cases y with
     | small n =>
       have := n.toNat_lt
       simp only [toNat] at h
-      omega
+      lia
     | large b hb =>
       simp only [toNat] at h
       have : a = b := by rw [← ofNat_toNat ha.1, ← ofNat_toNat hb.1, h]
@@ -200,9 +200,9 @@ public def ofLimbs (a : UInt32Array) (h : isTrimmed a = true) : MPN.Nat :=
     small (wordOfLimbs a)
   else
     large a ⟨h, by
-      have := pow_le_toNat_of_isTrimmed h (by omega)
-      have : 2 ^ 64 ≤ 2 ^ (32 * (a.size - 1)) := Nat.pow_le_pow_right (by decide) (by omega)
-      omega⟩
+      have := pow_le_toNat_of_isTrimmed h (by lia)
+      have : 2 ^ 64 ≤ 2 ^ (32 * (a.size - 1)) := Nat.pow_le_pow_right (by decide) (by lia)
+      lia⟩
 
 @[simp] public theorem toNat_ofLimbs (a : UInt32Array) (h : isTrimmed a = true) :
     (ofLimbs a h).toNat = MPN.toNat a := by
@@ -247,10 +247,10 @@ private theorem limbs4_spec (lo hi : UInt64) (h : hi ≠ 0) :
     · intro e
       have := congrArg UInt32.toNat e
       simp only [UInt64.toNat_toUInt32, UInt32.toNat_zero] at this
-      omega
+      lia
     · simp only [hs, ite_true, List.append_nil, ofLimbs_cons, ofLimbs_nil, UInt64.toNat_toUInt32,
         UInt64.toNat_shiftRight, UInt64.reduceToNat, Nat.reduceMod, Nat.shiftRight_eq_div_pow]
-      omega
+      lia
   · have hs' := hs
     rw [UInt64.lt_iff_toNat_lt] at hs'
     simp only [UInt64.reduceToNat] at hs'
@@ -260,11 +260,11 @@ private theorem limbs4_spec (lo hi : UInt64) (h : hi ≠ 0) :
       have := congrArg UInt32.toNat e
       simp only [UInt64.toNat_toUInt32, UInt64.toNat_shiftRight, UInt64.reduceToNat,
         Nat.reduceMod, Nat.shiftRight_eq_div_pow, UInt32.toNat_zero] at this
-      omega
+      lia
     · simp only [hs, ite_false, List.cons_append, List.nil_append, ofLimbs_cons, ofLimbs_nil,
         UInt64.toNat_toUInt32, UInt64.toNat_shiftRight, UInt64.reduceToNat, Nat.reduceMod,
         Nat.shiftRight_eq_div_pow]
-      omega
+      lia
 
 /-- The `MPN.Nat` `lo + 2⁶⁴ hi`. -/
 def wideOf (lo hi : UInt64) : MPN.Nat :=
@@ -273,7 +273,7 @@ def wideOf (lo hi : UInt64) : MPN.Nat :=
     rw [(limbs4_spec lo hi h).2]
     have : hi.toNat ≠ 0 := fun e => h (UInt64.toNat_inj.1 (by simpa using e))
     have := Nat.mul_le_mul_left (2 ^ 64) (Nat.one_le_iff_ne_zero.2 this)
-    omega⟩
+    lia⟩
 
 private theorem toNat_wideOf (lo hi : UInt64) :
     (wideOf lo hi).toNat = lo.toNat + 2 ^ 64 * hi.toNat := by
@@ -311,8 +311,8 @@ private theorem mulWide_spec (a b : UInt64) :
   have e₂ : b.toNat = 2 ^ 32 * (b.toNat / 2 ^ 32) + b.toNat % 2 ^ 32 := (Nat.div_add_mod _ _).symm
   have hA₀ : a.toNat % 2 ^ 32 < 2 ^ 32 := Nat.mod_lt _ (by decide)
   have hB₀ : b.toNat % 2 ^ 32 < 2 ^ 32 := Nat.mod_lt _ (by decide)
-  have hA₁ : a.toNat / 2 ^ 32 < 2 ^ 32 := by omega
-  have hB₁ : b.toNat / 2 ^ 32 < 2 ^ 32 := by omega
+  have hA₁ : a.toNat / 2 ^ 32 < 2 ^ 32 := by lia
+  have hB₁ : b.toNat / 2 ^ 32 < 2 ^ 32 := by lia
   generalize a.toNat % 2 ^ 32 = A₀ at *
   generalize b.toNat % 2 ^ 32 = B₀ at *
   generalize a.toNat / 2 ^ 32 = A₁ at *
@@ -322,18 +322,18 @@ private theorem mulWide_spec (a b : UInt64) :
     rw [e₁, e₂]
     simp only [Nat.mul_add, Nat.add_mul]
     grind
-  have b₀₀ : A₀ * B₀ ≤ 4294967295 * 4294967295 := Nat.mul_le_mul (by omega) (by omega)
-  have b₀₁ : A₀ * B₁ ≤ 4294967295 * 4294967295 := Nat.mul_le_mul (by omega) (by omega)
-  have b₁₀ : A₁ * B₀ ≤ 4294967295 * 4294967295 := Nat.mul_le_mul (by omega) (by omega)
-  have b₁₁ : A₁ * B₁ ≤ 4294967295 * 4294967295 := Nat.mul_le_mul (by omega) (by omega)
+  have b₀₀ : A₀ * B₀ ≤ 4294967295 * 4294967295 := Nat.mul_le_mul (by lia) (by lia)
+  have b₀₁ : A₀ * B₁ ≤ 4294967295 * 4294967295 := Nat.mul_le_mul (by lia) (by lia)
+  have b₁₀ : A₁ * B₀ ≤ 4294967295 * 4294967295 := Nat.mul_le_mul (by lia) (by lia)
+  have b₁₁ : A₁ * B₁ ≤ 4294967295 * 4294967295 := Nat.mul_le_mul (by lia) (by lia)
   rw [hprod]
   generalize A₀ * B₀ = P₀₀ at *
   generalize A₀ * B₁ = P₀₁ at *
   generalize A₁ * B₀ = P₁₀ at *
   generalize A₁ * B₁ = P₁₁ at *
-  rw [Nat.mod_eq_of_lt (show P₀₀ < 2 ^ 64 by omega), Nat.mod_eq_of_lt (show P₀₁ < 2 ^ 64 by omega),
-    Nat.mod_eq_of_lt (show P₁₀ < 2 ^ 64 by omega), Nat.mod_eq_of_lt (show P₁₁ < 2 ^ 64 by omega)]
-  omega
+  rw [Nat.mod_eq_of_lt (show P₀₀ < 2 ^ 64 by lia), Nat.mod_eq_of_lt (show P₀₁ < 2 ^ 64 by lia),
+    Nat.mod_eq_of_lt (show P₁₀ < 2 ^ 64 by lia), Nat.mod_eq_of_lt (show P₁₁ < 2 ^ 64 by lia)]
+  lia
 
 /-! ## Arithmetic -/
 
@@ -381,18 +381,18 @@ private theorem divRemWord_spec (a : UInt32Array) (b : UInt64) (hb : b ≠ 0) :
   have key : ∀ q r : Nat, q * b.toNat + r = MPN.toNat a → r < b.toNat →
       q = MPN.toNat a / b.toNat ∧ r = MPN.toNat a % b.toNat := fun q r h₁ h₂ => by
     have := (Nat.div_mod_unique (a := MPN.toNat a) (b := b.toNat) (d := q) (c := r) hb').2
-      ⟨by rw [Nat.mul_comm b.toNat q]; omega, h₂⟩
+      ⟨by rw [Nat.mul_comm b.toNat q]; lia, h₂⟩
     exact ⟨this.1.symm, this.2.symm⟩
   unfold divRemWord
   by_cases hs : b < 4294967296
   · rw [ite_eq_left hs]
     rw [UInt64.lt_iff_toNat_lt] at hs
     simp only [UInt64.reduceToNat] at hs
-    have hd : b.toUInt32.toNat = b.toNat := by simp; omega
+    have hd : b.toUInt32.toNat = b.toNat := by simp; lia
     have hd0 : b.toUInt32 ≠ 0 := fun e => by
       have := congrArg UInt32.toNat e
       rw [hd, UInt32.toNat_zero] at this
-      omega
+      lia
     obtain ⟨h₁, h₂⟩ := divRem1_spec a b.toUInt32 hd0
     rw [hd] at h₁ h₂
     simp only [UInt32.toNat_toUInt64]
@@ -403,12 +403,12 @@ private theorem divRemWord_spec (a : UInt32Array) (b : UInt64) (hb : b ≠ 0) :
     have hd : ((b >>> 32).toUInt32).toNat * 2 ^ 32 + b.toUInt32.toNat = b.toNat := by
       simp only [UInt64.toNat_toUInt32, UInt64.toNat_shiftRight, UInt64.reduceToNat,
         Nat.reduceMod, Nat.shiftRight_eq_div_pow]
-      omega
+      lia
     have hd0 : (b >>> 32).toUInt32 ≠ 0 := fun e => by
       have := congrArg UInt32.toNat e
       simp only [UInt64.toNat_toUInt32, UInt64.toNat_shiftRight, UInt64.reduceToNat,
         Nat.reduceMod, Nat.shiftRight_eq_div_pow, UInt32.toNat_zero] at this
-      omega
+      lia
     obtain ⟨h₁, h₂⟩ := divRem2_spec a (b >>> 32).toUInt32 b.toUInt32 hd0
     rw [hd] at h₁ h₂
     exact key _ _ h₁ h₂
@@ -442,19 +442,19 @@ private theorem div_of_scaled {X Q b S r : Nat} (hS : 0 < S) (h : X * S = Q * (b
     (hr : r < b * S) : X / b = Q ∧ X % b = r / S := by
   have hQ : Q * b ≤ X := by
     refine Nat.le_of_not_lt fun hlt => ?_
-    have := Nat.mul_le_mul_right S (show X + 1 ≤ Q * b by omega)
+    have := Nat.mul_le_mul_right S (show X + 1 ≤ Q * b by lia)
     rw [Nat.add_mul, Nat.one_mul, Nat.mul_assoc] at this
-    omega
+    lia
   have hr' : r = (X - Q * b) * S := by
     rw [Nat.sub_mul, Nat.mul_assoc Q b S]
-    omega
+    lia
   have hrS : r / S = X - Q * b := by rw [hr', Nat.mul_div_cancel _ hS]
   have hlt : X - Q * b < b := by
     rw [hr'] at hr
     exact Nat.lt_of_mul_lt_mul_right hr
-  have hb : 0 < b := by omega
+  have hb : 0 < b := by lia
   have := (Nat.div_mod_unique (a := X) (b := b) (d := Q) (c := X - Q * b) hb).2
-    ⟨by rw [Nat.mul_comm b Q]; omega, hlt⟩
+    ⟨by rw [Nat.mul_comm b Q]; lia, hlt⟩
   exact ⟨this.1, by rw [hrS]; exact this.2⟩
 
 /-- The value of at most four limbs. -/
@@ -462,7 +462,7 @@ private theorem toNat_four (a : UInt32Array) (ha : a.size ≤ 4) :
     MPN.toNat a = (a.getD 0 0).toNat + 2 ^ 32 * (a.getD 1 0).toNat +
       2 ^ 64 * (a.getD 2 0).toNat + 2 ^ 96 * (a.getD 3 0).toNat := by
   rw [toNat_toSlice]
-  have hl : a.toList = (a.toList.take 4) := (List.take_of_length_le (by simp; omega)).symm
+  have hl : a.toList = (a.toList.take 4) := (List.take_of_length_le (by simp; lia)).symm
   rw [hl, ofLimbs_take_add_one_getD, ofLimbs_take_add_one_getD, ofLimbs_take_add_one_getD,
     ofLimbs_take_add_one_getD]
   simp only [List.take_zero, ofLimbs_nil, UInt32Array.getD_eq_getD_getElem?,
@@ -481,9 +481,9 @@ private theorem divRem128_spec (a : UInt32Array) (b : UInt64) (ha : a.size ≤ 4
   have hd₁ : (b >>> 32).toUInt32.toNat = b.toNat / 2 ^ 32 := by
     simp only [UInt64.toNat_toUInt32, UInt64.toNat_shiftRight, UInt64.reduceToNat, Nat.reduceMod,
       Nat.shiftRight_eq_div_pow]
-    omega
-  have hd₁0 : b.toNat / 2 ^ 32 ≠ 0 := by omega
-  have hl : (b.toNat / 2 ^ 32).log2 < 32 := (Nat.log2_lt hd₁0).2 (by omega)
+    lia
+  have hd₁0 : b.toNat / 2 ^ 32 ≠ 0 := by lia
+  have hl : (b.toNat / 2 ^ 32).log2 < 32 := (Nat.log2_lt hd₁0).2 (by lia)
   have hlt := Nat.lt_log2_self (n := b.toNat / 2 ^ 32)
   have hge := Nat.log2_self_le hd₁0
   simp only [divRem128, hd₁]
@@ -491,38 +491,38 @@ private theorem divRem128_spec (a : UInt32Array) (b : UInt64) (ha : a.size ≤ 4
   have hS : 0 < 2 ^ (31 - l) := Nat.two_pow_pos _
   have hsU : (31 - l).toUInt64.toNat = 31 - l := by
     simp only [Nat.toUInt64, UInt64.toNat_ofNat']
-    exact Nat.mod_eq_of_lt (by omega)
+    exact Nat.mod_eq_of_lt (by lia)
   have hV64 : b.toNat * 2 ^ (31 - l) < 2 ^ 64 := by
     have h₁ : b.toNat < 2 ^ (l + 1) * 2 ^ 32 := by
-      have := Nat.mul_le_mul_right (2 ^ 32) (show b.toNat / 2 ^ 32 + 1 ≤ 2 ^ (l + 1) by omega)
+      have := Nat.mul_le_mul_right (2 ^ 32) (show b.toNat / 2 ^ 32 + 1 ≤ 2 ^ (l + 1) by lia)
       rw [Nat.succ_mul] at this
-      omega
+      lia
     have h₂ : 2 ^ (l + 1) * 2 ^ 32 * 2 ^ (31 - l) = 2 ^ 64 := by
-      rw [← Nat.pow_add, ← Nat.pow_add]; congr 1; omega
+      rw [← Nat.pow_add, ← Nat.pow_add]; congr 1; lia
     rw [← h₂]
     exact Nat.mul_lt_mul_of_pos_right h₁ hS
   have hV : (b <<< (31 - l).toUInt64).toNat = b.toNat * 2 ^ (31 - l) := by
-    rw [UInt64.toNat_shiftLeft, hsU, Nat.mod_eq_of_lt (show 31 - l < 64 by omega),
+    rw [UInt64.toNat_shiftLeft, hsU, Nat.mod_eq_of_lt (show 31 - l < 64 by lia),
       Nat.shiftLeft_eq, Nat.mod_eq_of_lt hV64]
   have hvtvs : ((b <<< (31 - l).toUInt64) >>> 32).toUInt32.toNat * 2 ^ 32 +
       (b <<< (31 - l).toUInt64).toUInt32.toNat = b.toNat * 2 ^ (31 - l) := by
     simp only [UInt64.toNat_toUInt32, UInt64.toNat_shiftRight, UInt64.reduceToNat, Nat.reduceMod,
       Nat.shiftRight_eq_div_pow, hV]
-    omega
+    lia
   have hVge : 2 ^ 32 * 2 ^ (31 - l) ≤ b.toNat * 2 ^ (31 - l) := Nat.mul_le_mul_right _ hb
   have hvt : 0 < ((b <<< (31 - l).toUInt64) >>> 32).toUInt32.toNat := by
     simp only [UInt64.toNat_toUInt32, UInt64.toNat_shiftRight, UInt64.reduceToNat, Nat.reduceMod,
       Nat.shiftRight_eq_div_pow, hV]
     have : 2 ^ 32 ≤ b.toNat * 2 ^ (31 - l) := Nat.le_trans (Nat.le_mul_of_pos_right _ hS) hVge
-    omega
+    lia
   generalize ((b <<< (31 - l).toUInt64) >>> 32).toUInt32 = vt at hvtvs hvt ⊢
   generalize (b <<< (31 - l).toUInt64).toUInt32 = vs at hvtvs ⊢
   -- The shift: four `shlStep`s make `X 2ˢ` in five words.
-  obtain ⟨e₀, c₀⟩ := shlStep_spec (31 - l) (by omega) (a.getD 0 0) 0 (by simpa using hS)
+  obtain ⟨e₀, c₀⟩ := shlStep_spec (31 - l) (by lia) (a.getD 0 0) 0 (by simpa using hS)
   simp only [UInt32.toNat_zero, Nat.add_zero] at e₀
-  obtain ⟨e₁, c₁⟩ := shlStep_spec (31 - l) (by omega) (a.getD 1 0) _ c₀
-  obtain ⟨e₂, c₂⟩ := shlStep_spec (31 - l) (by omega) (a.getD 2 0) _ c₁
-  obtain ⟨e₃, c₃⟩ := shlStep_spec (31 - l) (by omega) (a.getD 3 0) _ c₂
+  obtain ⟨e₁, c₁⟩ := shlStep_spec (31 - l) (by lia) (a.getD 1 0) _ c₀
+  obtain ⟨e₂, c₂⟩ := shlStep_spec (31 - l) (by lia) (a.getD 2 0) _ c₁
+  obtain ⟨e₃, c₃⟩ := shlStep_spec (31 - l) (by lia) (a.getD 3 0) _ c₂
   generalize shlStep (31 - l).toUInt64 (a.getD 0 0) 0 = p₀ at *
   generalize shlStep (31 - l).toUInt64 (a.getD 1 0) p₀.2 = p₁ at *
   generalize shlStep (31 - l).toUInt64 (a.getD 2 0) p₁.2 = p₂ at *
@@ -531,16 +531,16 @@ private theorem divRem128_spec (a : UInt32Array) (b : UInt64) (ha : a.size ≤ 4
   have hXlt : MPN.toNat a < 2 ^ 128 := by
     have := (a.getD 0 0).toNat_lt; have := (a.getD 1 0).toNat_lt
     have := (a.getD 2 0).toNat_lt; have := (a.getD 3 0).toNat_lt
-    omega
+    lia
   -- The top two words start the remainder, below `V`.
   have hR0 : ((p₃.2.toUInt64 <<< 32) + p₃.1.toUInt64).toNat =
       p₃.2.toNat * 2 ^ 32 + p₃.1.toNat := by
     have := p₃.1.toNat_lt
     have : p₃.2.toNat < 2 ^ 31 :=
-      Nat.lt_of_lt_of_le c₃ (Nat.pow_le_pow_right (by decide) (by omega))
+      Nat.lt_of_lt_of_le c₃ (Nat.pow_le_pow_right (by decide) (by lia))
     simp only [UInt64.toNat_add, UInt64.toNat_shiftLeft, UInt32.toNat_toUInt64, UInt64.reduceToNat,
       Nat.reduceMod, Nat.shiftLeft_eq]
-    omega
+    lia
   generalize hSdef : 2 ^ (31 - l) = S at *
   generalize MPN.toNat a = X at *
   generalize b.toNat = B at *
@@ -549,25 +549,25 @@ private theorem divRem128_spec (a : UInt32Array) (b : UInt64) (ha : a.size ≤ 4
       2 ^ 96 * (p₃.2.toNat * 2 ^ 32 + p₃.1.toNat) := by
     rw [hX]
     simp only [Nat.add_mul, Nat.mul_assoc]
-    omega
+    lia
   have hXS : X * S < 2 ^ 128 * S := Nat.mul_lt_mul_of_pos_right hXlt hS
   have hR0lt : ((p₃.2.toUInt64 <<< 32) + p₃.1.toUInt64).toNat < vt.toNat * 2 ^ 32 + vs.toNat := by
     rw [hR0, hvtvs]
-    omega
+    lia
   -- The three steps.
   obtain ⟨q₂, r₂⟩ := div2Step_spec vt vs _ p₂.1 hvt hR0lt
   have hr₂ := Nat.mod_lt ((((p₃.2.toUInt64 <<< 32) + p₃.1.toUInt64).toNat * 2 ^ 32 +
-    p₂.1.toNat)) (show 0 < vt.toNat * 2 ^ 32 + vs.toNat by omega)
+    p₂.1.toNat)) (show 0 < vt.toNat * 2 ^ 32 + vs.toNat by lia)
   rw [← r₂] at hr₂
   generalize div2Step vt vs ((p₃.2.toUInt64 <<< 32) + p₃.1.toUInt64) p₂.1 = t₂ at *
   obtain ⟨q₁, r₁⟩ := div2Step_spec vt vs t₂.2 p₁.1 hvt hr₂
   have hr₁ := Nat.mod_lt (t₂.2.toNat * 2 ^ 32 + p₁.1.toNat)
-    (show 0 < vt.toNat * 2 ^ 32 + vs.toNat by omega)
+    (show 0 < vt.toNat * 2 ^ 32 + vs.toNat by lia)
   rw [← r₁] at hr₁
   generalize div2Step vt vs t₂.2 p₁.1 = t₁ at *
   obtain ⟨q₀, r₀⟩ := div2Step_spec vt vs t₁.2 p₀.1 hvt hr₁
   have hr₀ := Nat.mod_lt (t₁.2.toNat * 2 ^ 32 + p₀.1.toNat)
-    (show 0 < vt.toNat * 2 ^ 32 + vs.toNat by omega)
+    (show 0 < vt.toNat * 2 ^ 32 + vs.toNat by lia)
   rw [← r₀] at hr₀
   generalize div2Step vt vs t₁.2 p₀.1 = t₀ at *
   rw [hR0] at q₂ r₂
@@ -585,7 +585,7 @@ private theorem divRem128_spec (a : UInt32Array) (b : UInt64) (ha : a.size ≤ 4
     generalize B * S = V at *
     rw [Nat.add_mul, Nat.add_mul, Nat.mul_assoc, Nat.mul_assoc, Nat.mul_comm t₀.1.toNat V,
       Nat.mul_comm t₁.1.toNat V, Nat.mul_comm t₂.1.toNat V]
-    omega
+    lia
   obtain ⟨hq, hr⟩ := div_of_scaled hS hQ hr₀
   refine ⟨?_, ?_⟩
   · have := t₀.1.toNat_lt
@@ -593,8 +593,8 @@ private theorem divRem128_spec (a : UInt32Array) (b : UInt64) (ha : a.size ≤ 4
     simp only [UInt64.toNat_add, UInt64.toNat_shiftLeft, UInt32.toNat_toUInt64,
       UInt64.reduceToNat, Nat.reduceMod, Nat.shiftLeft_eq]
     rw [hq]
-    omega
-  · rw [hr, UInt64.toNat_shiftRight, hsU, Nat.mod_eq_of_lt (show 31 - l < 64 by omega),
+    lia
+  · rw [hr, UInt64.toNat_shiftRight, hsU, Nat.mod_eq_of_lt (show 31 - l < 64 by lia),
       Nat.shiftRight_eq_div_pow, hSdef]
 
 /-- `divRemWord` without the remainder, which `div2` saves allocating. -/
@@ -629,7 +629,7 @@ private theorem small_lt_large (a : UInt64) (b : UInt32Array)
     (hb : isTrimmed b = true ∧ 2 ^ 64 ≤ MPN.toNat b) : (small a).toNat < (large b hb).toNat := by
   have := a.toNat_lt
   simp only [toNat]
-  omega
+  lia
 
 @[simp] public theorem toNat_add (x y : MPN.Nat) : (add x y).toNat = x.toNat + y.toNat := by
   have hgen : ∀ x y : MPN.Nat, (ofLimbs (MPN.add x.limbs y.limbs) (isTrimmed_add _ _)).toNat =
@@ -647,11 +647,11 @@ private theorem small_lt_large (a : UInt64) (b : UInt32Array)
         rw [UInt64.lt_iff_toNat_lt, UInt64.toNat_add] at h
         rw [toNat_wideOf, UInt64.toNat_add]
         simp only [toNat, UInt64.toNat_one]
-        omega
+        lia
       · rename_i h
         rw [UInt64.lt_iff_toNat_lt, UInt64.toNat_add] at h
         simp only [toNat, UInt64.toNat_add]
-        omega
+        lia
     | large b hb => exact hgen _ _
   | large a ha => exact hgen _ _
 
@@ -663,11 +663,11 @@ private theorem small_lt_large (a : UInt64) (b : UInt32Array)
     · rw [ite_eq_left h]
       rw [lt_iff, toNat_limbs, toNat_limbs] at h
       rw [toNat_small, UInt64.toNat_zero]
-      omega
+      lia
     · rw [ite_eq_right h]
       have h' : y.toNat ≤ x.toNat := by
         rw [lt_iff, toNat_limbs, toNat_limbs] at h
-        omega
+        lia
       rw [toNat_ofLimbs, toNat_trim, toNat_subVal _ _ (by rw [toNat_limbs, toNat_limbs]; exact h'),
         toNat_limbs, toNat_limbs]
   cases x with
@@ -681,7 +681,7 @@ private theorem small_lt_large (a : UInt64) (b : UInt32Array)
       · rename_i h
         rw [UInt64.le_iff_toNat_le] at h
         simp only [toNat, UInt64.toNat_zero]
-        omega
+        lia
     | large b hb => exact hgen _ _
   | large a ha => exact hgen _ _
 
@@ -786,7 +786,7 @@ public theorem blt_iff (x y : MPN.Nat) : blt x y = true ↔ x.toNat < y.toNat :=
     | small b =>
       have := small_lt_large b a ha
       simp only [blt, Bool.false_eq_true, false_iff, Nat.not_lt]
-      omega
+      lia
     | large b hb => simp only [blt, lt_iff]; rfl
 
 /-- Decides equality on the representation, which is unique. -/
@@ -831,18 +831,18 @@ public def shiftRight (x : MPN.Nat) (n : Nat) : MPN.Nat :=
         rw [UInt64.toNat_shiftRight, UInt64.toNat_zero, Nat.shiftRight_eq_div_pow] at h₂
         have hn : (64 - n).toUInt64.toNat % 64 = 64 - n := by
           simp only [Nat.toUInt64, UInt64.toNat_ofNat']
-          rw [Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)]
+          rw [Nat.mod_eq_of_lt (by lia), Nat.mod_eq_of_lt (by lia)]
         have hn' : n.toUInt64.toNat % 64 = n := by
           simp only [Nat.toUInt64, UInt64.toNat_ofNat']
-          rw [Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)]
+          rw [Nat.mod_eq_of_lt (by lia), Nat.mod_eq_of_lt (by lia)]
         rw [hn] at h₂
         have hlt : a.toNat < 2 ^ (64 - n) := by
           rcases Nat.eq_zero_or_pos (a.toNat / 2 ^ (64 - n)) with h | h
           · exact (Nat.div_eq_zero_iff_lt (Nat.two_pow_pos _)).1 h
-          · omega
+          · lia
         have : a.toNat * 2 ^ n < 2 ^ 64 := by
           have := Nat.mul_lt_mul_of_pos_right hlt (Nat.two_pow_pos n)
-          rwa [← Nat.pow_add, show 64 - n + n = 64 by omega] at this
+          rwa [← Nat.pow_add, show 64 - n + n = 64 by lia] at this
         simp only [toNat, UInt64.toNat_shiftLeft, hn', Nat.shiftLeft_eq]
         exact Nat.mod_eq_of_lt this
       · rw [toNat_ofLimbs, MPN.toNat_shiftLeft, (limbsOfWord_spec a).1]
@@ -862,12 +862,12 @@ public def shiftRight (x : MPN.Nat) (n : Nat) : MPN.Nat :=
     · rename_i h
       have hn' : n.toUInt64.toNat % 64 = n := by
         simp only [Nat.toUInt64, UInt64.toNat_ofNat']
-        rw [Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)]
+        rw [Nat.mod_eq_of_lt (by lia), Nat.mod_eq_of_lt (by lia)]
       simp only [toNat, UInt64.toNat_shiftRight, hn', Nat.shiftRight_eq_div_pow]
     · rename_i h
-      have : 2 ^ 64 ≤ 2 ^ n := Nat.pow_le_pow_right (by decide) (by omega)
+      have : 2 ^ 64 ≤ 2 ^ n := Nat.pow_le_pow_right (by decide) (by lia)
       simp only [toNat, UInt64.toNat_zero]
-      exact (Nat.div_eq_of_lt (by omega)).symm
+      exact (Nat.div_eq_of_lt (by lia)).symm
   | large a ha =>
     simp only [shiftRight]
     rw [toNat_ofLimbs, MPN.toNat_shiftRight]
@@ -932,35 +932,35 @@ public def log2 : MPN.Nat → Nat
       rcases Nat.eq_zero_or_pos a.size with h | h
       · have := ha.2
         rw [toNat_of_size_eq_zero (by simpa using h)] at this
-        omega
+        lia
       · exact h
     -- `a = L + β^(n - 1) t` with `L < β^(n - 1)` and `t ≠ 0` the top limb.
     have hsplit := toNat_slice_add_toNat_slice a (a.size - 1) (by simp)
     have hL := toNat_lt (a.toSlice.slice 0 (a.size - 1))
     have htop : MPN.toNat (a.toSlice.slice (a.size - 1) a.toSlice.size) =
         (a.getD (a.size - 1) 0).toNat := by
-      rw [toNat_of_size_eq_one (by simp; omega)]
-      simp [UInt32Array.getD_eq_getD_getElem?, show a.size - 1 < a.size by omega]
+      rw [toNat_of_size_eq_one (by simp; lia)]
+      simp [UInt32Array.getD_eq_getD_getElem?, show a.size - 1 < a.size by lia]
     have ht : (a.getD (a.size - 1) 0).toNat ≠ 0 := by
       have := ha.1
       rw [isTrimmed_iff, IsTrimmed, List.getLast?_eq_getElem?] at this
       simp only [UInt32Array.length_toList] at this
-      rw [List.getElem?_eq_getElem (by simp; omega)] at this
+      rw [List.getElem?_eq_getElem (by simp; lia)] at this
       intro h0
       apply this
       simp only [UInt32Array.getElem_toList]
       congr 1
       apply UInt32.toNat_inj.1
       rw [UInt32.toNat_zero, ← h0]
-      simp [UInt32Array.getD_eq_getD_getElem?, show a.size - 1 < a.size by omega]
+      simp [UInt32Array.getD_eq_getD_getElem?, show a.size - 1 < a.size by lia]
     simp only [UInt32Array.Slice.size_slice, UInt32Array.size_toSlice] at hL
-    rw [show min (a.size - 1) (min a.size a.size - 0) - 0 = a.size - 1 by omega] at hL
+    rw [show min (a.size - 1) (min a.size a.size - 0) - 0 = a.size - 1 by lia] at hL
     rw [htop] at hsplit
     have hlo := Nat.log2_self_le ht
     have hhi := @Nat.lt_log2_self (a.getD (a.size - 1) 0).toNat
     generalize (a.getD (a.size - 1) 0).toNat = t at *
     symm
-    rw [Nat.log2_eq_iff (by omega)]
+    rw [Nat.log2_eq_iff (by lia)]
     have hP : 2 ^ (32 * (a.size - 1) + t.log2) = 2 ^ (32 * (a.size - 1)) * 2 ^ t.log2 :=
       Nat.pow_add _ _ _
     have hP1 : 2 ^ (32 * (a.size - 1) + t.log2 + 1) =
@@ -969,11 +969,11 @@ public def log2 : MPN.Nat → Nat
     constructor
     · rw [hP, ← hsplit]
       have := Nat.mul_le_mul_left (2 ^ (32 * (a.size - 1))) hlo
-      omega
+      lia
     · rw [hP1, ← hsplit]
       have := Nat.mul_le_mul_left (2 ^ (32 * (a.size - 1))) (Nat.succ_le_of_lt hhi)
       rw [Nat.mul_succ] at this
-      omega
+      lia
 
 /-! ## Powers and square roots -/
 
@@ -1007,7 +1007,7 @@ public def pow (x : MPN.Nat) (n : Nat) : MPN.Nat :=
   else if n % 2 = 0 then pow (sqr x) (n / 2)
   else mul x (pow (sqr x) (n / 2))
 termination_by n
-decreasing_by all_goals omega
+decreasing_by all_goals lia
 
 @[simp] public theorem toNat_pow (x : MPN.Nat) (n : Nat) : (pow x n).toNat = x.toNat ^ n := by
   induction n using Nat.strongRecOn generalizing x with
@@ -1019,13 +1019,13 @@ decreasing_by all_goals omega
       have hn := Nat.div_add_mod n 2
       split
       · rename_i h
-        rw [ih _ (by omega), toNat_sqr, ← Nat.pow_two, ← Nat.pow_mul]
+        rw [ih _ (by lia), toNat_sqr, ← Nat.pow_two, ← Nat.pow_mul]
         congr 1
-        omega
+        lia
       · rename_i h
-        rw [toNat_mul, ih _ (by omega), toNat_sqr, ← Nat.pow_two, ← Nat.pow_mul, ← Nat.pow_succ']
+        rw [toNat_mul, ih _ (by lia), toNat_sqr, ← Nat.pow_two, ← Nat.pow_mul, ← Nat.pow_succ']
         congr 1
-        omega
+        lia
 
 /--
 Steps down from `x ≥ ⌊√n⌋` to `⌊√n⌋`, while `x² > n`, with `sq = x²`: `(x - 1)² = x² - 2 x + 1`
@@ -1040,7 +1040,7 @@ decreasing_by
   rw [blt_iff, blt_iff, toNat_small] at _h
   rw [toNat_sub, toNat_small]
   simp only [UInt64.toNat_zero, UInt64.toNat_one] at *
-  omega
+  lia
 
 /-- `⌊√N⌋` is the `r` with `r² ≤ N < (r + 1)²`. -/
 private theorem eq_sqrt {r N : Nat} (h₁ : r * r ≤ N) (h₂ : N < (r + 1) * (r + 1)) :
@@ -1048,12 +1048,12 @@ private theorem eq_sqrt {r N : Nat} (h₁ : r * r ≤ N) (h₂ : N < (r + 1) * (
   have s₁ := Nat.sqrt_le N
   have s₂ := Nat.lt_succ_sqrt N
   rcases Nat.lt_trichotomy r (_root_.Nat.sqrt N) with h | h | h
-  · have := Nat.mul_self_le_mul_self (show r + 1 ≤ _root_.Nat.sqrt N by omega)
-    omega
+  · have := Nat.mul_self_le_mul_self (show r + 1 ≤ _root_.Nat.sqrt N by lia)
+    lia
   · exact h
-  · have := Nat.mul_self_le_mul_self (show _root_.Nat.sqrt N + 1 ≤ r by omega)
+  · have := Nat.mul_self_le_mul_self (show _root_.Nat.sqrt N + 1 ≤ r by lia)
     simp only [Nat.succ_eq_add_one] at s₂
-    omega
+    lia
 
 /-- One step of Newton's iteration stays at or above `s` when `s² ≤ N`, by AM-GM. -/
 private theorem le_newton {x s N : Nat} (hx : 0 < x) (hs : s * s ≤ N) :
@@ -1061,7 +1061,7 @@ private theorem le_newton {x s N : Nat} (hx : 0 < x) (hs : s * s ≤ N) :
   refine Nat.le_of_not_lt fun hlt => ?_
   have hN : N < x * (N / x + 1) := Nat.lt_mul_div_succ N hx
   generalize N / x = q at *
-  have h2 : x + q + 1 ≤ 2 * s := by omega
+  have h2 : x + q + 1 ≤ 2 * s := by lia
   have h3 := Nat.mul_self_le_mul_self h2
   -- `4 x (q + 1) ≤ (x + q + 1)²`, since their difference is a square.
   have h4 : 4 * (x * (q + 1)) ≤ (x + q + 1) * (x + q + 1) := by
@@ -1072,10 +1072,10 @@ private theorem le_newton {x s N : Nat} (hx : 0 < x) (hs : s * s ≤ N) :
       · exact Int.mul_nonneg h h
       · exact Int.mul_nonneg_of_nonpos_of_nonpos h h
     have h : ((4 * (x * (q + 1)) : Nat) : Int) ≤ (((x + q + 1) * (x + q + 1) : Nat) : Int) := by
-      push_cast; omega
+      push_cast; lia
     exact_mod_cast h
   have : 2 * s * (2 * s) = 4 * (s * s) := by rw [Nat.mul_mul_mul_comm]
-  omega
+  lia
 
 private theorem toNat_sqrtFix (n x sq : MPN.Nat) (hsq : sq.toNat = x.toNat * x.toNat)
     (hx : n.toNat < (x.toNat + 1) * (x.toNat + 1)) :
@@ -1090,10 +1090,10 @@ private theorem toNat_sqrtFix (n x sq : MPN.Nat) (hsq : sq.toNat = x.toNat * x.t
         Nat.pow_one]
       -- `(x - 1)² = x² + 1 - 2 x` for `x ≥ 1`.
       generalize x.toNat = X at h₂ ⊢
-      obtain ⟨y, rfl⟩ : ∃ y, X = y + 1 := ⟨X - 1, by omega⟩
+      obtain ⟨y, rfl⟩ : ∃ y, X = y + 1 := ⟨X - 1, by lia⟩
       simp only [Nat.add_sub_cancel, Nat.add_mul, Nat.mul_add, Nat.mul_one, Nat.one_mul]
-      omega
-    · rw [toNat_sub, toNat_small, UInt64.toNat_one, Nat.sub_add_cancel (by omega)]
+      lia
+    · rw [toNat_sub, toNat_small, UInt64.toNat_one, Nat.sub_add_cancel (by lia)]
       rw [hsq] at h₁
       exact h₁
   | case2 x sq h =>
@@ -1103,8 +1103,8 @@ private theorem toNat_sqrtFix (n x sq : MPN.Nat) (hsq : sq.toNat = x.toNat * x.t
     refine eq_sqrt ?_ hx
     rw [hsq] at h
     rcases Nat.eq_zero_or_pos x.toNat with h0 | h0
-    · rw [h0]; omega
-    · omega
+    · rw [h0]; lia
+    · lia
 
 /--
 `⌊√n⌋`: from `Nat.sqrt` on words, and above by Newton's iteration at growing precision: the root
@@ -1124,11 +1124,11 @@ public def sqrt (n : MPN.Nat) : MPN.Nat :=
 termination_by n.toNat
 decreasing_by
   rw [toNat_shiftRight]
-  have hpos : 0 < n.toNat := by rw [hn]; simp only [toNat]; omega
+  have hpos : 0 < n.toNat := by rw [hn]; simp only [toNat]; lia
   rw [← hn]
   apply Nat.div_lt_self hpos
   apply Nat.one_lt_two_pow
-  omega
+  lia
 
 @[simp] public theorem toNat_sqrt (n : MPN.Nat) : (sqrt n).toNat = _root_.Nat.sqrt n.toNat := by
   induction n using sqrt.induct with
@@ -1138,14 +1138,14 @@ decreasing_by
     have hs : _root_.Nat.sqrt a.toNat < 2 ^ 64 := by
       have := Nat.sqrt_le a.toNat
       have := Nat.le_mul_self (_root_.Nat.sqrt a.toNat)
-      omega
+      lia
     simp only [toNat, Nat.toUInt64, UInt64.toNat_ofNat', Nat.mod_eq_of_lt hs]
   | case2 a ha k ih =>
     rw [sqrt]
     have hx₀ :
         0 < (shiftLeft (add (sqrt (shiftRight (large a ha) (2 * k))) (small 1)) k).toNat := by
       rw [toNat_shiftLeft, toNat_add, toNat_small, UInt64.toNat_one]
-      exact Nat.mul_pos (by omega) (Nat.two_pow_pos _)
+      exact Nat.mul_pos (by lia) (Nat.two_pow_pos _)
     -- One Newton step stays at or above the root.
     have hge := le_newton hx₀ (Nat.sqrt_le (large a ha).toNat)
     apply toNat_sqrtFix _ _ _ (toNat_sqr _)
@@ -1209,7 +1209,7 @@ public instance (x y : MPN.Nat) : Decidable (x ≤ y) :=
   decidable_of_iff (blt y x = false) (by
     show blt y x = false ↔ x.toNat ≤ y.toNat
     rw [← Bool.not_eq_true, blt_iff]
-    omega)
+    lia)
 public instance : Ord MPN.Nat := ⟨fun x y => compareOfLessAndEq x y⟩
 public instance : HShiftLeft MPN.Nat Nat MPN.Nat := ⟨shiftLeft⟩
 public instance : HShiftRight MPN.Nat Nat MPN.Nat := ⟨shiftRight⟩
@@ -1250,7 +1250,7 @@ termination_by b.toNat
 decreasing_by
   have : b.toNat ≠ 0 := fun h' => _h (UInt64.toNat_inj.1 (by simpa using h'))
   rw [UInt64.toNat_mod]
-  exact Nat.mod_lt _ (by omega)
+  exact Nat.mod_lt _ (by lia)
 
 private theorem toNat_wordGcd (a b : UInt64) :
     (wordGcd a b).toNat = _root_.Nat.gcd a.toNat b.toNat := by
@@ -1362,9 +1362,9 @@ private theorem toNat_mulSubMul_natAbs (X Y : UInt32Array) (p q : Nat) (P Q : In
     (hn : (mulSubMul X Y p.toUInt32 q.toUInt32).2 = false) :
     MPN.toNat (trim (mulSubMul X Y p.toUInt32 q.toUInt32).1) =
       (P * MPN.toNat X + Q * MPN.toNat Y).natAbs := by
-  have hpu : p.toUInt32.toNat = p := by simp [Nat.toUInt32_eq, UInt32.toNat_ofNat']; omega
-  have hqu : q.toUInt32.toNat = q := by simp [Nat.toUInt32_eq, UInt32.toNat_ofNat']; omega
-  have h := (mulSubMul_spec X Y p.toUInt32 q.toUInt32 (by omega) (by omega)).1 hn
+  have hpu : p.toUInt32.toNat = p := by simp [Nat.toUInt32_eq, UInt32.toNat_ofNat']; lia
+  have hqu : q.toUInt32.toNat = q := by simp [Nat.toUInt32_eq, UInt32.toNat_ofNat']; lia
+  have h := (mulSubMul_spec X Y p.toUInt32 q.toUInt32 (by lia) (by lia)).1 hn
   rw [hpu, hqu] at h
   rw [toNat_trim, hP, hQ]
   generalize MPN.toNat (mulSubMul X Y p.toUInt32 q.toUInt32).1 = R at *
@@ -1375,7 +1375,7 @@ private theorem toNat_mulSubMul_natAbs (X Y : UInt32Array) (p q : Nat) (P Q : In
     push_cast at h'
     rw [Int.neg_mul]
     rw [Int.mul_comm (p : Int), Int.mul_comm (q : Int)]
-    omega
+    lia
   rw [this, Int.natAbs_natCast]
 
 /-- A valid step of Lehmer's algorithm keeps the greatest common divisor. -/
@@ -1392,8 +1392,8 @@ private theorem lehmerStep_gcd (x y : MPN.Nat) (A B C D : Int) (p : MPN.Nat × M
         (hBC : B * C = (B.natAbs * C.natAbs : Nat)) : A * D - B * C = 1 ∨ A * D - B * C = -1 := by
       rw [hAD, hBC]
       rcases hdet with e | e
-      · left; rw [e]; push_cast; omega
-      · right; rw [e]; push_cast; omega
+      · left; rw [e]; push_cast; lia
+      · right; rw [e]; push_cast; lia
     split at h
     · rename_i hs
       obtain ⟨hA, hB, hC, hD⟩ := hs
@@ -1479,7 +1479,7 @@ decreasing_by
     | (rw [blt_iff] at _hy; exact _hy)
     | (have : y.toNat ≠ 0 := fun h' => _h (toNat_inj.1 (by rw [h']; rfl))
        rw [toNat_mod]
-       exact Nat.mod_lt _ (by omega))
+       exact Nat.mod_lt _ (by lia))
 
 /-- One step of Euclid's algorithm keeps the greatest common divisor. -/
 private theorem gcd_mod_step (x y : MPN.Nat) :

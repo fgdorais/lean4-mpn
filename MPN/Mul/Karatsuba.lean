@@ -41,11 +41,11 @@ public theorem karatsubaCombine_spec (k : Nat) (z₀ z₁ z₂ : UInt32Array) (A
         (A₀ + 2 ^ (32 * k) * A₁) * (B₀ + 2 ^ (32 * k) * B₁) := by
   have hexp : (A₀ + A₁) * (B₀ + B₁) = A₀ * B₀ + A₁ * B₁ + (A₀ * B₁ + A₁ * B₀) := by
     simp only [Nat.add_mul, Nat.mul_add]
-    omega
+    lia
   -- The middle term `z₁ - z₀ - z₂ = A₀ B₁ + A₁ B₀`.
   have hm : toNat z₁ - toNat z₀ - toNat z₂ = A₀ * B₁ + A₁ * B₀ := by
     rw [h₀, h₁, h₂, hexp]
-    omega
+    lia
   -- `r = z₀ ++ z₂ = z₀ + β²ᵏ z₂`.
   have hrs : (z₀ ++ z₂).size = z₀.size + z₂.size := UInt32Array.size_append _ _
   have hr : toNat (z₀ ++ z₂) = A₀ * B₀ + 2 ^ (32 * (2 * k)) * (A₁ * B₁) := by
@@ -54,7 +54,7 @@ public theorem karatsubaCombine_spec (k : Nat) (z₀ z₁ z₂ : UInt32Array) (A
   have hpow : 2 ^ (32 * (2 * k)) = 2 ^ (32 * k) * 2 ^ (32 * k) := by
     rw [← Nat.pow_add]
     congr 1
-    omega
+    lia
   have hid : A₀ * B₀ + 2 ^ (32 * (2 * k)) * (A₁ * B₁) + 2 ^ (32 * k) * (A₀ * B₁ + A₁ * B₀) =
       (A₀ + 2 ^ (32 * k) * A₁) * (B₀ + 2 ^ (32 * k) * B₁) := by
     rw [hpow]
@@ -62,7 +62,7 @@ public theorem karatsubaCombine_spec (k : Nat) (z₀ z₁ z₂ : UInt32Array) (A
     simp only [Nat.add_mul, Nat.mul_add]
     grind
   obtain ⟨hs, hv⟩ := addDiffInto_spec (z₀ ++ z₂) k z₁ z₀ z₂ (by rw [hrs]; exact hfit) hs₀₁ hs₂₁
-    (by rw [h₀, h₁, h₂, hexp]; omega) (by rw [hr, hm, hid, hrs]; exact htotal)
+    (by rw [h₀, h₁, h₂, hexp]; lia) (by rw [hr, hm, hid, hrs]; exact htotal)
   refine ⟨by rw [karatsubaCombine, hs, hrs], ?_⟩
   rw [karatsubaCombine, hv, hr, hm, hid]
 
@@ -80,13 +80,13 @@ public def karatsuba (a b : UInt32Array.Slice) (hb : 4 ≤ b.size) (hab : b.size
   let b₀ := b.slice 0 k
   let b₁ := b.slice k b.size
   karatsubaCombine k
-    (mulRec a₀ b₀ (by simp only [a₀, b₀, UInt32Array.Slice.size_slice]; omega))
+    (mulRec a₀ b₀ (by simp only [a₀, b₀, UInt32Array.Slice.size_slice]; lia))
     (mulRec (addLimbs a₀ a₁) (addLimbs b₀ b₁)
       (by
         simp only [a₀, a₁, b₀, b₁, UInt32Array.size_toSlice, size_addLimbs,
           UInt32Array.Slice.size_slice]
-        omega))
-    (mulRec a₁ b₁ (by simp only [a₁, b₁, UInt32Array.Slice.size_slice]; omega))
+        lia))
+    (mulRec a₁ b₁ (by simp only [a₁, b₁, UInt32Array.Slice.size_slice]; lia))
 
 public theorem karatsuba_spec (a b : UInt32Array.Slice) (hb : 4 ≤ b.size) (hab : b.size ≤ a.size)
     (mulRec : (x y : UInt32Array.Slice) → x.size + y.size < a.size + b.size → UInt32Array)
@@ -95,27 +95,27 @@ public theorem karatsuba_spec (a b : UInt32Array.Slice) (hb : 4 ≤ b.size) (hab
     (karatsuba a b hb hab mulRec).size = a.size + b.size ∧
       toNat (karatsuba a b hb hab mulRec) = toNat a * toNat b := by
   have hk : b.size / 2 ≤ b.size := Nat.div_le_self _ _
-  have hsa₀ : (a.slice 0 (b.size / 2)).size = b.size / 2 := by simp; omega
+  have hsa₀ : (a.slice 0 (b.size / 2)).size = b.size / 2 := by simp; lia
   have hsa₁ : (a.slice (b.size / 2) a.size).size = a.size - b.size / 2 := by simp
-  have hsb₀ : (b.slice 0 (b.size / 2)).size = b.size / 2 := by simp; omega
+  have hsb₀ : (b.slice 0 (b.size / 2)).size = b.size / 2 := by simp; lia
   have hsb₁ : (b.slice (b.size / 2) b.size).size = b.size - b.size / 2 := by simp
-  obtain ⟨hs₀, hv₀⟩ := hrec (a.slice 0 (b.size / 2)) (b.slice 0 (b.size / 2)) (by omega)
+  obtain ⟨hs₀, hv₀⟩ := hrec (a.slice 0 (b.size / 2)) (b.slice 0 (b.size / 2)) (by lia)
   obtain ⟨hs₂, hv₂⟩ := hrec (a.slice (b.size / 2) a.size) (b.slice (b.size / 2) b.size)
-    (by omega)
+    (by lia)
   obtain ⟨hs₁, hv₁⟩ := hrec (addLimbs (a.slice 0 (b.size / 2)) (a.slice (b.size / 2) a.size))
-    (addLimbs (b.slice 0 (b.size / 2)) (b.slice (b.size / 2) b.size)) (by simp; omega)
+    (addLimbs (b.slice 0 (b.size / 2)) (b.slice (b.size / 2) b.size)) (by simp; lia)
   rw [toNat_addLimbs, toNat_addLimbs] at hv₁
   have hS : (addLimbs (a.slice 0 (b.size / 2)) (a.slice (b.size / 2) a.size)).toSlice.size =
       a.size - b.size / 2 + 1 := by
     simp only [UInt32Array.size_toSlice, size_addLimbs, hsa₀, hsa₁]
-    omega
+    lia
   have hT : (addLimbs (b.slice 0 (b.size / 2)) (b.slice (b.size / 2) b.size)).toSlice.size =
       b.size - b.size / 2 + 1 := by
     simp only [UInt32Array.size_toSlice, size_addLimbs, hsb₀, hsb₁]
-    omega
+    lia
   simp only [hS, hT] at hs₁
   -- The parts of `a` and `b` and their bounds.
-  have ha := toNat_slice_add_toNat_slice a (b.size / 2) (by omega)
+  have ha := toNat_slice_add_toNat_slice a (b.size / 2) (by lia)
   have hb' := toNat_slice_add_toNat_slice b (b.size / 2) hk
   have hA₀ := toNat_lt (a.slice 0 (b.size / 2))
   have hA₁ := toNat_lt (a.slice (b.size / 2) a.size)
@@ -131,17 +131,17 @@ public theorem karatsuba_spec (a b : UInt32Array.Slice) (hb : 4 ≤ b.size) (hab
   generalize toNat (a.slice (b.size / 2) a.size) = A₁ at *
   generalize toNat (b.slice 0 (b.size / 2)) = B₀ at *
   generalize toNat (b.slice (b.size / 2) b.size) = B₁ at *
-  have hsum : (mulRec (a.slice 0 (b.size / 2)) (b.slice 0 (b.size / 2)) (by omega)).size +
-      (mulRec (a.slice (b.size / 2) a.size) (b.slice (b.size / 2) b.size) (by omega)).size =
+  have hsum : (mulRec (a.slice 0 (b.size / 2)) (b.slice 0 (b.size / 2)) (by lia)).size +
+      (mulRec (a.slice (b.size / 2) a.size) (b.slice (b.size / 2) b.size) (by lia)).size =
       a.size + b.size := by
     rw [hs₀, hs₂]
-    omega
+    lia
   have htot : toNat a * toNat b < 2 ^ (32 * (a.size + b.size)) := by
     rw [Nat.mul_add, Nat.pow_add]
     exact Nat.mul_lt_mul'' hA hB
   have key := karatsubaCombine_spec (b.size / 2) _ _ _ A₀ A₁ B₀ B₁ hv₀ hv₁ hv₂
-    (by rw [hs₀, hsa₀, hsb₀]; omega) (by rw [hs₀, hs₁]; omega) (by rw [hs₂, hs₁]; omega)
-    (by rw [hsum, hs₁]; omega) (by rw [hsum, ha, hb']; exact htot)
+    (by rw [hs₀, hsa₀, hsb₀]; lia) (by rw [hs₀, hs₁]; lia) (by rw [hs₂, hs₁]; lia)
+    (by rw [hsum, hs₁]; lia) (by rw [hsum, ha, hb']; exact htot)
   rw [ha, hb', hsum] at key
   exact key
 

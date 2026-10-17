@@ -47,27 +47,27 @@ private theorem ltLoop_iff (a b : UInt32Array.Slice) (i : Nat) :
       have := Nat.mul_le_mul_left P this
       simp only [hlt, ↓reduceIte, true_iff]
       rw [Nat.mul_add, Nat.mul_one] at this
-      omega
+      lia
     · by_cases hgt : b.getD i 0 < a.getD i 0
       · have : (b.getD i 0).toNat + 1 ≤ (a.getD i 0).toNat := UInt32.lt_iff_toNat_lt.1 hgt
         have := Nat.mul_le_mul_left P this
         simp only [hlt, hgt, ↓reduceIte, Bool.false_eq_true, false_iff, Nat.not_lt]
         rw [Nat.mul_add, Nat.mul_one] at this
-        omega
+        lia
       · have heq : a.getD i 0 = b.getD i 0 := by
           have h₁ : ¬ (a.getD i 0).toNat < (b.getD i 0).toNat :=
             fun h => hlt (UInt32.lt_iff_toNat_lt.2 h)
           have h₂ : ¬ (b.getD i 0).toNat < (a.getD i 0).toNat :=
             fun h => hgt (UInt32.lt_iff_toNat_lt.2 h)
-          exact UInt32.toNat_inj.1 (by omega)
+          exact UInt32.toNat_inj.1 (by lia)
         simp only [hlt, hgt, ↓reduceIte]
         rw [ih, heq]
-        omega
+        lia
 
 /-- `lt` decides `<` on the numbers. -/
 public theorem lt_iff (a b : UInt32Array.Slice) : lt a b = true ↔ toNat a < toNat b := by
-  rw [lt, ltLoop_iff, List.take_of_length_le (by simp; omega),
-    List.take_of_length_le (by simp; omega)]
+  rw [lt, ltLoop_iff, List.take_of_length_le (by simp; lia),
+    List.take_of_length_le (by simp; lia)]
   rfl
 
 end MPN

@@ -28,21 +28,21 @@ public theorem divStep_spec (r x d : UInt32) (hr : r.toNat < d.toNat) :
       (divStep r x d).2.toNat = (r.toNat * 2 ^ 32 + x.toNat) % d.toNat := by
   have hx := x.toNat_lt
   have hr' := r.toNat_lt
-  have hd' : 0 < d.toNat := by omega
+  have hd' : 0 < d.toNat := by lia
   have ht : (r.toUInt64 * 4294967296 + x.toUInt64).toNat = r.toNat * 2 ^ 32 + x.toNat := by
     simp only [UInt64.toNat_add, UInt64.toNat_mul, UInt32.toNat_toUInt64, UInt64.reduceToNat]
-    omega
+    lia
   have hq : (r.toNat * 2 ^ 32 + x.toNat) / d.toNat < 2 ^ 32 := by
     rw [Nat.div_lt_iff_lt_mul hd']
     have := Nat.mul_le_mul_right (2 ^ 32) (show r.toNat + 1 ≤ d.toNat from hr)
-    omega
+    lia
   constructor
   · simp only [divStep, UInt64.toNat_toUInt32, UInt64.toNat_div, UInt32.toNat_toUInt64, ht]
     exact Nat.mod_eq_of_lt hq
   · simp only [divStep, UInt64.toNat_toUInt32, UInt64.toNat_mod, UInt32.toNat_toUInt64, ht]
     have := Nat.mod_lt (r.toNat * 2 ^ 32 + x.toNat) hd'
     have := d.toNat_lt
-    omega
+    lia
 
 /--
 Divides the limbs of `a` below `i` by `d`, from the top down, with remainder `r` so far, writing
@@ -54,7 +54,7 @@ def divRem1Loop (a : UInt32Array.Slice) (d : UInt32) :
   | 0, r, q, _, _ => (q, r)
   | i + 1, r, q, hq, hi =>
     let p := divStep r a[i] d
-    divRem1Loop a d i p.2 (q.set i p.1 (by omega)) (by simp [hq]) (by omega)
+    divRem1Loop a d i p.2 (q.set i p.1 (by lia)) (by simp [hq]) (by lia)
 
 /--
 `a / d` as `a.size` limbs and `a % d`, like GMP's `mpn_divrem_1`. It is exact when `d ≠ 0`.
@@ -64,7 +64,7 @@ public def divRem1 (a : UInt32Array.Slice) (d : UInt32) : UInt32Array × UInt32 
 
 private theorem divRem1Loop_spec (a : UInt32Array.Slice) (d : UInt32) (hd : d ≠ 0) (i : Nat)
     (r : UInt32) (q : UInt32Array) (hq : q.size = a.size) (hi : i ≤ a.size)
-    (hr : r.toNat < d.toNat) (hz : ∀ k (hk : k < i), q.toList[k]'(by simp; omega) = 0)
+    (hr : r.toNat < d.toNat) (hz : ∀ k (hk : k < i), q.toList[k]'(by simp; lia) = 0)
     (hv : ofLimbs q.toList * d.toNat + 2 ^ (32 * i) * r.toNat =
       2 ^ (32 * i) * ofLimbs (a.copy.toList.drop i)) :
     (divRem1Loop a d i r q hq hi).1.size = a.size ∧
@@ -88,15 +88,15 @@ private theorem divRem1Loop_spec (a : UInt32Array.Slice) (d : UInt32) (hd : d �
       exact Nat.mod_lt _ hd'
     · intro k hk
       simp only [UInt32Array.toList_set]
-      rw [List.getElem_set_ne (by omega)]
-      exact hz k (by omega)
+      rw [List.getElem_set_ne (by lia)]
+      exact hz k (by lia)
     · -- Writing the quotient limb at `i`, where `q` has a zero, adds it at `βⁱ`.
-      have hk : i < q.toList.length := by simp; omega
+      have hk : i < q.toList.length := by simp; lia
       have hset := ofLimbs_set q.toList i (divStep r a[i] d).1 hk
-      rw [hz i (by omega), UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero] at hset
+      rw [hz i (by lia), UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero] at hset
       have hdrop : ofLimbs (a.copy.toList.drop i) =
           a[i].toNat + 2 ^ 32 * ofLimbs (a.copy.toList.drop (i + 1)) := by
-        rw [toList_copy_drop (by omega), ofLimbs_cons]
+        rw [toList_copy_drop (by lia), ofLimbs_cons]
       have hdiv := Nat.div_add_mod (r.toNat * 2 ^ 32 + a[i].toNat) d.toNat
       rw [UInt32Array.toList_set, hset, h₁, h₂]
       rw [Nat.mul_add 32 i 1, Nat.mul_one, Nat.pow_add] at hv

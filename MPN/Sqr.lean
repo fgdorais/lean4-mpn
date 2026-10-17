@@ -37,12 +37,12 @@ public def karatsubaSqr (a : UInt32Array.Slice) (ha : 4 ≤ a.size)
   let a₀ := a.slice 0 k
   let a₁ := a.slice k a.size
   karatsubaCombine k
-    (sqrRec a₀ (by simp only [a₀, UInt32Array.Slice.size_slice]; omega))
+    (sqrRec a₀ (by simp only [a₀, UInt32Array.Slice.size_slice]; lia))
     (sqrRec (addLimbs a₀ a₁)
       (by
         simp only [a₀, a₁, UInt32Array.size_toSlice, size_addLimbs, UInt32Array.Slice.size_slice]
-        omega))
-    (sqrRec a₁ (by simp only [a₁, UInt32Array.Slice.size_slice]; omega))
+        lia))
+    (sqrRec a₁ (by simp only [a₁, UInt32Array.Slice.size_slice]; lia))
 
 public theorem karatsubaSqr_spec (a : UInt32Array.Slice) (ha : 4 ≤ a.size)
     (sqrRec : (x : UInt32Array.Slice) → x.size < a.size → UInt32Array)
@@ -51,17 +51,17 @@ public theorem karatsubaSqr_spec (a : UInt32Array.Slice) (ha : 4 ≤ a.size)
     (karatsubaSqr a ha sqrRec).size = a.size + a.size ∧
       toNat (karatsubaSqr a ha sqrRec) = toNat a * toNat a := by
   have hk : a.size / 2 ≤ a.size := Nat.div_le_self _ _
-  have hs₀ : (a.slice 0 (a.size / 2)).size = a.size / 2 := by simp; omega
+  have hs₀ : (a.slice 0 (a.size / 2)).size = a.size / 2 := by simp; lia
   have hs₁ : (a.slice (a.size / 2) a.size).size = a.size - a.size / 2 := by simp
-  obtain ⟨hz₀s, hz₀⟩ := hrec (a.slice 0 (a.size / 2)) (by omega)
-  obtain ⟨hz₂s, hz₂⟩ := hrec (a.slice (a.size / 2) a.size) (by omega)
+  obtain ⟨hz₀s, hz₀⟩ := hrec (a.slice 0 (a.size / 2)) (by lia)
+  obtain ⟨hz₂s, hz₂⟩ := hrec (a.slice (a.size / 2) a.size) (by lia)
   obtain ⟨hz₁s, hz₁⟩ := hrec (addLimbs (a.slice 0 (a.size / 2)) (a.slice (a.size / 2) a.size))
-    (by simp; omega)
+    (by simp; lia)
   rw [toNat_addLimbs] at hz₁
   have hS : (addLimbs (a.slice 0 (a.size / 2)) (a.slice (a.size / 2) a.size)).toSlice.size =
       a.size - a.size / 2 + 1 := by
     simp only [UInt32Array.size_toSlice, size_addLimbs, hs₀, hs₁]
-    omega
+    lia
   simp only [hS] at hz₁s
   have hsplit := toNat_slice_add_toNat_slice a (a.size / 2) hk
   have hA₀ := toNat_lt (a.slice 0 (a.size / 2))
@@ -71,16 +71,16 @@ public theorem karatsubaSqr_spec (a : UInt32Array.Slice) (ha : 4 ≤ a.size)
   have hA := toNat_lt a
   generalize toNat (a.slice 0 (a.size / 2)) = A₀ at *
   generalize toNat (a.slice (a.size / 2) a.size) = A₁ at *
-  have hsum : (sqrRec (a.slice 0 (a.size / 2)) (by omega)).size +
-      (sqrRec (a.slice (a.size / 2) a.size) (by omega)).size = a.size + a.size := by
+  have hsum : (sqrRec (a.slice 0 (a.size / 2)) (by lia)).size +
+      (sqrRec (a.slice (a.size / 2) a.size) (by lia)).size = a.size + a.size := by
     rw [hz₀s, hz₂s, hs₀, hs₁]
-    omega
+    lia
   have htot : toNat a * toNat a < 2 ^ (32 * (a.size + a.size)) := by
     rw [Nat.mul_add, Nat.pow_add]
     exact Nat.mul_lt_mul'' hA hA
   have key := karatsubaCombine_spec (a.size / 2) _ _ _ A₀ A₁ A₀ A₁ hz₀ hz₁ hz₂
-    (by rw [hz₀s, hs₀]; omega) (by rw [hz₀s, hz₁s, hs₀]; omega) (by rw [hz₂s, hz₁s, hs₁]; omega)
-    (by rw [hsum, hz₁s]; omega) (by rw [hsum, hsplit]; exact htot)
+    (by rw [hz₀s, hs₀]; lia) (by rw [hz₀s, hz₁s, hs₀]; lia) (by rw [hz₂s, hz₁s, hs₁]; lia)
+    (by rw [hsum, hz₁s]; lia) (by rw [hsum, hsplit]; exact htot)
   rw [hsplit, hsum] at key
   exact key
 

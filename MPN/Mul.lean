@@ -64,7 +64,7 @@ def mulLongShort (cfg : Config) (a b : UInt32Array.Slice) (hab : b.size ≤ a.si
   else if h : cfg.mulKaratsuba ≤ b.size then
     if h' : 2 * b.size ≤ a.size then
       if cfg.mulUnbalanced ≤ b.size then
-        mulUnbalanced a b (by have := cfg.four_le_mulKaratsuba; omega) h' fun x y _ =>
+        mulUnbalanced a b (by have := cfg.four_le_mulKaratsuba; lia) h' fun x y _ =>
           mulLimbsWith cfg x y
       else
         mulBasecase b a
@@ -72,7 +72,7 @@ def mulLongShort (cfg : Config) (a b : UInt32Array.Slice) (hab : b.size ≤ a.si
       toom42 a b (Nat.le_trans cfg.twelve_le_mulToom42 h₄₂.1) (by lia) (by lia) fun x y _ =>
         mulLimbsWith cfg x y
     else if h₃₂ : cfg.mulToom32 ≤ b.size ∧ 4 * b.size ≤ 3 * a.size then
-      toom32 a b (Nat.le_trans cfg.twelve_le_mulToom32 h₃₂.1) hab (by omega) fun x y _ =>
+      toom32 a b (Nat.le_trans cfg.twelve_le_mulToom32 h₃₂.1) hab (by lia) fun x y _ =>
         mulLimbsWith cfg x y
     else if h₃ : cfg.mulToom3 ≤ b.size ∧ 3 * a.size < 4 * b.size then
       toom3 a b (Nat.le_trans cfg.twelve_le_mulToom3 h₃.1) hab h₃.2 fun x y _ =>
@@ -85,7 +85,7 @@ termination_by (a.size + b.size, 0)
 
 /-- All `a.size + b.size` limbs of `a * b`, untrimmed, with the thresholds of `cfg`. -/
 public def mulLimbsWith (cfg : Config) (a b : UInt32Array.Slice) : UInt32Array :=
-  if h : b.size ≤ a.size then mulLongShort cfg a b h else mulLongShort cfg b a (by omega)
+  if h : b.size ≤ a.size then mulLongShort cfg a b h else mulLongShort cfg b a (by lia)
 termination_by (a.size + b.size, 1)
 decreasing_by
   all_goals first
@@ -142,8 +142,8 @@ private theorem mulLimbsWith_ok (cfg : Config) (n : Nat) :
     intro a b hn
     rw [mulLimbsWith]
     split
-    · exact mulLongShort_ok cfg a b _ fun x y hxy => ih _ (by omega) x y rfl
-    · exact (mulLongShort_ok cfg b a _ fun x y hxy => ih _ (by omega) x y rfl).swap
+    · exact mulLongShort_ok cfg a b _ fun x y hxy => ih _ (by lia) x y rfl
+    · exact (mulLongShort_ok cfg b a _ fun x y hxy => ih _ (by lia) x y rfl).swap
 
 /-- Multiplication is correct whatever the thresholds. -/
 public theorem isMul_mulLimbsWith (cfg : Config) : IsMul (mulLimbsWith cfg) where

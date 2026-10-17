@@ -44,8 +44,8 @@ public theorem ofLimbs_drop (l : List UInt32) (j : Nat) :
   by_cases h : j < l.length
   · rw [List.drop_eq_getElem_cons h, ofLimbs_cons]
     simp [List.getD_eq_getElem?_getD, h]
-  · rw [List.drop_of_length_le (by omega), List.drop_of_length_le (by omega)]
-    simp [List.getD_eq_getElem?_getD, List.getElem?_eq_none (by omega : l.length ≤ j)]
+  · rw [List.drop_of_length_le (by lia), List.drop_of_length_le (by lia)]
+    simp [List.getD_eq_getElem?_getD, List.getElem?_eq_none (by lia : l.length ≤ j)]
 
 /-- Replacing the limb at `k` changes the value by the difference, scaled by `2^(32 k)`. -/
 public theorem ofLimbs_set (l : List UInt32) (k : Nat) (v : UInt32) (h : k < l.length) :
@@ -54,7 +54,7 @@ public theorem ofLimbs_set (l : List UInt32) (k : Nat) (v : UInt32) (h : k < l.l
   | nil => simp at h
   | cons d l ih =>
     cases k with
-    | zero => simp; omega
+    | zero => simp; lia
     | succ k =>
       have := ih k (by simpa using h)
       simp only [List.set_cons_succ, ofLimbs_cons, List.getElem_cons_succ, Nat.mul_add,
@@ -69,7 +69,7 @@ public theorem ofLimbs_lt (l : List UInt32) : ofLimbs l < 2 ^ (32 * l.length) :=
     have : 2 ^ 32 * (ofLimbs l + 1) ≤ 2 ^ 32 * 2 ^ (32 * l.length) := Nat.mul_le_mul_left _ ih
     simp only [ofLimbs_cons, List.length_cons, Nat.mul_add, Nat.mul_one, Nat.pow_add] at *
     rw [Nat.mul_comm (2 ^ (32 * l.length))]
-    omega
+    lia
 
 public theorem ofLimbs_eq_zero_iff {l : List UInt32} : ofLimbs l = 0 ↔ ∀ d ∈ l, d = 0 := by
   induction l with
@@ -78,7 +78,7 @@ public theorem ofLimbs_eq_zero_iff {l : List UInt32} : ofLimbs l = 0 ↔ ∀ d �
     simp only [ofLimbs_cons, List.mem_cons, forall_eq_or_imp, ← ih]
     have : d = 0 ↔ d.toNat = 0 := by simp [← UInt32.toNat_inj]
     rw [this]
-    omega
+    lia
 
 /-- A number below `2^(32 k)` has no nonzero limb at `k` or above. -/
 public theorem getElem_eq_zero_of_ofLimbs_lt {l : List UInt32} {k : Nat} (hk : k < l.length)
@@ -90,8 +90,8 @@ public theorem getElem_eq_zero_of_ofLimbs_lt {l : List UInt32} {k : Nat} (hk : k
     rcases Nat.eq_zero_or_pos (ofLimbs (l.drop k)) with h0 | h0
     · exact h0
     · have := Nat.mul_le_mul_left (2 ^ (32 * k)) h0
-      omega
-  have hl : 0 < (l.drop k).length := by simp; omega
+      lia
+  have hl : 0 < (l.drop k).length := by simp; lia
   have := ofLimbs_eq_zero_iff.1 hd (l.drop k)[0] (List.getElem_mem hl)
   simpa using this
 
@@ -101,12 +101,12 @@ public theorem ofLimbs_take_of_lt {l : List UInt32} {n : Nat} (h : ofLimbs l < 2
   by_cases hn : l.length ≤ n
   · rw [List.take_of_length_le hn]
   · have hsplit := ofLimbs_append (l.take n) (l.drop n)
-    rw [List.take_append_drop, List.length_take_of_le (by omega)] at hsplit
+    rw [List.take_append_drop, List.length_take_of_le (by lia)] at hsplit
     have hd : ofLimbs (l.drop n) = 0 := by
       rcases Nat.eq_zero_or_pos (ofLimbs (l.drop n)) with h0 | h0
       · exact h0
       · have := Nat.mul_le_mul_left (2 ^ (32 * n)) h0
-        omega
+        lia
     rw [hsplit, hd, Nat.mul_zero, Nat.add_zero]
 
 /-- The value of the first `i + 1` limbs. -/
@@ -161,8 +161,8 @@ public theorem IsTrimmed.ofLimbs_inj {l₁ l₂ : List UInt32} (h₁ : IsTrimmed
       have := d.toNat_lt
       have := d'.toNat_lt
       simp only [ofLimbs_cons, Nat.reducePow] at h
-      have hd : d.toNat = d'.toNat := by omega
-      have hl : ofLimbs l = ofLimbs l' := by omega
+      have hd : d.toNat = d'.toNat := by lia
+      have hl : ofLimbs l = ofLimbs l' := by lia
       rw [UInt32.toNat_inj.1 hd, ih h₁.of_cons h₂.of_cons hl]
 
 /-- Lists of limbs of the same length with the same value are equal. -/
@@ -177,8 +177,8 @@ public theorem ofLimbs_inj_of_length {l₁ l₂ : List UInt32} (hl : l₁.length
       simp only [ofLimbs_cons] at hv
       have hd := d.toNat_lt
       have hd' := d'.toNat_lt
-      have h₁ : d.toNat = d'.toNat := by omega
-      have h₂ : ofLimbs l = ofLimbs l' := by omega
+      have h₁ : d.toNat = d'.toNat := by lia
+      have h₂ : ofLimbs l = ofLimbs l' := by lia
       rw [UInt32.toNat_inj.1 h₁, ih (by simpa using hl) h₂]
 
 /-! ## Removing trailing zeros -/
@@ -211,8 +211,8 @@ public theorem ofLimbs_take_add_one_getD (l : List UInt32) (i : Nat) :
   by_cases h : i < l.length
   · rw [ofLimbs_take_add_one l i h]
     simp [List.getD_eq_getElem?_getD, h]
-  · rw [List.take_of_length_le (by omega), List.take_of_length_le (by omega)]
-    simp [List.getD_eq_getElem?_getD, List.getElem?_eq_none (by omega : l.length ≤ i)]
+  · rw [List.take_of_length_le (by lia), List.take_of_length_le (by lia)]
+    simp [List.getD_eq_getElem?_getD, List.getElem?_eq_none (by lia : l.length ≤ i)]
 
 /-- Limb `j` of a list, `0` past its end, is digit `j` of its value in base `β`. -/
 public theorem toNat_getD_eq (l : List UInt32) (j : Nat) :
@@ -231,7 +231,7 @@ public theorem toNat_getD_eq (l : List UInt32) (j : Nat) :
 public theorem ofLimbs_take_lt (l : List UInt32) (i : Nat) : ofLimbs (l.take i) < 2 ^ (32 * i) := by
   have := ofLimbs_lt (l.take i)
   have : 2 ^ (32 * (l.take i).length) ≤ 2 ^ (32 * i) :=
-    Nat.pow_le_pow_right (by decide) (by simp; omega)
-  omega
+    Nat.pow_le_pow_right (by decide) (by simp; lia)
+  lia
 
 end MPN

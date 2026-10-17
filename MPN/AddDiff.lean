@@ -43,7 +43,7 @@ public theorem addDiffStep_spec (v x y z c : UInt32) (hc : c.toNat ≤ 3) :
   simp only [addDiffStep, UInt64.toNat_sub, UInt64.toNat_add, UInt64.toNat_toUInt32,
     UInt32.toNat_toUInt64, UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow, UInt64.toNat_ofNat,
     Nat.reduceMod, Nat.reducePow] at *
-  omega
+  lia
 
 /-! ## The loop -/
 
@@ -77,12 +77,12 @@ private theorem addDiffLoop_spec (r : UInt32Array) (off : Nat) (x y z : UInt32Ar
     rw [addDiffLoop]
     simp only [h, and_self, ↓reduceDIte]
     have hs := addDiffStep_spec r[off + j] x[j] (y.getD j 0) (z.getD j 0) c hc
-    obtain ⟨ih₁, ih₂, ih₃, ih₄⟩ := ih (by simpa using hx) (by omega) hs.2
+    obtain ⟨ih₁, ih₂, ih₃, ih₄⟩ := ih (by simpa using hx) (by lia) hs.2
     simp only [UInt32Array.size_set] at ih₁ ih₂ ih₄
     refine ⟨ih₁, ?_, ih₃, ?_⟩
     · rw [ih₂, UInt32Array.toList_set, List.drop_set]
-      simp only [show off + j < off + x.size by omega, ↓reduceIte]
-    have hk : off + j < r.toList.length := by simp; omega
+      simp only [show off + j < off + x.size by lia, ↓reduceIte]
+    have hk : off + j < r.toList.length := by simp; lia
     have hset := ofLimbs_set r.toList (off + j) p.1 hk
     simp only [UInt32Array.getElem_toList] at hset
     have hX := ofLimbs_drop x.toList j
@@ -121,15 +121,15 @@ private theorem addDiffLoop_spec (r : UInt32Array) (off : Nat) (x y z : UInt32Ar
   | case2 r j c h =>
     rw [addDiffLoop]
     simp only [h, ↓reduceDIte]
-    have hjx : j = x.size := by omega
+    have hjx : j = x.size := by lia
     subst hjx
-    have hy' : y.toList.drop x.size = [] := List.drop_of_length_le (by simp; omega)
-    have hz' : z.toList.drop x.size = [] := List.drop_of_length_le (by simp; omega)
+    have hy' : y.toList.drop x.size = [] := List.drop_of_length_le (by simp; lia)
+    have hz' : z.toList.drop x.size = [] := List.drop_of_length_le (by simp; lia)
     have hx' : x.toList.drop x.size = [] := List.drop_of_length_le (by simp)
     simp only [hy', hz', hx', ofLimbs_nil]
     refine ⟨by simp, by simp, hc, ?_⟩
     simp only [Nat.zero_add]
-    omega
+    lia
 
 /-! ## Adding the difference -/
 
@@ -155,12 +155,12 @@ public theorem addDiffInto_spec (r : UInt32Array) (off : Nat) (x y z : UInt32Arr
     (addDiffInto r off x y z).size = r.size ∧
       toNat (addDiffInto r off x y z) =
         toNat r + 2 ^ (32 * off) * (toNat x - toNat y - toNat z) := by
-  obtain ⟨h₁, h₂, h₃, h₄⟩ := addDiffLoop_spec r off x y z 0 2 hx hy hz (by omega) (by decide)
+  obtain ⟨h₁, h₂, h₃, h₄⟩ := addDiffLoop_spec r off x y z 0 2 hx hy hz (by lia) (by decide)
   simp only [Nat.add_zero, List.drop_zero, UInt32.reduceToNat] at h₄
   simp only [toNat_toSlice] at hle hlt ⊢
   -- The limbs above `x` are those of `r`, so the carry out is at least `2`.
-  have hn : off + x.size ≤ r.toList.length := by simp; omega
-  have hn' : off + x.size ≤ (addDiffLoop r off x y z 0 2).1.toList.length := by simp [h₁]; omega
+  have hn : off + x.size ≤ r.toList.length := by simp; lia
+  have hn' : off + x.size ≤ (addDiffLoop r off x y z 0 2).1.toList.length := by simp [h₁]; lia
   have hR := ofLimbs_take_drop r.toList _ hn
   have hR' := ofLimbs_take_drop _ _ hn'
   rw [h₂] at hR'
@@ -183,21 +183,21 @@ public theorem addDiffInto_spec (r : UInt32Array) (off : Nat) (x y z : UInt32Arr
       2 ^ (32 * off) * ofLimbs x.toList := by
     rw [← hD, ← Nat.mul_add]
     congr 1
-    omega
+    lia
   -- `L' + Q (H + c) = L + D + Q (H + 2)`, where `L' < Q`, so the carry out `c` is at least `2`.
   have key : L' + Q * (H + (addDiffLoop r off x y z 0 2).2.toNat) = L + D + Q * (H + 2) := by
     rw [hR, hR'] at h₄
     generalize 2 ^ (32 * off) = B at *
     simp only [Nat.mul_add] at h₄ hD' ⊢
-    omega
+    lia
   have hC : 2 ≤ (addDiffLoop r off x y z 0 2).2.toNat := by
     generalize (addDiffLoop r off x y z 0 2).2.toNat = C at *
     rcases Nat.lt_or_ge C 2 with hC | hC
     · have : Q * (H + 2) < Q * (H + C + 1) := by
         rw [Nat.mul_add Q (H + C) 1]
-        omega
+        lia
       have := Nat.lt_of_mul_lt_mul_left this
-      omega
+      lia
     · exact hC
   have hval : ofLimbs (addDiffLoop r off x y z 0 2).1.toList +
       Q * ((addDiffLoop r off x y z 0 2).2.toNat - 2) = ofLimbs r.toList + D := by
@@ -206,26 +206,26 @@ public theorem addDiffInto_spec (r : UInt32Array) (off : Nat) (x y z : UInt32Arr
     have : Q * (H + C) = Q * H + Q * (C - 2) + Q * 2 := by
       rw [← Nat.mul_add, ← Nat.mul_add]
       congr 1
-      omega
+      lia
     rw [Nat.mul_add Q H 2] at key
     rw [this] at key
-    omega
+    lia
   simp only [addDiffInto]
   split
   · rename_i h3
     have h3' : (addDiffLoop r off x y z 0 2).2.toNat = 3 := by rw [h3]; rfl
     rw [h3'] at hval
-    have hi := incrFrom_spec (addDiffLoop r off x y z 0 2).1 (off + x.size) (by omega)
-      (by rw [h₁, hQ]; omega)
+    have hi := incrFrom_spec (addDiffLoop r off x y z 0 2).1 (off + x.size) (by lia)
+      (by rw [h₁, hQ]; lia)
     rw [hi.1, h₁, hi.2, hQ]
-    exact ⟨rfl, by omega⟩
+    exact ⟨rfl, by lia⟩
   · rename_i h3
     have h2 : (addDiffLoop r off x y z 0 2).2.toNat = 2 := by
       have : (addDiffLoop r off x y z 0 2).2.toNat ≠ 3 := fun e =>
         h3 (UInt32.toNat_inj.1 (by simpa using e))
-      omega
+      lia
     rw [h2] at hval
-    exact ⟨h₁, by omega⟩
+    exact ⟨h₁, by lia⟩
 
 /-! ## The compiled loop
 
@@ -251,9 +251,9 @@ private theorem addDiffStepU_eq (x y z : UInt32Array) (ny nz : USize) (hx : x.si
       (if h : k < nw then w.uget k (by rw [← hnw]; exact USize.lt_iff_toNat_lt.1 h) else 0) =
         w.getD j 0 := by
     by_cases h : j < w.size
-    · have h' : k < nw := USize.lt_iff_toNat_lt.2 (by omega)
+    · have h' : k < nw := USize.lt_iff_toNat_lt.2 (by lia)
       simp [h', h, hj, UInt32Array.getD_eq_getD_getElem?]
-    · have h' : ¬ k < nw := fun h' => h (by have := USize.lt_iff_toNat_lt.1 h'; omega)
+    · have h' : ¬ k < nw := fun h' => h (by have := USize.lt_iff_toNat_lt.1 h'; lia)
       simp [h', h, UInt32Array.getD_eq_getD_getElem?]
   rw [addDiffStepU, hd y ny hny, hd z nz hnz, uget_eq_getElem _ _ j hj]
 
@@ -262,11 +262,11 @@ public def addDiffIntoFast (r : UInt32Array) (off : Nat) (x y z : UInt32Array) :
   if hs : r.size < 4294967295 ∧ y.size < 4294967295 ∧ z.size < 4294967295 ∧
       off + x.size ≤ r.size then
     r.foldInPlaceThen off.toUSize x.size.toUSize (2 : UInt32)
-      (addDiffStepU x y z y.size.toUSize z.size.toUSize (lt_usizeSize (by omega))
+      (addDiffStepU x y z y.size.toUSize z.size.toUSize (lt_usizeSize (by lia))
         (toNat_toUSize (lt_usizeSize hs.2.1)) (toNat_toUSize (lt_usizeSize hs.2.2.1)))
       (fun r' c => if c = 3 then incrFrom r' (off + x.size) else r')
       (by
-        rw [toNat_toUSize (lt_usizeSize (by omega)), toNat_toUSize (lt_usizeSize (by omega))]
+        rw [toNat_toUSize (lt_usizeSize (by lia)), toNat_toUSize (lt_usizeSize (by lia))]
         exact hs.2.2.2)
   else
     let p := addDiffLoop r off x y z 0 2
@@ -293,7 +293,7 @@ private theorem foldInPlace_loop_addDiff (r : UInt32Array) (off : Nat) (x y z : 
     exact ih (by simpa using hfit) _
   | case2 r j c h =>
     rw [UInt32Array.foldInPlace.loop, addDiffLoop]
-    have : ¬ j < x.size := by omega
+    have : ¬ j < x.size := by lia
     simp [this]
 
 @[csimp] public theorem addDiffInto_eq_addDiffIntoFast : @addDiffInto = @addDiffIntoFast := by
@@ -303,7 +303,7 @@ private theorem foldInPlace_loop_addDiff (r : UInt32Array) (off : Nat) (x y z : 
   · rename_i hs
     rw [UInt32Array.foldInPlaceThen_eq, UInt32Array.foldInPlace,
       foldInPlace_loop_addDiff r off x y z _ _ _ _ _ _ _
-        (toNat_toUSize (lt_usizeSize (by omega))) (toNat_toUSize (lt_usizeSize (by omega))) 0 2
+        (toNat_toUSize (lt_usizeSize (by lia))) (toNat_toUSize (lt_usizeSize (by lia))) 0 2
         hs.2.2.2]
     rfl
   · rfl

@@ -43,16 +43,16 @@ public theorem mulSubMulStep_spec (v x y a b h : UInt32) (ha : a.toNat < 2 ^ 31)
   have := x.toNat_lt
   have := y.toNat_lt
   have := h.toNat_lt
-  have hxa : x.toNat * a.toNat ≤ (2 ^ 32 - 1) * (2 ^ 31 - 1) := Nat.mul_le_mul (by omega) (by omega)
-  have hyb : y.toNat * b.toNat ≤ (2 ^ 32 - 1) * (2 ^ 31 - 1) := Nat.mul_le_mul (by omega) (by omega)
+  have hxa : x.toNat * a.toNat ≤ (2 ^ 32 - 1) * (2 ^ 31 - 1) := Nat.mul_le_mul (by lia) (by lia)
+  have hyb : y.toNat * b.toNat ≤ (2 ^ 32 - 1) * (2 ^ 31 - 1) := Nat.mul_le_mul (by lia) (by lia)
   simp only [mulSubMulStep, UInt64.toNat_sub, UInt64.toNat_add, UInt64.toNat_mul,
     UInt64.toNat_toUInt32, UInt32.toNat_toUInt64, UInt64.toNat_shiftRight,
     Nat.shiftRight_eq_div_pow, UInt64.toNat_ofNat, Nat.reduceMod, Nat.reducePow] at *
   generalize x.toNat * a.toNat = p at *
   generalize y.toNat * b.toNat = q at *
-  rw [Nat.mod_eq_of_lt (show p < 18446744073709551616 by omega),
-    Nat.mod_eq_of_lt (show q < 18446744073709551616 by omega)]
-  omega
+  rw [Nat.mod_eq_of_lt (show p < 18446744073709551616 by lia),
+    Nat.mod_eq_of_lt (show q < 18446744073709551616 by lia)]
+  lia
 
 /-! ## The loop -/
 
@@ -84,12 +84,12 @@ private theorem mulSubMulLoop_spec (r x y : UInt32Array) (a b : UInt32) (m j : N
     rw [mulSubMulLoop]
     simp only [hj', and_self, ↓reduceDIte]
     have hs := mulSubMulStep_spec r[j] (x.getD j 0) (y.getD j 0) a b h ha hb
-    obtain ⟨ih₁, ih₂, ih₃⟩ := ih (by simpa using hm) (by omega)
+    obtain ⟨ih₁, ih₂, ih₃⟩ := ih (by simpa using hm) (by lia)
     simp only [UInt32Array.size_set] at ih₁ ih₂ ih₃
     refine ⟨ih₁, ?_, ?_⟩
     · rw [ih₂, UInt32Array.toList_set, List.drop_set]
-      simp only [show j < m by omega, ↓reduceIte]
-    have hk : j < r.toList.length := by simp; omega
+      simp only [show j < m by lia, ↓reduceIte]
+    have hk : j < r.toList.length := by simp; lia
     have hset := ofLimbs_set r.toList j p.1 hk
     simp only [UInt32Array.getElem_toList] at hset
     have hX := ofLimbs_drop x.toList j
@@ -125,10 +125,10 @@ private theorem mulSubMulLoop_spec (r x y : UInt32Array) (a b : UInt32) (m j : N
   | case2 r j h hj' =>
     rw [mulSubMulLoop]
     simp only [hj', ↓reduceDIte]
-    have hjm : j = m := by omega
+    have hjm : j = m := by lia
     subst hjm
-    have hy' : y.toList.drop j = [] := List.drop_of_length_le (by simp; omega)
-    have hx' : x.toList.drop j = [] := List.drop_of_length_le (by simp; omega)
+    have hy' : y.toList.drop j = [] := List.drop_of_length_le (by simp; lia)
+    have hx' : x.toList.drop j = [] := List.drop_of_length_le (by simp; lia)
     simp only [hy', hx', ofLimbs_nil, Nat.zero_mul, Nat.zero_add]
     refine ⟨by simp, by simp, ?_⟩
     rw [Nat.mul_comm (2 ^ 31) (2 ^ (32 * j))]
@@ -148,9 +148,9 @@ private theorem limbOrZero_eq (w : UInt32Array) (nw : USize) (hnw : nw.toNat = w
     (j : Nat) (hj : k.toNat = j) : limbOrZero w nw hnw k = w.getD j 0 := by
   unfold limbOrZero
   by_cases h : j < w.size
-  · have h' : k < nw := USize.lt_iff_toNat_lt.2 (by omega)
+  · have h' : k < nw := USize.lt_iff_toNat_lt.2 (by lia)
     simp [h', h, hj, UInt32Array.getD_eq_getD_getElem?]
-  · have h' : ¬ k < nw := fun h' => h (by have := USize.lt_iff_toNat_lt.1 h'; omega)
+  · have h' : ¬ k < nw := fun h' => h (by have := USize.lt_iff_toNat_lt.1 h'; lia)
     simp [h', h, UInt32Array.getD_eq_getD_getElem?]
 
 /-- The step of the fold of `mulSubMulFast`. -/
@@ -172,12 +172,12 @@ private theorem foldInPlace_loop_mulSubMul (r x y : UInt32Array) (nx ny : USize)
     rw [UInt32Array.foldInPlace.loop]
     conv => rhs; rw [mulSubMulLoop]
     simp only [hj', and_self, ↓reduceDIte, Nat.zero_add]
-    have hjU : j.toUSize.toNat = j := toNat_toUSize (by have := len.toNat_lt_size; omega)
+    have hjU : j.toUSize.toNat = j := toNat_toUSize (by have := len.toNat_lt_size; lia)
     simp only [mulSubMulStepU, limbOrZero_eq x nx hnx _ j hjU, limbOrZero_eq y ny hny _ j hjU]
     exact ih (by simpa using hm) _
   | case2 r j h hj' =>
     rw [UInt32Array.foldInPlace.loop, mulSubMulLoop]
-    have : ¬ j < m := by omega
+    have : ¬ j < m := by lia
     simp [this]
 
 /-! ## The difference -/
@@ -199,7 +199,7 @@ public theorem mulSubMul_spec (x y : UInt32Array) (a b : UInt32) (ha : a.toNat <
   have hrs : (UInt32Array.replicate (max x.size y.size + 1) 0).size = max x.size y.size + 1 := by
     simp
   obtain ⟨h₁, h₂, h₃⟩ := mulSubMulLoop_spec (.replicate (max x.size y.size + 1) 0) x y a b
-    (max x.size y.size) 0 0x80000000 ha hb (by omega) (by omega) (by omega) (by omega)
+    (max x.size y.size) 0 0x80000000 ha hb (by lia) (by lia) (by lia) (by lia)
   simp only [mulSubMul, toNat_toSlice]
   generalize hp : mulSubMulLoop (.replicate (max x.size y.size + 1) 0) x y a b
     (max x.size y.size) 0 0x80000000 = p at h₁ h₂ h₃
@@ -209,8 +209,8 @@ public theorem mulSubMul_spec (x y : UInt32Array) (a b : UInt32) (ha : a.toNat <
   -- The top limb of `p.1` is still zero, so the limbs below it are below `βᵐ`.
   have hsplit := ofLimbs_append (p.1.toList.take m) (p.1.toList.drop m)
   rw [List.take_append_drop, h₂, UInt32Array.toList_replicate, List.drop_replicate,
-    show m + 1 - m = 1 by omega, List.length_take, UInt32Array.length_toList, h₁, hrs,
-    Nat.min_eq_left (by omega)] at hsplit
+    show m + 1 - m = 1 by lia, List.length_take, UInt32Array.length_toList, h₁, hrs,
+    Nat.min_eq_left (by lia)] at hsplit
   simp only [List.replicate_one, ofLimbs_cons, ofLimbs_nil, UInt32.toNat_zero, Nat.mul_zero,
     Nat.add_zero] at hsplit
   have hlo := ofLimbs_take_lt p.1.toList m
@@ -220,7 +220,7 @@ public theorem mulSubMul_spec (x y : UInt32Array) (a b : UInt32) (ha : a.toNat <
   have hold : p.1.toList[m] = 0 := by
     have := congrArg (·[0]?) h₂
     simp only [List.getElem?_drop, Nat.add_zero, UInt32Array.toList_replicate] at this
-    rw [List.getElem?_replicate, ite_eq_left (by omega), List.getElem?_eq_getElem hk] at this
+    rw [List.getElem?_replicate, ite_eq_left (by lia), List.getElem?_eq_getElem hk] at this
     exact Option.some.inj this
   have hset := ofLimbs_set p.1.toList m (p.2 - 0x80000000) hk
   rw [hold, UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero, hsplit] at hset
@@ -232,31 +232,31 @@ public theorem mulSubMul_spec (x y : UInt32Array) (a b : UInt32) (ha : a.toNat <
   refine ⟨fun hn => ?_, fun hn => ?_⟩
   · have hge : 2 ^ 31 ≤ p.2.toNat := by
       simp only [decide_eq_false_iff_not, UInt32.lt_iff_toNat_lt, UInt32.reduceToNat] at hn
-      omega
+      lia
     have hsub : (p.2 - 0x80000000).toNat = p.2.toNat - 2 ^ 31 := by
       rw [UInt32.toNat_sub_of_le _ _ (by rw [UInt32.le_iff_toNat_le]; simpa using hge)]
       rfl
     rw [hsub] at hset
     have : Q * (p.2.toNat - 2 ^ 31) + Q * 2 ^ 31 = Q * p.2.toNat := by
       rw [← Nat.mul_add, Nat.sub_add_cancel hge]
-    omega
+    omega -- `lia` and `grind` fail or time out here
   · have hlt : p.2.toNat + 1 ≤ 2 ^ 31 := by
       simp only [decide_eq_true_eq, UInt32.lt_iff_toNat_lt, UInt32.reduceToNat] at hn
-      omega
+      lia
     have := Nat.mul_le_mul_left Q hlt
     rw [Nat.mul_add, Nat.mul_one] at this
-    omega
+    lia
 
 /-- `mulSubMul` with `foldInPlaceThen`, which the compiler uses in its place. -/
 public def mulSubMulFast (x y : UInt32Array) (a b : UInt32) : UInt32Array × Bool :=
   if hs : max x.size y.size + 1 < 4294967295 then
     let m := max x.size y.size
     (UInt32Array.replicate (m + 1) 0).foldInPlaceThen 0 m.toUSize 0x80000000
-      (mulSubMulStepU x y x.size.toUSize y.size.toUSize (toNat_toUSize (lt_usizeSize (by omega)))
-        (toNat_toUSize (lt_usizeSize (by omega))) a b m.toUSize)
+      (mulSubMulStepU x y x.size.toUSize y.size.toUSize (toNat_toUSize (lt_usizeSize (by lia)))
+        (toNat_toUSize (lt_usizeSize (by lia))) a b m.toUSize)
       (fun r h => (r.set! m (h - 0x80000000), decide (h < 0x80000000)))
       (by
-        rw [toNat_toUSize (lt_usizeSize (by omega)), UInt32Array.size_replicate]
+        rw [toNat_toUSize (lt_usizeSize (by lia)), UInt32Array.size_replicate]
         simp)
   else
     let m := max x.size y.size
@@ -270,8 +270,8 @@ public def mulSubMulFast (x y : UInt32Array) (a b : UInt32) : UInt32Array × Boo
   · rename_i hs
     rw [UInt32Array.foldInPlaceThen_eq, UInt32Array.foldInPlace,
       foldInPlace_loop_mulSubMul _ x y _ _ _ _ a b _ (max x.size y.size)
-        (toNat_toUSize (lt_usizeSize (by omega))) (by simp) _ _ (by simp)
-        (toNat_toUSize (lt_usizeSize (by omega))) 0 0x80000000]
+        (toNat_toUSize (lt_usizeSize (by lia))) (by simp) _ _ (by simp)
+        (toNat_toUSize (lt_usizeSize (by lia))) 0 0x80000000]
     rfl
   · rfl
 

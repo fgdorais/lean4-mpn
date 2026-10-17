@@ -64,7 +64,7 @@ out `c'` is the high limb of `3 q` plus the borrow of `v - c`.
 private theorem mul_inv3 (s : Nat) (hs : s < 4294967296) :
     3 * (s * 2863311531 % 4294967296) % 4294967296 = s := by
   rw [Nat.mul_mod, Nat.mod_mod, ← Nat.mul_mod,
-    show 3 * (s * 2863311531) = s + 4294967296 * (2 * s) by omega, Nat.add_mul_mod_self_left,
+    show 3 * (s * 2863311531) = s + 4294967296 * (2 * s) by lia, Nat.add_mul_mod_self_left,
     Nat.mod_eq_of_lt hs]
 
 private theorem div3Step_spec (v c : UInt32) (hc : c.toNat ≤ 3) :
@@ -79,19 +79,19 @@ private theorem div3Step_spec (v c : UInt32) (hc : c.toNat ≤ 3) :
   generalize ht : (18446744073709551616 - c.toNat + v.toNat) % 18446744073709551616 = t
   have hsb : t % 4294967296 + c.toNat = v.toNat + 4294967296 * (t / 9223372036854775808) ∧
       t / 9223372036854775808 ≤ 1 := by
-    omega
+    lia
   have hq := mul_inv3 (t % 4294967296) (Nat.mod_lt _ (by decide))
   have hqlt := Nat.mod_lt (t % 4294967296 * 2863311531) (show 0 < 4294967296 by decide)
   generalize t % 4294967296 * 2863311531 % 4294967296 = q at *
   generalize t % 4294967296 = s at *
   generalize t / 9223372036854775808 = b at *
   -- `3 q < 2⁶⁴` and its high limb is at most `2`, so the reductions are trivial.
-  have hhi : q * 3 / 4294967296 ≤ 2 := by omega
-  rw [Nat.mod_eq_of_lt (show q * 3 < 18446744073709551616 by omega),
-    Nat.mod_eq_of_lt (show q * 3 / 4294967296 < 4294967296 by omega),
-    Nat.mod_eq_of_lt (show b < 4294967296 by omega),
-    Nat.mod_eq_of_lt (show q * 3 / 4294967296 + b < 4294967296 by omega)]
-  omega
+  have hhi : q * 3 / 4294967296 ≤ 2 := by lia
+  rw [Nat.mod_eq_of_lt (show q * 3 < 18446744073709551616 by lia),
+    Nat.mod_eq_of_lt (show q * 3 / 4294967296 < 4294967296 by lia),
+    Nat.mod_eq_of_lt (show b < 4294967296 by lia),
+    Nat.mod_eq_of_lt (show q * 3 / 4294967296 + b < 4294967296 by lia)]
+  lia
 
 /--
 The loop of `foldlInPlace` with `div3Step`: the first `k` limbs hold `W`, the rest still hold `O`
@@ -107,33 +107,33 @@ private theorem div3_loop (O : List UInt32) (n : Nat) (hn : n = O.length) (r : U
         (fun _ _ v c => div3Step v c) r hs k c).2.toNat := by
   induction hd : n - k generalizing k r c W with
   | zero =>
-    have hk : k = n := by omega
+    have hk : k = n := by lia
     subst hk
-    rw [UInt32Array.Slice.foldlInPlace.loop, dite_eq_right (by omega)]
+    rw [UInt32Array.Slice.foldlInPlace.loop, dite_eq_right (by lia)]
     refine ⟨W, ?_, hW, ?_⟩
-    · rw [hl, List.drop_of_length_le (by omega), List.append_nil]
-    · rw [hv, List.take_of_length_le (by omega)]
+    · rw [hl, List.drop_of_length_le (by lia), List.append_nil]
+    · rw [hv, List.take_of_length_le (by lia)]
   | succ d ih =>
-    have hk : k < n := by omega
-    have hkO : k < O.length := by omega
+    have hk : k < n := by lia
+    have hkO : k < O.length := by lia
     rw [UInt32Array.Slice.foldlInPlace.loop, dite_eq_left hk]
     have hsa : k < r.array.size := by
-      have := r.stop_le_array_size; have := r.size_eq; have := r.start_le_stop; omega
+      have := r.stop_le_array_size; have := r.size_eq; have := r.start_le_stop; lia
     have hdrop := List.drop_eq_getElem_cons hkO
     have hl' := hl
     rw [hdrop] at hl'
-    have hrk : r[k]'(by omega) = O[k] := by
+    have hrk : r[k]'(by lia) = O[k] := by
       have h := List.getElem_of_eq hl' (i := k) (by simpa using hsa)
-      rw [List.getElem_append_right (by omega)] at h
+      rw [List.getElem_append_right (by lia)] at h
       simp only [hW, Nat.sub_self, List.getElem_cons_zero, UInt32Array.getElem_toList] at h
       rw [UInt32Array.Slice.getElem_eq]
       simpa [h0] using h
-    obtain ⟨h₁, h₂⟩ := div3Step_spec (r[k]'(by omega)) c hc
-    refine ih _ _ (k + 1) _ (W ++ [(div3Step (r[k]'(by omega)) c).1]) ?_ ?_ ?_ (by omega)
-      ?_ h₂ (by omega)
+    obtain ⟨h₁, h₂⟩ := div3Step_spec (r[k]'(by lia)) c hc
+    refine ih _ _ (k + 1) _ (W ++ [(div3Step (r[k]'(by lia)) c).1]) ?_ ?_ ?_ (by lia)
+      ?_ h₂ (by lia)
     · rw [UInt32Array.Slice.start_set, h0]
     · rw [UInt32Array.Slice.array_set, UInt32Array.toList_set, hl', h0,
-        List.set_append_right _ _ (by simp; omega)]
+        List.set_append_right _ _ (by simp; lia)]
       simp [hW]
       rw [hdrop]
       rfl
@@ -141,9 +141,9 @@ private theorem div3_loop (O : List UInt32) (n : Nat) (hn : n = O.length) (r : U
     · rw [ofLimbs_concat, hW, List.take_succ_eq_append_getElem hkO, ofLimbs_append, ofLimbs_cons,
         ofLimbs_nil, Nat.mul_zero, Nat.add_zero, List.length_take,
         Nat.min_eq_left (Nat.le_of_lt hkO), ← hrk, Nat.mul_succ, Nat.pow_add]
-      generalize (div3Step (r[k]'(by omega)) c).1.toNat = q at *
-      generalize (div3Step (r[k]'(by omega)) c).2.toNat = c' at *
-      generalize (r[k]'(by omega)).toNat = v at *
+      generalize (div3Step (r[k]'(by lia)) c).1.toNat = q at *
+      generalize (div3Step (r[k]'(by lia)) c).2.toNat = c' at *
+      generalize (r[k]'(by lia)).toNat = v at *
       generalize ofLimbs W = A at *
       generalize ofLimbs (O.take k) = T at *
       generalize 2 ^ (32 * k) = P at *
@@ -153,8 +153,8 @@ private theorem div3_loop (O : List UInt32) (n : Nat) (hn : n = O.length) (r : U
         rw [Nat.mul_add, hv, Nat.mul_left_comm 3 P q, Nat.mul_assoc P B c']
         have := congrArg (P * ·) h₁
         simp only [Nat.mul_add] at this
-        omega
-      omega
+        lia
+      lia
 
 /-- `βⁿ ≡ 1` modulo `3`, since `β = 2³² ≡ 1`. -/
 private theorem pow_mod_three (n : Nat) : 2 ^ (32 * n) % 3 = 1 := by
@@ -192,14 +192,14 @@ private theorem toNat_divExact3 (x : UInt32Array) (X : Nat) (hx : toNat x = 3 * 
   -- `3 (W - X) = P c` with `W - X < P` and `P ≡ 1 (mod 3)`, so `c = 0`.
   have hc : c = 0 := by
     rcases Nat.lt_or_ge c 3 with h | h
-    · rcases (show c = 0 ∨ c = 1 ∨ c = 2 by omega) with h | h | h
+    · rcases (show c = 0 ∨ c = 1 ∨ c = 2 by lia) with h | h | h
       · exact h
-      · subst h; omega
-      · subst h; omega
+      · subst h; lia
+      · subst h; lia
     · have := Nat.mul_le_mul_left P h
-      omega
+      lia
   subst hc
-  omega
+  lia
 
 /-- `x₀ + x₁ + x₂`. -/
 def eval1 (x₀ x₁ x₂ : UInt32Array.Slice) : UInt32Array := addLimbs (addLimbs x₀ x₁) x₂
@@ -232,33 +232,33 @@ private theorem toNat_eval2 (x₀ x₁ x₂ : UInt32Array.Slice) :
     toNat (eval2 x₀ x₁ x₂) = toNat x₀ + 2 * toNat x₁ + 4 * toNat x₂ := by
   rw [eval2, toNat_addLimbs, toNat_addLimbs, toNat_mulRow, toNat_mulRow]
   simp only [UInt32.reduceToNat]
-  omega
+  lia
 
 private theorem toNat_eval3 (x₀ x₁ x₂ : UInt32Array.Slice) :
     toNat (eval3 x₀ x₁ x₂) = toNat x₀ + 3 * toNat x₁ + 9 * toNat x₂ := by
   rw [eval3, toNat_addLimbs, toNat_addLimbs, toNat_mulRow, toNat_mulRow]
   simp only [UInt32.reduceToNat]
-  omega
+  lia
 
 /-- Splitting a slice at `k` and `2 k` splits its value in three. -/
 private theorem toNat_slice_three (s : UInt32Array.Slice) (k : Nat) (hk : 2 * k ≤ s.size) :
     toNat s = toNat (s.slice 0 k) + 2 ^ (32 * k) * toNat (s.slice k (2 * k)) +
       2 ^ (32 * k) * 2 ^ (32 * k) * toNat (s.slice (2 * k) s.size) := by
-  have h₁ := toNat_slice_add_toNat_slice s k (by omega)
-  have h₂ := toNat_slice_add_toNat_slice (s.slice k s.size) k (by simp; omega)
+  have h₁ := toNat_slice_add_toNat_slice s k (by lia)
+  have h₂ := toNat_slice_add_toNat_slice (s.slice k s.size) k (by simp; lia)
   have e₁ : toNat ((s.slice k s.size).slice 0 k) = toNat (s.slice k (2 * k)) := by
     simp only [toNat, UInt32Array.Slice.copy_slice, UInt32Array.extract_extract]
-    rw [show k + 0 = k by omega, show min (k + k) s.size = 2 * k by omega]
+    rw [show k + 0 = k by lia, show min (k + k) s.size = 2 * k by lia]
   have e₂ : toNat ((s.slice k s.size).slice k (s.slice k s.size).size) =
       toNat (s.slice (2 * k) s.size) := by
     simp only [toNat, UInt32Array.Slice.copy_slice, UInt32Array.extract_extract,
       UInt32Array.Slice.size_slice]
-    rw [show k + k = 2 * k by omega,
-      show min (k + (min s.size s.size - k)) s.size = s.size by omega]
+    rw [show k + k = 2 * k by lia,
+      show min (k + (min s.size s.size - k)) s.size = s.size by lia]
   rw [e₁, e₂] at h₂
   rw [← h₁, ← h₂]
   rw [Nat.mul_add, Nat.mul_assoc]
-  omega
+  lia
 
 /-! ## Interpolation -/
 
@@ -281,25 +281,25 @@ private theorem toom3Interp_spec (c₀ w₁ w₂ w₃ c₄ : UInt32Array) (C₀ 
       toNat (toom3Interp c₀ w₁ w₂ w₃ c₄).2.2 = C₃ := by
   simp only [toom3Interp]
   have m16 : toNat (mulRow c₄ 16) = 16 * C₄ := by
-    rw [toNat_mulRow, h₄]; simp only [UInt32.reduceToNat]; omega
+    rw [toNat_mulRow, h₄]; simp only [UInt32.reduceToNat]; lia
   have m81 : toNat (mulRow c₄ 81) = 81 * C₄ := by
-    rw [toNat_mulRow, h₄]; simp only [UInt32.reduceToNat]; omega
+    rw [toNat_mulRow, h₄]; simp only [UInt32.reduceToNat]; lia
   -- `r₁ = c₁ + c₂ + c₃`.
   have hr₁a : toNat (subVal w₁ c₀) = C₁ + C₂ + C₃ + C₄ := by
-    rw [toNat_subVal _ _ (by omega)]; omega
+    rw [toNat_subVal _ _ (by lia)]; lia
   have hr₁ : toNat (subVal (subVal w₁ c₀) c₄) = C₁ + C₂ + C₃ := by
-    rw [toNat_subVal _ _ (by omega)]; omega
+    rw [toNat_subVal _ _ (by lia)]; lia
   -- `s₂ = c₁ + 2 c₂ + 4 c₃` and `s₃ = c₁ + 3 c₂ + 9 c₃`.
   have hs₂a : toNat (subVal (subVal w₂ c₀) (mulRow c₄ 16)) = 2 * (C₁ + 2 * C₂ + 4 * C₃) := by
-    rw [toNat_subVal _ _ (by rw [toNat_subVal _ _ (by omega)]; omega),
-      toNat_subVal _ _ (by omega)]
-    omega
+    rw [toNat_subVal _ _ (by rw [toNat_subVal _ _ (by lia)]; lia),
+      toNat_subVal _ _ (by lia)]
+    lia
   have hs₂ : toNat (divExact2 (subVal (subVal w₂ c₀) (mulRow c₄ 16))) = C₁ + 2 * C₂ + 4 * C₃ :=
     toNat_divExact2 _ _ hs₂a
   have hs₃a : toNat (subVal (subVal w₃ c₀) (mulRow c₄ 81)) = 3 * (C₁ + 3 * C₂ + 9 * C₃) := by
-    rw [toNat_subVal _ _ (by rw [toNat_subVal _ _ (by omega)]; omega),
-      toNat_subVal _ _ (by omega)]
-    omega
+    rw [toNat_subVal _ _ (by rw [toNat_subVal _ _ (by lia)]; lia),
+      toNat_subVal _ _ (by lia)]
+    lia
   have hs₃ : toNat (divExact3 (subVal (subVal w₃ c₀) (mulRow c₄ 81))) = C₁ + 3 * C₂ + 9 * C₃ :=
     toNat_divExact3 _ _ hs₃a
   generalize subVal (subVal w₁ c₀) c₄ = r₁ at *
@@ -308,28 +308,28 @@ private theorem toom3Interp_spec (c₀ w₁ w₂ w₃ c₄ : UInt32Array) (C₀ 
   clear hr₁a hs₂a hs₃a m16 m81 h₀ h₁ h₂ h₃ h₄
   -- `t₂ = c₂ + 3 c₃` and `t₃ = c₂ + 4 c₃`.
   have ht₂ : toNat (subVal s₂ r₁) = C₂ + 3 * C₃ := by
-    rw [toNat_subVal _ _ (by omega)]; omega
+    rw [toNat_subVal _ _ (by lia)]; lia
   have ht₃ : toNat (divExact2 (subVal s₃ r₁)) = C₂ + 4 * C₃ :=
-    toNat_divExact2 _ _ (by rw [toNat_subVal _ _ (by omega)]; omega)
+    toNat_divExact2 _ _ (by rw [toNat_subVal _ _ (by lia)]; lia)
   generalize subVal s₂ r₁ = t₂ at *
   generalize divExact2 (subVal s₃ r₁) = t₃ at *
   clear hs₂ hs₃
   -- `c₃ = t₃ - t₂`, `c₂ = t₂ - 3 c₃` and `c₁ = r₁ - c₂ - c₃`.
   have hc₃ : toNat (subVal t₃ t₂) = C₃ := by
-    rw [toNat_subVal _ _ (by omega)]; omega
+    rw [toNat_subVal _ _ (by lia)]; lia
   have m3 : toNat (mulRow (subVal t₃ t₂) 3) = 3 * C₃ := by
-    rw [toNat_mulRow, hc₃]; simp only [UInt32.reduceToNat]; omega
+    rw [toNat_mulRow, hc₃]; simp only [UInt32.reduceToNat]; lia
   have hc₂ : toNat (subVal t₂ (mulRow (subVal t₃ t₂) 3)) = C₂ := by
-    rw [toNat_subVal _ _ (by omega)]; omega
+    rw [toNat_subVal _ _ (by lia)]; lia
   generalize subVal t₃ t₂ = c₃ at *
   generalize subVal t₂ (mulRow c₃ 3) = c₂ at *
   clear ht₂ ht₃ m3
   have hc₁a : toNat (subVal r₁ c₂) = C₁ + C₃ := by
-    rw [toNat_subVal r₁ c₂ (by omega)]
-    omega
+    rw [toNat_subVal r₁ c₂ (by lia)]
+    lia
   have hc₁ : toNat (subVal (subVal r₁ c₂) c₃) = C₁ := by
-    rw [toNat_subVal (subVal r₁ c₂) c₃ (by omega)]
-    omega
+    rw [toNat_subVal (subVal r₁ c₂) c₃ (by lia)]
+    lia
   exact ⟨hc₁, hc₂, hc₃⟩
 
 /-! ## Assembly -/
@@ -341,16 +341,16 @@ private theorem addAt_term (r c : UInt32Array) (n off P C S : Nat) (hn : r.size 
     (addInto r off (c.toSlice 0 (n - off))).size = n ∧
       toNat (addInto r off (c.toSlice 0 (n - off))) = P + 2 ^ (32 * off) * C := by
   have hpow : 2 ^ (32 * n) = 2 ^ (32 * off) * 2 ^ (32 * (n - off)) := by
-    rw [← Nat.pow_add]; congr 1; omega
+    rw [← Nat.pow_add]; congr 1; lia
   have hC : C < 2 ^ (32 * (n - off)) := by
-    have : 2 ^ (32 * off) * C < 2 ^ (32 * off) * 2 ^ (32 * (n - off)) := by omega
+    have : 2 ^ (32 * off) * C < 2 ^ (32 * off) * 2 ^ (32 * (n - off)) := by lia
     exact Nat.lt_of_mul_lt_mul_left this
   have hcut : toNat (c.toSlice 0 (n - off)) = C := by
     rw [toNat_toSlice_of_lt _ _ (by rw [hc]; exact hC), hc]
   have hfit : off + (c.toSlice 0 (n - off)).size ≤ r.size := by
-    rw [UInt32Array.size_toSlice]; omega
+    rw [UInt32Array.size_toSlice]; lia
   refine ⟨by rw [size_addInto _ _ _ hfit, hn], ?_⟩
-  rw [toNat_addInto_of_lt _ _ _ hfit (by rw [hr, hcut, hn]; omega), hr, hcut]
+  rw [toNat_addInto_of_lt _ _ _ hfit (by rw [hr, hcut, hn]; lia), hr, hcut]
 
 /-- `c₀ + c₁ x + c₂ x² + c₃ x³ + c₄ x⁴` as `n` limbs, where `x = βᵏ`. -/
 def toom3Assemble (n k : Nat) (c₀ c₁ c₂ c₃ c₄ : UInt32Array) : UInt32Array :=
@@ -370,16 +370,16 @@ private theorem toom3Assemble_spec (n k : Nat) (c₀ c₁ c₂ c₃ c₄ : UInt3
         2 ^ (32 * (2 * k)) * C₂ + 2 ^ (32 * (3 * k)) * C₃ + 2 ^ (32 * (4 * k)) * C₄ := by
   generalize hS : C₀ + 2 ^ (32 * k) * C₁ + 2 ^ (32 * (2 * k)) * C₂ + 2 ^ (32 * (3 * k)) * C₃ +
     2 ^ (32 * (4 * k)) * C₄ = S at hlt
-  obtain ⟨s₀, v₀⟩ := addAt_term (.replicate n 0) c₀ n 0 0 C₀ S (by simp) (by omega)
-    (by rw [toNat_toSlice]; simp) h₀ (by simp; omega) hlt
-  obtain ⟨s₁, v₁⟩ := addAt_term _ c₁ n k _ C₁ S s₀ (by omega) v₀ h₁ (by
-    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; omega) hlt
-  obtain ⟨s₂, v₂⟩ := addAt_term _ c₂ n (2 * k) _ C₂ S s₁ (by omega) v₁ h₂ (by
-    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; omega) hlt
-  obtain ⟨s₃, v₃⟩ := addAt_term _ c₃ n (3 * k) _ C₃ S s₂ (by omega) v₂ h₃ (by
-    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; omega) hlt
-  obtain ⟨s₄, v₄⟩ := addAt_term _ c₄ n (4 * k) _ C₄ S s₃ (by omega) v₃ h₄ (by
-    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; omega) hlt
+  obtain ⟨s₀, v₀⟩ := addAt_term (.replicate n 0) c₀ n 0 0 C₀ S (by simp) (by lia)
+    (by rw [toNat_toSlice]; simp) h₀ (by simp; lia) hlt
+  obtain ⟨s₁, v₁⟩ := addAt_term _ c₁ n k _ C₁ S s₀ (by lia) v₀ h₁ (by
+    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; lia) hlt
+  obtain ⟨s₂, v₂⟩ := addAt_term _ c₂ n (2 * k) _ C₂ S s₁ (by lia) v₁ h₂ (by
+    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; lia) hlt
+  obtain ⟨s₃, v₃⟩ := addAt_term _ c₃ n (3 * k) _ C₃ S s₂ (by lia) v₂ h₃ (by
+    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; lia) hlt
+  obtain ⟨s₄, v₄⟩ := addAt_term _ c₄ n (4 * k) _ C₄ S s₃ (by lia) v₃ h₄ (by
+    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; lia) hlt
   refine ⟨s₄, ?_⟩
   rw [toom3Assemble, v₄, ← hS]
   simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul, Nat.zero_add]
@@ -471,7 +471,7 @@ The product `a * b` by one step of Toom-3, splitting both at `k` limbs, for `4 �
 inputs smaller than `a` and `b` together.
 -/
 public def toom3At (a b : UInt32Array.Slice) (k : Nat) (hk : 4 ≤ k) (hkb : 2 * k ≤ b.size)
-    (hbk : b.size ≤ 3 * k) (hab : b.size ≤ a.size) (hak : a.size ≤ 4 * k)
+    (hbk : b.size ≤ 3 * k) (hab : b.size ≤ a.size) (_hak : a.size ≤ 4 * k)
     (mulRec : (x y : UInt32Array.Slice) → x.size + y.size < a.size + b.size → UInt32Array) :
     UInt32Array :=
   let a₀ := a.slice 0 k
@@ -480,20 +480,20 @@ public def toom3At (a b : UInt32Array.Slice) (k : Nat) (hk : 4 ≤ k) (hkb : 2 *
   let b₀ := b.slice 0 k
   let b₁ := b.slice k (2 * k)
   let b₂ := b.slice (2 * k) b.size
-  let c₀ := mulRec a₀ b₀ (by simp only [a₀, b₀, UInt32Array.Slice.size_slice]; omega)
-  let c₄ := mulRec a₂ b₂ (by simp only [a₂, b₂, UInt32Array.Slice.size_slice]; omega)
+  let c₀ := mulRec a₀ b₀ (by simp only [a₀, b₀, UInt32Array.Slice.size_slice]; lia)
+  let c₄ := mulRec a₂ b₂ (by simp only [a₂, b₂, UInt32Array.Slice.size_slice]; lia)
   let w₁ := mulRec (eval1 a₀ a₁ a₂) (eval1 b₀ b₁ b₂) (by
     simp only [UInt32Array.size_toSlice, size_eval1, a₀, a₁, a₂, b₀, b₁, b₂,
       UInt32Array.Slice.size_slice]
-    omega)
+    lia)
   let w₂ := mulRec (eval2 a₀ a₁ a₂) (eval2 b₀ b₁ b₂) (by
     simp only [UInt32Array.size_toSlice, size_eval2, a₀, a₁, a₂, b₀, b₁, b₂,
       UInt32Array.Slice.size_slice]
-    omega)
+    lia)
   let w₃ := mulRec (eval3 a₀ a₁ a₂) (eval3 b₀ b₁ b₂) (by
     simp only [UInt32Array.size_toSlice, size_eval3, a₀, a₁, a₂, b₀, b₁, b₂,
       UInt32Array.Slice.size_slice]
-    omega)
+    lia)
   toom3Finish (a.size + b.size) k c₀ w₁ w₂ w₃ c₄
 
 public theorem toom3At_spec (a b : UInt32Array.Slice) (k : Nat) (hk : 4 ≤ k)
@@ -504,33 +504,33 @@ public theorem toom3At_spec (a b : UInt32Array.Slice) (k : Nat) (hk : 4 ≤ k)
     (toom3At a b k hk hkb hbk hab hak mulRec).size = a.size + b.size ∧
       toNat (toom3At a b k hk hkb hbk hab hak mulRec) = toNat a * toNat b := by
   have hk₁ : 2 * k ≤ b.size := hkb
-  have ha := toNat_slice_three a k (by omega)
+  have ha := toNat_slice_three a k (by lia)
   have hb' := toNat_slice_three b k hk₁
   have hA := toNat_lt a
   have hB := toNat_lt b
   -- The five products.
   obtain ⟨-, hv₀⟩ := hrec (a.slice 0 k) (b.slice 0 k)
-    (by simp only [UInt32Array.Slice.size_slice]; omega)
+    (by simp only [UInt32Array.Slice.size_slice]; lia)
   obtain ⟨-, hv₄⟩ := hrec (a.slice (2 * k) a.size)
-    (b.slice (2 * k) b.size) (by simp only [UInt32Array.Slice.size_slice]; omega)
+    (b.slice (2 * k) b.size) (by simp only [UInt32Array.Slice.size_slice]; lia)
   obtain ⟨-, hw₁⟩ := hrec
     (eval1 (a.slice 0 k) (a.slice k (2 * k))
       (a.slice (2 * k) a.size))
     (eval1 (b.slice 0 k) (b.slice k (2 * k))
       (b.slice (2 * k) b.size))
-    (by simp only [UInt32Array.size_toSlice, size_eval1, UInt32Array.Slice.size_slice]; omega)
+    (by simp only [UInt32Array.size_toSlice, size_eval1, UInt32Array.Slice.size_slice]; lia)
   obtain ⟨-, hw₂⟩ := hrec
     (eval2 (a.slice 0 k) (a.slice k (2 * k))
       (a.slice (2 * k) a.size))
     (eval2 (b.slice 0 k) (b.slice k (2 * k))
       (b.slice (2 * k) b.size))
-    (by simp only [UInt32Array.size_toSlice, size_eval2, UInt32Array.Slice.size_slice]; omega)
+    (by simp only [UInt32Array.size_toSlice, size_eval2, UInt32Array.Slice.size_slice]; lia)
   obtain ⟨-, hw₃⟩ := hrec
     (eval3 (a.slice 0 k) (a.slice k (2 * k))
       (a.slice (2 * k) a.size))
     (eval3 (b.slice 0 k) (b.slice k (2 * k))
       (b.slice (2 * k) b.size))
-    (by simp only [UInt32Array.size_toSlice, size_eval3, UInt32Array.Slice.size_slice]; omega)
+    (by simp only [UInt32Array.size_toSlice, size_eval3, UInt32Array.Slice.size_slice]; lia)
   rw [toNat_eval1, toNat_eval1] at hw₁
   rw [toNat_eval2, toNat_eval2] at hw₂
   rw [toNat_eval3, toNat_eval3] at hw₃
@@ -544,7 +544,7 @@ public theorem toom3At_spec (a b : UInt32Array.Slice) (k : Nat) (hk : 4 ≤ k)
     rw [Nat.mul_add, Nat.pow_add]
     exact Nat.mul_lt_mul'' hA hB
   rw [ha, hb'] at hlt ⊢
-  exact toom3Finish_spec (a.size + b.size) k _ _ _ _ _ A₀ A₁ A₂ B₀ B₁ B₂ (by omega)
+  exact toom3Finish_spec (a.size + b.size) k _ _ _ _ _ A₀ A₁ A₂ B₀ B₁ B₂ (by lia)
     hv₀ hv₄ hw₁ hw₂ hw₃ hlt
 
 /--
@@ -617,7 +617,7 @@ private theorem toNat_eval2₂ (x₀ x₁ : UInt32Array.Slice) :
     toNat (eval2₂ x₀ x₁) = toNat x₀ + 2 * toNat x₁ := by
   rw [eval2₂, toNat_addLimbs, toNat_mulRow]
   simp only [UInt32.reduceToNat]
-  omega
+  lia
 
 /-- `c₁` and `c₂` from `c₀`, `w₁ = c(1)`, `w₂ = c(2)` and `c₃`. -/
 def toom32Interp (c₀ w₁ w₂ c₃ : UInt32Array) : UInt32Array × UInt32Array :=
@@ -632,25 +632,25 @@ private theorem toom32Interp_spec (c₀ w₁ w₂ c₃ : UInt32Array) (C₀ C₁
     toNat (toom32Interp c₀ w₁ w₂ c₃).1 = C₁ ∧ toNat (toom32Interp c₀ w₁ w₂ c₃).2 = C₂ := by
   simp only [toom32Interp]
   have m8 : toNat (mulRow c₃ 8) = 8 * C₃ := by
-    rw [toNat_mulRow, h₃]; simp only [UInt32.reduceToNat]; omega
+    rw [toNat_mulRow, h₃]; simp only [UInt32.reduceToNat]; lia
   have hr₁ : toNat (subVal (subVal w₁ c₀) c₃) = C₁ + C₂ := by
-    rw [toNat_subVal _ _ (by rw [toNat_subVal _ _ (by omega)]; omega),
-      toNat_subVal _ _ (by omega)]
-    omega
+    rw [toNat_subVal _ _ (by rw [toNat_subVal _ _ (by lia)]; lia),
+      toNat_subVal _ _ (by lia)]
+    lia
   have hs₂a : toNat (subVal (subVal w₂ c₀) (mulRow c₃ 8)) = 2 * (C₁ + 2 * C₂) := by
-    rw [toNat_subVal _ _ (by rw [toNat_subVal _ _ (by omega)]; omega),
-      toNat_subVal _ _ (by omega)]
-    omega
+    rw [toNat_subVal _ _ (by rw [toNat_subVal _ _ (by lia)]; lia),
+      toNat_subVal _ _ (by lia)]
+    lia
   have hs₂ : toNat (divExact2 (subVal (subVal w₂ c₀) (mulRow c₃ 8))) = C₁ + 2 * C₂ :=
     toNat_divExact2 _ _ hs₂a
   generalize subVal (subVal w₁ c₀) c₃ = r₁ at *
   generalize divExact2 (subVal (subVal w₂ c₀) (mulRow c₃ 8)) = s₂ at *
   have hc₂ : toNat (subVal s₂ r₁) = C₂ := by
-    rw [toNat_subVal _ _ (by omega)]; omega
+    rw [toNat_subVal _ _ (by lia)]; lia
   generalize subVal s₂ r₁ = c₂ at *
   refine ⟨?_, hc₂⟩
-  rw [toNat_subVal _ _ (by omega)]
-  omega
+  rw [toNat_subVal _ _ (by lia)]
+  lia
 
 /-- `c₀ + c₁ x + c₂ x² + c₃ x³` as `n` limbs, where `x = βᵏ`. -/
 def toom32Assemble (n k : Nat) (c₀ c₁ c₂ c₃ : UInt32Array) : UInt32Array :=
@@ -669,14 +669,14 @@ private theorem toom32Assemble_spec (n k : Nat) (c₀ c₁ c₂ c₃ : UInt32Arr
         2 ^ (32 * (2 * k)) * C₂ + 2 ^ (32 * (3 * k)) * C₃ := by
   generalize hS : C₀ + 2 ^ (32 * k) * C₁ + 2 ^ (32 * (2 * k)) * C₂ +
     2 ^ (32 * (3 * k)) * C₃ = S at hlt
-  obtain ⟨s₀, v₀⟩ := addAt_term (.replicate n 0) c₀ n 0 0 C₀ S (by simp) (by omega)
-    (by rw [toNat_toSlice]; simp) h₀ (by simp; omega) hlt
-  obtain ⟨s₁, v₁⟩ := addAt_term _ c₁ n k _ C₁ S s₀ (by omega) v₀ h₁ (by
-    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; omega) hlt
-  obtain ⟨s₂, v₂⟩ := addAt_term _ c₂ n (2 * k) _ C₂ S s₁ (by omega) v₁ h₂ (by
-    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; omega) hlt
-  obtain ⟨s₃, v₃⟩ := addAt_term _ c₃ n (3 * k) _ C₃ S s₂ (by omega) v₂ h₃ (by
-    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; omega) hlt
+  obtain ⟨s₀, v₀⟩ := addAt_term (.replicate n 0) c₀ n 0 0 C₀ S (by simp) (by lia)
+    (by rw [toNat_toSlice]; simp) h₀ (by simp; lia) hlt
+  obtain ⟨s₁, v₁⟩ := addAt_term _ c₁ n k _ C₁ S s₀ (by lia) v₀ h₁ (by
+    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; lia) hlt
+  obtain ⟨s₂, v₂⟩ := addAt_term _ c₂ n (2 * k) _ C₂ S s₁ (by lia) v₁ h₂ (by
+    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; lia) hlt
+  obtain ⟨s₃, v₃⟩ := addAt_term _ c₃ n (3 * k) _ C₃ S s₂ (by lia) v₂ h₃ (by
+    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; lia) hlt
   refine ⟨s₃, ?_⟩
   rw [toom32Assemble, v₃, ← hS]
   simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul, Nat.zero_add]
@@ -701,16 +701,16 @@ public def toom32 (a b : UInt32Array.Slice) (hb : 12 ≤ b.size) (hab : b.size �
   let a₂ := a.slice (2 * k) a.size
   let b₀ := b.slice 0 k
   let b₁ := b.slice k b.size
-  let c₀ := mulRec a₀ b₀ (by simp only [a₀, b₀, UInt32Array.Slice.size_slice]; omega)
-  let c₃ := mulRec a₂ b₁ (by simp only [a₂, b₁, UInt32Array.Slice.size_slice]; omega)
+  let c₀ := mulRec a₀ b₀ (by simp only [a₀, b₀, UInt32Array.Slice.size_slice]; lia)
+  let c₃ := mulRec a₂ b₁ (by simp only [a₂, b₁, UInt32Array.Slice.size_slice]; lia)
   let w₁ := mulRec (eval1 a₀ a₁ a₂) (eval1₂ b₀ b₁) (by
     simp only [UInt32Array.size_toSlice, size_eval1, size_eval1₂, a₀, a₁, a₂, b₀, b₁,
       UInt32Array.Slice.size_slice]
-    omega)
+    lia)
   let w₂ := mulRec (eval2 a₀ a₁ a₂) (eval2₂ b₀ b₁) (by
     simp only [UInt32Array.size_toSlice, size_eval2, size_eval2₂, a₀, a₁, a₂, b₀, b₁,
       UInt32Array.Slice.size_slice]
-    omega)
+    lia)
   let i := toom32Interp c₀ w₁ w₂ c₃
   toom32Assemble (a.size + b.size) k c₀ i.1 i.2 c₃
 
@@ -721,27 +721,27 @@ public theorem toom32_spec (a b : UInt32Array.Slice) (hb : 12 ≤ b.size) (hab :
       toNat (mulRec x y h) = toNat x * toNat y) :
     (toom32 a b hb hab hk mulRec).size = a.size + b.size ∧
       toNat (toom32 a b hb hab hk mulRec) = toNat a * toNat b := by
-  have ha := toNat_slice_three a ((a.size + 2) / 3) (by omega)
+  have ha := toNat_slice_three a ((a.size + 2) / 3) (by lia)
   have hb' := toNat_slice_add_toNat_slice b ((a.size + 2) / 3) hk
   have hA := toNat_lt a
   have hB := toNat_lt b
   -- The four products.
   obtain ⟨-, hv₀⟩ := hrec (a.slice 0 ((a.size + 2) / 3)) (b.slice 0 ((a.size + 2) / 3))
-    (by simp only [UInt32Array.Slice.size_slice]; omega)
+    (by simp only [UInt32Array.Slice.size_slice]; lia)
   obtain ⟨-, hv₃⟩ := hrec (a.slice (2 * ((a.size + 2) / 3)) a.size)
-    (b.slice ((a.size + 2) / 3) b.size) (by simp only [UInt32Array.Slice.size_slice]; omega)
+    (b.slice ((a.size + 2) / 3) b.size) (by simp only [UInt32Array.Slice.size_slice]; lia)
   obtain ⟨-, hw₁⟩ := hrec
     (eval1 (a.slice 0 ((a.size + 2) / 3)) (a.slice ((a.size + 2) / 3) (2 * ((a.size + 2) / 3)))
       (a.slice (2 * ((a.size + 2) / 3)) a.size))
     (eval1₂ (b.slice 0 ((a.size + 2) / 3)) (b.slice ((a.size + 2) / 3) b.size))
     (by simp only [UInt32Array.size_toSlice, size_eval1, size_eval1₂,
-      UInt32Array.Slice.size_slice]; omega)
+      UInt32Array.Slice.size_slice]; lia)
   obtain ⟨-, hw₂⟩ := hrec
     (eval2 (a.slice 0 ((a.size + 2) / 3)) (a.slice ((a.size + 2) / 3) (2 * ((a.size + 2) / 3)))
       (a.slice (2 * ((a.size + 2) / 3)) a.size))
     (eval2₂ (b.slice 0 ((a.size + 2) / 3)) (b.slice ((a.size + 2) / 3) b.size))
     (by simp only [UInt32Array.size_toSlice, size_eval2, size_eval2₂,
-      UInt32Array.Slice.size_slice]; omega)
+      UInt32Array.Slice.size_slice]; lia)
   rw [toNat_eval1, toNat_eval1₂] at hw₁
   rw [toNat_eval2, toNat_eval2₂] at hw₂
   generalize toNat (a.slice 0 ((a.size + 2) / 3)) = A₀ at *
@@ -757,17 +757,17 @@ public theorem toom32_spec (a b : UInt32Array.Slice) (hb : 12 ≤ b.size) (hab :
     (A₂ * B₁) hv₀ hv₃ (by rw [hw₁]; grind) (by rw [hw₂]; grind)
   have hx₂ : 2 ^ (32 * (2 * ((a.size + 2) / 3))) =
       2 ^ (32 * ((a.size + 2) / 3)) * 2 ^ (32 * ((a.size + 2) / 3)) := by
-    rw [← Nat.pow_add]; congr 1; omega
+    rw [← Nat.pow_add]; congr 1; lia
   have hx₃ : 2 ^ (32 * (3 * ((a.size + 2) / 3))) = 2 ^ (32 * ((a.size + 2) / 3)) *
       2 ^ (32 * ((a.size + 2) / 3)) * 2 ^ (32 * ((a.size + 2) / 3)) := by
-    rw [← Nat.pow_add, ← Nat.pow_add]; congr 1; omega
+    rw [← Nat.pow_add, ← Nat.pow_add]; congr 1; lia
   have hS : A₀ * B₀ + 2 ^ (32 * ((a.size + 2) / 3)) * (A₀ * B₁ + A₁ * B₀) +
       2 ^ (32 * (2 * ((a.size + 2) / 3))) * (A₁ * B₁ + A₂ * B₀) +
       2 ^ (32 * (3 * ((a.size + 2) / 3))) * (A₂ * B₁) = toNat a * toNat b := by
     rw [hx₂, hx₃, toom32_sum, ha, hb']
   simp only [toom32]
   have key := toom32Assemble_spec (a.size + b.size) ((a.size + 2) / 3) _ _ _ _ _ _ _ _
-    (by omega) hv₀ hi.1 hi.2 hv₃ (by rw [hS]; exact hlt)
+    (by lia) hv₀ hi.1 hi.2 hv₃ (by rw [hS]; exact hlt)
   rw [hS] at key
   exact key
 
@@ -982,17 +982,17 @@ public def toom3Sqr (a : UInt32Array.Slice) (ha : 12 ≤ a.size)
   let a₀ := a.slice 0 k
   let a₁ := a.slice k (2 * k)
   let a₂ := a.slice (2 * k) a.size
-  let c₀ := sqrRec a₀ (by simp only [a₀, UInt32Array.Slice.size_slice]; omega)
-  let c₄ := sqrRec a₂ (by simp only [a₂, UInt32Array.Slice.size_slice]; omega)
+  let c₀ := sqrRec a₀ (by simp only [a₀, UInt32Array.Slice.size_slice]; lia)
+  let c₄ := sqrRec a₂ (by simp only [a₂, UInt32Array.Slice.size_slice]; lia)
   let w₁ := sqrRec (eval1 a₀ a₁ a₂) (by
     simp only [UInt32Array.size_toSlice, size_eval1, a₀, a₁, a₂, UInt32Array.Slice.size_slice]
-    omega)
+    lia)
   let w₂ := sqrRec (eval2 a₀ a₁ a₂) (by
     simp only [UInt32Array.size_toSlice, size_eval2, a₀, a₁, a₂, UInt32Array.Slice.size_slice]
-    omega)
+    lia)
   let w₃ := sqrRec (eval3 a₀ a₁ a₂) (by
     simp only [UInt32Array.size_toSlice, size_eval3, a₀, a₁, a₂, UInt32Array.Slice.size_slice]
-    omega)
+    lia)
   toom3Finish (a.size + a.size) k c₀ w₁ w₂ w₃ c₄
 
 public theorem toom3Sqr_spec (a : UInt32Array.Slice) (ha : 12 ≤ a.size)
@@ -1001,25 +1001,25 @@ public theorem toom3Sqr_spec (a : UInt32Array.Slice) (ha : 12 ≤ a.size)
       toNat (sqrRec x h) = toNat x * toNat x) :
     (toom3Sqr a ha sqrRec).size = a.size + a.size ∧
       toNat (toom3Sqr a ha sqrRec) = toNat a * toNat a := by
-  have hsplit := toNat_slice_three a ((a.size + 2) / 3) (by omega)
+  have hsplit := toNat_slice_three a ((a.size + 2) / 3) (by lia)
   have hA := toNat_lt a
   -- The five squares.
   obtain ⟨-, hv₀⟩ := hrec (a.slice 0 ((a.size + 2) / 3))
-    (by simp only [UInt32Array.Slice.size_slice]; omega)
+    (by simp only [UInt32Array.Slice.size_slice]; lia)
   obtain ⟨-, hv₄⟩ := hrec (a.slice (2 * ((a.size + 2) / 3)) a.size)
-    (by simp only [UInt32Array.Slice.size_slice]; omega)
+    (by simp only [UInt32Array.Slice.size_slice]; lia)
   obtain ⟨-, hw₁⟩ := hrec
     (eval1 (a.slice 0 ((a.size + 2) / 3)) (a.slice ((a.size + 2) / 3) (2 * ((a.size + 2) / 3)))
       (a.slice (2 * ((a.size + 2) / 3)) a.size))
-    (by simp only [UInt32Array.size_toSlice, size_eval1, UInt32Array.Slice.size_slice]; omega)
+    (by simp only [UInt32Array.size_toSlice, size_eval1, UInt32Array.Slice.size_slice]; lia)
   obtain ⟨-, hw₂⟩ := hrec
     (eval2 (a.slice 0 ((a.size + 2) / 3)) (a.slice ((a.size + 2) / 3) (2 * ((a.size + 2) / 3)))
       (a.slice (2 * ((a.size + 2) / 3)) a.size))
-    (by simp only [UInt32Array.size_toSlice, size_eval2, UInt32Array.Slice.size_slice]; omega)
+    (by simp only [UInt32Array.size_toSlice, size_eval2, UInt32Array.Slice.size_slice]; lia)
   obtain ⟨-, hw₃⟩ := hrec
     (eval3 (a.slice 0 ((a.size + 2) / 3)) (a.slice ((a.size + 2) / 3) (2 * ((a.size + 2) / 3)))
       (a.slice (2 * ((a.size + 2) / 3)) a.size))
-    (by simp only [UInt32Array.size_toSlice, size_eval3, UInt32Array.Slice.size_slice]; omega)
+    (by simp only [UInt32Array.size_toSlice, size_eval3, UInt32Array.Slice.size_slice]; lia)
   rw [toNat_eval1] at hw₁
   rw [toNat_eval2] at hw₂
   rw [toNat_eval3] at hw₃
@@ -1031,6 +1031,6 @@ public theorem toom3Sqr_spec (a : UInt32Array.Slice) (ha : 12 ≤ a.size)
     exact Nat.mul_lt_mul'' hA hA
   rw [hsplit] at hlt ⊢
   exact toom3Finish_spec (a.size + a.size) ((a.size + 2) / 3) _ _ _ _ _ A₀ A₁ A₂ A₀ A₁ A₂
-    (by omega) hv₀ hv₄ hw₁ hw₂ hw₃ hlt
+    (by lia) hv₀ hv₄ hw₁ hw₂ hw₃ hlt
 
 end MPN

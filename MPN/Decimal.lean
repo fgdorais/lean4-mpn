@@ -42,14 +42,14 @@ theorem toDigits_pow_mul_add (k : Nat) {n d : Nat} (hn : 0 < n) (hd : d < 10 ^ k
   induction k generalizing d with
   | zero =>
     rw [Nat.pow_zero] at hd
-    rw [show d = 0 by omega, padDigits, Nat.pow_zero, Nat.one_mul, Nat.add_zero, List.append_nil]
+    rw [show d = 0 by lia, padDigits, Nat.pow_zero, Nat.one_mul, Nat.add_zero, List.append_nil]
   | succ k ih =>
     have hpos : 0 < 10 ^ k * n := Nat.mul_pos (Nat.pow_pos (by decide)) hn
     have e : 10 ^ (k + 1) * n + d = 10 * (10 ^ k * n + d / 10) + d % 10 := by
-      rw [Nat.pow_succ, Nat.mul_comm (10 ^ k) 10, Nat.mul_assoc]; omega
-    rw [e, ← Nat.toDigits_append_toDigits (by decide) (by omega) (Nat.mod_lt _ (by decide)),
+      rw [Nat.pow_succ, Nat.mul_comm (10 ^ k) 10, Nat.mul_assoc]; lia
+    rw [e, ← Nat.toDigits_append_toDigits (by decide) (by lia) (Nat.mod_lt _ (by decide)),
       Nat.toDigits_of_lt_base (Nat.mod_lt _ (by decide)),
-      ih (by rw [Nat.pow_succ] at hd; omega), padDigits, List.append_assoc]
+      ih (by rw [Nat.pow_succ] at hd; lia), padDigits, List.append_assoc]
 
 /-- Pushes the `k` low decimal digits of `d`, with leading zeros, onto `s`. -/
 def pushDigits (s : String) : Nat → Nat → String
@@ -146,10 +146,10 @@ private theorem chunksLoop_spec (a : UInt32Array) (h : isTrimmed a = true) (acc 
         have hs : (trim p.1).size = 0 := Decidable.byContradiction fun hs' => by
           have := pos_of_isTrimmed (isTrimmed_trim p.1) hs'
           rw [toNat_trim, hq] at this
-          omega
+          lia
         rw [chunksLoop, dite_eq_left hs]
-        exact ⟨_, _, rfl, by rw [hr]; omega⟩
-      · exact ih₃ (by rw [toNat_trim, hq]; omega)
+        exact ⟨_, _, rfl, by rw [hr]; lia⟩
+      · exact ih₃ (by rw [toNat_trim, hq]; lia)
 
 /-- Writes the top chunk `c` as it is and each other chunk with nine digits. -/
 def renderChunks : List Nat → String
@@ -163,7 +163,7 @@ private theorem toList_foldl_pushDigits (cs : List Nat) (s : String) (v : Nat) (
   | nil => simpa [ofChunks] using hs
   | cons d ds ih =>
     rw [List.foldl_cons, show ofChunks (d :: ds) v = ofChunks ds (10 ^ 9 * v + d) from rfl]
-    apply ih _ _ (by have := Nat.mul_pos (show 0 < 10 ^ 9 by decide) hv; omega)
+    apply ih _ _ (by have := Nat.mul_pos (show 0 < 10 ^ 9 by decide) hv; lia)
     · rw [toList_pushDigits, hs, toDigits_pow_mul_add 9 hv (hcs d (by simp))]
     · exact fun d' hd' => hcs d' (by simp [hd'])
 
@@ -211,11 +211,11 @@ private theorem toNat_mulAddLimb (a : UInt32Array) (m v : UInt32) (hv : v.toNat 
       UInt32Array.size_toSlice, Nat.min_self, Nat.sub_zero, Nat.mul_succ, Nat.pow_add]
     -- `a m + v < (a + 1) m ≤ β^n m < β^(n + 1)`.
     have h₁ : toNat a * m.toNat + v.toNat < (toNat a + 1) * m.toNat := by
-      rw [Nat.succ_mul]; omega
+      rw [Nat.succ_mul]; lia
     have h₂ : (toNat a + 1) * m.toNat ≤ 2 ^ (32 * a.size) * m.toNat := Nat.mul_le_mul_right _ hA
     have h₃ : 2 ^ (32 * a.size) * m.toNat ≤ 2 ^ (32 * a.size) * 2 ^ 32 :=
       Nat.mul_le_mul_left _ (Nat.le_of_lt m.toNat_lt)
-    omega
+    lia
   rw [mulAddLimb, toNat_trim, toNat_addInto_of_lt _ _ _ (by simp [singleLimb]) hfit,
     toNat_mulRow, toNat_singleLimb, Nat.mul_zero, Nat.pow_zero, Nat.one_mul]
 
@@ -259,7 +259,7 @@ private theorem digit_toNat {c : Char} (h : c.isDigit = true) :
   have hv : c.val.toNat = c.toNat := rfl
   have hle : (48 : UInt32) ≤ c.val := by rw [UInt32.le_iff_toNat_le, hv]; exact this.1
   rw [UInt32.toNat_sub_of_le _ _ hle, hv]
-  exact ⟨rfl, by omega⟩
+  exact ⟨rfl, by lia⟩
 
 private theorem inv_step (st : DecimalState) (p : List Char) (c : Char)
     (hc : c.isDigit = true ∨ c = '_') (h : st.Inv p) : (st.step c).Inv (p ++ [c]) := by
@@ -278,14 +278,14 @@ private theorem inv_step (st : DecimalState) (p : List Char) (c : Char)
       rw [List.filter_append, Nat.ofDigitChars_append]
       simp [List.filter, hne, Nat.ofDigitChars_cons]
     -- The new chunk `10 chunk + d` has one more digit and still fits in a limb.
-    have hpow : 10 ^ st.count.toNat ≤ 10 ^ 8 := Nat.pow_le_pow_right (by decide) (by omega)
+    have hpow : 10 ^ st.count.toNat ≤ 10 ^ 8 := Nat.pow_le_pow_right (by decide) (by lia)
     have hv' : (st.chunk * 10 + (c.val - 48)).toNat = st.chunk.toNat * 10 + (c.toNat - 48) := by
-      have hc8 : st.chunk.toNat < 10 ^ 8 := by omega
+      have hc8 : st.chunk.toNat < 10 ^ 8 := by lia
       rw [UInt32.toNat_add, UInt32.toNat_mul, hd₁]
       simp only [UInt32.reduceToNat]
-      rw [Nat.mod_eq_of_lt (a := st.chunk.toNat * 10) (by omega), Nat.mod_eq_of_lt (by omega)]
+      rw [Nat.mod_eq_of_lt (a := st.chunk.toNat * 10) (by lia), Nat.mod_eq_of_lt (by lia)]
     have hlt : st.chunk.toNat * 10 + (c.toNat - 48) < 10 ^ (st.count.toNat + 1) := by
-      rw [Nat.pow_succ]; omega
+      rw [Nat.pow_succ]; lia
     have hval : toNat st.acc * 10 ^ (st.count.toNat + 1) + (st.chunk.toNat * 10 + (c.toNat - 48)) =
         Nat.ofDigitChars 10 ((p ++ [c]).filter (· != '_')) 0 := by
       rw [hf, ← hv, Nat.pow_succ]
@@ -303,11 +303,11 @@ private theorem inv_step (st : DecimalState) (p : List Char) (c : Char)
     · have hk' : (st.count + 1).toNat = st.count.toNat + 1 := by
         rw [UInt32.toNat_add]
         simp only [UInt32.reduceToNat]
-        exact Nat.mod_eq_of_lt (by omega)
+        exact Nat.mod_eq_of_lt (by lia)
       have hne : st.count.toNat ≠ 8 := fun h' => h8 (UInt32.toNat_inj.1 (by rw [h']; rfl))
       rw [DecimalState.step, ite_eq_right hu]
       simp only [h8, ↓reduceIte]
-      refine ⟨by rw [hk']; omega, by rw [hk', hv']; exact hlt, ?_⟩
+      refine ⟨by rw [hk']; lia, by rw [hk', hv']; exact hlt, ?_⟩
       rw [hk', hv', hval]
 
 private theorem inv_foldl (l p : List Char) (st : DecimalState)
@@ -327,10 +327,10 @@ private theorem toNat_finish (st : DecimalState) (p : List Char) (h : st.Inv p) 
     rw [DecimalState.finish, ite_eq_left h0, ← hv, h0, hc]
     simp
   · rw [DecimalState.finish, ite_eq_right h0]
-    have hp : 10 ^ st.count.toNat ≤ 10 ^ 8 := Nat.pow_le_pow_right (by decide) (by omega)
+    have hp : 10 ^ st.count.toNat ≤ 10 ^ 8 := Nat.pow_le_pow_right (by decide) (by lia)
     have hm : (10 ^ st.count.toNat).toUInt32.toNat = 10 ^ st.count.toNat := by
       simp only [Nat.toUInt32, UInt32.toNat_ofNat']
-      exact Nat.mod_eq_of_lt (by omega)
+      exact Nat.mod_eq_of_lt (by lia)
     rw [toNat_mulAddLimb _ _ _ (by rw [hm]; exact hch), hm, hv]
 
 /--
