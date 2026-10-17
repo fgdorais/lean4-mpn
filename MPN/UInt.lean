@@ -137,10 +137,15 @@ public theorem UInt16.mulAddAdd_spec (x y a b : UInt16) :
   let t := x.toUInt64 - y.toUInt64 - b.toUInt64
   (t.toUInt32, t >>> 32 != 0)
 
-/-- `x * y + a + b` as its low word and its high word. -/
+/--
+`x * y + a + b` as its low word and its high word. In a loop, `b` is the carry, and it joins last,
+after `p = x y + a`, which is also used for the low word: with `x y + a + b` written as one sum,
+LLVM adds the carry first, which puts the multiplication on the carry's dependency chain (on
+AArch64 the multiply-accumulate `umaddl`, a chain of about 5 cycles per limb, against 2 here).
+-/
 @[inline, expose] public def UInt32.mulAddAdd (x y a b : UInt32) : UInt32 × UInt32 :=
-  let t := x.toUInt64 * y.toUInt64 + a.toUInt64 + b.toUInt64
-  (t.toUInt32, (t >>> 32).toUInt32)
+  let p := x.toUInt64 * y.toUInt64 + a.toUInt64
+  (p.toUInt32 + b, ((p + b.toUInt64) >>> 32).toUInt32)
 
 private theorem UInt32.high_ne_zero (t : UInt64) : (t >>> 32 != 0) = decide (2 ^ 32 ≤ t.toNat) := by
   rw [Bool.eq_iff_iff]
@@ -173,19 +178,20 @@ public theorem UInt32.mulAddAdd_spec (x y a b : UInt32) :
   have := a.toNat_lt
   have := b.toNat_lt
   have : x.toNat * y.toNat ≤ (2 ^ 32 - 1) * (2 ^ 32 - 1) := Nat.mul_le_mul (by lia) (by lia)
-  simp only [mulAddAdd, UInt64.toNat_add, UInt64.toNat_mul, UInt64.toNat_toUInt32,
-    UInt32.toNat_toUInt64, UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow, UInt64.toNat_ofNat,
-    Nat.reduceMod, Nat.reducePow] at *
+  simp only [mulAddAdd, UInt32.toNat_add, UInt64.toNat_add, UInt64.toNat_mul,
+    UInt64.toNat_toUInt32, UInt32.toNat_toUInt64, UInt64.toNat_shiftRight,
+    Nat.shiftRight_eq_div_pow, UInt64.toNat_ofNat, Nat.reduceMod, Nat.reducePow] at *
   generalize x.toNat * y.toNat = p at *
   lia
 
 /--
 `addWithCarry` with the carry as a word, `0` or `1`. The compiled loops thread this carry, which
-compiles to a shorter dependency chain than a `Bool`.
+compiles to a shorter dependency chain than a `Bool`. As in `mulAddAdd`, the carry joins `x + y`
+last, and that sum is also used for the low word, so that LLVM does not add the carry first.
 -/
 @[inline, expose] public def UInt32.addWithCarryWord (x y c : UInt32) : UInt32 × UInt32 :=
-  let t := x.toUInt64 + y.toUInt64 + c.toUInt64
-  (t.toUInt32, (t >>> 32).toUInt32)
+  let s := x.toUInt64 + y.toUInt64
+  (s.toUInt32 + c, ((s + c.toUInt64) >>> 32).toUInt32)
 
 /-- `subWithBorrow` with the borrow as a word, `0` or `1`, for the same reason. -/
 @[inline, expose] public def UInt32.subWithBorrowWord (x y b : UInt32) : UInt32 × UInt32 :=
@@ -198,11 +204,13 @@ public theorem UInt32.addWithCarryWord_toUInt32 (x y : UInt32) (c : Bool) :
   have := x.toNat_lt
   have := y.toNat_lt
   have h : c.toUInt32.toUInt64 = c.toUInt64 := by cases c <;> rfl
-  simp only [addWithCarryWord, addWithCarry, h, Prod.mk.injEq, true_and]
-  apply UInt32.toNat_inj.1
-  cases c <;> simp [UInt64.toNat_add, Bool.toUInt64, Bool.toUInt32, bne, ← UInt64.toNat_inj,
-    Nat.shiftRight_eq_div_pow] <;> split <;> simp only [UInt32.toNat_zero, UInt32.toNat_one] <;>
-    omega -- `lia` and `grind` fail or time out here
+  simp only [addWithCarryWord, addWithCarry, h, Prod.mk.injEq]
+  refine ⟨UInt32.toNat_inj.1 ?_, UInt32.toNat_inj.1 ?_⟩
+  · -- The low words: `(s mod β + c) mod β = (s + c) mod β`.
+    cases c <;> simp [UInt32.toNat_add, Bool.toUInt64, Bool.toUInt32] <;> lia
+  · cases c <;> simp [UInt64.toNat_add, Bool.toUInt64, Bool.toUInt32, bne, ← UInt64.toNat_inj,
+      Nat.shiftRight_eq_div_pow] <;> split <;> simp only [UInt32.toNat_zero, UInt32.toNat_one] <;>
+      omega -- `lia` and `grind` fail or time out here
 
 public theorem UInt32.subWithBorrowWord_toUInt32 (x y : UInt32) (b : Bool) :
     x.subWithBorrowWord y b.toUInt32 =
