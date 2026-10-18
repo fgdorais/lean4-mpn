@@ -10,8 +10,8 @@ public import MPN.Bits
 # Exact division by small constants
 
 The interpolations of the Toom algorithms divide exactly by `2`, `3`, `4` and `5`. By a power of
-two it is a shift. By an odd `d` with `β ≡ 1` modulo `d` (`3`, `5`, `15`, `17`, …) it is a
-multiplication by the inverse of `d` modulo `β` from the bottom limb up, like GMP's
+two it is a shift. By an odd `d` it is a multiplication by the inverse of `d` modulo `β` from the
+bottom limb up, like GMP's
 `mpn_divexact_by3`, without the hardware divider.
 -/
 
@@ -163,8 +163,8 @@ private theorem divOdd_loop (d inv : UInt32) (hinv : d.toNat * inv.toNat % 2 ^ 3
       lia
 
 /--
-`x / d`, which is exact when `d` divides `x`, for an odd `d` with inverse `inv` modulo `β` and
-`β ≡ 1` modulo `d`: one pass from the bottom limb up with `divOddStep`, in place with
+`x / d`, which is exact when `d` divides `x`, for an odd `d` with inverse `inv` modulo `β`: one
+pass from the bottom limb up with `divOddStep`, in place with
 `foldlInPlaceThen`, where `divRem1` divides from the top limb down with the hardware divider.
 -/
 @[inline] public def divExactOdd (x : UInt32Array) (d inv : UInt32) : UInt32Array :=
@@ -172,7 +172,7 @@ private theorem divOdd_loop (d inv : UInt32) (hinv : d.toNat * inv.toNat % 2 ^ 3
     (fun r _ => r.array)
 
 public theorem toNat_divExactOdd (x : UInt32Array) (d inv : UInt32)
-    (hinv : d.toNat * inv.toNat % 2 ^ 32 = 1) (hβ : 2 ^ 32 % d.toNat = 1) (X : Nat)
+    (hinv : d.toNat * inv.toNat % 2 ^ 32 = 1) (hodd : d.toNat % 2 = 1) (X : Nat)
     (hx : toNat x = d.toNat * X) : toNat (divExactOdd x d inv) = X := by
   rw [divExactOdd, UInt32Array.Slice.foldlInPlaceThen_eq, UInt32Array.Slice.foldlInPlace,
     toNat_toSlice]
@@ -187,30 +187,26 @@ public theorem toNat_divExactOdd (x : UInt32Array) (d inv : UInt32)
   have hQ := ofLimbs_lt W
   rw [hW] at hQ
   simp only [UInt32Array.size_toSlice, Nat.min_self, Nat.sub_zero] at hQ hv
-  have hD : 1 < d.toNat := by
-    rcases Nat.lt_or_ge 1 d.toNat with h | h
-    · exact h
-    · rcases (show d.toNat = 0 ∨ d.toNat = 1 by lia) with h' | h' <;> (rw [h'] at hβ; simp at hβ)
-  -- `βⁿ ≡ 1` modulo `d`.
-  have hm : 2 ^ (32 * x.size) % d.toNat = 1 := by
-    rw [Nat.pow_mul, Nat.pow_mod, hβ, Nat.one_pow, Nat.mod_eq_of_lt hD]
+  -- `d` is odd, so coprime to `βⁿ`.
+  have hcop : Nat.Coprime d.toNat (2 ^ (32 * x.size)) := by
+    apply Nat.Coprime.pow_right
+    rw [Nat.Coprime, Nat.gcd_comm, Nat.gcd_rec, hodd]
+    rfl
+  have hD : 0 < d.toNat := by lia
   generalize 2 ^ (32 * x.size) = P at *
   generalize d.toNat = D at *
-  -- `D (W - X) = P c` with `W < P`, so `c < D`, and `P c ≡ c` modulo `D`, so `c = 0`.
+  -- `D (W - X) = P c` with `W < P`, so `c < D`, and `D` divides `c`, so `c = 0`.
   have hcD : c < D := by
     rcases Nat.lt_or_ge c D with h | h
     · exact h
     · have : P * D ≤ P * c := Nat.mul_le_mul_left P h
       have : D * ofLimbs W < D * P := Nat.mul_lt_mul_of_pos_left hQ (by lia)
       lia
-  have hdvd : (P * c) % D = 0 := by
-    have e : P * c = D * (ofLimbs W - X) := by
-      rw [Nat.mul_sub]; lia
-    rw [e, Nat.mul_mod_right]
-  rw [Nat.mul_mod, hm, Nat.one_mul, Nat.mod_mod, Nat.mod_eq_of_lt hcD] at hdvd
-  subst hdvd
+  have hdvd : D ∣ P * c := ⟨ofLimbs W - X, by rw [Nat.mul_sub]; lia⟩
+  have hc0 : c = 0 := Nat.eq_zero_of_dvd_of_lt (hcop.dvd_of_dvd_mul_left hdvd) hcD
+  subst hc0
   rw [Nat.mul_zero, Nat.add_zero] at hv
-  exact Nat.eq_of_mul_eq_mul_left (by lia) hv
+  exact Nat.eq_of_mul_eq_mul_left hD hv
 
 /-- `x / 3`, exact when `3` divides `x`, with `3⁻¹ = 0xAAAAAAAB` modulo `β`. -/
 public def divExact3 (x : UInt32Array) : UInt32Array := divExactOdd x 3 0xAAAAAAAB
@@ -225,5 +221,34 @@ public def divExact5 (x : UInt32Array) : UInt32Array := divExactOdd x 5 0xCCCCCC
 public theorem toNat_divExact5 (x : UInt32Array) (X : Nat) (hx : toNat x = 5 * X) :
     toNat (divExact5 x) = X :=
   toNat_divExactOdd x 5 0xCCCCCCCD (by decide) (by decide) X hx
+
+/-- `x / 7`, exact when `7` divides `x`, with `7⁻¹ = 0xB6DB6DB7` modulo `β`. -/
+public def divExact7 (x : UInt32Array) : UInt32Array := divExactOdd x 7 0xB6DB6DB7
+
+public theorem toNat_divExact7 (x : UInt32Array) (X : Nat) (hx : toNat x = 7 * X) :
+    toNat (divExact7 x) = X :=
+  toNat_divExactOdd x 7 0xB6DB6DB7 (by decide) (by decide) X hx
+
+/-- `x / 9`, exact when `9` divides `x`, with `9⁻¹ = 0x38E38E39` modulo `β`. -/
+public def divExact9 (x : UInt32Array) : UInt32Array := divExactOdd x 9 0x38E38E39
+
+public theorem toNat_divExact9 (x : UInt32Array) (X : Nat) (hx : toNat x = 9 * X) :
+    toNat (divExact9 x) = X :=
+  toNat_divExactOdd x 9 0x38E38E39 (by decide) (by decide) X hx
+
+/-- `x / 8`, which is exact when `8` divides `x`: `x` shifted right by three bits in place. -/
+public def divExact8 (x : UInt32Array) : UInt32Array := shrLimbs x (3 : Nat).toUInt64
+
+public theorem toNat_divExact8 (x : UInt32Array) (X : Nat) (hx : toNat x = 8 * X) :
+    toNat (divExact8 x) = X := by
+  rw [divExact8, toNat_shrLimbs _ _ (by decide), hx, show (2 : Nat) ^ 3 = 8 by rfl,
+    Nat.mul_div_cancel_left _ (by decide)]
+
+/-- `x / 6`, exact when `6` divides `x`: by `2`, then by `3`. -/
+public def divExact6 (x : UInt32Array) : UInt32Array := divExact3 (divExact2 x)
+
+public theorem toNat_divExact6 (x : UInt32Array) (X : Nat) (hx : toNat x = 6 * X) :
+    toNat (divExact6 x) = X :=
+  toNat_divExact3 _ _ (toNat_divExact2 _ _ (by rw [hx]; lia))
 
 end MPN
