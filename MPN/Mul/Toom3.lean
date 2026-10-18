@@ -677,29 +677,13 @@ private theorem toNat_eval3₄ (x₀ x₁ x₂ x₃ : UInt32Array.Slice) :
   simp only [UInt32.reduceToNat]
   lia
 
-/-- Splitting the part of a slice from `i` at `i + k`. -/
-public theorem toNat_slice_split (s : UInt32Array.Slice) (i k : Nat) (h : i + k ≤ s.size) :
-    toNat (s.slice i s.size) =
-      toNat (s.slice i (i + k)) + 2 ^ (32 * k) * toNat (s.slice (i + k) s.size) := by
-  have h₁ := toNat_slice_add_toNat_slice (s.slice i s.size) k (by simp; lia)
-  have e₁ : toNat ((s.slice i s.size).slice 0 k) = toNat (s.slice i (i + k)) := by
-    simp only [toNat, UInt32Array.Slice.copy_slice, UInt32Array.extract_extract]
-    rw [show i + 0 = i by lia, show min (i + k) s.size = i + k by lia]
-  have e₂ : toNat ((s.slice i s.size).slice k (s.slice i s.size).size) =
-      toNat (s.slice (i + k) s.size) := by
-    simp only [toNat, UInt32Array.Slice.copy_slice, UInt32Array.extract_extract,
-      UInt32Array.Slice.size_slice]
-    rw [show min (i + (min s.size s.size - i)) s.size = s.size by lia]
-  rw [e₁, e₂] at h₁
-  exact h₁.symm
-
 /-- Splitting a slice at `k`, `2 k` and `3 k` splits its value in four. -/
 public theorem toNat_slice_four (s : UInt32Array.Slice) (k : Nat) (hk : 3 * k ≤ s.size) :
     toNat s = toNat (s.slice 0 k) + 2 ^ (32 * k) * toNat (s.slice k (2 * k)) +
       2 ^ (32 * k) * 2 ^ (32 * k) * toNat (s.slice (2 * k) (3 * k)) +
       2 ^ (32 * k) * 2 ^ (32 * k) * 2 ^ (32 * k) * toNat (s.slice (3 * k) s.size) := by
   have h₃ := toNat_slice_three s k (by lia)
-  have h₄ := toNat_slice_split s (2 * k) k (by lia)
+  have h₄ := toNat_slice_split s (2 * k) k
   rw [show 2 * k + k = 3 * k by lia] at h₄
   rw [h₃, h₄]
   grind

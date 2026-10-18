@@ -76,6 +76,48 @@ public theorem toNat_slice_add_toNat_slice (s : UInt32Array.Slice) (k : Nat) (hk
   simp only [toNat, UInt32Array.Slice.copy_slice, UInt32Array.toList_extract, h]
   simp [List.extract_eq_take_drop, List.take_of_length_le]
 
+/-- Splitting the part of a slice from `i` at `i + k`. -/
+private theorem toNat_slice_split_of_le (s : UInt32Array.Slice) (i k : Nat) (h : i + k ≤ s.size) :
+    toNat (s.slice i s.size) =
+      toNat (s.slice i (i + k)) + 2 ^ (32 * k) * toNat (s.slice (i + k) s.size) := by
+  have h₁ := toNat_slice_add_toNat_slice (s.slice i s.size) k (by simp; lia)
+  have e₁ : toNat ((s.slice i s.size).slice 0 k) = toNat (s.slice i (i + k)) := by
+    simp only [toNat, UInt32Array.Slice.copy_slice, UInt32Array.extract_extract]
+    rw [show i + 0 = i by lia, show min (i + k) s.size = i + k by lia]
+  have e₂ : toNat ((s.slice i s.size).slice k (s.slice i s.size).size) =
+      toNat (s.slice (i + k) s.size) := by
+    simp only [toNat, UInt32Array.Slice.copy_slice, UInt32Array.extract_extract,
+      UInt32Array.Slice.size_slice]
+    rw [show min (i + (min s.size s.size - i)) s.size = s.size by lia]
+  rw [e₁, e₂] at h₁
+  exact h₁.symm
+
+/-- Splitting the limbs of `s` from `i` at `i + m`, also when `i + m` is past the end. -/
+public theorem toNat_slice_split (s : UInt32Array.Slice) (i m : Nat) :
+    toNat (s.slice i s.size) =
+      toNat (s.slice i (i + m)) + 2 ^ (32 * m) * toNat (s.slice (i + m) s.size) := by
+  by_cases h : i + m ≤ s.size
+  · exact toNat_slice_split_of_le s i m h
+  · have h₀ : toNat (s.slice (i + m) s.size) = 0 :=
+      toNat_of_size_eq_zero (by simp only [UInt32Array.Slice.size_slice]; lia)
+    have e : toNat (s.slice i (i + m)) = toNat (s.slice i s.size) := by
+      simp only [toNat, UInt32Array.Slice.copy_slice, UInt32Array.toList_extract,
+        List.extract_eq_take_drop]
+      rw [List.take_of_length_le (l := List.drop i s.copy.toList) (by simp; lia),
+        List.take_of_length_le (l := List.drop i s.copy.toList) (by simp)]
+    rw [h₀, e, Nat.mul_zero, Nat.add_zero]
+
+/-- The value of an array is its low `m` limbs plus `2^(32 m)` times the rest. -/
+public theorem toNat_split (x : UInt32Array) (m : Nat) (hm : m ≤ x.size) :
+    toNat x = toNat (x.toSlice 0 m) + 2 ^ (32 * m) * toNat (x.toSlice m x.size) := by
+  have h := toNat_slice_add_toNat_slice x.toSlice m (by simp; lia)
+  have e₁ : toNat (x.toSlice.slice 0 m) = toNat (x.toSlice 0 m) := by
+    simp [toNat, UInt32Array.Slice.copy_slice]
+  have e₂ : toNat (x.toSlice.slice m x.toSlice.size) = toNat (x.toSlice m x.size) := by
+    simp [toNat, UInt32Array.Slice.copy_slice]
+  rw [e₁, e₂] at h
+  exact h.symm
+
 /-- Cutting an array to its first `n` limbs keeps a value below `2^(32 n)`. -/
 public theorem toNat_toSlice_of_lt (a : UInt32Array) (n : Nat) (h : toNat a < 2 ^ (32 * n)) :
     toNat (a.toSlice 0 n) = toNat a := by

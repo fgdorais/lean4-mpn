@@ -244,21 +244,6 @@ public theorem polyVal_append (x : Nat) (l l' : List Nat) :
   | nil => simp [polyVal]
   | cons c l ih => simp only [List.cons_append, polyVal, ih, List.length_cons, Nat.pow_succ]; grind
 
-/-- Splitting the limbs of `s` from `i` at `i + m`, also when `i + m` is past the end. -/
-public theorem toNat_slice_split' (s : UInt32Array.Slice) (i m : Nat) :
-    toNat (s.slice i s.size) =
-      toNat (s.slice i (i + m)) + 2 ^ (32 * m) * toNat (s.slice (i + m) s.size) := by
-  by_cases h : i + m ≤ s.size
-  · exact toNat_slice_split s i m h
-  · have h₀ : toNat (s.slice (i + m) s.size) = 0 :=
-      toNat_of_size_eq_zero (by simp only [UInt32Array.Slice.size_slice]; lia)
-    have e : toNat (s.slice i (i + m)) = toNat (s.slice i s.size) := by
-      simp only [toNat, UInt32Array.Slice.copy_slice, UInt32Array.toList_extract,
-        List.extract_eq_take_drop]
-      rw [List.take_of_length_le (l := List.drop i s.copy.toList) (by simp; lia),
-        List.take_of_length_le (l := List.drop i s.copy.toList) (by simp)]
-    rw [h₀, e, Nat.mul_zero, Nat.add_zero]
-
 /-- The values of the `L` pieces of `m` limbs of `s` from limb `i`. -/
 @[expose] public def pieceList (s : UInt32Array.Slice) (m : Nat) : Nat → Nat → List Nat
   | _, 0 => []
@@ -279,7 +264,7 @@ public theorem toNat_eq_polyVal_pieceList (s : UInt32Array.Slice) (m i L : Nat)
     simp only [pieceList, polyVal]
     exact toNat_of_size_eq_zero (by simp only [UInt32Array.Slice.size_slice]; lia)
   | succ L ih =>
-    rw [toNat_slice_split' s i m, ih (i + m) (by rw [Nat.add_mul, Nat.one_mul] at h; lia)]
+    rw [toNat_slice_split s i m, ih (i + m) (by rw [Nat.add_mul, Nat.one_mul] at h; lia)]
     rfl
 
 /-- Pieces at or past the end of `s` are zero. -/

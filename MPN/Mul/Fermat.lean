@@ -61,17 +61,6 @@ public structure FermatMod (n : Nat) where
 public def fermatMod (n : Nat) : FermatMod n :=
   ⟨fermatArray n, size_fermatArray n, toNat_fermatArray n⟩
 
-/-- The value of an array is its low `m` limbs plus `2^(32 m)` times the rest. -/
-public theorem toNat_split (x : UInt32Array) (m : Nat) (hm : m ≤ x.size) :
-    toNat x = toNat (x.toSlice 0 m) + 2 ^ (32 * m) * toNat (x.toSlice m x.size) := by
-  have h := toNat_slice_add_toNat_slice x.toSlice m (by simp; lia)
-  have e₁ : toNat (x.toSlice.slice 0 m) = toNat (x.toSlice 0 m) := by
-    simp [toNat, UInt32Array.Slice.copy_slice]
-  have e₂ : toNat (x.toSlice.slice m x.toSlice.size) = toNat (x.toSlice m x.size) := by
-    simp [toNat, UInt32Array.Slice.copy_slice]
-  rw [e₁, e₂] at h
-  exact h.symm
-
 /-! ## Reduction -/
 
 /--
