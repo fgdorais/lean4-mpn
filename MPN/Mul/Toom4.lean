@@ -227,24 +227,10 @@ private theorem toNat_rStep (w c₀ c : UInt32Array) (v : UInt32) (div : UInt32A
     toNat_subVal _ _ (by lia), hc]
   lia
 
-/-- A divided difference `(x - y) / l`. -/
-private theorem toNat_ddStep (x y : UInt32Array) (div : UInt32Array → UInt32Array) (l : Nat)
-    (hdiv : ∀ (x : UInt32Array) X, toNat x = l * X → toNat (div x) = X) (X Y Z : Nat)
-    (hx : toNat x = X) (hy : toNat y = Y) (h : X = Y + l * Z) : toNat (div (subVal x y)) = Z := by
-  apply hdiv
-  rw [toNat_subVal _ _ (by lia)]
-  lia
-
 /-- A step of Horner's rule, `x - y v`. -/
 private theorem toNat_hStep (x y : UInt32Array) (v : UInt32) (X Y Z : Nat) (hx : toNat x = X)
     (hy : toNat y = Y) (h : X = Y * v.toNat + Z) : toNat (subMulVal x y v) = Z := by
   rw [toNat_subMulVal _ _ _ (by lia)]
-  lia
-
-/-- A difference `x - y`. -/
-private theorem toNat_sStep (x y : UInt32Array) (X Y Z : Nat) (hx : toNat x = X)
-    (hy : toNat y = Y) (h : X = Y + Z) : toNat (subVal x y) = Z := by
-  rw [toNat_subVal _ _ (by lia)]
   lia
 
 /-! ## Interpolation in degree six -/

@@ -116,6 +116,38 @@ def toom3Interp (c₀ w₁ w₂ w₃ c₄ : UInt32Array) : UInt32Array × UInt32
   let c₂ := subVal t₂ (mulRow c₃ 3)
   (subVal (subVal r₁ c₂) c₃, c₂, c₃)
 
+/-! ## Interpolation steps -/
+
+/-- A difference `x - y`. -/
+public theorem toNat_sStep (x y : UInt32Array) (X Y Z : Nat) (hx : toNat x = X)
+    (hy : toNat y = Y) (h : X = Y + Z) : toNat (subVal x y) = Z := by
+  rw [toNat_subVal _ _ (by lia)]
+  lia
+
+/-- A divided difference `(x - y) / l`. -/
+public theorem toNat_ddStep (x y : UInt32Array) (div : UInt32Array → UInt32Array) (l : Nat)
+    (hdiv : ∀ (x : UInt32Array) X, toNat x = l * X → toNat (div x) = X) (X Y Z : Nat)
+    (hx : toNat x = X) (hy : toNat y = Y) (h : X = Y + l * Z) : toNat (div (subVal x y)) = Z := by
+  apply hdiv
+  rw [toNat_subVal _ _ (by lia)]
+  lia
+
+/-- `x - c v`, with the product by `mulRow`. -/
+public theorem toNat_mStep (x c : UInt32Array) (v : UInt32) (X C Z : Nat) (hx : toNat x = X)
+    (hc : toNat c = C) (h : X = C * v.toNat + Z) : toNat (subVal x (mulRow c v)) = Z := by
+  have hm : toNat (mulRow c v) = C * v.toNat := by rw [toNat_mulRow, hc]
+  rw [toNat_subVal _ _ (by lia), hm]
+  lia
+
+/-- `(w - c₀ - c v) / j`, the first step for the point `j`, with the product by `mulRow`. -/
+public theorem toNat_rmStep (w c₀ c : UInt32Array) (v : UInt32)
+    (div : UInt32Array → UInt32Array) (j : Nat)
+    (hdiv : ∀ (x : UInt32Array) X, toNat x = j * X → toNat (div x) = X) (C₀ C R : Nat)
+    (h₀ : toNat c₀ = C₀) (hc : toNat c = C) (hw : toNat w = C₀ + C * v.toNat + j * R) :
+    toNat (div (subVal (subVal w c₀) (mulRow c v))) = R :=
+  hdiv _ _ (toNat_mStep _ _ _ _ _ _ (toNat_sStep w c₀ _ _ (C * v.toNat + j * R) hw h₀ (by lia))
+    hc (by lia))
+
 private theorem toom3Interp_spec (c₀ w₁ w₂ w₃ c₄ : UInt32Array) (C₀ C₁ C₂ C₃ C₄ : Nat)
     (h₀ : toNat c₀ = C₀) (h₄ : toNat c₄ = C₄) (h₁ : toNat w₁ = C₀ + C₁ + C₂ + C₃ + C₄)
     (h₂ : toNat w₂ = C₀ + 2 * C₁ + 4 * C₂ + 8 * C₃ + 16 * C₄)
@@ -123,57 +155,29 @@ private theorem toom3Interp_spec (c₀ w₁ w₂ w₃ c₄ : UInt32Array) (C₀ 
     toNat (toom3Interp c₀ w₁ w₂ w₃ c₄).1 = C₁ ∧ toNat (toom3Interp c₀ w₁ w₂ w₃ c₄).2.1 = C₂ ∧
       toNat (toom3Interp c₀ w₁ w₂ w₃ c₄).2.2 = C₃ := by
   simp only [toom3Interp]
-  have m16 : toNat (mulRow c₄ 16) = 16 * C₄ := by
-    rw [toNat_mulRow, h₄]; simp only [UInt32.reduceToNat]; lia
-  have m81 : toNat (mulRow c₄ 81) = 81 * C₄ := by
-    rw [toNat_mulRow, h₄]; simp only [UInt32.reduceToNat]; lia
-  -- `r₁ = c₁ + c₂ + c₃`.
-  have hr₁a : toNat (subVal w₁ c₀) = C₁ + C₂ + C₃ + C₄ := by
-    rw [toNat_subVal _ _ (by lia)]; lia
-  have hr₁ : toNat (subVal (subVal w₁ c₀) c₄) = C₁ + C₂ + C₃ := by
-    rw [toNat_subVal _ _ (by lia)]; lia
-  -- `s₂ = c₁ + 2 c₂ + 4 c₃` and `s₃ = c₁ + 3 c₂ + 9 c₃`.
-  have hs₂a : toNat (subVal (subVal w₂ c₀) (mulRow c₄ 16)) = 2 * (C₁ + 2 * C₂ + 4 * C₃) := by
-    rw [toNat_subVal _ _ (by rw [toNat_subVal _ _ (by lia)]; lia),
-      toNat_subVal _ _ (by lia)]
-    lia
-  have hs₂ : toNat (divExact2 (subVal (subVal w₂ c₀) (mulRow c₄ 16))) = C₁ + 2 * C₂ + 4 * C₃ :=
-    toNat_divExact2 _ _ hs₂a
-  have hs₃a : toNat (subVal (subVal w₃ c₀) (mulRow c₄ 81)) = 3 * (C₁ + 3 * C₂ + 9 * C₃) := by
-    rw [toNat_subVal _ _ (by rw [toNat_subVal _ _ (by lia)]; lia),
-      toNat_subVal _ _ (by lia)]
-    lia
-  have hs₃ : toNat (divExact3 (subVal (subVal w₃ c₀) (mulRow c₄ 81))) = C₁ + 3 * C₂ + 9 * C₃ :=
-    toNat_divExact3 _ _ hs₃a
+  -- `r₁ = c₁ + c₂ + c₃`, `s₂ = c₁ + 2 c₂ + 4 c₃` and `s₃ = c₁ + 3 c₂ + 9 c₃`.
+  have hr₁ := toNat_sStep _ _ _ _ (C₁ + C₂ + C₃)
+    (toNat_sStep _ _ _ _ (C₁ + C₂ + C₃ + C₄) h₁ h₀ (by lia)) h₄ (by lia)
+  have hs₂ := toNat_rmStep w₂ c₀ c₄ 16 divExact2 2 toNat_divExact2 C₀ C₄
+    (C₁ + 2 * C₂ + 4 * C₃) h₀ h₄ (by rw [h₂]; simp only [UInt32.reduceToNat]; lia)
+  have hs₃ := toNat_rmStep w₃ c₀ c₄ 81 divExact3 3 toNat_divExact3 C₀ C₄
+    (C₁ + 3 * C₂ + 9 * C₃) h₀ h₄ (by rw [h₃]; simp only [UInt32.reduceToNat]; lia)
   generalize subVal (subVal w₁ c₀) c₄ = r₁ at *
   generalize divExact2 (subVal (subVal w₂ c₀) (mulRow c₄ 16)) = s₂ at *
   generalize divExact3 (subVal (subVal w₃ c₀) (mulRow c₄ 81)) = s₃ at *
-  clear hr₁a hs₂a hs₃a m16 m81 h₀ h₁ h₂ h₃ h₄
   -- `t₂ = c₂ + 3 c₃` and `t₃ = c₂ + 4 c₃`.
-  have ht₂ : toNat (subVal s₂ r₁) = C₂ + 3 * C₃ := by
-    rw [toNat_subVal _ _ (by lia)]; lia
-  have ht₃ : toNat (divExact2 (subVal s₃ r₁)) = C₂ + 4 * C₃ :=
-    toNat_divExact2 _ _ (by rw [toNat_subVal _ _ (by lia)]; lia)
+  have ht₂ := toNat_sStep s₂ r₁ _ _ (C₂ + 3 * C₃) hs₂ hr₁ (by lia)
+  have ht₃ := toNat_ddStep s₃ r₁ divExact2 2 toNat_divExact2 _ _ (C₂ + 4 * C₃) hs₃ hr₁ (by lia)
   generalize subVal s₂ r₁ = t₂ at *
   generalize divExact2 (subVal s₃ r₁) = t₃ at *
-  clear hs₂ hs₃
   -- `c₃ = t₃ - t₂`, `c₂ = t₂ - 3 c₃` and `c₁ = r₁ - c₂ - c₃`.
-  have hc₃ : toNat (subVal t₃ t₂) = C₃ := by
-    rw [toNat_subVal _ _ (by lia)]; lia
-  have m3 : toNat (mulRow (subVal t₃ t₂) 3) = 3 * C₃ := by
-    rw [toNat_mulRow, hc₃]; simp only [UInt32.reduceToNat]; lia
-  have hc₂ : toNat (subVal t₂ (mulRow (subVal t₃ t₂) 3)) = C₂ := by
-    rw [toNat_subVal _ _ (by lia)]; lia
+  have hc₃ := toNat_sStep t₃ t₂ _ _ C₃ ht₃ ht₂ (by lia)
+  have hc₂ := toNat_mStep t₂ (subVal t₃ t₂) 3 _ _ C₂ ht₂ hc₃
+    (by simp only [UInt32.reduceToNat]; lia)
   generalize subVal t₃ t₂ = c₃ at *
   generalize subVal t₂ (mulRow c₃ 3) = c₂ at *
-  clear ht₂ ht₃ m3
-  have hc₁a : toNat (subVal r₁ c₂) = C₁ + C₃ := by
-    rw [toNat_subVal r₁ c₂ (by lia)]
-    lia
-  have hc₁ : toNat (subVal (subVal r₁ c₂) c₃) = C₁ := by
-    rw [toNat_subVal (subVal r₁ c₂) c₃ (by lia)]
-    lia
-  exact ⟨hc₁, hc₂, hc₃⟩
+  exact ⟨toNat_sStep _ _ _ _ _ (toNat_sStep r₁ c₂ _ _ (C₁ + C₃) hr₁ hc₂ (by lia)) hc₃ (by lia),
+    hc₂, hc₃⟩
 
 /-! ## Assembly -/
 
@@ -450,26 +454,15 @@ private theorem toom32Interp_spec (c₀ w₁ w₂ c₃ : UInt32Array) (C₀ C₁
     (h₂ : toNat w₂ = C₀ + 2 * C₁ + 4 * C₂ + 8 * C₃) :
     toNat (toom32Interp c₀ w₁ w₂ c₃).1 = C₁ ∧ toNat (toom32Interp c₀ w₁ w₂ c₃).2 = C₂ := by
   simp only [toom32Interp]
-  have m8 : toNat (mulRow c₃ 8) = 8 * C₃ := by
-    rw [toNat_mulRow, h₃]; simp only [UInt32.reduceToNat]; lia
-  have hr₁ : toNat (subVal (subVal w₁ c₀) c₃) = C₁ + C₂ := by
-    rw [toNat_subVal _ _ (by rw [toNat_subVal _ _ (by lia)]; lia),
-      toNat_subVal _ _ (by lia)]
-    lia
-  have hs₂a : toNat (subVal (subVal w₂ c₀) (mulRow c₃ 8)) = 2 * (C₁ + 2 * C₂) := by
-    rw [toNat_subVal _ _ (by rw [toNat_subVal _ _ (by lia)]; lia),
-      toNat_subVal _ _ (by lia)]
-    lia
-  have hs₂ : toNat (divExact2 (subVal (subVal w₂ c₀) (mulRow c₃ 8))) = C₁ + 2 * C₂ :=
-    toNat_divExact2 _ _ hs₂a
+  have hr₁ := toNat_sStep _ _ _ _ (C₁ + C₂)
+    (toNat_sStep _ _ _ _ (C₁ + C₂ + C₃) h₁ h₀ (by lia)) h₃ (by lia)
+  have hs₂ := toNat_rmStep w₂ c₀ c₃ 8 divExact2 2 toNat_divExact2 C₀ C₃ (C₁ + 2 * C₂) h₀ h₃
+    (by rw [h₂]; simp only [UInt32.reduceToNat]; lia)
   generalize subVal (subVal w₁ c₀) c₃ = r₁ at *
   generalize divExact2 (subVal (subVal w₂ c₀) (mulRow c₃ 8)) = s₂ at *
-  have hc₂ : toNat (subVal s₂ r₁) = C₂ := by
-    rw [toNat_subVal _ _ (by lia)]; lia
+  have hc₂ := toNat_sStep s₂ r₁ _ _ C₂ hs₂ hr₁ (by lia)
   generalize subVal s₂ r₁ = c₂ at *
-  refine ⟨?_, hc₂⟩
-  rw [toNat_subVal _ _ (by lia)]
-  lia
+  exact ⟨toNat_sStep r₁ c₂ _ _ C₁ hr₁ hc₂ (by lia), hc₂⟩
 
 /-- `c₀ + c₁ x + c₂ x² + c₃ x³` as `n` limbs, where `x = βᵏ`. -/
 def toom32Assemble (n k : Nat) (c₀ c₁ c₂ c₃ : UInt32Array) : UInt32Array :=
