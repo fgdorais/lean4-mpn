@@ -581,7 +581,8 @@ public def mulPow2Core {n : Nat} (M : FermatMod n) (x : UInt32Array) (w b : Nat)
 /-- `x 2ˢ` modulo `F`, by `mulPow2Core` with `32 w + b = s mod N` and the sign of `2^(s mod 2N)`. -/
 public def mulPow2I {n : Nat} (M : FermatMod n) (x : UInt32Array) (s : Nat) : UInt32Array :=
   let t := s % (64 * n)
-  if t < 32 * n then mulPow2Core M x (t / 32) (t % 32) false
+  if t = 0 then x
+  else if t < 32 * n then mulPow2Core M x (t / 32) (t % 32) false
   else mulPow2Core M x ((t - 32 * n) / 32) ((t - 32 * n) % 32) true
 
 public theorem size_mulPow2Core {n : Nat} (M : FermatMod n) (x : UInt32Array) (w b : Nat)
@@ -598,6 +599,8 @@ public theorem size_mulPow2I {n : Nat} (M : FermatMod n) (x : UInt32Array) (s : 
     (hn : 1 ≤ n) (hx : x.size = n + 1) : (mulPow2I M x s).size = n + 1 := by
   have ht : s % (64 * n) < 64 * n := Nat.mod_lt _ (by lia)
   simp only [mulPow2I]
+  split
+  · exact hx
   split
   · exact size_mulPow2Core M _ _ _ _ (by lia) hx
   · exact size_mulPow2Core M _ _ _ _ (by lia) hx
@@ -718,14 +721,17 @@ public theorem toNat_mulPow2I {n : Nat} (M : FermatMod n) (x : UInt32Array) (s :
     rw [Nat.mul_mod, hq, ← Nat.mul_mod]
   rw [hs]
   have ht : s % (64 * n) < 64 * n := Nat.mod_lt _ (by lia)
+  by_cases h0 : s % (64 * n) = 0
+  · have e : mulPow2I M x s = x := by simp only [mulPow2I, h0, ↓reduceIte]
+    rw [e, h0, Nat.pow_zero, Nat.mul_one, Nat.mod_eq_of_lt hxF]
   by_cases h : s % (64 * n) < 32 * n
   · have e : mulPow2I M x s = mulPow2Core M x (s % (64 * n) / 32) (s % (64 * n) % 32) false := by
-      simp only [mulPow2I, h, ↓reduceIte]
+      simp only [mulPow2I, h0, h, ↓reduceIte]
     rw [e, toNat_mulPow2Core M _ _ _ _ hn (by lia) (Nat.mod_lt _ (by decide)) hx hxF]
     simp only [Bool.false_eq_true, ↓reduceIte, Nat.mul_one, Nat.div_add_mod]
   · have e : mulPow2I M x s = mulPow2Core M x ((s % (64 * n) - 32 * n) / 32)
         ((s % (64 * n) - 32 * n) % 32) true := by
-      simp only [mulPow2I, h, ↓reduceIte]
+      simp only [mulPow2I, h0, h, ↓reduceIte]
     rw [e, toNat_mulPow2Core M _ _ _ _ hn (by lia) (Nat.mod_lt _ (by decide)) hx hxF]
     simp only [↓reduceIte, Nat.div_add_mod]
     rw [Nat.mul_assoc, ← Nat.pow_add, show s % (64 * n) - 32 * n + 32 * n = s % (64 * n) by lia]
