@@ -113,7 +113,8 @@ Time of MPN:
   and 64-bit limbs win.
 - **Multiplication** is 4.1–6.9× behind from 64 limbs up, **squaring** 2.4–4.5×. That is mostly
   structural: 32-bit limbs need 4× as many limb products as GMP's 64-bit limbs, and Lean has no
-  64 × 64 → 128-bit multiply. Algorithm thresholds are close to GMP's in bits.
+  64 × 64 → 128-bit multiply. Algorithm thresholds are close to GMP's in bits. Beyond the table,
+  the FFT takes over from 18000 limbs (16000 for squares), 29% faster than Toom-4 at 65536.
 - **Division** is 6.3–8.9× behind from 64 limbs up, about 1.5× multiplication's gap: GMP divides
   `2n` by `n` limbs for about the cost of one `n × n` product, and this library for 2.4 of its
   own. Small `MPN.Nat` divisions still pay a fixed cost (normalization, several arrays): 1.9–3.7×

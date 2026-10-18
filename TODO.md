@@ -12,7 +12,9 @@ product at 1024 and 4096 limbs and 70% of a square, with `perf` (2026-10-16). Th
 and 19% of a square, allocation 2–3%. With 32-bit limbs, a product needs 4× as many limb products
 as GMP's, which is most of the gap above 64 limbs; `march = "native"` (see the README) makes
 products 5–12% faster with AVX2. What is left for products is mostly the linear passes and
-algorithms (below).
+algorithms (below). Since that profile, Toom-4, Toom-4 by 3, Toom-4 squaring (2026-10-17) and the
+FFT (2026-10-18) made products 2–8% faster from 1024 limbs, squares 7–10%, and products 29%
+faster at 65536 limbs; the profile above predates them.
 Division is 2.4 of our own `n × n` products per `2n / n` division, where GMP's is about one, so it
 trails by 1.5× multiplication's gap; see BENCH.md for the current numbers.
 
@@ -284,8 +286,11 @@ block of the division, and `topSize` usually stops at the first limb.
   (2026-10-17, M2 at `ec9d59e`): multiplication agrees (Toom-4 by 3 from 176 on Zen 3 and 192 on
   the M2, Toom-4 from 416 and 480), but squaring does not: on the M2 Karatsuba squaring beats
   Toom-3 squaring to the 972-limb cap and Toom-4 squaring to about 1000–1100, so `sqrToom4 = 576`
-  costs it up to 8% between 576 and 1000 limbs. Defaults per architecture will come, but after
-  the remaining algorithms are verified, so that the tuning sees all of them.
+  costs it up to 8% between 576 and 1000 limbs. The FFT (2026-10-18, M2 at `8c8f1cf`) crosses
+  over at the same size on both machines, flat from 16384 to 18432 limbs: the M2 tunes
+  `mulFFT = 18432` (default 18000) and `sqrFFT = 18432` (default 16000, which costs it 1–4% between
+  16000 and 18432 limbs, since its squares below are cheaper). Defaults per architecture will come,
+  but after the remaining algorithms are verified, so that the tuning sees all of them.
 - [ ] **A raw GMP baseline.** The `Nat` column is Lean's wrapper around GMP, which copies both
   the operand and the result and allocates twice per operation, so below about 64 limbs it
   measures mostly that overhead (we beat it there). Calling `mpn_*` directly needs C, so it

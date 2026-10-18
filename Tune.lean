@@ -387,7 +387,7 @@ end Tune
 open Tune in
 public def main (args : List String) : IO UInt32 := do
   let log := args.contains "--verbose"
-  IO.println "Tuning the lean4-mpn thresholds; this takes a few minutes."
+  IO.println "Tuning the lean4-mpn thresholds; this takes several minutes."
   IO.println "mulKaratsuba: one Karatsuba step against schoolbook"
   let karatsuba ← tuneKaratsuba log
   IO.println "mulToom3: one Toom-3 step against Karatsuba"
