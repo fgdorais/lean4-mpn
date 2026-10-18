@@ -122,8 +122,10 @@ Tunes `mulToom3`: where one Toom-3 step beats Karatsuba, with Karatsuba from `ka
 the products of both.
 -/
 def tuneToom3 (karatsuba : Nat) (h : 4 ≤ karatsuba) (log : Bool) : IO Nat := medianOf 3 do
-  -- A threshold for Toom-3 beyond every size tried, so that only Karatsuba recurses.
-  let cfg : Config := { mulKaratsuba := karatsuba, four_le_mulKaratsuba := h, mulToom3 := 100000 }
+  -- Thresholds for Toom-3 and Toom-4 beyond every size tried, so that only Karatsuba recurses.
+  let cfg : Config := {
+    mulKaratsuba := karatsuba, four_le_mulKaratsuba := h, mulToom3 := 100000,
+    mulToom43 := 100000, mulToom4 := 100000 }
   let toom3Step (a b : UInt32Array.Slice) : UInt32Array :=
     if h : 12 ≤ b.size ∧ b.size ≤ a.size ∧ 3 * a.size < 4 * b.size then
       toom3 a b h.1 h.2.1 h.2.2 fun x y _ => mulLimbsWith cfg x y
@@ -144,11 +146,12 @@ Tunes `mulToom32`: where one step of Toom-3 by 2 beats the dispatcher without it
 -/
 def tuneToom32 (karatsuba toom3 : Nat) (h : 4 ≤ karatsuba) (h₃ : 12 ≤ toom3) (log : Bool) :
     IO Nat := medianOf 3 do
-  -- A threshold for Toom-3 by 2 beyond every size tried, so that only the others recurse.
+  -- Thresholds for Toom-3 by 2 and the Toom-4 variants beyond every size tried, so that only the
+  -- others recurse.
   let cfg : Config := {
     mulKaratsuba := karatsuba, four_le_mulKaratsuba := h
     mulToom3 := toom3, twelve_le_mulToom3 := h₃
-    mulToom32 := 100000 }
+    mulToom32 := 100000, mulToom43 := 100000, mulToom4 := 100000 }
   let toom32Step (a b : UInt32Array.Slice) : UInt32Array :=
     if h : 12 ≤ b.size ∧ b.size ≤ a.size ∧ (a.size + 2) / 3 ≤ b.size then
       toom32 a b h.1 h.2.1 h.2.2 fun x y _ => mulLimbsWith cfg x y
@@ -170,12 +173,13 @@ Tunes `mulToom42`: where one step of Toom-4 by 2 beats the dispatcher without it
 -/
 def tuneToom42 (karatsuba toom3 toom32 : Nat) (h : 4 ≤ karatsuba) (h₃ : 12 ≤ toom3)
     (h₃₂ : 12 ≤ toom32) (log : Bool) : IO Nat := medianOf 3 do
-  -- A threshold for Toom-4 by 2 beyond every size tried, so that only the others recurse.
+  -- Thresholds for Toom-4 by 2, Toom-4 by 3 and Toom-4 beyond every size tried, so that only the
+  -- others recurse.
   let cfg : Config := {
     mulKaratsuba := karatsuba, four_le_mulKaratsuba := h
     mulToom3 := toom3, twelve_le_mulToom3 := h₃
     mulToom32 := toom32, twelve_le_mulToom32 := h₃₂
-    mulToom42 := 100000 }
+    mulToom42 := 100000, mulToom43 := 100000, mulToom4 := 100000 }
   let toom42Step (a b : UInt32Array.Slice) : UInt32Array :=
     if h : 12 ≤ b.size ∧ 15 * b.size ≤ 8 * a.size ∧ a.size < 2 * b.size then
       toom42 a b h.1 (by lia) h.2.2 fun x y _ => mulLimbsWith cfg x y
