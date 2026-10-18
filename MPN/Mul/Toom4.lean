@@ -9,6 +9,7 @@ public import MPN.Sub
 public import MPN.Mul.Limb
 public import MPN.Mul.DivExact
 public import MPN.Mul.Toom3
+public import MPN.Poly
 
 /-!
 # Toom-4 and Toom-4 by 3
@@ -215,11 +216,6 @@ private theorem toNat_eval3At (x₀ x₁ x₂ : UInt32Array.Slice) (v₁ v₂ : 
   rw [toNat_addMulVal r₁ x₂ v₂ (by lia) (by rw [t₁, s₁, t₀]; lia), t₁, t₀]
 
 /-! ## Assembly -/
-
-/-- `c₀ + x c₁ + x² c₂ + ⋯`. -/
-@[expose] public def polyVal (x : Nat) : List Nat → Nat
-  | [] => 0
-  | c :: cs => c + x * polyVal x cs
 
 /-- Adds `Σ cᵢ βᵏ⁽ᵒᶠᶠ ⁺ ⁱ⁾`... the coefficients `cs` at limbs `off`, `off + k`, `off + 2 k`, …. -/
 public def assembleFrom (r : UInt32Array) (off k : Nat) : List UInt32Array → UInt32Array

@@ -6,6 +6,8 @@ module
 
 public import MPN.Mul.Fermat
 public import MPN.ListIndex
+public import MPN.Poly
+public import MPN.Mul.Toom4
 public import MPN.Mul.Basecase
 
 /-!
@@ -204,12 +206,6 @@ public theorem transform_spec {n : Nat} (M : FermatMod n) (hn : 1 ≤ n) (k : Na
 
 /-! ## Pieces -/
 
-public theorem polyVal_append (x : Nat) (l l' : List Nat) :
-    polyVal x (l ++ l') = polyVal x l + x ^ l.length * polyVal x l' := by
-  induction l with
-  | nil => simp [polyVal]
-  | cons c l ih => simp only [List.cons_append, polyVal, ih, List.length_cons, Nat.pow_succ]; grind
-
 /-- The values of the `L` pieces of `m` limbs of `s` from limb `i`. -/
 @[expose] public def pieceList (s : UInt32Array.Slice) (m : Nat) : Nat → Nat → List Nat
   | _, 0 => []
@@ -253,13 +249,6 @@ public theorem pieceList_append (s : UInt32Array.Slice) (m i L L' : Nat) :
     rw [Nat.add_right_comm, pieceList, ih, pieceList, List.cons_append]
     congr 2
     rw [Nat.add_mul, Nat.one_mul]; lia
-
-public theorem polyVal_zeros (x : Nat) (l : List Nat) (h : ∀ c ∈ l, c = 0) : polyVal x l = 0 := by
-  induction l with
-  | nil => rfl
-  | cons c l ih =>
-    simp only [polyVal]
-    rw [h c (by simp), ih (fun c hc => h c (by simp [hc])), Nat.mul_zero]
 
 public theorem pieceList_lt (s : UInt32Array.Slice) (m i L : Nat) :
     ∀ c ∈ pieceList s m i L, c < 2 ^ (32 * m) := by
