@@ -72,9 +72,6 @@ public theorem toNat_split (x : UInt32Array) (m : Nat) (hm : m ≤ x.size) :
   rw [e₁, e₂] at h
   exact h.symm
 
-public theorem toNat_copy (s : UInt32Array.Slice) : toNat s.copy = toNat s := by
-  rw [toNat_toSlice]; rfl
-
 /-! ## Reduction -/
 
 /--

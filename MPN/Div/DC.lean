@@ -30,12 +30,7 @@ open ScalarArray
 
 namespace MPN
 
-/-- The number `1`, as one limb. -/
-def oneLimb : UInt32Array := .replicate 1 1
-
-private theorem toNat_oneLimb : toNat oneLimb = 1 := by
-  rw [toNat_toSlice]
-  rfl
+private theorem toNat_oneLimb : toNat (limbArray 1) = 1 := toNat_limbArray 1
 
 /-! ## The estimate of a block digit -/
 
@@ -118,19 +113,19 @@ by one. With `x + qh v = p + W` for the window `W`, it ends with `qh = ⌊W / v�
 -/
 def dcFix (v : UInt32Array.Slice) (p : UInt32Array.Slice) (x qh : UInt32Array) :
     UInt32Array × UInt32Array :=
-  if _h : lt x p = true ∧ lt qh oneLimb = false ∧ 1 ≤ qh.size then
-    dcFix v p (addInto x 0 v) (subInto qh 0 oneLimb)
+  if _h : lt x p = true ∧ lt qh (limbArray 1) = false ∧ 1 ≤ qh.size then
+    dcFix v p (addInto x 0 v) (subInto qh 0 (limbArray 1))
   else
     (x, qh)
 termination_by toNat qh
 decreasing_by
   obtain ⟨-, h₂, h₃⟩ := _h
-  have hle : ¬ toNat qh < toNat oneLimb := fun h' => by
+  have hle : ¬ toNat qh < toNat (limbArray 1) := fun h' => by
     rw [← lt_iff] at h'
     rw [h'] at h₂
     exact Bool.noConfusion h₂
   rw [toNat_oneLimb] at hle
-  rw [toNat_subInto_of_le _ _ _ (by simp [oneLimb]; lia)
+  rw [toNat_subInto_of_le _ _ _ (by simp [limbArray]; lia)
     (by rw [toNat_oneLimb, Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; lia), toNat_oneLimb,
     Nat.mul_zero, Nat.pow_zero, Nat.one_mul]
   lia
@@ -145,7 +140,7 @@ private theorem dcFix_spec (v p : UInt32Array.Slice) (x qh : UInt32Array) (W : N
       toNat (dcFix v p x qh).1 + W / toNat v * toNat v = toNat p + W := by
   induction x, qh using dcFix.induct v p with
   | case1 x qh h ih =>
-    have heq : dcFix v p x qh = dcFix v p (addInto x 0 v) (subInto qh 0 oneLimb) := by
+    have heq : dcFix v p x qh = dcFix v p (addInto x 0 v) (subInto qh 0 (limbArray 1)) := by
       rw [dcFix, dite_eq_left h]
     rw [heq]
     obtain ⟨h₁, -, -⟩ := h
@@ -155,9 +150,9 @@ private theorem dcFix_spec (v p : UInt32Array.Slice) (x qh : UInt32Array) (W : N
       have := Nat.div_mul_le_self W (toNat v)
       exact Nat.lt_of_mul_lt_mul_right (a := toNat v) (by lia)
     have hqpos : 0 < toNat qh := Nat.lt_of_le_of_lt (Nat.zero_le _) hgt
-    have hfit₁ : 0 + oneLimb.toSlice.size ≤ qh.size := by simp [oneLimb]; lia
+    have hfit₁ : 0 + (limbArray 1).toSlice.size ≤ qh.size := by simp [limbArray]; lia
     have hfit₂ : 0 + v.size ≤ x.size := by lia
-    have hq' := toNat_subInto_of_le qh 0 oneLimb hfit₁
+    have hq' := toNat_subInto_of_le qh 0 (limbArray 1) hfit₁
       (by rw [toNat_oneLimb, Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; exact hqpos)
     have hx' := toNat_addInto_of_lt x 0 v hfit₂
       (by rw [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; lia)
@@ -180,7 +175,7 @@ private theorem dcFix_spec (v p : UInt32Array.Slice) (x qh : UInt32Array) (W : N
     -- The guard failed: `x ≥ p`, since `qh = 0` would make `x = p + W ≥ p`.
     have hle : toNat p ≤ toNat x := by
       refine Nat.le_of_not_lt fun hlt => h ⟨(lt_iff _ _).2 hlt, ?_, hq⟩
-      cases hc : lt qh oneLimb
+      cases hc : lt qh (limbArray 1)
       · rfl
       · rw [lt_iff, toNat_oneLimb] at hc
         have : toNat qh = 0 := by lia
@@ -560,9 +555,7 @@ public theorem divRemDC_spec (cfg : Config) (u v : UInt32Array.Slice) (h4 : 4 �
       lia
     have := Nat.mul_le_mul_right (2 ^ (32 * K)) h₂
     lia
-  have h0 : toNat (UInt32Array.replicate K 0) = 0 := by
-    rw [toNat_toSlice, UInt32Array.toList_replicate, ← List.nil_append (List.replicate _ _),
-      ofLimbs_append_replicate_zero, ofLimbs_nil]
+  have h0 := toNat_zeros K
   have hrs : (copyPadded u (K + v.size)).size = K + v.size := size_copyPadded _ _ (by lia)
   have hr0 := toNat_copyPadded u (K + v.size)
   generalize copyPadded u (K + v.size) = r at *

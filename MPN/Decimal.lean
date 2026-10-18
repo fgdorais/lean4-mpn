@@ -189,25 +189,18 @@ public theorem toDecimal_eq (a : UInt32Array) (h : isTrimmed a = true) :
 
 /-! ## Decimal to limbs -/
 
-/-- One limb `x`. -/
-def singleLimb (x : UInt32) : UInt32Array := (UInt32Array.emptyWithCapacity 1).push x
-
-private theorem toNat_singleLimb (x : UInt32) : toNat (singleLimb x) = x.toNat := by
-  rw [toNat_toSlice]
-  simp [singleLimb, UInt32Array.emptyWithCapacity_eq_empty]
-
 /-- `a m + v`, trimmed. -/
 def mulAddLimb (a : UInt32Array) (m v : UInt32) : UInt32Array :=
-  trim (addInto (mulRow a m) 0 (singleLimb v))
+  trim (addInto (mulRow a m) 0 (limbArray v))
 
 private theorem toNat_mulAddLimb (a : UInt32Array) (m v : UInt32) (hv : v.toNat < m.toNat) :
     toNat (mulAddLimb a m v) = toNat a * m.toNat + v.toNat := by
   have hA : toNat a < 2 ^ (32 * a.size) := by
     have := toNat_lt a
     simpa using this
-  have hfit : toNat (mulRow a m) + 2 ^ (32 * 0) * toNat (singleLimb v) <
+  have hfit : toNat (mulRow a m) + 2 ^ (32 * 0) * toNat (limbArray v) <
       2 ^ (32 * (mulRow a m).size) := by
-    rw [toNat_mulRow, toNat_singleLimb, size_mulRow, Nat.mul_zero, Nat.pow_zero, Nat.one_mul,
+    rw [toNat_mulRow, toNat_limbArray, size_mulRow, Nat.mul_zero, Nat.pow_zero, Nat.one_mul,
       UInt32Array.size_toSlice, Nat.min_self, Nat.sub_zero, Nat.mul_succ, Nat.pow_add]
     -- `a m + v < (a + 1) m ≤ β^n m < β^(n + 1)`.
     have h₁ : toNat a * m.toNat + v.toNat < (toNat a + 1) * m.toNat := by
@@ -216,8 +209,8 @@ private theorem toNat_mulAddLimb (a : UInt32Array) (m v : UInt32) (hv : v.toNat 
     have h₃ : 2 ^ (32 * a.size) * m.toNat ≤ 2 ^ (32 * a.size) * 2 ^ 32 :=
       Nat.mul_le_mul_left _ (Nat.le_of_lt m.toNat_lt)
     lia
-  rw [mulAddLimb, toNat_trim, toNat_addInto_of_lt _ _ _ (by simp [singleLimb]) hfit,
-    toNat_mulRow, toNat_singleLimb, Nat.mul_zero, Nat.pow_zero, Nat.one_mul]
+  rw [mulAddLimb, toNat_trim, toNat_addInto_of_lt _ _ _ (by simp [limbArray]) hfit,
+    toNat_mulRow, toNat_limbArray, Nat.mul_zero, Nat.pow_zero, Nat.one_mul]
 
 /--
 The state of reading decimal digits: the limbs of the chunks so far, and the value of the

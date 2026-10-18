@@ -213,7 +213,7 @@ private theorem toom3Assemble_spec (n k : Nat) (c₀ c₁ c₂ c₃ c₄ : UInt3
   generalize hS : C₀ + 2 ^ (32 * k) * C₁ + 2 ^ (32 * (2 * k)) * C₂ + 2 ^ (32 * (3 * k)) * C₃ +
     2 ^ (32 * (4 * k)) * C₄ = S at hlt
   obtain ⟨s₀, v₀⟩ := addAt_term (.replicate n 0) c₀ n 0 0 C₀ S (by simp) (by lia)
-    (by rw [toNat_toSlice]; simp) h₀ (by simp; lia) hlt
+    (toNat_zeros n) h₀ (by simp; lia) hlt
   obtain ⟨s₁, v₁⟩ := addAt_term _ c₁ n k _ C₁ S s₀ (by lia) v₀ h₁ (by
     simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; lia) hlt
   obtain ⟨s₂, v₂⟩ := addAt_term _ c₂ n (2 * k) _ C₂ S s₁ (by lia) v₁ h₂ (by
@@ -512,7 +512,7 @@ private theorem toom32Assemble_spec (n k : Nat) (c₀ c₁ c₂ c₃ : UInt32Arr
   generalize hS : C₀ + 2 ^ (32 * k) * C₁ + 2 ^ (32 * (2 * k)) * C₂ +
     2 ^ (32 * (3 * k)) * C₃ = S at hlt
   obtain ⟨s₀, v₀⟩ := addAt_term (.replicate n 0) c₀ n 0 0 C₀ S (by simp) (by lia)
-    (by rw [toNat_toSlice]; simp) h₀ (by simp; lia) hlt
+    (toNat_zeros n) h₀ (by simp; lia) hlt
   obtain ⟨s₁, v₁⟩ := addAt_term _ c₁ n k _ C₁ S s₀ (by lia) v₀ h₁ (by
     simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; lia) hlt
   obtain ⟨s₂, v₂⟩ := addAt_term _ c₂ n (2 * k) _ C₂ S s₁ (by lia) v₁ h₂ (by

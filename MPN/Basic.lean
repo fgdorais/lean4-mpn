@@ -371,6 +371,21 @@ public def shiftLimbs (a : UInt32Array) (k : Nat) : UInt32Array :=
       ofLimbs_append, UInt32Array.toList_replicate, ofLimbs_replicate_zero, List.length_replicate,
       Nat.zero_add, Nat.mul_comm]
 
+/-- One limb as an array. -/
+@[expose] public def limbArray (c : UInt32) : UInt32Array := .replicate 1 c
+
+public theorem size_limbArray (c : UInt32) : (limbArray c).toSlice.size = 1 := by
+  simp [limbArray]
+
+public theorem toNat_limbArray (c : UInt32) : toNat (limbArray c) = c.toNat := by
+  rw [toNat_toSlice]
+  simp [limbArray, UInt32Array.toList_replicate]
+
+/-- An array of zeros is zero. -/
+public theorem toNat_zeros (n : Nat) : toNat (UInt32Array.replicate n 0) = 0 := by
+  rw [toNat_toSlice]
+  simp [UInt32Array.toList_replicate]
+
 /-- The value of the copy of a slice. -/
 @[simp] public theorem toNat_copy (a : UInt32Array.Slice) : toNat a.copy = toNat a := by
   rw [toNat_toSlice]

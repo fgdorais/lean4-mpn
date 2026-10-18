@@ -370,9 +370,7 @@ public def mulRow (v : UInt32Array.Slice) (x : UInt32) : UInt32Array :=
 
 public theorem toNat_mulRow (v : UInt32Array.Slice) (x : UInt32) :
     toNat (mulRow v x) = toNat v * x.toNat := by
-  have h0 : toNat (UInt32Array.replicate (v.size + 1) 0) = 0 := by
-    rw [toNat_toSlice, UInt32Array.toList_replicate, ← List.nil_append (List.replicate _ _),
-      ofLimbs_append_replicate_zero, ofLimbs_nil]
+  have h0 := toNat_zeros (v.size + 1)
   rw [mulRow, toNat_addMul1Set _ _ _ _ _ (by simp), h0]
   simp
 

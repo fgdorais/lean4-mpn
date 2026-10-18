@@ -36,16 +36,6 @@ namespace MPN
 
 /-! ## Fused passes -/
 
-/-- One limb as an array. -/
-public def limbArray (c : UInt32) : UInt32Array := .replicate 1 c
-
-public theorem size_limbArray (c : UInt32) : (limbArray c).toSlice.size = 1 := by
-  simp [limbArray]
-
-public theorem toNat_limbArray (c : UInt32) : toNat (limbArray c) = c.toNat := by
-  rw [toNat_toSlice]
-  simp [limbArray, UInt32Array.toList_replicate]
-
 /--
 `r - a v` in one pass, like GMP's `mpn_submul_1`, as `r.size` limbs: exact when `a v ≤ r`. The
 borrow limb of `subMul1` is subtracted above `a`'s limbs.
@@ -486,10 +476,6 @@ private theorem toom43Interp_spec (c₀ w₁ w₂ w₃ w₄ c₅ : UInt32Array)
     toNat_sStep _ _ _ _ _ hq₃ hc₄ (by lia), hc₄⟩
 
 /-! ## Products -/
-
-public theorem toNat_zeros (n : Nat) : toNat (UInt32Array.replicate n 0) = 0 := by
-  rw [toNat_toSlice]
-  simp [UInt32Array.toList_replicate]
 
 /--
 `n` limbs of `C₀ + C₁ x + ⋯` at `x = βᵏ` from arrays `cs` whose values are `Cs`, when the sum fits:
