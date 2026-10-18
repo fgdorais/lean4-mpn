@@ -230,4 +230,371 @@ public theorem transform_spec (n : Nat) (hn : 1 ≤ n) (k : Nat) :
             Nat.mul_mod, hu2, ← Nat.mul_mod, Nat.mul_one, hsq]
         exact (butterfly_sub _ _ _ _ _ _ _ (polyVal_mod ht _) (polyVal_mod ht _) hw').symm
 
+/-! ## Pieces -/
+
+public theorem polyVal_append (x : Nat) (l l' : List Nat) :
+    polyVal x (l ++ l') = polyVal x l + x ^ l.length * polyVal x l' := by
+  induction l with
+  | nil => simp [polyVal]
+  | cons c l ih => simp only [List.cons_append, polyVal, ih, List.length_cons, Nat.pow_succ]; grind
+
+/-- Splitting the limbs of `s` from `i` at `i + m`, also when `i + m` is past the end. -/
+public theorem toNat_slice_split' (s : UInt32Array.Slice) (i m : Nat) :
+    toNat (s.slice i s.size) =
+      toNat (s.slice i (i + m)) + 2 ^ (32 * m) * toNat (s.slice (i + m) s.size) := by
+  by_cases h : i + m ≤ s.size
+  · exact toNat_slice_split s i m h
+  · have h₀ : toNat (s.slice (i + m) s.size) = 0 :=
+      toNat_of_size_eq_zero (by simp only [UInt32Array.Slice.size_slice]; lia)
+    have e : toNat (s.slice i (i + m)) = toNat (s.slice i s.size) := by
+      simp only [toNat, UInt32Array.Slice.copy_slice, UInt32Array.toList_extract,
+        List.extract_eq_take_drop]
+      rw [List.take_of_length_le (l := List.drop i s.copy.toList) (by simp; lia),
+        List.take_of_length_le (l := List.drop i s.copy.toList) (by simp)]
+    rw [h₀, e, Nat.mul_zero, Nat.add_zero]
+
+/-- The values of the `L` pieces of `m` limbs of `s` from limb `i`. -/
+@[expose] public def pieceList (s : UInt32Array.Slice) (m : Nat) : Nat → Nat → List Nat
+  | _, 0 => []
+  | i, L + 1 => toNat (s.slice i (i + m)) :: pieceList s m (i + m) L
+
+public theorem length_pieceList (s : UInt32Array.Slice) (m i L : Nat) :
+    (pieceList s m i L).length = L := by
+  induction L generalizing i with
+  | zero => rfl
+  | succ L ih => simp [pieceList, ih]
+
+/-- The pieces of `s` from limb `i` cover the rest of `s` when `i + L m ≥ s.size`. -/
+public theorem toNat_eq_polyVal_pieceList (s : UInt32Array.Slice) (m i L : Nat)
+    (h : s.size ≤ i + L * m) :
+    toNat (s.slice i s.size) = polyVal (2 ^ (32 * m)) (pieceList s m i L) := by
+  induction L generalizing i with
+  | zero =>
+    simp only [pieceList, polyVal]
+    exact toNat_of_size_eq_zero (by simp only [UInt32Array.Slice.size_slice]; lia)
+  | succ L ih =>
+    rw [toNat_slice_split' s i m, ih (i + m) (by rw [Nat.add_mul, Nat.one_mul] at h; lia)]
+    rfl
+
+/-- Pieces at or past the end of `s` are zero. -/
+public theorem pieceList_zero (s : UInt32Array.Slice) (m i L : Nat) (h : s.size ≤ i) :
+    ∀ c ∈ pieceList s m i L, c = 0 := by
+  induction L generalizing i with
+  | zero => simp [pieceList]
+  | succ L ih =>
+    intro c hc
+    simp only [pieceList, List.mem_cons] at hc
+    rcases hc with rfl | hc
+    · exact toNat_of_size_eq_zero (by simp only [UInt32Array.Slice.size_slice]; lia)
+    · exact ih (i + m) (by lia) c hc
+
+public theorem pieceList_append (s : UInt32Array.Slice) (m i L L' : Nat) :
+    pieceList s m i (L + L') = pieceList s m i L ++ pieceList s m (i + L * m) L' := by
+  induction L generalizing i with
+  | zero => simp [pieceList]
+  | succ L ih =>
+    rw [Nat.add_right_comm, pieceList, ih, pieceList, List.cons_append]
+    congr 2
+    rw [Nat.add_mul, Nat.one_mul]; lia
+
+public theorem polyVal_zeros (x : Nat) (l : List Nat) (h : ∀ c ∈ l, c = 0) : polyVal x l = 0 := by
+  induction l with
+  | nil => rfl
+  | cons c l ih =>
+    simp only [polyVal]
+    rw [h c (by simp), ih (fun c hc => h c (by simp [hc])), Nat.mul_zero]
+
+public theorem pieceList_lt (s : UInt32Array.Slice) (m i L : Nat) :
+    ∀ c ∈ pieceList s m i L, c < 2 ^ (32 * m) := by
+  induction L generalizing i with
+  | zero => simp [pieceList]
+  | succ L ih =>
+    intro c hc
+    simp only [pieceList, List.mem_cons] at hc
+    rcases hc with rfl | hc
+    · have := toNat_lt (s.slice i (i + m))
+      simp only [UInt32Array.Slice.size_slice] at this
+      exact Nat.lt_of_lt_of_le this (Nat.pow_le_pow_right (by decide) (by lia))
+    · exact ih (i + m) c hc
+
+/-! ## Multiplication -/
+
+/-- The `L` pieces of `m` limbs of `s` from limb `i`, as residues of `n + 1` limbs. -/
+public def pieceArrays (s : UInt32Array.Slice) (m n : Nat) : Nat → Nat → List UInt32Array
+  | _, 0 => []
+  | i, L + 1 => copyPadded (s.slice i (i + m)) (n + 1) :: pieceArrays s m n (i + m) L
+
+public theorem vals_pieceArrays (s : UInt32Array.Slice) (m n i L : Nat) :
+    vals (pieceArrays s m n i L) = pieceList s m i L := by
+  induction L generalizing i with
+  | zero => rfl
+  | succ L ih =>
+    simp only [pieceArrays, pieceList, vals, List.map_cons, toNat_copyPadded]
+    rw [← vals, ih]
+
+public theorem length_pieceArrays (s : UInt32Array.Slice) (m n i L : Nat) :
+    (pieceArrays s m n i L).length = L := by
+  induction L generalizing i with
+  | zero => rfl
+  | succ L ih => simp [pieceArrays, ih]
+
+public theorem isRes_pieceArrays (s : UInt32Array.Slice) (m n i L : Nat) (hmn : m ≤ n) :
+    ∀ x ∈ pieceArrays s m n i L, IsRes n x := by
+  induction L generalizing i with
+  | zero => simp [pieceArrays]
+  | succ L ih =>
+    intro x hx
+    simp only [pieceArrays, List.mem_cons] at hx
+    rcases hx with rfl | hx
+    · refine ⟨size_copyPadded _ _ (by simp only [UInt32Array.Slice.size_slice]; lia), ?_⟩
+      rw [toNat_copyPadded]
+      have := toNat_lt (s.slice i (i + m))
+      simp only [UInt32Array.Slice.size_slice] at this
+      have h₁ : 2 ^ (32 * (min (i + m) s.size - i)) ≤ 2 ^ (32 * n) :=
+        Nat.pow_le_pow_right (by decide) (by lia)
+      simp only [fermat]; lia
+    · exact ih (i + m) x hx
+
+/--
+The product `a * b` by the FFT: `a` and `b` in pieces of `m` limbs, `2ᵏ` of them, transformed
+modulo `F = 2^(32 n) + 1` with `ω = 2^(64 n / 2ᵏ)`, multiplied pointwise by `mulRec`, transformed
+back with `ω⁻¹ = 2^(64 n - 64 n / 2ᵏ)`, divided by `2ᵏ` (a product by `2^(64 n - k)`) and
+assembled.
+-/
+public def fftMulAt (a b : UInt32Array.Slice) (k m n : Nat)
+    (mulRec : (x y : UInt32Array.Slice) → x.size + y.size < a.size + b.size → UInt32Array) :
+    UInt32Array :=
+  let e := 64 * n / 2 ^ k
+  let fa := transform n k e (pieceArrays a m n 0 (2 ^ k))
+  let fb := transform n k e (pieceArrays b m n 0 (2 ^ k))
+  let fc := (List.range (2 ^ k)).map fun j =>
+    let x := fa.getD j default
+    let y := fb.getD j default
+    if h : x.toSlice.size + y.toSlice.size < a.size + b.size then normProd n (mulRec x y h)
+    else x
+  let c := (transform n k (64 * n - e) fc).map fun z => mulPow2 n z (64 * n - k)
+  assembleFrom (.replicate (a.size + b.size) 0) 0 m (c.take ((a.size + b.size + m - 1) / m))
+
+/-- `⌈a / m⌉ + ⌈b / m⌉ ≤ ⌈(a + b) / m⌉ + 1`. -/
+private theorem ceil_add_ceil (a b m : Nat) (hm : 1 ≤ m) :
+    (a + m - 1) / m + (b + m - 1) / m ≤ (a + b + m - 1) / m + 1 := by
+  have h₁ := Nat.div_mul_le_self (a + m - 1) m
+  have h₂ := Nat.div_mul_le_self (b + m - 1) m
+  generalize (a + m - 1) / m = p at *
+  generalize (b + m - 1) / m = q at *
+  rcases Nat.eq_zero_or_pos (p + q) with h | h
+  · lia
+  · have : p + q - 1 ≤ (a + b + m - 1) / m := by
+      rw [Nat.le_div_iff_mul_le (by lia), Nat.sub_mul, Nat.add_mul, Nat.one_mul]
+      lia
+    lia
+
+/--
+The inverse transform of the values of `Z` gives `2ᵏ Z`: when `C j ≡ Z(ωʲ)` for `j < 2ᵏ`, with
+`ω = 2ᵉ` and `ω' = 2^e'` inverses modulo `F`, then `C(ω'ˡ) ≡ 2ᵏ Z_l`.
+-/
+private theorem inverse_values (F k e e' : Nat) (hk : 1 ≤ k)
+    (hw : (2 ^ (e * 2 ^ (k - 1)) + 1) % F = 0) (hww : (2 ^ e * 2 ^ e') % F = 1 % F)
+    (Z C : List Nat) (hZ : Z.length ≤ 2 ^ k) (hC : C.length = 2 ^ k)
+    (hCv : ∀ j < 2 ^ k, C.getD j 0 % F = polyVal (2 ^ (e * j)) Z % F) (l : Nat) (hl : l < 2 ^ k) :
+    polyVal (2 ^ (e' * l)) C % F = (2 ^ k * Z.getD l 0) % F := by
+  rw [polyVal_eq_sumRange _ C (2 ^ k) (by lia)]
+  rw [sumRange_mod (g := fun j => sumRange (fun i => Z.getD i 0 * (2 ^ e) ^ (i * j)) (2 ^ k) *
+      (2 ^ e') ^ (j * l)) (fun j hj => by
+    rw [Nat.mul_mod, hCv j hj, ← Nat.mul_mod, polyVal_eq_sumRange _ Z (2 ^ k) hZ]
+    congr 2
+    · exact sumRange_congr fun i _ => by rw [← Nat.pow_mul, ← Nat.pow_mul, Nat.mul_comm i j,
+        Nat.mul_assoc]
+    · rw [← Nat.pow_mul, ← Nat.pow_mul, Nat.mul_comm j l, Nat.mul_assoc])]
+  exact inverse_mod (2 ^ e) (2 ^ e') F k hk (by rw [← Nat.pow_mul]; exact hw) hww
+    (fun i => Z.getD i 0) l hl
+
+public theorem fftMulAt_spec (a b : UInt32Array.Slice) (k m n : Nat) (hk : 1 ≤ k) (hn : 1 ≤ n)
+    (hm : 1 ≤ m) (hmn : m ≤ n) (hdiv : 2 ^ k ∣ 64 * n) (ha : 1 ≤ a.size) (hb : 1 ≤ b.size)
+    (hpc : (a.size + m - 1) / m + (b.size + m - 1) / m ≤ 2 ^ k + 1)
+    (hbits : 2 ^ k * 2 ^ (64 * m) ≤ 2 ^ (32 * n)) (hsmall : 2 * n + 2 < a.size + b.size)
+    (mulRec : (x y : UInt32Array.Slice) → x.size + y.size < a.size + b.size → UInt32Array)
+    (hrec : ∀ x y h, (mulRec x y h).size = x.size + y.size ∧
+      toNat (mulRec x y h) = toNat x * toNat y) :
+    (fftMulAt a b k m n mulRec).size = a.size + b.size ∧
+      toNat (fftMulAt a b k m n mulRec) = toNat a * toNat b := by
+  have hFpos : 0 < fermat n := by simp [fermat]
+  simp only [fftMulAt]
+  generalize hK : 2 ^ k = K at *
+  have hK1 : 2 ≤ K := by
+    rw [← hK]; have := Nat.pow_le_pow_right (show 0 < 2 by decide) hk; simpa using this
+  generalize hla : (a.size + m - 1) / m = la at hpc
+  generalize hlb : (b.size + m - 1) / m = lb at hpc
+  have hla1 : 1 ≤ la := by rw [← hla, Nat.le_div_iff_mul_le (by lia)]; lia
+  have hlb1 : 1 ≤ lb := by rw [← hlb, Nat.le_div_iff_mul_le (by lia)]; lia
+  have hlaK : la ≤ K := by lia
+  have hlbK : lb ≤ K := by lia
+  -- The pieces cover the numbers.
+  have cover : ∀ x l, (x + m - 1) / m = l → x ≤ 0 + l * m := fun x l hl => by
+    have h1 := Nat.div_add_mod (x + m - 1) m
+    have h2 := Nat.mod_lt (x + m - 1) (show 0 < m by lia)
+    rw [hl, Nat.mul_comm] at h1
+    lia
+  have hacov := cover _ _ hla
+  have hbcov := cover _ _ hlb
+  -- The values of the pieces.
+  have hKk : K = 2 * 2 ^ (k - 1) := by
+    have : 2 ^ k = 2 ^ (k - 1) * 2 := by rw [← Nat.pow_succ]; congr 1; lia
+    lia
+  have hAval : toNat a = polyVal (2 ^ (32 * m)) (pieceList a m 0 la) := by
+    rw [← toNat_eq_polyVal_pieceList a m 0 la hacov, toNat_slice_from a 0 (by lia)]; simp
+  have hBval : toNat b = polyVal (2 ^ (32 * m)) (pieceList b m 0 lb) := by
+    rw [← toNat_eq_polyVal_pieceList b m 0 lb hbcov, toNat_slice_from b 0 (by lia)]; simp
+  generalize hA : pieceList a m 0 la = A at hAval
+  generalize hB : pieceList b m 0 lb = B at hBval
+  have hfull : ∀ (s : UInt32Array.Slice) l (L : List Nat), s.size ≤ 0 + l * m → l ≤ K →
+      pieceList s m 0 l = L → ∀ t, polyVal t (vals (pieceArrays s m n 0 K)) = polyVal t L := by
+    intro s l L hs hl hL t
+    rw [vals_pieceArrays, show K = l + (K - l) by lia, pieceList_append, polyVal_append,
+      polyVal_zeros _ _ (pieceList_zero s m _ _ hs), Nat.mul_zero, Nat.add_zero, hL]
+  have hfa := hfull a la A hacov hlaK hA
+  have hfb := hfull b lb B hbcov hlbK hB
+  -- The forward transforms.
+  have he : 64 * n / K * 2 ^ (k - 1) = 32 * n := by
+    have := Nat.div_mul_cancel hdiv
+    generalize 64 * n / K = e at this ⊢
+    rw [hKk, Nat.mul_left_comm] at this
+    lia
+  have hw : (2 ^ (64 * n / K * 2 ^ (k - 1)) + 1) % fermat n = 0 := by
+    rw [he]; exact Nat.mod_self _
+  obtain ⟨lfa, rfa, vfa⟩ := transform_spec n hn k (64 * n / K) (pieceArrays a m n 0 K)
+    (by rw [length_pieceArrays, hK]) (isRes_pieceArrays a m n 0 K hmn) (fun _ => hw)
+  obtain ⟨lfb, rfb, vfb⟩ := transform_spec n hn k (64 * n / K) (pieceArrays b m n 0 K)
+    (by rw [length_pieceArrays, hK]) (isRes_pieceArrays b m n 0 K hmn) (fun _ => hw)
+  rw [hK] at lfa lfb rfa rfb vfa vfb
+  generalize 64 * n / K = e at *
+  generalize transform n k e (pieceArrays a m n 0 K) = FA at *
+  generalize transform n k e (pieceArrays b m n 0 K) = FB at *
+  -- The pointwise products are the values of `Z = A B`.
+  generalize hZ : polyMul A B = Z
+  have hres : ∀ x : UInt32Array, IsRes n x → toNat x ≤ 2 ^ (32 * n) := fun x hx => by
+    have := hx.2; simp only [fermat] at this; lia
+  have hcond : ∀ j < K, (FA.getD j default).toSlice.size + (FB.getD j default).toSlice.size <
+      a.size + b.size := fun j hj => by
+    simp only [UInt32Array.size_toSlice, (rfa j hj).1, (rfb j hj).1]; lia
+  have hfc : ∀ j (hj : j < K), ((List.range K).map fun j =>
+      if h : (FA.getD j default).toSlice.size + (FB.getD j default).toSlice.size <
+        a.size + b.size then normProd n (mulRec (FA.getD j default) (FB.getD j default) h)
+      else FA.getD j default).getD j default =
+        normProd n (mulRec (FA.getD j default) (FB.getD j default) (hcond j hj)) := fun j hj => by
+    rw [getD_of_lt _ _ _ (by simp; lia), List.getElem_map, List.getElem_range,
+      dite_eq_left (hcond j hj)]
+  have lFC : ((List.range K).map fun j =>
+      if h : (FA.getD j default).toSlice.size + (FB.getD j default).toSlice.size <
+        a.size + b.size then normProd n (mulRec (FA.getD j default) (FB.getD j default) h)
+      else FA.getD j default).length = K := by simp
+  generalize ((List.range K).map fun j =>
+      if h : (FA.getD j default).toSlice.size + (FB.getD j default).toSlice.size <
+        a.size + b.size then normProd n (mulRec (FA.getD j default) (FB.getD j default) h)
+      else FA.getD j default) = FC at *
+  have vFC : ∀ j < K, IsRes n (FC.getD j default) ∧
+      toNat (FC.getD j default) = polyVal (2 ^ (e * j)) Z % fermat n := fun j hj => by
+    rw [hfc j hj]
+    obtain ⟨hps₀, hpv⟩ := hrec _ _ (hcond j hj)
+    have hps : (mulRec (FA.getD j default) (FB.getD j default) (hcond j hj)).size = 2 * n + 2 := by
+      rw [hps₀]; simp only [UInt32Array.size_toSlice, (rfa j hj).1, (rfb j hj).1]; lia
+    have hval : toNat (mulRec (FA.getD j default) (FB.getD j default) (hcond j hj)) ≤
+        2 ^ (32 * n) * 2 ^ (32 * n) := by
+      rw [hpv]; exact Nat.mul_le_mul (hres _ (rfa j hj)) (hres _ (rfb j hj))
+    refine ⟨⟨size_normProd _ _, toNat_normProd_lt _ _ hn (by lia) (by lia) hval⟩, ?_⟩
+    rw [toNat_normProd _ _ hn (by lia) (by lia) hval, hpv, vfa j hj, vfb j hj, hfa, hfb,
+      ← Nat.mul_mod, ← polyVal_polyMul, hZ]
+  -- The inverse transform, with `ω⁻¹ = 2^(64 n - e)`.
+  have hP := Nat.two_pow_pos (k - 1)
+  have heK : e * K = 64 * n := by rw [hKk, Nat.mul_left_comm, he]; lia
+  have hw2 : (2 ^ ((64 * n - e) * 2 ^ (k - 1)) + 1) % fermat n = 0 := by
+    have hexp : (64 * n - e) * 2 ^ (k - 1) = 32 * n * (K - 1) := by
+      rw [Nat.sub_mul, he, Nat.mul_sub, Nat.mul_one, hKk]
+      rw [show 64 * n * 2 ^ (k - 1) = 32 * n * (2 * 2 ^ (k - 1)) by
+        rw [← Nat.mul_assoc, Nat.mul_comm (32 * n) 2, ← Nat.mul_assoc]]
+    rw [hexp, Nat.pow_mul]
+    exact pow_odd_mod (by simp [fermat]) (by rw [hKk]; lia)
+  have hFCres : ∀ x ∈ FC, IsRes n x :=
+    forall_mem_of_getD FC default (fun j hj => (vFC j (by lia)).1)
+  obtain ⟨lG, rG, vG⟩ := transform_spec n hn k (64 * n - e) FC (by rw [lFC, hK]) hFCres
+    (fun _ => hw2)
+  rw [hK] at lG rG vG
+  generalize transform n k (64 * n - e) FC = G at *
+  -- `Z` has at most `K` coefficients, each below `F`.
+  have hlenZ : Z.length ≤ la + lb - 1 := by
+    rw [← hZ, ← hA]
+    refine Nat.le_trans (length_polyMul _ _ ?_) ?_
+    · rw [← hB]; intro h; have := congrArg List.length h; simp [length_pieceList] at this; lia
+    · rw [length_pieceList, ← hB, length_pieceList]; exact Nat.le_refl _
+  have hZlt : ∀ l, Z.getD l 0 < fermat n := fun l => by
+    rw [← hZ]
+    have h₁ := getD_polyMul_le A B (2 ^ (32 * m) - 1) (2 ^ (32 * m) - 1)
+      (fun c hc => by rw [← hA] at hc; have := pieceList_lt a m 0 la c hc; lia)
+      (fun c hc => by rw [← hB] at hc; have := pieceList_lt b m 0 lb c hc; lia) l
+    have hAl : A.length = la := by rw [← hA, length_pieceList]
+    rw [hAl] at h₁
+    have h₂ : (2 ^ (32 * m) - 1) * (2 ^ (32 * m) - 1) < 2 ^ (64 * m) := by
+      rw [show 64 * m = 32 * m + 32 * m by lia, Nat.pow_add]
+      have := Nat.two_pow_pos (32 * m)
+      exact Nat.mul_lt_mul'' (by lia) (by lia)
+    have h₃ : la * ((2 ^ (32 * m) - 1) * (2 ^ (32 * m) - 1)) ≤ K * 2 ^ (64 * m) :=
+      Nat.mul_le_mul hlaK (Nat.le_of_lt h₂)
+    simp only [fermat]; lia
+  -- The inverse values are `K Z_l`, and the scaled ones `Z_l`.
+  have hww : (2 ^ e * 2 ^ (64 * n - e)) % fermat n = 1 % fermat n := by
+    rw [← Nat.pow_add, show e + (64 * n - e) = 64 * n by
+      have : e ≤ 64 * n := by rw [← heK]; exact Nat.le_mul_of_pos_right _ (by lia)
+      lia]
+    exact two_pow_period n
+  have hG : ∀ l < K, toNat (G.getD l default) = (K * Z.getD l 0) % fermat n := fun l hl => by
+    rw [vG l hl, ← hK]
+    exact inverse_values (fermat n) k e (64 * n - e) hk (by rw [he]; exact Nat.mod_self _) hww
+      Z (vals FC) (by rw [hK]; lia) (by rw [vals, List.length_map, lFC, hK])
+      (fun j hj => by
+        rw [vals, List.getD_eq_getElem?_getD, List.getElem?_map,
+          List.getElem?_eq_getElem (by rw [lFC, ← hK]; exact hj)]
+        simp only [Option.map_some, Option.getD_some]
+        rw [← getD_of_lt _ _ default (by rw [lFC, ← hK]; exact hj),
+          (vFC j (by rw [← hK]; exact hj)).2, Nat.mod_mod]) l (by rw [hK]; exact hl)
+  have hkn : k ≤ 64 * n := by
+    have h₁ : k < 2 ^ k := Nat.lt_two_pow_self
+    have h₂ : K ≤ 64 * n := Nat.le_of_dvd (by lia) hdiv
+    lia
+  have hC : ∀ l < K, toNat ((G.map fun z => mulPow2 n z (64 * n - k)).getD l default) =
+      Z.getD l 0 := fun l hl => by
+    rw [getD_of_lt _ _ _ (by simp; lia), List.getElem_map, ← getD_of_lt _ _ default (by lia),
+      toNat_mulPow2 _ _ _ hn (rG l hl).1 (rG l hl).2, hG l hl, Nat.mod_mul_mod, ← hK,
+      Nat.mul_comm (2 ^ k), Nat.mul_assoc, ← Nat.pow_add, show k + (64 * n - k) = 64 * n by lia,
+      Nat.mul_mod, two_pow_period, ← Nat.mul_mod, Nat.mul_one, Nat.mod_eq_of_lt (hZlt l)]
+  have lC : (G.map fun z => mulPow2 n z (64 * n - k)).length = K := by simp [lG]
+  generalize G.map (fun z => mulPow2 n z (64 * n - k)) = C at *
+  -- The assembly of the first `⌈(a + b) / m⌉` coefficients.
+  have hceil := ceil_add_ceil a.size b.size m hm
+  rw [hla, hlb] at hceil
+  generalize hL : (a.size + b.size + m - 1) / m = L at *
+  have hLm : L * m ≤ a.size + b.size + m - 1 := by rw [← hL]; exact Nat.div_mul_le_self _ _
+  have lCT : (C.take L).length = min L K := by simp [lC]
+  have hZL : Z.length ≤ min L K := by lia
+  have hcs : (C.take L).map (fun c : UInt32Array => toNat c) =
+      (List.range (min L K)).map fun l => Z.getD l 0 := by
+    apply List.ext_getElem (by simp [lC])
+    intro i h₁ h₂
+    simp only [List.length_map, lCT] at h₁
+    rw [List.getElem_map, List.getElem_take, List.getElem_map, List.getElem_range,
+      ← getD_of_lt _ _ default (by lia), hC i (by lia)]
+  have hpoly : polyVal (2 ^ (32 * m)) ((List.range (min L K)).map fun l => Z.getD l 0) =
+      toNat a * toNat b := by
+    rw [polyVal_eq_sumRange _ _ (min L K) (by simp), hAval, hBval, ← polyVal_polyMul, hZ,
+      polyVal_eq_sumRange _ Z (min L K) hZL]
+    exact sumRange_congr fun i hi => by
+      rw [List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_range hi]; rfl
+  have hlt : toNat a * toNat b < 2 ^ (32 * (a.size + b.size)) := by
+    rw [Nat.mul_add, Nat.pow_add]
+    exact Nat.mul_lt_mul'' (toNat_lt a) (toNat_lt b)
+  have key := assemble_spec (a.size + b.size) m (C.take L) _
+    (by rw [lCT]; have : min L K * m ≤ L * m := Nat.mul_le_mul_right _ (by lia)
+        rw [Nat.mul_comm]; lia) hcs (by rw [hpoly]; exact hlt)
+  rw [hpoly] at key
+  exact key
+
 end MPN.FFT

@@ -232,11 +232,11 @@ private theorem toNat_eval3At (x₀ x₁ x₂ : UInt32Array.Slice) (v₁ v₂ : 
   | c :: cs => c + x * polyVal x cs
 
 /-- Adds `Σ cᵢ βᵏ⁽ᵒᶠᶠ ⁺ ⁱ⁾`... the coefficients `cs` at limbs `off`, `off + k`, `off + 2 k`, …. -/
-def assembleFrom (r : UInt32Array) (off k : Nat) : List UInt32Array → UInt32Array
+public def assembleFrom (r : UInt32Array) (off k : Nat) : List UInt32Array → UInt32Array
   | [] => r
   | c :: cs => assembleFrom (addInto r off (c.toSlice 0 (r.size - off))) (off + k) k cs
 
-private theorem assembleFrom_spec (r : UInt32Array) (off k : Nat) (cs : List UInt32Array)
+theorem assembleFrom_spec (r : UInt32Array) (off k : Nat) (cs : List UInt32Array)
     (hk : off + k * cs.length ≤ r.size + k)
     (hlt : toNat r + 2 ^ (32 * off) *
       polyVal (2 ^ (32 * k)) (cs.map fun c : UInt32Array => toNat c) < 2 ^ (32 * r.size)) :
@@ -495,7 +495,7 @@ public theorem toNat_zeros (n : Nat) : toNat (UInt32Array.replicate n 0) = 0 := 
 `n` limbs of `C₀ + C₁ x + ⋯` at `x = βᵏ` from arrays `cs` whose values are `Cs`, when the sum fits:
 the assembly of every Toom product.
 -/
-private theorem assemble_spec (n k : Nat) (cs : List UInt32Array) (Cs : List Nat)
+public theorem assemble_spec (n k : Nat) (cs : List UInt32Array) (Cs : List Nat)
     (hk : k * cs.length ≤ n + k) (hcs : cs.map (fun c : UInt32Array => toNat c) = Cs)
     (hlt : polyVal (2 ^ (32 * k)) Cs < 2 ^ (32 * n)) :
     (assembleFrom (.replicate n 0) 0 k cs).size = n ∧
