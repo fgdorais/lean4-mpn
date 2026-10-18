@@ -294,7 +294,7 @@ public theorem toNat_shiftBits_lt {n : Nat} (M : FermatMod n) (y : UInt32Array) 
 
 /-- `2^(2N) ≡ 1` modulo `F`. -/
 public theorem two_pow_period (n : Nat) : 2 ^ (64 * n) % fermat n = 1 % fermat n := by
-  have h := FFT.sq_of_neg_one (y := 2 ^ (32 * n)) (F := fermat n) (by simp [fermat])
+  have h := sq_of_neg_one (y := 2 ^ (32 * n)) (F := fermat n) (by simp [fermat])
   rw [← Nat.pow_add, show 32 * n + 32 * n = 64 * n by lia] at h
   exact h
 
@@ -369,17 +369,6 @@ public theorem toNat_mulPow2_lt {n : Nat} (M : FermatMod n) (x : UInt32Array) (s
   exact Nat.mod_lt _ (by simp [fermat])
 
 /-! ## Products -/
-
-/-- Adding the same number to both sides of a congruence modulo `F > 0` can be undone. -/
-public theorem mod_cancel_add {a b c F : Nat} (hF : 0 < F) (h : (a + c) % F = (b + c) % F) :
-    a % F = b % F := by
-  have e : ∀ x, x + c + (F - c % F) = x + F * (c / F + 1) := fun x => by
-    have := Nat.div_add_mod c F
-    have := Nat.mod_lt c hF
-    rw [Nat.mul_add, Nat.mul_one]; lia
-  have h' : (a + c + (F - c % F)) % F = (b + c + (F - c % F)) % F := by
-    rw [Nat.add_mod, h, ← Nat.add_mod]
-  rwa [e a, e b, Nat.add_mul_mod_self_left, Nat.add_mul_mod_self_left] at h'
 
 /--
 A product `p` of two residues, at most `2^(2N)`, reduced modulo `F`: its low `n` limbs minus the
@@ -673,7 +662,7 @@ public theorem toNat_mulPow2Core {n : Nat} (M : FermatMod n) (x : UInt32Array) (
     simp only [Bool.false_eq_true, ↓reduceIte, Nat.mul_one]
     rw [toNat_subModI M _ _ hn hAs (by simp; lia) (by rw [hA]; simp only [fermat]; lia)
       (by rw [hHs]; simp only [fermat]; lia), hA, hHs, hx2, hsplit]
-    apply FFT.mod_eq_iff_dvd.2
+    apply mod_eq_iff_dvd.2
     -- `(L + Q H) P - (P L + F - H) = (H - 1) F` with `P Q = 2ᴺ`, `F = 2ᴺ + 1`.
     refine ⟨1 - (H : Int), ?_⟩
     rw [Int.ofNat_sub (by simp only [fermat]; lia)]
@@ -687,7 +676,7 @@ public theorem toNat_mulPow2Core {n : Nat} (M : FermatMod n) (x : UInt32Array) (
     rw [toNat_subModI M _ _ hn (size_copyPadded _ _ (by simp; lia)) (by simp [hAs])
       (by rw [hcp]; simp only [fermat]; lia) (by rw [hA]; simp only [fermat]; lia), hcp, hA,
       hx2, hsplit]
-    apply FFT.mod_eq_iff_dvd.2
+    apply mod_eq_iff_dvd.2
     -- `(L + Q H) P 2ᴺ - (H + F - P L) = (P L + (2ᴺ - 1) H - 1) F`.
     refine ⟨1 - ((2 ^ (32 * w) : Nat) : Int) * L - (((2 ^ (32 * n) : Nat) : Int) - 1) * H, ?_⟩
     rw [Int.ofNat_sub (by simp only [fermat]; lia)]
