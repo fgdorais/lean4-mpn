@@ -163,7 +163,22 @@ block of the division, and `topSize` usually stops at the first limb.
 - [x] **Toom-4 squaring** (`toom4Sqr`): seven squares with the evaluations and interpolation of
   `toom44`, from 576 limbs (`sqrToom4`, tuned on Zen 3, below Toom-3 squaring's 656–672). `sqr`
   1024 limbs: 116 → 108 µs, 2048: 335 → 307 µs, 4096: 935 → 836 µs (−10%); `bsqrt` 4096: −3%.
-- [ ] **Toom-6½, Toom-8½**, then FFT multiplication for very large numbers.
+- [x] **FFT multiplication and squaring** (`Mul.FFT`, `Mul.Fermat`, `Mul.FFTMul`; GMP's
+  `mpn_mul_fft`): Schönhage–Strassen modulo `F = 2ᴺ + 1` with `2ᵏ` pieces, `ω = 2^(2N / 2ᵏ)`, a
+  recursive radix-2 transform and pointwise products by the dispatcher, all proved: finite sums
+  and the inversion of the transform modulo `F` (the geometric sums of length `2ᵏ` are products of
+  factors `1 + x^(2ˢ)`, one of which vanishes, so no division or primality is needed), residues on
+  `n + 1` limbs with in-place sums and differences and products by powers of two in two arrays,
+  the butterflies by divisibility in `Int`, and `fftMulAt_spec` for the whole product. From
+  18000 limbs (`mulFFT`) and 16000 for squares (`sqrFFT`), on Zen 3; `fftK` chooses `k`.
+  `65536 × 65536`: 64.9 → 46.1 ms (−29%), squares 44.2 → 31.0 ms. The transforms were first 15
+  passes and as many arrays per butterfly; in-place residue operations brought the crossover
+  from about 48k to 18k limbs. GMP's `√2` trick does not apply: `n` is set by the size of the
+  coefficients, not by the order of the roots.
+- [ ] **FFT, next:** the pointwise products of residues modulo `F` by the FFT itself at very large
+  sizes (GMP's recursive `mpn_mul_fft`), a fused butterfly (one pass for `a ± 2ˢ b`), and `fftK`
+  tuned per machine.
+- [ ] **Toom-6½, Toom-8½**: between Toom-4 and the FFT.
 - [ ] **The rest of `Nat`:**
   - [x] shifts by bits (`<<<`, `>>>`, `Bits`): one pass each, in place over a copy with
     `foldrInPlaceThen` and `foldlInPlaceThen`, even with `Nat` from 1 to 1024 limbs. The left
