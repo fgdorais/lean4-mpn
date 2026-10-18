@@ -304,7 +304,11 @@ block of the division, and `topSize` usually stops at the first limb.
   over at the same size on both machines, flat from 16384 to 18432 limbs: the M2 tunes
   `mulFFT = 18432` (default 18000) and `sqrFFT = 18432` (default 16000, which costs it 1–4% between
   16000 and 18432 limbs, since its squares below are cheaper); with Toom-6 (2026-10-18) the FFT
-  crossover moved to 32768 limbs on Zen 3, not yet measured on the M2. Defaults per architecture
+  crossover moved to 32768 limbs on Zen 3 and on the M2 (`6455f73`), where it is a step: 3.5%
+  slower at 30720, 7.5% faster at 32768. On the M2, Toom-6 products win from 1664–1728 limbs
+  (flat within 1% from 1600; Zen 3 1344), but Toom-6 squaring never beats Toom-4 squaring up to
+  3776 (1.7% behind there; Zen 3 1792), so `sqrToom6 = 1792` costs the M2 2–11% between 1792
+  and 3776 limbs; its FFT squares win from 22528 (Zen 3 28672). Defaults per architecture
   will come,
   but after the remaining algorithms are verified, so that the tuning sees all of them.
 - [ ] **A raw GMP baseline.** The `Nat` column is Lean's wrapper around GMP, which copies both
