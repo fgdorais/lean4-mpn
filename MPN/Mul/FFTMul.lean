@@ -204,65 +204,6 @@ public theorem transform_spec {n : Nat} (M : FermatMod n) (hn : 1 ≤ n) (k : Na
             Nat.mul_mod, hu2, ← Nat.mul_mod, Nat.mul_one, hsq]
         exact (butterfly_sub _ _ _ _ _ _ _ (polyVal_mod ht _) (polyVal_mod ht _) hw').symm
 
-/-! ## Pieces -/
-
-/-- The values of the `L` pieces of `m` limbs of `s` from limb `i`. -/
-@[expose] public def pieceList (s : UInt32Array.Slice) (m : Nat) : Nat → Nat → List Nat
-  | _, 0 => []
-  | i, L + 1 => toNat (s.slice i (i + m)) :: pieceList s m (i + m) L
-
-public theorem length_pieceList (s : UInt32Array.Slice) (m i L : Nat) :
-    (pieceList s m i L).length = L := by
-  induction L generalizing i with
-  | zero => rfl
-  | succ L ih => simp [pieceList, ih]
-
-/-- The pieces of `s` from limb `i` cover the rest of `s` when `i + L m ≥ s.size`. -/
-public theorem toNat_eq_polyVal_pieceList (s : UInt32Array.Slice) (m i L : Nat)
-    (h : s.size ≤ i + L * m) :
-    toNat (s.slice i s.size) = polyVal (2 ^ (32 * m)) (pieceList s m i L) := by
-  induction L generalizing i with
-  | zero =>
-    simp only [pieceList, polyVal]
-    exact toNat_of_size_eq_zero (by simp only [UInt32Array.Slice.size_slice]; lia)
-  | succ L ih =>
-    rw [toNat_slice_split s i m, ih (i + m) (by rw [Nat.add_mul, Nat.one_mul] at h; lia)]
-    rfl
-
-/-- Pieces at or past the end of `s` are zero. -/
-public theorem pieceList_zero (s : UInt32Array.Slice) (m i L : Nat) (h : s.size ≤ i) :
-    ∀ c ∈ pieceList s m i L, c = 0 := by
-  induction L generalizing i with
-  | zero => simp [pieceList]
-  | succ L ih =>
-    intro c hc
-    simp only [pieceList, List.mem_cons] at hc
-    rcases hc with rfl | hc
-    · exact toNat_of_size_eq_zero (by simp only [UInt32Array.Slice.size_slice]; lia)
-    · exact ih (i + m) (by lia) c hc
-
-public theorem pieceList_append (s : UInt32Array.Slice) (m i L L' : Nat) :
-    pieceList s m i (L + L') = pieceList s m i L ++ pieceList s m (i + L * m) L' := by
-  induction L generalizing i with
-  | zero => simp [pieceList]
-  | succ L ih =>
-    rw [Nat.add_right_comm, pieceList, ih, pieceList, List.cons_append]
-    congr 2
-    rw [Nat.add_mul, Nat.one_mul]; lia
-
-public theorem pieceList_lt (s : UInt32Array.Slice) (m i L : Nat) :
-    ∀ c ∈ pieceList s m i L, c < 2 ^ (32 * m) := by
-  induction L generalizing i with
-  | zero => simp [pieceList]
-  | succ L ih =>
-    intro c hc
-    simp only [pieceList, List.mem_cons] at hc
-    rcases hc with rfl | hc
-    · have := toNat_lt (s.slice i (i + m))
-      simp only [UInt32Array.Slice.size_slice] at this
-      exact Nat.lt_of_lt_of_le this (Nat.pow_le_pow_right (by decide) (by lia))
-    · exact ih (i + m) c hc
-
 /-! ## Multiplication -/
 
 /-- The `L` pieces of `m` limbs of `s` from limb `i`, as residues of `n + 1` limbs. -/

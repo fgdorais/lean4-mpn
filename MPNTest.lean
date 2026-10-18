@@ -199,6 +199,20 @@ def toom4Config : Config :=
     toNat (mulLimbsWith toom4Config (ofNat (2 ^ (32 * m) - 1)) (ofNat (2 ^ (32 * n) - 1))) ==
       (2 ^ (32 * m) - 1) * (2 ^ (32 * n) - 1)
 
+-- Toom-6 from 32 limbs, on shapes under six fifths, and all ones, with Toom-4 under it.
+def toom6Config : Config :=
+  { mulKaratsuba := 8, mulToom3 := 12, mulToom32 := 12, mulToom42 := 12, mulToom43 := 32,
+    mulToom4 := 32, mulToom6 := 32 }
+
+#guard [(32, 32), (33, 32), (37, 32), (38, 32), (41, 35), (64, 64), (71, 60), (100, 99),
+    (200, 200), (239, 200), (500, 450)].all fun (m, n) =>
+  let x := sample1 (32 * m) 43
+  let y := sample1 (32 * n) 47
+  let r := mulLimbsWith toom6Config (ofNat x) (ofNat y)
+  r.size == m + n && toNat r == x * y &&
+    toNat (mulLimbsWith toom6Config (ofNat (2 ^ (32 * m) - 1)) (ofNat (2 ^ (32 * n) - 1))) ==
+      (2 ^ (32 * m) - 1) * (2 ^ (32 * n) - 1)
+
 -- The FFT from 40 limbs, on shapes up to twice as long, and all ones.
 def fftConfig : Config := { mulKaratsuba := 8, mulFFT := 40 }
 
@@ -230,6 +244,17 @@ def sqrToom4Config : Config :=
   let r := sqrLimbsWith sqrToom4Config (ofNat x)
   r.size == n + n && toNat r == x * x &&
     toNat (sqrLimbsWith sqrToom4Config (ofNat (2 ^ (32 * n) - 1))) ==
+      (2 ^ (32 * n) - 1) * (2 ^ (32 * n) - 1)
+
+-- Toom-6 squaring from 32 limbs, over Toom-4 squaring from 32.
+def sqrToom6Config : Config :=
+  { sqrBasecase := 2, sqrKaratsuba := 4, sqrToom3 := 12, sqrToom4 := 32, sqrToom6 := 32 }
+
+#guard [31, 32, 33, 35, 36, 37, 47, 64, 100, 199, 200, 450].all fun n =>
+  let x := sample1 (32 * n) 43
+  let r := sqrLimbsWith sqrToom6Config (ofNat x)
+  r.size == n + n && toNat r == x * x &&
+    toNat (sqrLimbsWith sqrToom6Config (ofNat (2 ^ (32 * n) - 1))) ==
       (2 ^ (32 * n) - 1) * (2 ^ (32 * n) - 1)
 
 -- FFT squaring from 40 limbs.

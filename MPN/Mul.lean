@@ -8,7 +8,7 @@ public import MPN.Mul.Basecase
 public import MPN.Mul.Karatsuba
 public import MPN.Mul.Unbalanced
 public import MPN.Mul.Toom3
-public import MPN.Mul.Toom4
+public import MPN.Mul.Toom6
 public import MPN.Mul.FFTMul
 public import MPN.Config
 
@@ -34,6 +34,8 @@ longer operand first, then `mulLongShort` chooses by the size of the shorter one
   `toom43`, which splits it in four and the shorter in three;
 * at least `cfg.mulToom32` limbs otherwise, with the longer operand at least four thirds as long:
   `toom32`, which splits it in three and the shorter in two;
+* at least `cfg.mulToom6` limbs otherwise, with the longer operand less than six fifths as long:
+  `toom6`, which splits both in six;
 * at least `cfg.mulToom4` limbs otherwise, with the longer operand less than four thirds as long:
   `toom44`, which splits both in four;
 * at least `cfg.mulToom3` limbs otherwise, with the longer operand less than four thirds as long:
@@ -87,6 +89,8 @@ def mulLongShort (cfg : Config) (a b : UInt32Array.Slice) (hab : b.size ≤ a.si
     else if h₃₂ : cfg.mulToom32 ≤ b.size ∧ 4 * b.size ≤ 3 * a.size then
       toom32 a b (Nat.le_trans cfg.twelve_le_mulToom32 h₃₂.1) hab (by lia) fun x y _ =>
         mulLimbsWith cfg x y
+    else if h₆ : cfg.mulToom6 ≤ b.size ∧ 5 * a.size < 6 * b.size then
+      toom6 a b (Nat.le_trans cfg.thirtytwo_le_mulToom6 h₆.1) hab fun x y _ => mulLimbsWith cfg x y
     else if h₄ : cfg.mulToom4 ≤ b.size ∧ 3 * a.size < 4 * b.size then
       toom44 a b (Nat.le_trans cfg.thirtytwo_le_mulToom4 h₄.1) hab h₄.2 fun x y _ =>
         mulLimbsWith cfg x y
@@ -150,10 +154,12 @@ private theorem mulLongShort_ok (cfg : Config) (a b : UInt32Array.Slice) (hab : 
               · split
                 · exact toom32_spec a b _ hab _ _ fun x y hxy => ih x y hxy
                 · split
-                  · exact toom44_spec a b _ hab _ _ fun x y hxy => ih x y hxy
+                  · exact toom6_spec a b _ hab _ fun x y hxy => ih x y hxy
                   · split
-                    · exact toom3_spec a b _ hab _ _ fun x y hxy => ih x y hxy
-                    · exact karatsuba_spec a b _ hab _ fun x y hxy => ih x y hxy
+                    · exact toom44_spec a b _ hab _ _ fun x y hxy => ih x y hxy
+                    · split
+                      · exact toom3_spec a b _ hab _ _ fun x y hxy => ih x y hxy
+                      · exact karatsuba_spec a b _ hab _ fun x y hxy => ih x y hxy
       · exact (show MulOK b a (mulBasecase b a) from ⟨size_mulBasecase b a,
           toNat_mulBasecase b a⟩).swap
 

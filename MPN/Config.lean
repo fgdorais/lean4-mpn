@@ -62,10 +62,17 @@ public structure Config where
   /-- Toom-4 needs at least `32` limbs for its split. -/
   thirtytwo_le_mulToom4 : 32 ≤ mulToom4 := by decide
   /--
+  The size of the shorter operand from which multiplication uses Toom-6 when the longer one is less
+  than six fifths as long, instead of Toom-4.
+  -/
+  mulToom6 : Nat := 1344
+  /-- Toom-6 needs at least `32` limbs for its split. -/
+  thirtytwo_le_mulToom6 : 32 ≤ mulToom6 := by decide
+  /--
   The size of the shorter operand from which multiplication uses the FFT when the longer one is
   less than twice as long.
   -/
-  mulFFT : Nat := 18000
+  mulFFT : Nat := 32768
   /--
   The size of the shorter operand from which multiplication splits a longer operand that is at
   least twice as long, instead of using schoolbook. It only matters above `mulKaratsuba`, since the
@@ -86,8 +93,12 @@ public structure Config where
   sqrToom4 : Nat := 576
   /-- Toom-4 needs at least `32` limbs for its split. -/
   thirtytwo_le_sqrToom4 : 32 ≤ sqrToom4 := by decide
+  /-- The size from which squaring uses Toom-6 instead of Toom-4 and those below. -/
+  sqrToom6 : Nat := 1792
+  /-- Toom-6 needs at least `32` limbs for its split. -/
+  thirtytwo_le_sqrToom6 : 32 ≤ sqrToom6 := by decide
   /-- The size from which squaring uses the FFT. -/
-  sqrFFT : Nat := 16000
+  sqrFFT : Nat := 28672
   /-- The size of the divisor from which division computes its quotient in blocks of half the
   divisor, with recursive divisions, instead of one limb at a time. -/
   divDC : Nat := 176
@@ -121,6 +132,11 @@ public meta register_option mpn.mul.toom43Threshold : Nat := {
 public meta register_option mpn.mul.toom4Threshold : Nat := {
   defValue := ({} : Config).mulToom4
   descr := "the size of the shorter operand, in limbs, from which multiplication uses Toom-4"
+}
+
+public meta register_option mpn.mul.toom6Threshold : Nat := {
+  defValue := ({} : Config).mulToom6
+  descr := "the size of the shorter operand, in limbs, from which multiplication uses Toom-6"
 }
 
 public meta register_option mpn.mul.fftThreshold : Nat := {
@@ -160,6 +176,11 @@ public meta register_option mpn.sqr.toom4Threshold : Nat := {
   descr := "the size, in limbs, from which squaring uses Toom-4"
 }
 
+public meta register_option mpn.sqr.toom6Threshold : Nat := {
+  defValue := ({} : Config).sqrToom6
+  descr := "the size, in limbs, from which squaring uses Toom-6"
+}
+
 public meta register_option mpn.sqr.fftThreshold : Nat := {
   defValue := ({} : Config).sqrFFT
   descr := "the size, in limbs, from which squaring uses the FFT"
@@ -195,6 +216,9 @@ elab "mpn_config%" : term => do
   let mulToom4 := mpn.mul.toom4Threshold.get opts
   unless 32 ≤ mulToom4 do
     throwError "mpn.mul.toom4Threshold must be at least 32, but it is {mulToom4}"
+  let mulToom6 := mpn.mul.toom6Threshold.get opts
+  unless 32 ≤ mulToom6 do
+    throwError "mpn.mul.toom6Threshold must be at least 32, but it is {mulToom6}"
   let mulFFT := mpn.mul.fftThreshold.get opts
   let sqrToom3 := mpn.sqr.toom3Threshold.get opts
   unless 12 ≤ sqrToom3 do
@@ -202,6 +226,9 @@ elab "mpn_config%" : term => do
   let sqrToom4 := mpn.sqr.toom4Threshold.get opts
   unless 32 ≤ sqrToom4 do
     throwError "mpn.sqr.toom4Threshold must be at least 32, but it is {sqrToom4}"
+  let sqrToom6 := mpn.sqr.toom6Threshold.get opts
+  unless 32 ≤ sqrToom6 do
+    throwError "mpn.sqr.toom6Threshold must be at least 32, but it is {sqrToom6}"
   let sqrFFT := mpn.sqr.fftThreshold.get opts
   let divDC := mpn.div.dcThreshold.get opts
   unless 4 ≤ divDC do
@@ -215,11 +242,13 @@ elab "mpn_config%" : term => do
   let t₄ := quote mulToom42
   let t₄₃ := quote mulToom43
   let t₄₄ := quote mulToom4
+  let t₆ := quote mulToom6
   let f := quote mulFFT
   let b := quote sqrBasecase
   let q := quote sqrKaratsuba
   let st := quote sqrToom3
   let st₄ := quote sqrToom4
+  let st₆ := quote sqrToom6
   let sf := quote sqrFFT
   let dc := quote divDC
   let stx ← `(({ mulKaratsuba := $m
@@ -228,12 +257,14 @@ elab "mpn_config%" : term => do
                  mulToom42 := $t₄
                  mulToom43 := $t₄₃
                  mulToom4 := $t₄₄
+                 mulToom6 := $t₆
                  mulFFT := $f
                  mulUnbalanced := $u
                  sqrBasecase := $b
                  sqrKaratsuba := $q
                  sqrToom3 := $st
                  sqrToom4 := $st₄
+                 sqrToom6 := $st₆
                  sqrFFT := $sf
                  divDC := $dc } : Config))
   elabTerm stx (mkConst ``Config)

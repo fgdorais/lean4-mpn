@@ -41,12 +41,12 @@ namespace MPN
 `r - a v` in one pass, like GMP's `mpn_submul_1`, as `r.size` limbs: exact when `a v ≤ r`. The
 borrow limb of `subMul1` is subtracted above `a`'s limbs.
 -/
-def subMulVal (r a : UInt32Array) (v : UInt32) : UInt32Array :=
+public def subMulVal (r a : UInt32Array) (v : UInt32) : UInt32Array :=
   let a' := a.toSlice 0 r.size
   let p := subMul1 r 0 a' v (by simp [a']; lia)
   if a'.size < r.size then subInto p.1 a'.size (limbArray p.2) else p.1
 
-@[simp] private theorem size_subMulVal (r a : UInt32Array) (v : UInt32) :
+@[simp] public theorem size_subMulVal (r a : UInt32Array) (v : UInt32) :
     (subMulVal r a v).size = r.size := by
   simp only [subMulVal]
   split
@@ -54,7 +54,7 @@ def subMulVal (r a : UInt32Array) (v : UInt32) : UInt32Array :=
   · rw [size_subMul1]
 
 /-- The last step of `subMulVal`: the borrow out of `m` limbs subtracted above them. -/
-private theorem toNat_subMulVal_aux (r : UInt32Array) (p : UInt32Array × UInt32) (m R A : Nat)
+theorem toNat_subMulVal_aux (r : UInt32Array) (p : UInt32Array × UInt32) (m R A : Nat)
     (hp : p.1.size = r.size) (hm : m ≤ r.size) (hle : A ≤ R)
     (hsub : toNat p.1 + A = R + 2 ^ (32 * m) * p.2.toNat) :
     toNat (if m < r.size then subInto p.1 m (limbArray p.2) else p.1 : UInt32Array).toSlice =
@@ -78,7 +78,7 @@ private theorem toNat_subMulVal_aux (r : UInt32Array) (p : UInt32Array × UInt32
     rw [hc, Nat.mul_zero, Nat.add_zero] at hsub
     lia
 
-private theorem toNat_subMulVal (r a : UInt32Array) (v : UInt32)
+public theorem toNat_subMulVal (r a : UInt32Array) (v : UInt32)
     (hle : toNat a * v.toNat ≤ toNat r) :
     toNat (subMulVal r a v) = toNat r - toNat a * v.toNat := by
   have hR := toNat_lt r.toSlice
@@ -101,13 +101,13 @@ private theorem toNat_subMulVal (r a : UInt32Array) (v : UInt32)
 `r + a v` in one pass, like GMP's `mpn_addmul_1`, as `r.size` limbs, for `a` shorter than `r` (and
 `r` otherwise, which does not happen).
 -/
-def addMulVal (r : UInt32Array) (a : UInt32Array.Slice) (v : UInt32) : UInt32Array :=
+public def addMulVal (r : UInt32Array) (a : UInt32Array.Slice) (v : UInt32) : UInt32Array :=
   if h : a.size < r.size then
     let p := addMul1 r 0 a v (by lia)
     addInto p.1 a.size (limbArray p.2)
   else r
 
-@[simp] private theorem size_addMulVal (r : UInt32Array) (a : UInt32Array.Slice) (v : UInt32) :
+@[simp] public theorem size_addMulVal (r : UInt32Array) (a : UInt32Array.Slice) (v : UInt32) :
     (addMulVal r a v).size = r.size := by
   simp only [addMulVal]
   split
@@ -115,7 +115,7 @@ def addMulVal (r : UInt32Array) (a : UInt32Array.Slice) (v : UInt32) : UInt32Arr
   · rfl
 
 /-- The last step of `addMulVal`: the carry out of `m` limbs added above them. -/
-private theorem toNat_addMulVal_aux (r : UInt32Array) (p : UInt32Array × UInt32) (m S : Nat)
+theorem toNat_addMulVal_aux (r : UInt32Array) (p : UInt32Array × UInt32) (m S : Nat)
     (hp : p.1.size = r.size) (hm : m < r.size) (hlt : S < 2 ^ (32 * r.size))
     (hadd : toNat p.1 + 2 ^ (32 * m) * p.2.toNat = S) :
     toNat (addInto p.1 m (limbArray p.2)) = S := by
@@ -123,7 +123,7 @@ private theorem toNat_addMulVal_aux (r : UInt32Array) (p : UInt32Array × UInt32
     (by rw [toNat_limbArray, hp]; lia), toNat_limbArray, hadd]
 
 /-- When `a` is shorter than `r` and the sum fits in `r`, `addMulVal` adds. -/
-private theorem toNat_addMulVal (r : UInt32Array) (a : UInt32Array.Slice) (v : UInt32)
+public theorem toNat_addMulVal (r : UInt32Array) (a : UInt32Array.Slice) (v : UInt32)
     (h : a.size < r.size) (hlt : toNat r + toNat a * v.toNat < 2 ^ (32 * r.size)) :
     toNat (addMulVal r a v) = toNat r + toNat a * v.toNat := by
   have hadd := toNat_addMul1 r 0 a v (by lia)
@@ -218,7 +218,7 @@ private theorem toNat_eval3At (x₀ x₁ x₂ : UInt32Array.Slice) (v₁ v₂ : 
 /-! ## Interpolation steps -/
 
 /-- `r_j = (w - c₀ - v c) / j`, the first step for the point `j`, with `v = jᵈ`. -/
-private theorem toNat_rStep (w c₀ c : UInt32Array) (v : UInt32) (div : UInt32Array → UInt32Array)
+public theorem toNat_rStep (w c₀ c : UInt32Array) (v : UInt32) (div : UInt32Array → UInt32Array)
     (j : Nat) (hdiv : ∀ (x : UInt32Array) X, toNat x = j * X → toNat (div x) = X) (C₀ C R : Nat)
     (h₀ : toNat c₀ = C₀) (hc : toNat c = C) (hw : toNat w = C₀ + C * v.toNat + j * R) :
     toNat (div (subMulVal (subVal w c₀) c v)) = R := by
@@ -228,7 +228,7 @@ private theorem toNat_rStep (w c₀ c : UInt32Array) (v : UInt32) (div : UInt32A
   lia
 
 /-- A step of Horner's rule, `x - y v`. -/
-private theorem toNat_hStep (x y : UInt32Array) (v : UInt32) (X Y Z : Nat) (hx : toNat x = X)
+public theorem toNat_hStep (x y : UInt32Array) (v : UInt32) (X Y Z : Nat) (hx : toNat x = X)
     (hy : toNat y = Y) (h : X = Y * v.toNat + Z) : toNat (subMulVal x y v) = Z := by
   rw [toNat_subMulVal _ _ _ (by lia)]
   lia

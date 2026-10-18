@@ -23,11 +23,10 @@ changing the options, build once with `-R` to reconfigure.
 * `march`: compiles the library's C code with `-march=<value>`, for example `native`, which lets
   the C compiler use the vector instructions of the machine (5–12% faster products on AVX2). The
   binaries then run only on processors with those instructions.
-* `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`, `mulToom43`, `mulToom4`, `mulFFT`,
-  `mulUnbalanced`, `sqrBasecase`, `sqrKaratsuba`, `sqrToom3`, `sqrToom4`, `sqrFFT`, `divDC`: the
-  thresholds, by the
-  names of the fields of
-  `MPN.Config`. The keys have no dots, since TOML passes a quoted key as one name.
+* `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`, `mulToom43`, `mulToom4`, `mulToom6`,
+  `mulFFT`, `mulUnbalanced`, `sqrBasecase`, `sqrKaratsuba`, `sqrToom3`, `sqrToom4`, `sqrToom6`,
+  `sqrFFT`, `divDC`: the thresholds, by the names of the fields of `MPN.Config`. The keys have no
+  dots, since TOML passes a quoted key as one name.
 -/
 
 /--
@@ -48,12 +47,14 @@ def thresholdOptions : Array LeanOption :=
     opt `mul.toom42Threshold (get_config? mulToom42) ++
     opt `mul.toom43Threshold (get_config? mulToom43) ++
     opt `mul.toom4Threshold (get_config? mulToom4) ++
+    opt `mul.toom6Threshold (get_config? mulToom6) ++
     opt `mul.fftThreshold (get_config? mulFFT) ++
     opt `mul.unbalancedThreshold (get_config? mulUnbalanced) ++
     opt `sqr.basecaseThreshold (get_config? sqrBasecase) ++
     opt `sqr.karatsubaThreshold (get_config? sqrKaratsuba) ++
     opt `sqr.toom3Threshold (get_config? sqrToom3) ++
     opt `sqr.toom4Threshold (get_config? sqrToom4) ++
+    opt `sqr.toom6Threshold (get_config? sqrToom6) ++
     opt `sqr.fftThreshold (get_config? sqrFFT) ++
     opt `div.dcThreshold (get_config? divDC)
 
