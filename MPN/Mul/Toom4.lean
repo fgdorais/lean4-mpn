@@ -227,7 +227,7 @@ private theorem toNat_eval3At (x₀ x₁ x₂ : UInt32Array.Slice) (v₁ v₂ : 
 /-! ## Assembly -/
 
 /-- `c₀ + x c₁ + x² c₂ + ⋯`. -/
-def polyVal (x : Nat) : List Nat → Nat
+@[expose] public def polyVal (x : Nat) : List Nat → Nat
   | [] => 0
   | c :: cs => c + x * polyVal x cs
 
