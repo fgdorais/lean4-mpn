@@ -636,6 +636,9 @@ public def fftMul (a b : UInt32Array.Slice) (k : Nat)
   else
     mulBasecase a b
 
+/-- The number of pieces, `2ᵏ`, for `total` limbs: `k = ⌊log₂ total⌋ / 2 + 1`, measured best. -/
+public def fftK (total : Nat) : Nat := min 32 (Nat.log2 total / 2 + 1)
+
 public theorem fftMul_spec (a b : UInt32Array.Slice) (k : Nat)
     (mulRec : (x y : UInt32Array.Slice) → x.size + y.size < a.size + b.size → UInt32Array)
     (hrec : ∀ x y h, (mulRec x y h).size = x.size + y.size ∧
@@ -656,5 +659,93 @@ public theorem fftMul_spec (a b : UInt32Array.Slice) (k : Nat)
       simp only [fftMul, hp, h, ↓reduceIte]
     rw [e]
     exact ⟨size_mulBasecase a b, toNat_mulBasecase a b⟩
+
+/-! ## Squaring -/
+
+/-- `fftMulAt a a` with one forward transform and squares for the pointwise products. -/
+public def fftSqrAt (a : UInt32Array.Slice) (k m n : Nat)
+    (sqrRec : (x : UInt32Array.Slice) → x.size < a.size → UInt32Array) : UInt32Array :=
+  let M := fermatMod n
+  let e := 64 * n / 2 ^ k
+  let fa := transform M k e (pieceArrays a m n 0 (2 ^ k))
+  let fc := (List.range (2 ^ k)).map fun j =>
+    let x := fa.getD j default
+    if h : x.toSlice.size + x.toSlice.size < a.size + a.size then
+      normProd M (sqrRec x (by lia))
+    else x
+  let c := (transform M k (64 * n - e) fc).map fun z => mulPow2I M z (64 * n - k)
+  assembleFrom (.replicate (a.size + a.size) 0) 0 m (c.take ((a.size + a.size + m - 1) / m))
+
+/-- The products of `fftMulAt a a` that come from `fftSqrAt`: squares of equal arguments. -/
+def sqrPair (a : UInt32Array.Slice)
+    (sqrRec : (x : UInt32Array.Slice) → x.size < a.size → UInt32Array)
+    (x y : UInt32Array.Slice) (h : x.size + y.size < a.size + a.size) : UInt32Array :=
+  if hxy : x.copy = y.copy then sqrRec x (by
+    have : x.size = y.size := by
+      rw [← UInt32Array.Slice.size_copy, hxy, UInt32Array.Slice.size_copy]
+    lia) else mulBasecase x y
+
+theorem fftSqrAt_eq (a : UInt32Array.Slice) (k m n : Nat)
+    (sqrRec : (x : UInt32Array.Slice) → x.size < a.size → UInt32Array) :
+    fftSqrAt a k m n sqrRec = fftMulAt a a k m n (sqrPair a sqrRec) := by
+  simp [fftSqrAt, fftMulAt, sqrPair]
+
+public theorem fftSqrAt_spec (a : UInt32Array.Slice) (k m n : Nat) (hk : 1 ≤ k) (hn : 1 ≤ n)
+    (hm : 1 ≤ m) (hmn : m ≤ n) (hdiv : 2 ^ k ∣ 64 * n) (ha : 1 ≤ a.size)
+    (hpc : (a.size + m - 1) / m + (a.size + m - 1) / m ≤ 2 ^ k + 1)
+    (hbits : 2 ^ k * 2 ^ (64 * m) ≤ 2 ^ (32 * n)) (hsmall : 2 * n + 2 < a.size + a.size)
+    (sqrRec : (x : UInt32Array.Slice) → x.size < a.size → UInt32Array)
+    (hrec : ∀ x h, (sqrRec x h).size = x.size + x.size ∧
+      toNat (sqrRec x h) = toNat x * toNat x) :
+    (fftSqrAt a k m n sqrRec).size = a.size + a.size ∧
+      toNat (fftSqrAt a k m n sqrRec) = toNat a * toNat a := by
+  rw [fftSqrAt_eq]
+  refine fftMulAt_spec a a k m n hk hn hm hmn hdiv ha ha hpc hbits hsmall _ fun x y h => ?_
+  by_cases hxy : x.copy = y.copy
+  · have e : sqrPair a sqrRec x y h = sqrRec x (by
+        have : x.size = y.size := by
+          rw [← UInt32Array.Slice.size_copy, hxy, UInt32Array.Slice.size_copy]
+        lia) := by simp only [sqrPair, hxy, ↓reduceDIte]
+    have hs : x.size = y.size := by
+      rw [← UInt32Array.Slice.size_copy, hxy, UInt32Array.Slice.size_copy]
+    have hv : toNat x = toNat y := by simp only [toNat, hxy]
+    rw [e]
+    obtain ⟨h₁, h₂⟩ := hrec x _
+    exact ⟨by rw [h₁, hs], by rw [h₂, hv]⟩
+  · have e : sqrPair a sqrRec x y h = mulBasecase x y := by simp only [sqrPair, hxy, ↓reduceDIte]
+    rw [e]
+    exact ⟨size_mulBasecase x y, toNat_mulBasecase x y⟩
+
+/-- The square `a * a` by the FFT with `2ᵏ` pieces; schoolbook when the parameters do not suit. -/
+public def fftSqr (a : UInt32Array.Slice) (k : Nat)
+    (sqrRec : (x : UInt32Array.Slice) → x.size < a.size → UInt32Array) : UInt32Array :=
+  let p := fftParams (a.size + a.size) k
+  if 1 ≤ k ∧ k ≤ 32 ∧ 1 ≤ p.2 ∧ 1 ≤ p.1 ∧ p.1 ≤ p.2 ∧ (64 * p.2) % 2 ^ k = 0 ∧ 1 ≤ a.size ∧
+      (a.size + p.1 - 1) / p.1 + (a.size + p.1 - 1) / p.1 ≤ 2 ^ k + 1 ∧
+      k + 64 * p.1 ≤ 32 * p.2 ∧ 2 * p.2 + 2 < a.size + a.size then
+    fftSqrAt a k p.1 p.2 sqrRec
+  else
+    mulBasecase a a
+
+public theorem fftSqr_spec (a : UInt32Array.Slice) (k : Nat)
+    (sqrRec : (x : UInt32Array.Slice) → x.size < a.size → UInt32Array)
+    (hrec : ∀ x h, (sqrRec x h).size = x.size + x.size ∧
+      toNat (sqrRec x h) = toNat x * toNat x) :
+    (fftSqr a k sqrRec).size = a.size + a.size ∧
+      toNat (fftSqr a k sqrRec) = toNat a * toNat a := by
+  generalize hp : fftParams (a.size + a.size) k = p
+  by_cases h : 1 ≤ k ∧ k ≤ 32 ∧ 1 ≤ p.2 ∧ 1 ≤ p.1 ∧ p.1 ≤ p.2 ∧ (64 * p.2) % 2 ^ k = 0 ∧
+      1 ≤ a.size ∧ (a.size + p.1 - 1) / p.1 + (a.size + p.1 - 1) / p.1 ≤ 2 ^ k + 1 ∧
+      k + 64 * p.1 ≤ 32 * p.2 ∧ 2 * p.2 + 2 < a.size + a.size
+  · have e : fftSqr a k sqrRec = fftSqrAt a k p.1 p.2 sqrRec := by
+      simp only [fftSqr, hp, h, and_self, ↓reduceIte]
+    obtain ⟨h₁, -, h₃, h₄, h₅, h₆, h₇, h₉, h₁₀, h₁₁⟩ := h
+    rw [e]
+    exact fftSqrAt_spec a k p.1 p.2 h₁ h₃ h₄ h₅ (Nat.dvd_of_mod_eq_zero h₆) h₇ h₉
+      (by rw [← Nat.pow_add]; exact Nat.pow_le_pow_right (by decide) (by lia)) h₁₁ sqrRec hrec
+  · have e : fftSqr a k sqrRec = mulBasecase a a := by
+      simp only [fftSqr, hp, h, ↓reduceIte]
+    rw [e]
+    exact ⟨size_mulBasecase a a, toNat_mulBasecase a a⟩
 
 end MPN.FFT

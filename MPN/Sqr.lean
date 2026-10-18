@@ -22,7 +22,9 @@ squares instead of three products.
   `sqrLimbsWith` again;
 * below `cfg.sqrToom4` limbs: `toom3Sqr`, which squares its five smaller numbers with
   `sqrLimbsWith` again;
-* otherwise: `toom4Sqr`, which squares its seven smaller numbers with `sqrLimbsWith` again.
+* below `cfg.sqrFFT` limbs: `toom4Sqr`, which squares its seven smaller numbers with
+  `sqrLimbsWith` again;
+* otherwise: `fftSqr`, with one forward transform and squares for the pointwise products.
 -/
 
 open ScalarArray
@@ -88,7 +90,9 @@ public theorem karatsubaSqr_spec (a : UInt32Array.Slice) (ha : 4 ≤ a.size)
 
 /-- All `2 * a.size` limbs of `a * a`, untrimmed, with the thresholds of `cfg`. -/
 public def sqrLimbsWith (cfg : Config) (a : UInt32Array.Slice) : UInt32Array :=
-  if h : cfg.sqrToom4 ≤ a.size then
+  if cfg.sqrFFT ≤ a.size then
+    FFT.fftSqr a (FFT.fftK (a.size + a.size)) fun x _ => sqrLimbsWith cfg x
+  else if h : cfg.sqrToom4 ≤ a.size then
     toom4Sqr a (Nat.le_trans cfg.thirtytwo_le_sqrToom4 h) fun x _ => sqrLimbsWith cfg x
   else if h : cfg.sqrToom3 ≤ a.size then
     toom3Sqr a (Nat.le_trans cfg.twelve_le_sqrToom3 h) fun x _ => sqrLimbsWith cfg x
@@ -104,29 +108,34 @@ public theorem sqrLimbsWith_spec (cfg : Config) (a : UInt32Array.Slice) :
     (sqrLimbsWith cfg a).size = a.size + a.size ∧
       toNat (sqrLimbsWith cfg a) = toNat a * toNat a := by
   induction a using sqrLimbsWith.induct cfg with
-  | case1 a h ih =>
+  | case1 a hf ih =>
     rw [toNat_toSlice, sqrLimbsWith]
-    simp only [h, ↓reduceDIte]
+    simp only [hf, ↓reduceIte]
+    rw [← toNat_toSlice]
+    exact FFT.fftSqr_spec a _ _ fun x hx => ih x hx
+  | case2 a hf h ih =>
+    rw [toNat_toSlice, sqrLimbsWith]
+    simp only [hf, h, ↓reduceIte, ↓reduceDIte]
     rw [← toNat_toSlice]
     exact toom4Sqr_spec a _ _ fun x hx => ih x hx
-  | case2 a h₄ h ih =>
+  | case3 a hf h₄ h ih =>
     rw [toNat_toSlice, sqrLimbsWith]
-    simp only [h₄, h, ↓reduceDIte]
+    simp only [hf, h₄, h, ↓reduceIte, ↓reduceDIte]
     rw [← toNat_toSlice]
     exact toom3Sqr_spec a _ _ fun x hx => ih x hx
-  | case3 a h₄ h' h ih =>
+  | case4 a hf h₄ h' h ih =>
     rw [toNat_toSlice, sqrLimbsWith]
-    simp only [h₄, h, h', ↓reduceDIte]
+    simp only [hf, h₄, h, h', ↓reduceIte, ↓reduceDIte]
     rw [← toNat_toSlice]
     exact karatsubaSqr_spec a _ _ fun x hx => ih x hx
-  | case4 a h₄ h₁ h h' =>
+  | case5 a hf h₄ h₁ h h' =>
     rw [toNat_toSlice, sqrLimbsWith]
-    simp only [h₄, h₁, h, h', ↓reduceDIte, ↓reduceIte]
+    simp only [hf, h₄, h₁, h, h', ↓reduceDIte, ↓reduceIte]
     rw [← toNat_toSlice]
     exact sqrBasecase_spec a
-  | case5 a h₄ h₁ h h' =>
+  | case6 a hf h₄ h₁ h h' =>
     rw [toNat_toSlice, sqrLimbsWith]
-    simp only [h₄, h₁, h, h', ↓reduceDIte, ↓reduceIte]
+    simp only [hf, h₄, h₁, h, h', ↓reduceDIte, ↓reduceIte]
     rw [← toNat_toSlice]
     exact ⟨size_mulBasecase a a, toNat_mulBasecase a a⟩
 

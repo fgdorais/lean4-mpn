@@ -199,6 +199,18 @@ def toom4Config : Config :=
     toNat (mulLimbsWith toom4Config (ofNat (2 ^ (32 * m) - 1)) (ofNat (2 ^ (32 * n) - 1))) ==
       (2 ^ (32 * m) - 1) * (2 ^ (32 * n) - 1)
 
+-- The FFT from 40 limbs, on shapes up to twice as long, and all ones.
+def fftConfig : Config := { mulKaratsuba := 8, mulFFT := 40 }
+
+#guard [(40, 40), (41, 40), (60, 47), (79, 40), (100, 100), (150, 99), (257, 256),
+    (400, 333)].all fun (m, n) =>
+  let x := sample1 (32 * m) 43
+  let y := sample1 (32 * n) 47
+  let r := mulLimbsWith fftConfig (ofNat x) (ofNat y)
+  r.size == m + n && toNat r == x * y &&
+    toNat (mulLimbsWith fftConfig (ofNat (2 ^ (32 * m) - 1)) (ofNat (2 ^ (32 * n) - 1))) ==
+      (2 ^ (32 * m) - 1) * (2 ^ (32 * n) - 1)
+
 -- Toom-3 squaring from 12 limbs, over Karatsuba squaring from 4 and the schoolbook square.
 def sqrToomConfig : Config := { sqrBasecase := 2, sqrKaratsuba := 4, sqrToom3 := 12 }
 
@@ -218,6 +230,16 @@ def sqrToom4Config : Config :=
   let r := sqrLimbsWith sqrToom4Config (ofNat x)
   r.size == n + n && toNat r == x * x &&
     toNat (sqrLimbsWith sqrToom4Config (ofNat (2 ^ (32 * n) - 1))) ==
+      (2 ^ (32 * n) - 1) * (2 ^ (32 * n) - 1)
+
+-- FFT squaring from 40 limbs.
+def sqrFFTConfig : Config := { sqrBasecase := 2, sqrKaratsuba := 4, sqrToom3 := 12, sqrFFT := 40 }
+
+#guard [40, 41, 47, 64, 100, 129, 257, 300].all fun n =>
+  let x := sample1 (32 * n) 43
+  let r := sqrLimbsWith sqrFFTConfig (ofNat x)
+  r.size == n + n && toNat r == x * x &&
+    toNat (sqrLimbsWith sqrFFTConfig (ofNat (2 ^ (32 * n) - 1))) ==
       (2 ^ (32 * n) - 1) * (2 ^ (32 * n) - 1)
 
 -- Very unbalanced products, which split the longer operand.

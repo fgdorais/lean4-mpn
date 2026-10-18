@@ -62,6 +62,11 @@ public structure Config where
   /-- Toom-4 needs at least `32` limbs for its split. -/
   thirtytwo_le_mulToom4 : 32 ≤ mulToom4 := by decide
   /--
+  The size of the shorter operand from which multiplication uses the FFT when the longer one is
+  less than twice as long.
+  -/
+  mulFFT : Nat := 20000
+  /--
   The size of the shorter operand from which multiplication splits a longer operand that is at
   least twice as long, instead of using schoolbook. It only matters above `mulKaratsuba`, since the
   split pays off through Karatsuba on its pieces.
@@ -81,6 +86,8 @@ public structure Config where
   sqrToom4 : Nat := 576
   /-- Toom-4 needs at least `32` limbs for its split. -/
   thirtytwo_le_sqrToom4 : 32 ≤ sqrToom4 := by decide
+  /-- The size from which squaring uses the FFT. -/
+  sqrFFT : Nat := 20000
   /-- The size of the divisor from which division computes its quotient in blocks of half the
   divisor, with recursive divisions, instead of one limb at a time. -/
   divDC : Nat := 176
@@ -116,6 +123,11 @@ public meta register_option mpn.mul.toom4Threshold : Nat := {
   descr := "the size of the shorter operand, in limbs, from which multiplication uses Toom-4"
 }
 
+public meta register_option mpn.mul.fftThreshold : Nat := {
+  defValue := ({} : Config).mulFFT
+  descr := "the size of the shorter operand, in limbs, from which multiplication uses the FFT"
+}
+
 public meta register_option mpn.mul.toom3Threshold : Nat := {
   defValue := ({} : Config).mulToom3
   descr := "the size of the shorter operand, in limbs, from which multiplication uses Toom-3"
@@ -148,6 +160,11 @@ public meta register_option mpn.sqr.toom4Threshold : Nat := {
   descr := "the size, in limbs, from which squaring uses Toom-4"
 }
 
+public meta register_option mpn.sqr.fftThreshold : Nat := {
+  defValue := ({} : Config).sqrFFT
+  descr := "the size, in limbs, from which squaring uses the FFT"
+}
+
 public meta register_option mpn.div.dcThreshold : Nat := {
   defValue := ({} : Config).divDC
   descr := "the size of the divisor, in limbs, from which division divides by blocks recursively"
@@ -178,12 +195,14 @@ elab "mpn_config%" : term => do
   let mulToom4 := mpn.mul.toom4Threshold.get opts
   unless 32 ≤ mulToom4 do
     throwError "mpn.mul.toom4Threshold must be at least 32, but it is {mulToom4}"
+  let mulFFT := mpn.mul.fftThreshold.get opts
   let sqrToom3 := mpn.sqr.toom3Threshold.get opts
   unless 12 ≤ sqrToom3 do
     throwError "mpn.sqr.toom3Threshold must be at least 12, but it is {sqrToom3}"
   let sqrToom4 := mpn.sqr.toom4Threshold.get opts
   unless 32 ≤ sqrToom4 do
     throwError "mpn.sqr.toom4Threshold must be at least 32, but it is {sqrToom4}"
+  let sqrFFT := mpn.sqr.fftThreshold.get opts
   let divDC := mpn.div.dcThreshold.get opts
   unless 4 ≤ divDC do
     throwError "mpn.div.dcThreshold must be at least 4, but it is {divDC}"
@@ -196,10 +215,12 @@ elab "mpn_config%" : term => do
   let t₄ := quote mulToom42
   let t₄₃ := quote mulToom43
   let t₄₄ := quote mulToom4
+  let f := quote mulFFT
   let b := quote sqrBasecase
   let q := quote sqrKaratsuba
   let st := quote sqrToom3
   let st₄ := quote sqrToom4
+  let sf := quote sqrFFT
   let dc := quote divDC
   let stx ← `(({ mulKaratsuba := $m
                  mulToom3 := $t
@@ -207,11 +228,13 @@ elab "mpn_config%" : term => do
                  mulToom42 := $t₄
                  mulToom43 := $t₄₃
                  mulToom4 := $t₄₄
+                 mulFFT := $f
                  mulUnbalanced := $u
                  sqrBasecase := $b
                  sqrKaratsuba := $q
                  sqrToom3 := $st
                  sqrToom4 := $st₄
+                 sqrFFT := $sf
                  divDC := $dc } : Config))
   elabTerm stx (mkConst ``Config)
 
