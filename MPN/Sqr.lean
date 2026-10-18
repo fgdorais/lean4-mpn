@@ -20,7 +20,9 @@ squares instead of three products.
 * below `cfg.sqrKaratsuba` limbs: the schoolbook `sqrBasecase`;
 * below `cfg.sqrToom3` limbs: `karatsubaSqr`, which squares its three smaller numbers with
   `sqrLimbsWith` again;
-* otherwise: `toom3Sqr`, which squares its five smaller numbers with `sqrLimbsWith` again.
+* below `cfg.sqrToom4` limbs: `toom3Sqr`, which squares its five smaller numbers with
+  `sqrLimbsWith` again;
+* otherwise: `toom4Sqr`, which squares its seven smaller numbers with `sqrLimbsWith` again.
 -/
 
 open ScalarArray
@@ -86,7 +88,9 @@ public theorem karatsubaSqr_spec (a : UInt32Array.Slice) (ha : 4 ≤ a.size)
 
 /-- All `2 * a.size` limbs of `a * a`, untrimmed, with the thresholds of `cfg`. -/
 public def sqrLimbsWith (cfg : Config) (a : UInt32Array.Slice) : UInt32Array :=
-  if h : cfg.sqrToom3 ≤ a.size then
+  if h : cfg.sqrToom4 ≤ a.size then
+    toom4Sqr a (Nat.le_trans cfg.thirtytwo_le_sqrToom4 h) fun x _ => sqrLimbsWith cfg x
+  else if h : cfg.sqrToom3 ≤ a.size then
     toom3Sqr a (Nat.le_trans cfg.twelve_le_sqrToom3 h) fun x _ => sqrLimbsWith cfg x
   else if h : cfg.sqrKaratsuba ≤ a.size then
     karatsubaSqr a (Nat.le_trans cfg.four_le_sqrKaratsuba h) fun x _ => sqrLimbsWith cfg x
@@ -104,20 +108,25 @@ public theorem sqrLimbsWith_spec (cfg : Config) (a : UInt32Array.Slice) :
     rw [toNat_toSlice, sqrLimbsWith]
     simp only [h, ↓reduceDIte]
     rw [← toNat_toSlice]
-    exact toom3Sqr_spec a _ _ fun x hx => ih x hx
-  | case2 a h' h ih =>
+    exact toom4Sqr_spec a _ _ fun x hx => ih x hx
+  | case2 a h₄ h ih =>
     rw [toNat_toSlice, sqrLimbsWith]
-    simp only [h, h', ↓reduceDIte]
+    simp only [h₄, h, ↓reduceDIte]
+    rw [← toNat_toSlice]
+    exact toom3Sqr_spec a _ _ fun x hx => ih x hx
+  | case3 a h₄ h' h ih =>
+    rw [toNat_toSlice, sqrLimbsWith]
+    simp only [h₄, h, h', ↓reduceDIte]
     rw [← toNat_toSlice]
     exact karatsubaSqr_spec a _ _ fun x hx => ih x hx
-  | case3 a h₁ h h' =>
+  | case4 a h₄ h₁ h h' =>
     rw [toNat_toSlice, sqrLimbsWith]
-    simp only [h₁, h, h', ↓reduceDIte, ↓reduceIte]
+    simp only [h₄, h₁, h, h', ↓reduceDIte, ↓reduceIte]
     rw [← toNat_toSlice]
     exact sqrBasecase_spec a
-  | case4 a h₁ h h' =>
+  | case5 a h₄ h₁ h h' =>
     rw [toNat_toSlice, sqrLimbsWith]
-    simp only [h₁, h, h', ↓reduceDIte, ↓reduceIte]
+    simp only [h₄, h₁, h, h', ↓reduceDIte, ↓reduceIte]
     rw [← toNat_toSlice]
     exact ⟨size_mulBasecase a a, toNat_mulBasecase a a⟩
 

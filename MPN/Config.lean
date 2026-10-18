@@ -77,6 +77,10 @@ public structure Config where
   sqrToom3 : Nat := 720
   /-- Toom-3 needs at least `12` limbs to make its squares smaller. -/
   twelve_le_sqrToom3 : 12 ≤ sqrToom3 := by decide
+  /-- The size from which squaring uses Toom-4 instead of Toom-3 or Karatsuba. -/
+  sqrToom4 : Nat := 576
+  /-- Toom-4 needs at least `32` limbs for its split. -/
+  thirtytwo_le_sqrToom4 : 32 ≤ sqrToom4 := by decide
   /-- The size of the divisor from which division computes its quotient in blocks of half the
   divisor, with recursive divisions, instead of one limb at a time. -/
   divDC : Nat := 176
@@ -139,6 +143,11 @@ public meta register_option mpn.sqr.toom3Threshold : Nat := {
   descr := "the size, in limbs, from which squaring uses Toom-3"
 }
 
+public meta register_option mpn.sqr.toom4Threshold : Nat := {
+  defValue := ({} : Config).sqrToom4
+  descr := "the size, in limbs, from which squaring uses Toom-4"
+}
+
 public meta register_option mpn.div.dcThreshold : Nat := {
   defValue := ({} : Config).divDC
   descr := "the size of the divisor, in limbs, from which division divides by blocks recursively"
@@ -172,6 +181,9 @@ elab "mpn_config%" : term => do
   let sqrToom3 := mpn.sqr.toom3Threshold.get opts
   unless 12 ≤ sqrToom3 do
     throwError "mpn.sqr.toom3Threshold must be at least 12, but it is {sqrToom3}"
+  let sqrToom4 := mpn.sqr.toom4Threshold.get opts
+  unless 32 ≤ sqrToom4 do
+    throwError "mpn.sqr.toom4Threshold must be at least 32, but it is {sqrToom4}"
   let divDC := mpn.div.dcThreshold.get opts
   unless 4 ≤ divDC do
     throwError "mpn.div.dcThreshold must be at least 4, but it is {divDC}"
@@ -187,6 +199,7 @@ elab "mpn_config%" : term => do
   let b := quote sqrBasecase
   let q := quote sqrKaratsuba
   let st := quote sqrToom3
+  let st₄ := quote sqrToom4
   let dc := quote divDC
   let stx ← `(({ mulKaratsuba := $m
                  mulToom3 := $t
@@ -198,6 +211,7 @@ elab "mpn_config%" : term => do
                  sqrBasecase := $b
                  sqrKaratsuba := $q
                  sqrToom3 := $st
+                 sqrToom4 := $st₄
                  divDC := $dc } : Config))
   elabTerm stx (mkConst ``Config)
 

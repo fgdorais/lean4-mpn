@@ -285,10 +285,10 @@ computed by `sqrLimbsWith` from the tuned schoolbook and Karatsuba thresholds.
 -/
 def tuneSqrToom3 (basecase karatsuba : Nat) (h : 4 ≤ karatsuba) (log : Bool) :
     IO Nat := medianOf 3 do
-  -- A threshold for Toom-3 beyond every size tried, so that only Karatsuba recurses.
+  -- Thresholds for Toom-3 and Toom-4 beyond every size tried, so that only Karatsuba recurses.
   let cfg : Config := {
     sqrBasecase := basecase, sqrKaratsuba := karatsuba, four_le_sqrKaratsuba := h,
-    sqrToom3 := 100000 }
+    sqrToom3 := 100000, sqrToom4 := 100000 }
   let toom3SqrStep (a _ : UInt32Array.Slice) : UInt32Array :=
     if h : 12 ≤ a.size then toom3Sqr a h fun x _ => sqrLimbsWith cfg x else sqrLimbsWith cfg a
   let sizes := (List.range 50).map (karatsuba + 16 * ·)
@@ -299,6 +299,27 @@ def tuneSqrToom3 (basecase karatsuba : Nat) (h : 4 ≤ karatsuba) (log : Bool) :
   | none =>
     IO.eprintln s!"warning: Toom-3 squaring never won up to {karatsuba + 784} limbs; using that"
     return karatsuba + 784
+
+/--
+Tunes `sqrToom4`: where one Toom-4 square beats the squares below it, with the tuned schoolbook,
+Karatsuba and Toom-3 thresholds.
+-/
+def tuneSqrToom4 (basecase karatsuba toom3 : Nat) (h : 4 ≤ karatsuba) (h₃ : 12 ≤ toom3)
+    (log : Bool) : IO Nat := medianOf 3 do
+  -- A threshold for Toom-4 beyond every size tried, so that only the others recurse.
+  let cfg : Config := {
+    sqrBasecase := basecase, sqrKaratsuba := karatsuba, four_le_sqrKaratsuba := h,
+    sqrToom3 := toom3, twelve_le_sqrToom3 := h₃, sqrToom4 := 100000 }
+  let toom4SqrStep (a _ : UInt32Array.Slice) : UInt32Array :=
+    if h : 32 ≤ a.size then toom4Sqr a h fun x _ => sqrLimbsWith cfg x else sqrLimbsWith cfg a
+  let sizes := (List.range 50).map (256 + 32 * ·)
+  match ← crossover (fun a _ => sqrLimbsWith cfg a) toom4SqrStep sizes (log := log) with
+  | some n =>
+    if log then IO.println s!"  found {n}"
+    return n
+  | none =>
+    IO.eprintln "warning: Toom-4 squaring never won up to 1824 limbs; using 1824"
+    return 1824
 
 /-- The quotient of `a` by `b` after normalizing both, with `div` on the normalized numbers. -/
 def normDiv (div : (u v : UInt32Array.Slice) → 2 ≤ v.size → UInt32Array)
@@ -356,6 +377,9 @@ public def main (args : List String) : IO UInt32 := do
   let sqrKaratsuba ← tuneSqrKaratsuba log
   IO.println "sqrToom3: one Toom-3 square against Karatsuba squaring"
   let sqrToom3 ← tuneSqrToom3 sqrBasecase (max 4 sqrKaratsuba) (by lia) log
+  IO.println "sqrToom4: one Toom-4 square against the squares below it"
+  let sqrToom4 ← tuneSqrToom4 sqrBasecase (max 4 sqrKaratsuba) (max 12 sqrToom3) (by lia) (by lia)
+    log
   IO.println "divDC: one level of division by blocks against Algorithm D, at 2n / n"
   let divDC ← tuneDivDC log
   let cfg : Config := {
@@ -367,6 +391,7 @@ public def main (args : List String) : IO UInt32 := do
     mulToom4 := max 32 toom4, thirtytwo_le_mulToom4 := by lia, mulUnbalanced := unbalanced
     sqrBasecase, sqrKaratsuba := max 4 sqrKaratsuba, four_le_sqrKaratsuba := by lia,
     sqrToom3 := max 12 sqrToom3, twelve_le_sqrToom3 := by lia,
+    sqrToom4 := max 32 sqrToom4, thirtytwo_le_sqrToom4 := by lia,
     divDC := max 4 divDC, four_le_divDC := by lia }
   IO.println ""
   IO.println s!"Found:   {repr cfg}"
@@ -376,7 +401,8 @@ public def main (args : List String) : IO UInt32 := do
     ("mulToom32", cfg.mulToom32), ("mulToom42", cfg.mulToom42), ("mulToom43", cfg.mulToom43),
     ("mulToom4", cfg.mulToom4),
     ("mulUnbalanced", cfg.mulUnbalanced), ("sqrBasecase", cfg.sqrBasecase),
-    ("sqrKaratsuba", cfg.sqrKaratsuba), ("sqrToom3", cfg.sqrToom3), ("divDC", cfg.divDC)]
+    ("sqrKaratsuba", cfg.sqrKaratsuba), ("sqrToom3", cfg.sqrToom3), ("sqrToom4", cfg.sqrToom4),
+    ("divDC", cfg.divDC)]
   IO.println "To compile these into the library, add to its `require` in lakefile.toml:"
   IO.println s!"  options = \{ {", ".intercalate (opts.map fun (k, v) => s!"{k} = \"{v}\"")} }"
   IO.println "or build this package with:"

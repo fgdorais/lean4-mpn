@@ -209,6 +209,17 @@ def sqrToomConfig : Config := { sqrBasecase := 2, sqrKaratsuba := 4, sqrToom3 :=
     toNat (sqrLimbsWith sqrToomConfig (ofNat (2 ^ (32 * n) - 1))) ==
       (2 ^ (32 * n) - 1) * (2 ^ (32 * n) - 1)
 
+-- Toom-4 squaring from 32 limbs, over Toom-3 squaring from 12.
+def sqrToom4Config : Config :=
+  { sqrBasecase := 2, sqrKaratsuba := 4, sqrToom3 := 12, sqrToom4 := 32 }
+
+#guard [31, 32, 33, 34, 35, 47, 48, 49, 64, 100, 129, 200].all fun n =>
+  let x := sample1 (32 * n) 43
+  let r := sqrLimbsWith sqrToom4Config (ofNat x)
+  r.size == n + n && toNat r == x * x &&
+    toNat (sqrLimbsWith sqrToom4Config (ofNat (2 ^ (32 * n) - 1))) ==
+      (2 ^ (32 * n) - 1) * (2 ^ (32 * n) - 1)
+
 -- Very unbalanced products, which split the longer operand.
 #guard [47, 50, 64].all fun n => [100, 141, 300, 517].all fun m =>
   let x := sample1 (32 * m) 3

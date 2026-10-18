@@ -160,8 +160,9 @@ block of the division, and `topSize` usually stops at the first limb.
   85.0 → 71.4 µs, `2730 × 2048`: 681 → 561 µs); balanced products even to 640 limbs, then
   `1536`: −8.5%, `4096`: 1.43 → 1.31 ms (−8%); division at 4096 limbs −2%. On an Apple M2 the
   unverified prototype gained about as much (Toom-4 3.5–8% from 768 limbs, Toom-4 by 3 6–20%).
-- [ ] **Toom-4 squaring**: `toom44Interp` and the evaluations would serve a square with seven
-  squares, like `toom3Sqr`.
+- [x] **Toom-4 squaring** (`toom4Sqr`): seven squares with the evaluations and interpolation of
+  `toom44`, from 576 limbs (`sqrToom4`, tuned on Zen 3, below Toom-3 squaring's 656–672). `sqr`
+  1024 limbs: 116 → 108 µs, 2048: 335 → 307 µs, 4096: 935 → 836 µs (−10%); `bsqrt` 4096: −3%.
 - [ ] **Toom-6½, Toom-8½**, then FFT multiplication for very large numbers.
 - [ ] **The rest of `Nat`:**
   - [x] shifts by bits (`<<<`, `>>>`, `Bits`): one pass each, in place over a copy with

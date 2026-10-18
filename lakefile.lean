@@ -24,7 +24,8 @@ changing the options, build once with `-R` to reconfigure.
   the C compiler use the vector instructions of the machine (5–12% faster products on AVX2). The
   binaries then run only on processors with those instructions.
 * `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`, `mulToom43`, `mulToom4`,
-  `mulUnbalanced`, `sqrBasecase`, `sqrKaratsuba`, `sqrToom3`, `divDC`: the thresholds, by the
+  `mulUnbalanced`, `sqrBasecase`, `sqrKaratsuba`, `sqrToom3`, `sqrToom4`, `divDC`: the
+  thresholds, by the
   names of the fields of
   `MPN.Config`. The keys have no dots, since TOML passes a quoted key as one name.
 -/
@@ -51,6 +52,7 @@ def thresholdOptions : Array LeanOption :=
     opt `sqr.basecaseThreshold (get_config? sqrBasecase) ++
     opt `sqr.karatsubaThreshold (get_config? sqrKaratsuba) ++
     opt `sqr.toom3Threshold (get_config? sqrToom3) ++
+    opt `sqr.toom4Threshold (get_config? sqrToom4) ++
     opt `div.dcThreshold (get_config? divDC)
 
 /-- `-march=<value>` when the `march` option is given. -/

@@ -813,4 +813,116 @@ public theorem toom43_spec (a b : UInt32Array.Slice) (hb : 32 ≤ b.size)
       toNat (toom43 a b hb h65 h158 mulRec) = toNat a * toNat b :=
   toom43At_spec _ _ _ _ _ _ _ hrec
 
+/-! ## Toom-4 squaring -/
+
+/--
+The square `a * a` by one step of Toom-4 at `k` limbs, for `4 ≤ k` and `3 k ≤ a.size`: the same
+split, evaluations, interpolation and assembly as `toom44At a a k`, but each value is computed
+once and the seven products are squares, which `sqrRec` computes on inputs shorter than `a`.
+-/
+public def toom4SqrAt (a : UInt32Array.Slice) (k : Nat) (hk : 4 ≤ k) (hka : 3 * k ≤ a.size)
+    (sqrRec : (x : UInt32Array.Slice) → x.size < a.size → UInt32Array) : UInt32Array :=
+  let a₀ := a.slice 0 k
+  let a₁ := a.slice k (2 * k)
+  let a₂ := a.slice (2 * k) (3 * k)
+  let a₃ := a.slice (3 * k) a.size
+  let c₀ := sqrRec a₀ (by simp only [a₀, UInt32Array.Slice.size_slice]; lia)
+  let c₆ := sqrRec a₃ (by simp only [a₃, UInt32Array.Slice.size_slice]; lia)
+  let w₁ := sqrRec (eval4At a₀ a₁ a₂ a₃ 1 1 1) (by
+    simp only [UInt32Array.size_toSlice, size_eval4At, a₀, a₁, a₂, a₃,
+      UInt32Array.Slice.size_slice]
+    lia)
+  let w₂ := sqrRec (eval4At a₀ a₁ a₂ a₃ 2 4 8) (by
+    simp only [UInt32Array.size_toSlice, size_eval4At, a₀, a₁, a₂, a₃,
+      UInt32Array.Slice.size_slice]
+    lia)
+  let w₃ := sqrRec (eval4At a₀ a₁ a₂ a₃ 3 9 27) (by
+    simp only [UInt32Array.size_toSlice, size_eval4At, a₀, a₁, a₂, a₃,
+      UInt32Array.Slice.size_slice]
+    lia)
+  let w₄ := sqrRec (eval4At a₀ a₁ a₂ a₃ 4 16 64) (by
+    simp only [UInt32Array.size_toSlice, size_eval4At, a₀, a₁, a₂, a₃,
+      UInt32Array.Slice.size_slice]
+    lia)
+  let w₅ := sqrRec (eval4At a₀ a₁ a₂ a₃ 5 25 125) (by
+    simp only [UInt32Array.size_toSlice, size_eval4At, a₀, a₁, a₂, a₃,
+      UInt32Array.Slice.size_slice]
+    lia)
+  let i := toom44Interp c₀ w₁ w₂ w₃ w₄ w₅ c₆
+  assembleFrom (.replicate (a.size + a.size) 0) 0 k
+    [c₀, i.1, i.2.1, i.2.2.1, i.2.2.2.1, i.2.2.2.2, c₆]
+
+public theorem toom4SqrAt_spec (a : UInt32Array.Slice) (k : Nat) (hk : 4 ≤ k)
+    (hka : 3 * k ≤ a.size) (sqrRec : (x : UInt32Array.Slice) → x.size < a.size → UInt32Array)
+    (hrec : ∀ x h, (sqrRec x h).size = x.size + x.size ∧
+      toNat (sqrRec x h) = toNat x * toNat x) :
+    (toom4SqrAt a k hk hka sqrRec).size = a.size + a.size ∧
+      toNat (toom4SqrAt a k hk hka sqrRec) = toNat a * toNat a := by
+  have hsplit := toNat_slice_four a k hka
+  have hA := toNat_lt a
+  -- The seven squares.
+  have hw : ∀ (v₁ v₂ v₃ : UInt32), 1 + v₁.toNat + v₂.toNat + v₃.toNat ≤ 2 ^ 32 → ∀ h,
+      toNat (sqrRec
+        (eval4At (a.slice 0 k) (a.slice k (2 * k)) (a.slice (2 * k) (3 * k))
+          (a.slice (3 * k) a.size) v₁ v₂ v₃) h) =
+      (toNat (a.slice 0 k) + toNat (a.slice k (2 * k)) * v₁.toNat +
+          toNat (a.slice (2 * k) (3 * k)) * v₂.toNat + toNat (a.slice (3 * k) a.size) * v₃.toNat) *
+        (toNat (a.slice 0 k) + toNat (a.slice k (2 * k)) * v₁.toNat +
+          toNat (a.slice (2 * k) (3 * k)) * v₂.toNat + toNat (a.slice (3 * k) a.size) * v₃.toNat) :=
+    fun v₁ v₂ v₃ hv h => by rw [(hrec _ h).2, toNat_eval4At _ _ _ _ _ _ _ hv]
+  simp only [toom4SqrAt]
+  obtain ⟨-, hv₀⟩ := hrec (a.slice 0 k) (by simp only [UInt32Array.Slice.size_slice]; lia)
+  obtain ⟨-, hv₆⟩ := hrec (a.slice (3 * k) a.size)
+    (by simp only [UInt32Array.Slice.size_slice]; lia)
+  generalize hW₁ : sqrRec (eval4At (a.slice 0 k) _ _ _ 1 1 1) _ = w₁
+  generalize hW₂ : sqrRec (eval4At (a.slice 0 k) _ _ _ 2 4 8) _ = w₂
+  generalize hW₃ : sqrRec (eval4At (a.slice 0 k) _ _ _ 3 9 27) _ = w₃
+  generalize hW₄ : sqrRec (eval4At (a.slice 0 k) _ _ _ 4 16 64) _ = w₄
+  generalize hW₅ : sqrRec (eval4At (a.slice 0 k) _ _ _ 5 25 125) _ = w₅
+  have hw₁ := hW₁ ▸ hw 1 1 1 (by decide) _
+  have hw₂ := hW₂ ▸ hw 2 4 8 (by decide) _
+  have hw₃ := hW₃ ▸ hw 3 9 27 (by decide) _
+  have hw₄ := hW₄ ▸ hw 4 16 64 (by decide) _
+  have hw₅ := hW₅ ▸ hw 5 25 125 (by decide) _
+  simp only [UInt32.reduceToNat] at hw₁ hw₂ hw₃ hw₄ hw₅
+  clear hw hW₁ hW₂ hW₃ hW₄ hW₅
+  generalize sqrRec (a.slice 0 k) _ = c₀ at *
+  generalize sqrRec (a.slice (3 * k) a.size) _ = c₆ at *
+  generalize toNat (a.slice 0 k) = A₀ at *
+  generalize toNat (a.slice k (2 * k)) = A₁ at *
+  generalize toNat (a.slice (2 * k) (3 * k)) = A₂ at *
+  generalize toNat (a.slice (3 * k) a.size) = A₃ at *
+  have hlt : toNat a * toNat a < 2 ^ (32 * (a.size + a.size)) := by
+    rw [Nat.mul_add, Nat.pow_add]
+    exact Nat.mul_lt_mul'' hA hA
+  -- Interpolation recovers the middle coefficients.
+  have hi := toom44Interp_spec c₀ w₁ w₂ w₃ w₄ w₅ c₆ (A₀ * A₀) (A₀ * A₁ + A₁ * A₀)
+    (A₀ * A₂ + A₁ * A₁ + A₂ * A₀) (A₀ * A₃ + A₁ * A₂ + A₂ * A₁ + A₃ * A₀)
+    (A₁ * A₃ + A₂ * A₂ + A₃ * A₁) (A₂ * A₃ + A₃ * A₂) (A₃ * A₃) hv₀ hv₆
+    (by rw [hw₁]; grind) (by rw [hw₂, toom44_w _ _ _ _ _ _ _ _ 2])
+    (by rw [hw₃, toom44_w _ _ _ _ _ _ _ _ 3]) (by rw [hw₄, toom44_w _ _ _ _ _ _ _ _ 4])
+    (by rw [hw₅, toom44_w _ _ _ _ _ _ _ _ 5])
+  generalize toom44Interp c₀ w₁ w₂ w₃ w₄ w₅ c₆ = i at *
+  obtain ⟨hi₁, hi₂, hi₃, hi₄, hi₅⟩ := hi
+  rw [hsplit] at hlt ⊢
+  have key := assemble_spec (a.size + a.size) k [c₀, i.1, i.2.1, i.2.2.1, i.2.2.2.1, i.2.2.2.2, c₆]
+    _ (by simp; lia)
+    (by simp only [List.map_cons, List.map_nil, hv₀, hi₁, hi₂, hi₃, hi₄, hi₅, hv₆]; rfl)
+    (by rw [polyVal7, toom44_sum]; exact hlt)
+  rw [polyVal7, toom44_sum] at key
+  exact key
+
+/-- The square `a * a` by one step of Toom-4, for `32 ≤ a.size`, split at a quarter of `a`. -/
+public def toom4Sqr (a : UInt32Array.Slice) (ha : 32 ≤ a.size)
+    (sqrRec : (x : UInt32Array.Slice) → x.size < a.size → UInt32Array) : UInt32Array :=
+  toom4SqrAt a ((a.size + 3) / 4) (by lia) (by lia) sqrRec
+
+public theorem toom4Sqr_spec (a : UInt32Array.Slice) (ha : 32 ≤ a.size)
+    (sqrRec : (x : UInt32Array.Slice) → x.size < a.size → UInt32Array)
+    (hrec : ∀ x h, (sqrRec x h).size = x.size + x.size ∧
+      toNat (sqrRec x h) = toNat x * toNat x) :
+    (toom4Sqr a ha sqrRec).size = a.size + a.size ∧
+      toNat (toom4Sqr a ha sqrRec) = toNat a * toNat a :=
+  toom4SqrAt_spec _ _ _ _ _ hrec
+
 end MPN
