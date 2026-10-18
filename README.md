@@ -4,9 +4,10 @@ Verified arbitrary-precision natural numbers for Lean 4, stored as `UInt32` limb
 arrays of [lean4-scalar-arrays](https://github.com/fgdorais/lean4-scalar-arrays). Each operation is
 proved correct against `Nat`, the specification being the value of the list of limbs. Addition and
 subtraction are linear. Multiplication uses schoolbook, Karatsuba, Toom-3 or Toom-4, or their
-unbalanced variants, depending on the sizes, and splits very unbalanced products into nearly
-balanced ones; squaring uses schoolbook, Karatsuba, Toom-3 or Toom-4. Division is Knuth's Algorithm
-D, and divide-and-conquer (Burnikel–Ziegler) for large divisors.
+unbalanced variants, and Schönhage–Strassen's FFT modulo `2ᴺ + 1` for the largest numbers,
+depending on the sizes, and splits very unbalanced products into nearly balanced ones; squaring uses
+the same algorithms. Division is Knuth's Algorithm D, and divide-and-conquer (Burnikel–Ziegler) for
+large divisors.
 
 `MPN.Nat` packages this as a `Nat`-like type, with a fast path on machine words below `2⁶⁴`
 and the usual instances (`+ - * / %`, comparisons, `DecidableEq`, `Hashable`, literals, shifts,
