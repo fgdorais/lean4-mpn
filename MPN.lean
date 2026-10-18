@@ -9,6 +9,7 @@ public import MPN.Sum
 public import MPN.NatMod
 public import MPN.ListIndex
 public import MPN.Poly
+public import MPN.Assemble
 public import MPN.UInt
 public import MPN.Basic
 public import MPN.Add

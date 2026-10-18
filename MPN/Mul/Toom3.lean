@@ -9,6 +9,7 @@ public import MPN.Sub
 public import MPN.Bits
 public import MPN.Mul.Limb
 public import MPN.Mul.DivExact
+public import MPN.Assemble
 
 /-!
 # Toom-3 multiplication
@@ -176,31 +177,13 @@ private theorem toom3Interp_spec (c₀ w₁ w₂ w₃ c₄ : UInt32Array) (C₀ 
 
 /-! ## Assembly -/
 
-/-- Adding a term `c βᵒᶠᶠ` that fits under a bound `S < βⁿ` on the whole sum. -/
-private theorem addAt_term (r c : UInt32Array) (n off P C S : Nat) (hn : r.size = n)
-    (hoff : off ≤ n) (hr : toNat r = P) (hc : toNat c = C) (hS : P + 2 ^ (32 * off) * C ≤ S)
-    (hlt : S < 2 ^ (32 * n)) :
-    (addInto r off (c.toSlice 0 (n - off))).size = n ∧
-      toNat (addInto r off (c.toSlice 0 (n - off))) = P + 2 ^ (32 * off) * C := by
-  have hpow : 2 ^ (32 * n) = 2 ^ (32 * off) * 2 ^ (32 * (n - off)) := by
-    rw [← Nat.pow_add]; congr 1; lia
-  have hC : C < 2 ^ (32 * (n - off)) := by
-    have : 2 ^ (32 * off) * C < 2 ^ (32 * off) * 2 ^ (32 * (n - off)) := by lia
-    exact Nat.lt_of_mul_lt_mul_left this
-  have hcut : toNat (c.toSlice 0 (n - off)) = C := by
-    rw [toNat_toSlice_of_lt _ _ (by rw [hc]; exact hC), hc]
-  have hfit : off + (c.toSlice 0 (n - off)).size ≤ r.size := by
-    rw [UInt32Array.size_toSlice]; lia
-  refine ⟨by rw [size_addInto _ _ _ hfit, hn], ?_⟩
-  rw [toNat_addInto_of_lt _ _ _ hfit (by rw [hr, hcut, hn]; lia), hr, hcut]
+/-- The powers `x²`, `x³`, `x⁴` of `x = βᵏ`. -/
+private theorem pow_k (k j : Nat) : 2 ^ (32 * (j * k)) = (2 ^ (32 * k)) ^ j := by
+  rw [← Nat.pow_mul]; congr 1; lia
 
 /-- `c₀ + c₁ x + c₂ x² + c₃ x³ + c₄ x⁴` as `n` limbs, where `x = βᵏ`. -/
 def toom3Assemble (n k : Nat) (c₀ c₁ c₂ c₃ c₄ : UInt32Array) : UInt32Array :=
-  let r₀ := addInto (.replicate n 0) 0 (c₀.toSlice 0 (n - 0))
-  let r₁ := addInto r₀ k (c₁.toSlice 0 (n - k))
-  let r₂ := addInto r₁ (2 * k) (c₂.toSlice 0 (n - 2 * k))
-  let r₃ := addInto r₂ (3 * k) (c₃.toSlice 0 (n - 3 * k))
-  addInto r₃ (4 * k) (c₄.toSlice 0 (n - 4 * k))
+  assembleFrom (.replicate n 0) 0 k [c₀, c₁, c₂, c₃, c₄]
 
 private theorem toom3Assemble_spec (n k : Nat) (c₀ c₁ c₂ c₃ c₄ : UInt32Array)
     (C₀ C₁ C₂ C₃ C₄ : Nat) (hk : 4 * k ≤ n) (h₀ : toNat c₀ = C₀) (h₁ : toNat c₁ = C₁)
@@ -210,21 +193,15 @@ private theorem toom3Assemble_spec (n k : Nat) (c₀ c₁ c₂ c₃ c₄ : UInt3
     (toom3Assemble n k c₀ c₁ c₂ c₃ c₄).size = n ∧
       toNat (toom3Assemble n k c₀ c₁ c₂ c₃ c₄) = C₀ + 2 ^ (32 * k) * C₁ +
         2 ^ (32 * (2 * k)) * C₂ + 2 ^ (32 * (3 * k)) * C₃ + 2 ^ (32 * (4 * k)) * C₄ := by
-  generalize hS : C₀ + 2 ^ (32 * k) * C₁ + 2 ^ (32 * (2 * k)) * C₂ + 2 ^ (32 * (3 * k)) * C₃ +
-    2 ^ (32 * (4 * k)) * C₄ = S at hlt
-  obtain ⟨s₀, v₀⟩ := addAt_term (.replicate n 0) c₀ n 0 0 C₀ S (by simp) (by lia)
-    (toNat_zeros n) h₀ (by simp; lia) hlt
-  obtain ⟨s₁, v₁⟩ := addAt_term _ c₁ n k _ C₁ S s₀ (by lia) v₀ h₁ (by
-    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; lia) hlt
-  obtain ⟨s₂, v₂⟩ := addAt_term _ c₂ n (2 * k) _ C₂ S s₁ (by lia) v₁ h₂ (by
-    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; lia) hlt
-  obtain ⟨s₃, v₃⟩ := addAt_term _ c₃ n (3 * k) _ C₃ S s₂ (by lia) v₂ h₃ (by
-    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; lia) hlt
-  obtain ⟨s₄, v₄⟩ := addAt_term _ c₄ n (4 * k) _ C₄ S s₃ (by lia) v₃ h₄ (by
-    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; lia) hlt
-  refine ⟨s₄, ?_⟩
-  rw [toom3Assemble, v₄, ← hS]
-  simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul, Nat.zero_add]
+  have e : polyVal (2 ^ (32 * k)) [C₀, C₁, C₂, C₃, C₄] = C₀ + 2 ^ (32 * k) * C₁ +
+      2 ^ (32 * (2 * k)) * C₂ + 2 ^ (32 * (3 * k)) * C₃ + 2 ^ (32 * (4 * k)) * C₄ := by
+    rw [pow_k k 2, pow_k k 3, pow_k k 4]
+    simp only [polyVal]
+    generalize 2 ^ (32 * k) = x
+    grind
+  obtain ⟨hs, hv⟩ := assemble_spec n k [c₀, c₁, c₂, c₃, c₄] [C₀, C₁, C₂, C₃, C₄] (by simp; lia)
+    (by simp only [List.map_cons, List.map_nil, h₀, h₁, h₂, h₃, h₄]) (by rw [e]; exact hlt)
+  exact ⟨hs, by rw [toom3Assemble, hv, e]⟩
 
 /-- Interpolation and assembly: `n` limbs of `c(βᵏ)` from the five products. -/
 def toom3Finish (n k : Nat) (c₀ w₁ w₂ w₃ c₄ : UInt32Array) : UInt32Array :=
@@ -496,10 +473,7 @@ private theorem toom32Interp_spec (c₀ w₁ w₂ c₃ : UInt32Array) (C₀ C₁
 
 /-- `c₀ + c₁ x + c₂ x² + c₃ x³` as `n` limbs, where `x = βᵏ`. -/
 def toom32Assemble (n k : Nat) (c₀ c₁ c₂ c₃ : UInt32Array) : UInt32Array :=
-  let r₀ := addInto (.replicate n 0) 0 (c₀.toSlice 0 (n - 0))
-  let r₁ := addInto r₀ k (c₁.toSlice 0 (n - k))
-  let r₂ := addInto r₁ (2 * k) (c₂.toSlice 0 (n - 2 * k))
-  addInto r₂ (3 * k) (c₃.toSlice 0 (n - 3 * k))
+  assembleFrom (.replicate n 0) 0 k [c₀, c₁, c₂, c₃]
 
 private theorem toom32Assemble_spec (n k : Nat) (c₀ c₁ c₂ c₃ : UInt32Array) (C₀ C₁ C₂ C₃ : Nat)
     (hk : 3 * k ≤ n) (h₀ : toNat c₀ = C₀) (h₁ : toNat c₁ = C₁) (h₂ : toNat c₂ = C₂)
@@ -509,19 +483,15 @@ private theorem toom32Assemble_spec (n k : Nat) (c₀ c₁ c₂ c₃ : UInt32Arr
     (toom32Assemble n k c₀ c₁ c₂ c₃).size = n ∧
       toNat (toom32Assemble n k c₀ c₁ c₂ c₃) = C₀ + 2 ^ (32 * k) * C₁ +
         2 ^ (32 * (2 * k)) * C₂ + 2 ^ (32 * (3 * k)) * C₃ := by
-  generalize hS : C₀ + 2 ^ (32 * k) * C₁ + 2 ^ (32 * (2 * k)) * C₂ +
-    2 ^ (32 * (3 * k)) * C₃ = S at hlt
-  obtain ⟨s₀, v₀⟩ := addAt_term (.replicate n 0) c₀ n 0 0 C₀ S (by simp) (by lia)
-    (toNat_zeros n) h₀ (by simp; lia) hlt
-  obtain ⟨s₁, v₁⟩ := addAt_term _ c₁ n k _ C₁ S s₀ (by lia) v₀ h₁ (by
-    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; lia) hlt
-  obtain ⟨s₂, v₂⟩ := addAt_term _ c₂ n (2 * k) _ C₂ S s₁ (by lia) v₁ h₂ (by
-    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; lia) hlt
-  obtain ⟨s₃, v₃⟩ := addAt_term _ c₃ n (3 * k) _ C₃ S s₂ (by lia) v₂ h₃ (by
-    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; lia) hlt
-  refine ⟨s₃, ?_⟩
-  rw [toom32Assemble, v₃, ← hS]
-  simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul, Nat.zero_add]
+  have e : polyVal (2 ^ (32 * k)) [C₀, C₁, C₂, C₃] = C₀ + 2 ^ (32 * k) * C₁ +
+      2 ^ (32 * (2 * k)) * C₂ + 2 ^ (32 * (3 * k)) * C₃ := by
+    rw [pow_k k 2, pow_k k 3]
+    simp only [polyVal]
+    generalize 2 ^ (32 * k) = x
+    grind
+  obtain ⟨hs, hv⟩ := assemble_spec n k [c₀, c₁, c₂, c₃] [C₀, C₁, C₂, C₃] (by simp; lia)
+    (by simp only [List.map_cons, List.map_nil, h₀, h₁, h₂, h₃]) (by rw [e]; exact hlt)
+  exact ⟨hs, by rw [toom32Assemble, hv, e]⟩
 
 private theorem toom32_sum (A₀ A₁ A₂ B₀ B₁ x : Nat) :
     A₀ * B₀ + x * (A₀ * B₁ + A₁ * B₀) + x * x * (A₁ * B₁ + A₂ * B₀) + x * x * x * (A₂ * B₁) =
