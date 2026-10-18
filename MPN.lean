@@ -7,6 +7,7 @@ module
 public import MPN.Limbs
 public import MPN.Sum
 public import MPN.NatMod
+public import MPN.ListIndex
 public import MPN.UInt
 public import MPN.Basic
 public import MPN.Add
