@@ -192,6 +192,17 @@ block of the division, and `topSize` usually stops at the first limb.
   products `4096` −9%, `8192` −11%, `16384` −14% (9.07 → 7.76 ms), `1.5·2ᵏ` sizes −2 to −8%;
   squares −6% from 6144 limbs. Between 1344 and 3776 limbs the gain oscillates from −5% to +4%
   (mean −0.7%), with the sizes of the parts against the thresholds below.
+- [x] **Schoolbook products by rows** (`Mul.Rows`, `rowsMul`): each row `aᵢ b` adds the low half
+  of `aᵢ b_j` and the high half of `aᵢ b_{j-1}` into `UInt64` accumulator `i + j`, one
+  `foldInPlaceThen` per row with no carry chain, so LLVM vectorizes it (SSE2 by default); one pass
+  at the end propagates the carries. Proved with the value of the wide limbs (`accVal`) and a
+  bound of `2³³` per row on each accumulator. A `perf` profile had shown the Comba kernel at 56–76%
+  of `mul`, at 2.7 cycles and 12.7 instructions per limb product (4.7 per cycle: instruction
+  bound). From 16 limbs in all (Comba below, cheaper to set up). Kernel 0.58 → 0.45 ns per limb
+  product at 32 limbs, 0.39 → 0.27 at 256; the multiplier must enter the loop as a `UInt32`, or
+  LLVM vectorizes a 64-bit multiply. Re-tuned: Karatsuba from 112 (was 64) and every threshold
+  above it higher. `mul` 64 limbs −30%, 1024 −23%, 4096 −14% (4.58× `Nat`); `div` 4096 −18%.
+  Squares still use Comba's square (`csqOuter`); the same layout may help there.
 - [ ] **Toom-8½, Toom-6 by 5 and the like**: Toom-8 gained 7–11% over Toom-4 in a one-level
   prototype at 6144–16384 limbs, about as much as Toom-6; the generator handles any degree.
   Unbalanced Toom-6 shapes (beyond six fifths) still go to Toom-4 by 3.
