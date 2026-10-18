@@ -265,8 +265,12 @@ block of the division, and `topSize` usually stops at the first limb.
   (Zen 3 and the EPYC 76–80, the M2 and the Xeon 64; flat within 1% in whole products), `divDC`
   (Zen 3 now 224, the M2 168, the runners 104–136, default 176) and squaring on the M2
   (Karatsuba from about 196 and Toom-3 not below 980, against about 96 and 670–720 on x86), which
-  would need defaults per architecture (`mpn_config%` choosing by the build target). Wait for
-  more machines before changing these.
+  would need defaults per architecture (`mpn_config%` choosing by the build target). With Toom-4
+  (2026-10-17, M2 at `ec9d59e`): multiplication agrees (Toom-4 by 3 from 176 on Zen 3 and 192 on
+  the M2, Toom-4 from 416 and 480), but squaring does not: on the M2 Karatsuba squaring beats
+  Toom-3 squaring to the 972-limb cap and Toom-4 squaring to about 1000–1100, so `sqrToom4 = 576`
+  costs it up to 8% between 576 and 1000 limbs. Defaults per architecture will come, but after
+  the remaining algorithms are verified, so that the tuning sees all of them.
 - [ ] **A raw GMP baseline.** The `Nat` column is Lean's wrapper around GMP, which copies both
   the operand and the result and allocates twice per operation, so below about 64 limbs it
   measures mostly that overhead (we beat it there). Calling `mpn_*` directly needs C, so it
