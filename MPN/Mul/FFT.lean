@@ -99,7 +99,8 @@ public theorem sumRange_single_mod {f : Nat → Nat} {n F l : Nat} (hl : l < n)
     by_cases hln : l = n
     · subst hln
       have : sumRange f l % F = 0 := by
-        rw [sumRange_mod (g := fun _ => 0) (fun i hi => by rw [h i (by lia) (by lia), Nat.zero_mod]),
+        rw [sumRange_mod (g := fun _ => 0)
+            (fun i hi => by rw [h i (by lia) (by lia), Nat.zero_mod]),
           sumRange_const_zero, Nat.zero_mod]
       rw [Nat.add_mod, this, Nat.zero_add, Nat.mod_mod]
     · rw [Nat.add_mod, ih (by lia) (fun i hi hil => h i (by lia) hil), h n (by lia) (Ne.symm hln),

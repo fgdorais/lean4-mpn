@@ -37,12 +37,12 @@ namespace MPN
 /-! ## Fused passes -/
 
 /-- One limb as an array. -/
-def limbArray (c : UInt32) : UInt32Array := .replicate 1 c
+public def limbArray (c : UInt32) : UInt32Array := .replicate 1 c
 
-private theorem size_limbArray (c : UInt32) : (limbArray c).toSlice.size = 1 := by
+public theorem size_limbArray (c : UInt32) : (limbArray c).toSlice.size = 1 := by
   simp [limbArray]
 
-private theorem toNat_limbArray (c : UInt32) : toNat (limbArray c) = c.toNat := by
+public theorem toNat_limbArray (c : UInt32) : toNat (limbArray c) = c.toNat := by
   rw [toNat_toSlice]
   simp [limbArray, UInt32Array.toList_replicate]
 
@@ -487,7 +487,7 @@ private theorem toom43Interp_spec (c₀ w₁ w₂ w₃ w₄ c₅ : UInt32Array)
 
 /-! ## Products -/
 
-private theorem toNat_zeros (n : Nat) : toNat (UInt32Array.replicate n 0) = 0 := by
+public theorem toNat_zeros (n : Nat) : toNat (UInt32Array.replicate n 0) = 0 := by
   rw [toNat_toSlice]
   simp [UInt32Array.toList_replicate]
 
