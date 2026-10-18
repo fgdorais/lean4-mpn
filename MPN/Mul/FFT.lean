@@ -394,16 +394,50 @@ public theorem getD_polyMul_le (as bs : List Nat) (A B : Nat) (ha : ∀ a ∈ as
     rw [Nat.add_mul, Nat.one_mul]
     lia
 
-/-- The coefficients at even places. -/
-@[expose] public def evens : List Nat → List Nat
+/-- The entries at even places. -/
+@[expose] public def evens {α : Type} : List α → List α
   | a :: _ :: t => a :: evens t
   | [a] => [a]
   | [] => []
 
-/-- The coefficients at odd places. -/
-@[expose] public def odds : List Nat → List Nat
+/-- The entries at odd places. -/
+@[expose] public def odds {α : Type} : List α → List α
   | _ :: b :: t => b :: odds t
   | _ => []
+
+public theorem map_evens {α β : Type} (f : α → β) (as : List α) :
+    (evens as).map f = evens (as.map f) := by
+  induction as using evens.induct with
+  | case1 a b t ih => simp [evens, ih]
+  | case2 a => simp [evens]
+  | case3 => simp [evens]
+
+public theorem map_odds {α β : Type} (f : α → β) (as : List α) :
+    (odds as).map f = odds (as.map f) := by
+  induction as using evens.induct with
+  | case1 a b t ih => simp [odds, ih]
+  | case2 a => simp [odds]
+  | case3 => simp [odds]
+
+public theorem mem_evens {α : Type} {as : List α} {x : α} (h : x ∈ evens as) : x ∈ as := by
+  induction as using evens.induct with
+  | case1 a b t ih =>
+    simp only [evens, List.mem_cons] at h
+    rcases h with h | h
+    · simp [h]
+    · simp [ih h]
+  | case2 a => simpa [evens] using h
+  | case3 => simp [evens] at h
+
+public theorem mem_odds {α : Type} {as : List α} {x : α} (h : x ∈ odds as) : x ∈ as := by
+  induction as using evens.induct with
+  | case1 a b t ih =>
+    simp only [odds, List.mem_cons] at h
+    rcases h with h | h
+    · simp [h]
+    · simp [ih h]
+  | case2 a => simp [odds] at h
+  | case3 => simp [odds] at h
 
 /-- `p(x) = p_even(x²) + x p_odd(x²)`, the split of the radix-2 transform. -/
 public theorem polyVal_evens_odds (x : Nat) (as : List Nat) :
@@ -413,7 +447,7 @@ public theorem polyVal_evens_odds (x : Nat) (as : List Nat) :
   | case2 a => simp [evens, odds, polyVal]
   | case3 => simp [evens, odds, polyVal]
 
-public theorem length_evens_odds (as : List Nat) (k : Nat) (h : as.length = 2 * k) :
+public theorem length_evens_odds {α : Type} (as : List α) (k : Nat) (h : as.length = 2 * k) :
     (evens as).length = k ∧ (odds as).length = k := by
   induction as using evens.induct generalizing k with
   | case1 a b t ih =>
