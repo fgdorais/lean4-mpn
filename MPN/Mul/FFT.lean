@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN.Mul.Toom4
+public import MPN.Sum
 
 /-!
 # FFT multiplication
@@ -16,95 +17,14 @@ transform of length `K` with the root of unity `ω = 2^(2N / K)`: multiplying by
 a shift, so the transforms need no products, and the `K` pointwise products are products of `N`
 bits.
 
-This first part is the arithmetic modulo `F` behind the transform, on natural numbers: finite
-sums, and the inversion of the transform. The transform of length `K` inverts because its
+This first part is the arithmetic modulo `F` behind the transform, on natural numbers (with the
+finite sums of `MPN.Sum`): the inversion of the transform. The transform of length `K` inverts because its
 geometric sums `1 + x + ⋯ + x^(K - 1)` are the products `(1 + x) (1 + x²) ⋯ (1 + x^(K / 2))`, one
 of whose factors vanishes when `x` is a power of `ω` other than `1`, since `ω^(K / 2) ≡ -1`. No
 division and no primality are needed.
 -/
 
 namespace MPN.FFT
-
-/-! ## Finite sums -/
-
-/-- `f 0 + f 1 + ⋯ + f (n - 1)`. -/
-@[expose] public def sumRange (f : Nat → Nat) : Nat → Nat
-  | 0 => 0
-  | n + 1 => sumRange f n + f n
-
-@[simp] public theorem sumRange_zero (f : Nat → Nat) : sumRange f 0 = 0 := rfl
-
-public theorem sumRange_succ (f : Nat → Nat) (n : Nat) :
-    sumRange f (n + 1) = sumRange f n + f n := rfl
-
-public theorem sumRange_congr {f g : Nat → Nat} {n : Nat} (h : ∀ i < n, f i = g i) :
-    sumRange f n = sumRange g n := by
-  induction n with
-  | zero => rfl
-  | succ n ih =>
-    rw [sumRange_succ, sumRange_succ, ih (fun i hi => h i (by lia)), h n (by lia)]
-
-/-- Sums of terms that agree modulo `F` agree modulo `F`. -/
-public theorem sumRange_mod {f g : Nat → Nat} {n F : Nat} (h : ∀ i < n, f i % F = g i % F) :
-    sumRange f n % F = sumRange g n % F := by
-  induction n with
-  | zero => rfl
-  | succ n ih =>
-    rw [sumRange_succ, sumRange_succ, Nat.add_mod, ih (fun i hi => h i (by lia)), h n (by lia),
-      ← Nat.add_mod]
-
-public theorem sumRange_mul_left (c : Nat) (f : Nat → Nat) (n : Nat) :
-    c * sumRange f n = sumRange (fun i => c * f i) n := by
-  induction n with
-  | zero => simp
-  | succ n ih => rw [sumRange_succ, sumRange_succ, Nat.mul_add, ih]
-
-public theorem sumRange_mul_right (c : Nat) (f : Nat → Nat) (n : Nat) :
-    sumRange f n * c = sumRange (fun i => f i * c) n := by
-  rw [Nat.mul_comm, sumRange_mul_left]
-  exact sumRange_congr fun i _ => Nat.mul_comm _ _
-
-public theorem sumRange_add (f g : Nat → Nat) (n : Nat) :
-    sumRange (fun i => f i + g i) n = sumRange f n + sumRange g n := by
-  induction n with
-  | zero => rfl
-  | succ n ih => rw [sumRange_succ, sumRange_succ, sumRange_succ, ih]; lia
-
-/-- Double sums can be summed in either order. -/
-public theorem sumRange_comm (f : Nat → Nat → Nat) (m n : Nat) :
-    sumRange (fun j => sumRange (fun i => f i j) m) n =
-      sumRange (fun i => sumRange (fun j => f i j) n) m := by
-  induction n with
-  | zero =>
-    simp only [sumRange_zero]
-    induction m with
-    | zero => rfl
-    | succ m ih => rw [sumRange_succ, ← ih]
-  | succ n ih =>
-    rw [sumRange_succ, ih, ← sumRange_add]
-    rfl
-
-public theorem sumRange_const_zero (n : Nat) : sumRange (fun _ => 0) n = 0 := by
-  induction n with
-  | zero => rfl
-  | succ n ih => rw [sumRange_succ, ih]
-
-/-- A sum whose terms vanish modulo `F` except at `l` is the term at `l`, modulo `F`. -/
-public theorem sumRange_single_mod {f : Nat → Nat} {n F l : Nat} (hl : l < n)
-    (h : ∀ i < n, i ≠ l → f i % F = 0) : sumRange f n % F = f l % F := by
-  induction n with
-  | zero => lia
-  | succ n ih =>
-    rw [sumRange_succ]
-    by_cases hln : l = n
-    · subst hln
-      have : sumRange f l % F = 0 := by
-        rw [sumRange_mod (g := fun _ => 0)
-            (fun i hi => by rw [h i (by lia) (by lia), Nat.zero_mod]),
-          sumRange_const_zero, Nat.zero_mod]
-      rw [Nat.add_mod, this, Nat.zero_add, Nat.mod_mod]
-    · rw [Nat.add_mod, ih (by lia) (fun i hi hil => h i (by lia) hil), h n (by lia) (Ne.symm hln),
-        Nat.add_zero, Nat.mod_mod]
 
 /-! ## Geometric sums of length `2ᵏ` -/
 

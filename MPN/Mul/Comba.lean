@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN.Basic
+public import MPN.Sum
 
 /-!
 # Comba multiplication
@@ -27,95 +28,54 @@ namespace MPN
 
 /-! ## Column sums -/
 
-/-- `f 0 + ⋯ + f (t - 1)`. -/
-public def sumTo (f : Nat → Nat) : Nat → Nat
-  | 0 => 0
-  | t + 1 => sumTo f t + f t
-
-private theorem sumTo_succ_left (f : Nat → Nat) (t : Nat) :
-    sumTo f (t + 1) = f 0 + sumTo (fun i => f (i + 1)) t := by
-  induction t with
-  | zero => simp [sumTo]
-  | succ t ih => rw [sumTo, ih, sumTo]; lia
-
-private theorem sumTo_add (f g : Nat → Nat) (t : Nat) :
-    sumTo (fun i => f i + g i) t = sumTo f t + sumTo g t := by
-  induction t with
-  | zero => rfl
-  | succ t ih => simp only [sumTo, ih]; lia
-
-private theorem sumTo_mul_left (c : Nat) (f : Nat → Nat) (t : Nat) :
-    sumTo (fun i => c * f i) t = c * sumTo f t := by
-  induction t with
-  | zero => simp [sumTo]
-  | succ t ih => simp only [sumTo, ih, Nat.mul_add]
-
-private theorem sumTo_congr {f g : Nat → Nat} {t : Nat} (h : ∀ i, i < t → f i = g i) :
-    sumTo f t = sumTo g t := by
-  induction t with
-  | zero => rfl
-  | succ t ih =>
-    rw [sumTo, sumTo, ih (fun i hi => h i (by lia)), h t (by lia)]
-
-/-- Terms that are zero from `t` to `u` don't change the sum. -/
-private theorem sumTo_extend {f : Nat → Nat} {t u : Nat} (htu : t ≤ u)
-    (h : ∀ i, t ≤ i → i < u → f i = 0) : sumTo f u = sumTo f t := by
-  induction u with
-  | zero => rw [Nat.le_zero.1 htu]
-  | succ u ih =>
-    rcases Nat.lt_or_ge t (u + 1) with h' | h'
-    · rw [sumTo, ih (by lia) (fun i hi hi' => h i hi (by lia)), h u (by lia) (by lia),
-        Nat.add_zero]
-    · rw [show t = u + 1 by lia]
-
 /-- The `i`-th limb of `l`, zero past its end, as a number. -/
 public def limbD (l : List UInt32) (i : Nat) : Nat := (l.getD i 0).toNat
 
 /-- The products of column `k`, from `i = 0` to `t - 1`. -/
 public def colPart (la lb : List UInt32) (k t : Nat) : Nat :=
-  sumTo (fun i => limbD la i * limbD lb (k - i)) t
+  sumRange (fun i => limbD la i * limbD lb (k - i)) t
 
 /-- The sum of column `k` of the product of `la` and `lb`. -/
 public def colSum (la lb : List UInt32) (k : Nat) : Nat := colPart la lb k (k + 1)
 
 /-- `Σ_{k < N} βᵏ colSum k`. -/
 public def weighted (la lb : List UInt32) (N : Nat) : Nat :=
-  sumTo (fun k => 2 ^ (32 * k) * colSum la lb k) N
+  sumRange (fun k => 2 ^ (32 * k) * colSum la lb k) N
 
-private theorem sumTo_limbs (l : List UInt32) (N : Nat) (h : l.length ≤ N) :
-    sumTo (fun k => 2 ^ (32 * k) * limbD l k) N = ofLimbs l := by
+private theorem sumRange_limbs (l : List UInt32) (N : Nat) (h : l.length ≤ N) :
+    sumRange (fun k => 2 ^ (32 * k) * limbD l k) N = ofLimbs l := by
   induction l generalizing N with
   | nil =>
-    rw [sumTo_extend (Nat.zero_le N) (fun i _ _ => by simp [limbD])]
+    rw [sumRange_extend (Nat.zero_le N) (fun i _ _ => by simp [limbD])]
     rfl
   | cons x l ih =>
     obtain ⟨N, rfl⟩ : ∃ N', N = N' + 1 := ⟨N - 1, by simp at h; lia⟩
-    have hs : sumTo (fun i => 2 ^ (32 * (i + 1)) * limbD (x :: l) (i + 1)) N =
-        sumTo (fun i => 2 ^ 32 * (2 ^ (32 * i) * limbD l i)) N :=
-      sumTo_congr fun i _ => by
+    have hs : sumRange (fun i => 2 ^ (32 * (i + 1)) * limbD (x :: l) (i + 1)) N =
+        sumRange (fun i => 2 ^ 32 * (2 ^ (32 * i) * limbD l i)) N :=
+      sumRange_congr fun i _ => by
         simp only [limbD, List.getD_cons_succ]
         rw [Nat.mul_add, Nat.pow_add, Nat.mul_one, Nat.mul_comm (2 ^ (32 * i)) (2 ^ 32),
           Nat.mul_assoc]
-    rw [sumTo_succ_left, hs, sumTo_mul_left, ih N (by simp at h; lia), ofLimbs_cons]
+    rw [sumRange_succ_left, hs, ← sumRange_mul_left, ih N (by simp at h; lia), ofLimbs_cons]
     simp [limbD]
 
 private theorem colSum_cons_zero (x : UInt32) (la lb : List UInt32) :
     colSum (x :: la) lb 0 = x.toNat * limbD lb 0 := by
-  simp [colSum, colPart, sumTo, limbD]
+  simp [colSum, colPart, sumRange, limbD]
 
 private theorem colSum_cons_succ (x : UInt32) (la lb : List UInt32) (k : Nat) :
     colSum (x :: la) lb (k + 1) = x.toNat * limbD lb (k + 1) + colSum la lb k := by
-  rw [colSum, colPart, sumTo_succ_left, colSum, colPart]
-  have hs : sumTo (fun i => limbD (x :: la) (i + 1) * limbD lb (k + 1 - (i + 1))) (k + 1) =
-      sumTo (fun i => limbD la i * limbD lb (k - i)) (k + 1) :=
-    sumTo_congr fun i _ => by
+  rw [colSum, colPart, sumRange_succ_left, colSum, colPart]
+  have hs : sumRange (fun i => limbD (x :: la) (i + 1) * limbD lb (k + 1 - (i + 1))) (k + 1) =
+      sumRange (fun i => limbD la i * limbD lb (k - i)) (k + 1) :=
+    sumRange_congr fun i _ => by
       simp only [limbD, List.getD_cons_succ]
       rw [show k + 1 - (i + 1) = k - i by lia]
   rw [hs]
   simp [limbD]
 
 private theorem colSum_nil (lb : List UInt32) (k : Nat) : colSum [] lb k = 0 := by
-  rw [colSum, colPart, sumTo_extend (t := 0) (Nat.zero_le _) (fun i _ _ => by simp [limbD])]
+  rw [colSum, colPart, sumRange_extend (n := 0) (Nat.zero_le _) (fun i _ _ => by simp [limbD])]
   rfl
 
 /-- The columns of a product, weighted by their place, add up to the product. -/
@@ -123,20 +83,20 @@ public theorem weighted_eq (la lb : List UInt32) (N : Nat) (h : la.length + lb.l
     weighted la lb N = ofLimbs la * ofLimbs lb := by
   induction la generalizing N with
   | nil =>
-    rw [weighted, sumTo_extend (t := 0) (Nat.zero_le N) (fun k _ _ => by
+    rw [weighted, sumRange_extend (n := 0) (Nat.zero_le N) (fun k _ _ => by
       rw [colSum_nil, Nat.mul_zero])]
-    simp [sumTo]
+    simp [sumRange]
   | cons x la ih =>
     rcases N with _ | N
     · -- No column at all: `lb` is empty.
       have : lb = [] := List.eq_nil_of_length_eq_zero (by simp at h; lia)
       subst this
-      simp [weighted, sumTo]
-    · have hs : sumTo (fun k => 2 ^ (32 * (k + 1)) * colSum (x :: la) lb (k + 1)) N =
-          x.toNat * sumTo (fun k => 2 ^ (32 * (k + 1)) * limbD lb (k + 1)) N +
+      simp [weighted, sumRange]
+    · have hs : sumRange (fun k => 2 ^ (32 * (k + 1)) * colSum (x :: la) lb (k + 1)) N =
+          x.toNat * sumRange (fun k => 2 ^ (32 * (k + 1)) * limbD lb (k + 1)) N +
             2 ^ 32 * weighted la lb N := by
-        rw [weighted, ← sumTo_mul_left, ← sumTo_mul_left, ← sumTo_add]
-        apply sumTo_congr
+        rw [weighted, sumRange_mul_left, sumRange_mul_left, ← sumRange_add]
+        apply sumRange_congr
         intro i _
         rw [colSum_cons_succ]
         have e : 2 ^ (32 * (i + 1)) = 2 ^ 32 * 2 ^ (32 * i) := by
@@ -147,13 +107,13 @@ public theorem weighted_eq (la lb : List UInt32) (N : Nat) (h : la.length + lb.l
         generalize limbD lb (i + 1) = y
         generalize colSum la lb i = c
         rw [Nat.mul_add, Nat.mul_left_comm (B * P), Nat.mul_assoc B P c]
-      have hl := sumTo_limbs lb (N + 1) (by simp at h; lia)
-      rw [sumTo_succ_left] at hl
+      have hl := sumRange_limbs lb (N + 1) (by simp at h; lia)
+      rw [sumRange_succ_left] at hl
       simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul] at hl
-      rw [weighted, sumTo_succ_left, colSum_cons_zero, hs, ih N (by simp at h; lia),
+      rw [weighted, sumRange_succ_left, colSum_cons_zero, hs, ih N (by simp at h; lia),
         ofLimbs_cons, ← hl]
       simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]
-      generalize sumTo (fun k => 2 ^ (32 * (k + 1)) * limbD lb (k + 1)) N = S
+      generalize sumRange (fun k => 2 ^ (32 * (k + 1)) * limbD lb (k + 1)) N = S
       generalize limbD lb 0 = y
       generalize ofLimbs la = A
       generalize (2 : Nat) ^ 32 = B
@@ -161,22 +121,6 @@ public theorem weighted_eq (la lb : List UInt32) (N : Nat) (h : la.length + lb.l
       simp only [Nat.mul_add]
 
 /-! ## Column sums of a square -/
-
-private theorem sumTo_append (f : Nat → Nat) (a b : Nat) :
-    sumTo f (a + b) = sumTo f a + sumTo (fun i => f (a + i)) b := by
-  induction b with
-  | zero => rfl
-  | succ b ih => rw [← Nat.add_assoc, sumTo, ih, sumTo, Nat.add_assoc]
-
-private theorem sumTo_reflect (f : Nat → Nat) (t : Nat) :
-    sumTo (fun i => f (t - 1 - i)) t = sumTo f t := by
-  induction t with
-  | zero => rfl
-  | succ t ih =>
-    rw [sumTo_succ_left, sumTo]
-    have : sumTo (fun i => f (t + 1 - 1 - (i + 1))) t = sumTo (fun i => f (t - 1 - i)) t :=
-      sumTo_congr fun i _ => by rw [show t + 1 - 1 - (i + 1) = t - 1 - i by lia]
-    rw [this, ih, show t + 1 - 1 - 0 = t by lia, Nat.add_comm]
 
 /-- The diagonal term of column `k` of a square: `a_{k/2}²` when `k` is even. -/
 public def sqDiagCol (la : List UInt32) (k : Nat) : Nat :=
@@ -196,10 +140,10 @@ public theorem colSum_sq (la : List UInt32) (k : Nat) :
   · -- `k = 2h`: the products below `h`, the diagonal `h`, and those above, reflected.
     obtain ⟨h, rfl⟩ : ∃ h, k = 2 * h := ⟨k / 2, by lia⟩
     rw [show (2 * h + 1) / 2 = h by lia, ite_eq_left he, show 2 * h + 1 = h + (h + 1) by lia,
-      sumTo_append, sumTo_succ_left]
-    have hup : sumTo (fun i => f (h + (i + 1))) h = sumTo f h := by
-      rw [← sumTo_reflect f h]
-      exact sumTo_congr fun i hi => by
+      sumRange_append, sumRange_succ_left]
+    have hup : sumRange (fun i => f (h + (i + 1))) h = sumRange f h := by
+      rw [← sumRange_reflect f h]
+      exact sumRange_congr fun i hi => by
         rw [← hsym (h + (i + 1)) (by lia), show 2 * h - (h + (i + 1)) = h - 1 - i by lia]
     have hd : f (h + 0) = limbD la (2 * h / 2) * limbD la (2 * h / 2) := by
       rw [← hf]; dsimp only; rw [show 2 * h / 2 = h by lia, show 2 * h - (h + 0) = h by lia,
@@ -209,10 +153,10 @@ public theorem colSum_sq (la : List UInt32) (k : Nat) :
   · -- `k = 2h - 1`: the products below `h`, and those above, reflected.
     obtain ⟨h, rfl⟩ : ∃ h, k = 2 * h + 1 := ⟨k / 2, by lia⟩
     rw [show (2 * h + 1 + 1) / 2 = h + 1 by lia, ite_eq_right (by lia),
-      show 2 * h + 1 + 1 = (h + 1) + (h + 1) by lia, sumTo_append]
-    have hup : sumTo (fun i => f (h + 1 + i)) (h + 1) = sumTo f (h + 1) := by
-      rw [← sumTo_reflect f (h + 1)]
-      exact sumTo_congr fun i hi => by
+      show 2 * h + 1 + 1 = (h + 1) + (h + 1) by lia, sumRange_append]
+    have hup : sumRange (fun i => f (h + 1 + i)) (h + 1) = sumRange f (h + 1) := by
+      rw [← sumRange_reflect f (h + 1)]
+      exact sumRange_congr fun i hi => by
         rw [← hsym (h + 1 + i) (by lia), show 2 * h + 1 - (h + 1 + i) = h + 1 - 1 - i by lia]
     rw [hup]
     lia
@@ -408,7 +352,7 @@ private theorem colLoop_spec (aa : UInt32Array) (sa na : USize) (ha : aa.size < 
       (by rw [hi1]; lia) (by rw [hi1]; lia) (lo + ((x.toUInt64 * y.toUInt64) &&& 0xFFFFFFFF))
       (hi + ((x.toUInt64 * y.toUInt64) >>> 32))
       (by
-        rw [hlo', hhi', hi1, colPart, sumTo, ← colPart, ← hx, ← hy, Nat.mul_add]
+        rw [hlo', hhi', hi1, colPart, sumRange, ← colPart, ← hx, ← hy, Nat.mul_add]
         have := Nat.div_add_mod (x.toNat * y.toNat) (2 ^ 32)
         lia)
       (by rw [hlo', hi1]; lia) (by rw [hhi', hi1]; lia) (by rw [hi1]; lia)
@@ -574,7 +518,7 @@ private theorem colLoopW_spec (aa : UInt32Array) (sa na : USize) (ha : aa.size <
     obtain ⟨acc', w', heq, hacc', hw''⟩ := ih (i + 1) (by rw [hi1]; lia) (by rw [hi1]; lia)
       (acc + p) (w + bit)
       (by
-        rw [hw', hi1, colPart, sumTo, ← colPart, ← hx, ← hy, ← hp]
+        rw [hw', hi1, colPart, sumRange, ← colPart, ← hx, ← hy, ← hp]
         lia)
       (by rw [hw', hi1]; lia) (by rw [hi1]; lia)
     refine ⟨acc', w', heq, hacc', ?_⟩
@@ -760,9 +704,9 @@ private theorem limbD_lt (l : List UInt32) (j : Nat) : limbD l j < 2 ^ 32 :=
 private theorem colPart_le (la lb : List UInt32) (k t : Nat) :
     colPart la lb k t ≤ t * 2 ^ 64 := by
   induction t with
-  | zero => simp [colPart, sumTo]
+  | zero => simp [colPart, sumRange]
   | succ t ih =>
-    rw [colPart, sumTo, ← colPart, Nat.succ_mul]
+    rw [colPart, sumRange, ← colPart, Nat.succ_mul]
     have := Nat.mul_le_mul (Nat.le_of_lt (limbD_lt la t)) (Nat.le_of_lt (limbD_lt lb (k - t)))
     have : (2 : Nat) ^ 32 * 2 ^ 32 = 2 ^ 64 := by decide
     lia
@@ -770,7 +714,7 @@ private theorem colPart_le (la lb : List UInt32) (k t : Nat) :
 /-- The products of column `k` below `k + 1 - nb` read limbs of `lb` past its end. -/
 private theorem colPart_start (la lb : List UInt32) (k : Nat) :
     colPart la lb k (k + 1 - lb.length) = 0 := by
-  rw [colPart, sumTo_extend (t := 0) (Nat.zero_le _) (fun i _ hi => by
+  rw [colPart, sumRange_extend (n := 0) (Nat.zero_le _) (fun i _ hi => by
     rw [limbD_of_length_le (l := lb) (by lia), Nat.mul_zero])]
   rfl
 
@@ -778,7 +722,7 @@ private theorem colPart_start (la lb : List UInt32) (k : Nat) :
 private theorem colPart_end (la lb : List UInt32) (k : Nat) :
     colPart la lb k (min (k + 1) la.length) = colSum la lb k := by
   unfold colSum colPart
-  exact (sumTo_extend (Nat.min_le_left _ _) (fun i hi _ => by
+  exact (sumRange_extend (Nat.min_le_left _ _) (fun i hi _ => by
     rw [limbD_of_length_le (l := la) (by lia), Nat.zero_mul])).symm
 
 private theorem combaOuter_spec (aa : UInt32Array) (sa na : USize) (ha : aa.size < USize.size)
@@ -1063,7 +1007,7 @@ public theorem combaMul_spec (a b : UInt32Array.Slice) (h : CombaOK a b) :
       (by rw [hspec, hkE', weighted_eq _ _ _ (by simp; lia)]; rfl)
   have hv0 : ofLimbs (UInt32Array.replicate (a.size + b.size + 1) 0).toList =
       weighted a.copy.toList b.copy.toList (0 : USize).toNat := by
-    simp [weighted, sumTo, UInt32Array.toList_replicate, ofLimbs_replicate_zero]
+    simp [weighted, UInt32Array.toList_replicate, ofLimbs_replicate_zero]
   by_cases hw : a.size < 32 ∨ b.size < 32
   · have heq : combaMul a b h = (combaOuter a.array a.start.toUSize a.size.toUSize ha
         (limbU_bound a ha) b.array b.start.toUSize b.size.toUSize hb (limbU_bound b hb)
@@ -1327,7 +1271,7 @@ public theorem csqMul_spec (a : UInt32Array.Slice) (h : SqrOK a) :
   have hspec := csqOuter_spec a.array a.start.toUSize a.size.toUSize ha (limbU_bound a ha)
     (2 * a.size - 1).toUSize hkE a.copy.toList (by simp [hsa]) (limbs_read a ha)
     (by rw [hsa]; have := h.2.1; lia) _ hrs hr0 0 (by simp)
-    (by simp [weighted, sumTo, UInt32Array.toList_replicate, ofLimbs_replicate_zero])
+    (by simp [weighted, UInt32Array.toList_replicate, ofLimbs_replicate_zero])
     (fun j _ _ => by simp)
   have hsize := size_csqOuter a.array a.start.toUSize a.size.toUSize ha (limbU_bound a ha)
     (2 * a.size - 1).toUSize hkE _ hrs hr0 0 (by simp)
