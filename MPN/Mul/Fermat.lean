@@ -93,7 +93,8 @@ public theorem size_reduceSmall {n : Nat} (M : FermatMod n) (x : UInt32Array) :
   · rw [size_subVal, M.size_eq]
   · rw [size_subVal]; exact size_copyPadded _ _ (by simp; lia)
 
-public theorem toNat_reduceSmall {n : Nat} (M : FermatMod n) (x : UInt32Array) (hn1 : 1 ≤ n) (hn : n ≤ x.size)
+public theorem toNat_reduceSmall {n : Nat} (M : FermatMod n) (x : UInt32Array) (hn1 : 1 ≤ n)
+    (hn : n ≤ x.size)
     (hx : toNat x < 2 ^ (32 * n) * 2 ^ 32) : toNat (reduceSmall M x) = toNat x % fermat n := by
   have hsplit := toNat_split x n hn
   have hlo : toNat (x.toSlice 0 n) < 2 ^ (32 * n) := by
@@ -140,12 +141,15 @@ public theorem toNat_reduceSmall {n : Nat} (M : FermatMod n) (x : UInt32Array) (
 /-! ## Sums and differences -/
 
 /-- `x + y` modulo `F`, for residues `x` and `y`. -/
-public def addMod {n : Nat} (M : FermatMod n) (x y : UInt32Array) : UInt32Array := reduceSmall M (addLimbs x y)
+public def addMod {n : Nat} (M : FermatMod n) (x y : UInt32Array) : UInt32Array := reduceSmall M
+    (addLimbs x y)
 
-public theorem size_addMod {n : Nat} (M : FermatMod n) (x y : UInt32Array) : (addMod M x y).size = n + 1 :=
+public theorem size_addMod {n : Nat} (M : FermatMod n) (x y : UInt32Array) :
+    (addMod M x y).size = n + 1 :=
   size_reduceSmall M _
 
-public theorem toNat_addMod {n : Nat} (M : FermatMod n) (x y : UInt32Array) (hn : 1 ≤ n) (hx : x.size = n + 1)
+public theorem toNat_addMod {n : Nat} (M : FermatMod n) (x y : UInt32Array) (hn : 1 ≤ n)
+    (hx : x.size = n + 1)
     (hy : y.size = n + 1) (hxF : toNat x < fermat n) (hyF : toNat y < fermat n) :
     toNat (addMod M x y) = (toNat x + toNat y) % fermat n := by
   have hP : 2 ^ 32 ≤ 2 ^ (32 * n) := Nat.pow_le_pow_right (by decide) (by lia)
@@ -169,7 +173,8 @@ public theorem size_subMod {n : Nat} (M : FermatMod n) (x y : UInt32Array) (hx :
   · rw [size_subVal, M.size_eq]
   · rw [size_subVal, hx]
 
-public theorem toNat_subMod {n : Nat} (M : FermatMod n) (x y : UInt32Array) (hxF : toNat x < fermat n)
+public theorem toNat_subMod {n : Nat} (M : FermatMod n) (x y : UInt32Array)
+    (hxF : toNat x < fermat n)
     (hyF : toNat y < fermat n) :
     toNat (subMod M x y) = (toNat x + fermat n - toNat y) % fermat n := by
   by_cases h : toNat x < toNat y
@@ -186,7 +191,8 @@ public theorem toNat_subMod {n : Nat} (M : FermatMod n) (x y : UInt32Array) (hxF
       show toNat x + fermat n - toNat y = (toNat x - toNat y) + 1 * fermat n by lia,
       Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt (by lia)]
 
-public theorem toNat_subMod_lt {n : Nat} (M : FermatMod n) (x y : UInt32Array) (hxF : toNat x < fermat n)
+public theorem toNat_subMod_lt {n : Nat} (M : FermatMod n) (x y : UInt32Array)
+    (hxF : toNat x < fermat n)
     (hyF : toNat y < fermat n) : toNat (subMod M x y) < fermat n := by
   rw [toNat_subMod M x y hxF hyF]
   exact Nat.mod_lt _ (by simp [fermat])
@@ -265,7 +271,8 @@ public theorem toNat_rotWords {n : Nat} (M : FermatMod n) (x : UInt32Array) (w :
   rw [← Nat.add_mod_right ((L + 2 ^ (32 * (n - w)) * Hv) * 2 ^ (32 * w)), e,
     Nat.add_mul_mod_self_right]
 
-public theorem toNat_rotWords_lt {n : Nat} (M : FermatMod n) (x : UInt32Array) (w : Nat) (hw : w < n)
+public theorem toNat_rotWords_lt {n : Nat} (M : FermatMod n) (x : UInt32Array) (w : Nat)
+    (hw : w < n)
     (hx : x.size = n + 1) (hxF : toNat x < fermat n) : toNat (rotWords M x w) < fermat n := by
   rw [toNat_rotWords M x w hw hx hxF]
   exact Nat.mod_lt _ (by simp [fermat])
@@ -274,7 +281,8 @@ public theorem size_shiftBits {n : Nat} (M : FermatMod n) (y : UInt32Array) (b :
     (shiftBits M y b).size = n + 1 :=
   size_reduceSmall M _
 
-public theorem toNat_shiftBits {n : Nat} (M : FermatMod n) (y : UInt32Array) (b : Nat) (hn : 1 ≤ n) (hb : b < 32)
+public theorem toNat_shiftBits {n : Nat} (M : FermatMod n) (y : UInt32Array) (b : Nat)
+    (hn : 1 ≤ n) (hb : b < 32)
     (hy : y.size = n + 1) (hyF : toNat y < fermat n) :
     toNat (shiftBits M y b) = (toNat y * 2 ^ b) % fermat n := by
   have hb' : ((2 ^ b : Nat).toUInt32).toNat = 2 ^ b := by
@@ -291,7 +299,8 @@ public theorem toNat_shiftBits {n : Nat} (M : FermatMod n) (y : UInt32Array) (b 
   simp only [shiftBits]
   rw [toNat_reduceSmall M _ hn (by simp [hy]; lia) hlt, toNat_mulRow, hb']
 
-public theorem toNat_shiftBits_lt {n : Nat} (M : FermatMod n) (y : UInt32Array) (b : Nat) (hn : 1 ≤ n)
+public theorem toNat_shiftBits_lt {n : Nat} (M : FermatMod n) (y : UInt32Array) (b : Nat)
+    (hn : 1 ≤ n)
     (hb : b < 32) (hy : y.size = n + 1) (hyF : toNat y < fermat n) :
     toNat (shiftBits M y b) < fermat n := by
   rw [toNat_shiftBits M y b hn hb hy hyF]
@@ -394,10 +403,12 @@ public def normProd {n : Nat} (M : FermatMod n) (p : UInt32Array) : UInt32Array 
   subMod M (copyPadded (p.toSlice 0 n) (n + 1))
     (reduceSmall M (copyPadded (p.toSlice n p.size) (n + 2)))
 
-public theorem size_normProd {n : Nat} (M : FermatMod n) (p : UInt32Array) : (normProd M p).size = n + 1 :=
+public theorem size_normProd {n : Nat} (M : FermatMod n) (p : UInt32Array) :
+    (normProd M p).size = n + 1 :=
   size_subMod M _ _ (size_copyPadded _ _ (by simp; lia))
 
-public theorem toNat_normProd {n : Nat} (M : FermatMod n) (p : UInt32Array) (hn : 1 ≤ n) (hp : p.size ≤ 2 * n + 2)
+public theorem toNat_normProd {n : Nat} (M : FermatMod n) (p : UInt32Array) (hn : 1 ≤ n)
+    (hp : p.size ≤ 2 * n + 2)
     (hn' : n ≤ p.size) (hval : toNat p ≤ 2 ^ (32 * n) * 2 ^ (32 * n)) :
     toNat (normProd M p) = toNat p % fermat n := by
   have hFpos : 0 < fermat n := by simp [fermat]
@@ -446,6 +457,283 @@ public theorem toNat_normProd_lt {n : Nat} (M : FermatMod n) (p : UInt32Array) (
     (hp : p.size ≤ 2 * n + 2) (hn' : n ≤ p.size) (hval : toNat p ≤ 2 ^ (32 * n) * 2 ^ (32 * n)) :
     toNat (normProd M p) < fermat n := by
   rw [toNat_normProd M p hn hp hn' hval]
+  exact Nat.mod_lt _ (by simp [fermat])
+
+/-! ## In-place sums and differences -/
+
+/-- `2F` fits in `n + 1` limbs. -/
+private theorem two_fermat_lt (n : Nat) (hn : 1 ≤ n) : 2 * fermat n < 2 ^ (32 * (n + 1)) := by
+  have h₁ : 2 ^ (32 * (n + 1)) = 2 ^ (32 * n) * 2 ^ 32 := by rw [← Nat.pow_add]; congr 1
+  have h₂ : 2 ^ (32 * n) * 4 ≤ 2 ^ (32 * n) * 2 ^ 32 := Nat.mul_le_mul_left _ (by decide)
+  have h₃ : 2 ≤ 2 ^ (32 * n) := by
+    have := Nat.pow_le_pow_right (show 0 < 2 by decide) (show 1 ≤ 32 * n by lia)
+    simpa using this
+  simp only [fermat]; lia
+
+/--
+`x + y` modulo `F`, in place in `x` (a residue of `n + 1` limbs) when `x` is not shared: the sum
+fits in `n + 1` limbs, and `F` is subtracted when it is not below `F`.
+-/
+public def addModI {n : Nat} (M : FermatMod n) (x : UInt32Array) (y : UInt32Array.Slice) :
+    UInt32Array :=
+  let s := addInto x 0 y
+  if lt s M.arr then s else subInto s 0 M.arr
+
+public theorem size_addModI {n : Nat} (M : FermatMod n) (x : UInt32Array) (y : UInt32Array.Slice)
+    (hx : x.size = n + 1) (hy : y.size ≤ n + 1) : (addModI M x y).size = n + 1 := by
+  have hMs := M.size_eq
+  have hss : (addInto x 0 y).size = n + 1 := by rw [size_addInto _ _ _ (by lia), hx]
+  simp only [addModI]
+  split
+  · exact hss
+  · rw [size_subInto _ _ _ (by simp [hss, hMs]), hss]
+
+public theorem toNat_addModI {n : Nat} (M : FermatMod n) (x : UInt32Array) (y : UInt32Array.Slice)
+    (hn : 1 ≤ n) (hx : x.size = n + 1) (hy : y.size ≤ n + 1) (hxF : toNat x < fermat n)
+    (hyF : toNat y < fermat n) : toNat (addModI M x y) = (toNat x + toNat y) % fermat n := by
+  have h2 := two_fermat_lt n hn
+  have hMs := M.size_eq
+  have hF := M.toNat_eq
+  have hlt : toNat x + 2 ^ (32 * 0) * toNat y < 2 ^ (32 * x.size) := by
+    rw [hx]; simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; lia
+  have hs : toNat (addInto x 0 y) = toNat x + toNat y := by
+    rw [toNat_addInto_of_lt _ _ _ (by lia) hlt]; simp
+  have hss : (addInto x 0 y).size = n + 1 := by rw [size_addInto _ _ _ (by lia), hx]
+  by_cases h : toNat x + toNat y < fermat n
+  · have e : addModI M x y = addInto x 0 y := by
+      have : lt (addInto x 0 y) M.arr = true := by rw [lt_iff, hs, hF]; exact h
+      simp only [addModI, this, ↓reduceIte]
+    rw [e, hs, Nat.mod_eq_of_lt h]
+  · have e : addModI M x y = subInto (addInto x 0 y) 0 M.arr := by
+      have : lt (addInto x 0 y) M.arr = false := by
+        rw [Bool.eq_false_iff, ne_eq, lt_iff, hs, hF]; exact h
+      simp only [addModI, this, Bool.false_eq_true, ↓reduceIte]
+    have hle : 2 ^ (32 * 0) * toNat M.arr ≤ toNat (addInto x 0 y) := by
+      simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul, hs, hF]; lia
+    rw [e, toNat_subInto_of_le _ _ _ (by simp [hss, hMs]) hle, hs, hF]
+    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]
+    rw [Nat.mod_eq_sub_mod (by lia), Nat.mod_eq_of_lt (by lia)]
+
+/--
+`x - y` modulo `F`, in place in `x` (a residue of `n + 1` limbs) when `x` is not shared: `x - y`
+when `y ≤ x`, and `(x + F) - y` otherwise, which also fits in `n + 1` limbs.
+-/
+public def subModI {n : Nat} (M : FermatMod n) (x : UInt32Array) (y : UInt32Array.Slice) :
+    UInt32Array :=
+  if lt x y then subInto (addInto x 0 M.arr) 0 y else subInto x 0 y
+
+public theorem size_subModI {n : Nat} (M : FermatMod n) (x : UInt32Array) (y : UInt32Array.Slice)
+    (hx : x.size = n + 1) (hy : y.size ≤ n + 1) : (subModI M x y).size = n + 1 := by
+  have hMs := M.size_eq
+  have has : (addInto x 0 M.arr).size = n + 1 := by
+    rw [size_addInto _ _ _ (by simp [hx, hMs]), hx]
+  simp only [subModI]
+  split
+  · rw [size_subInto _ _ _ (by rw [has]; lia), has]
+  · rw [size_subInto _ _ _ (by lia), hx]
+
+public theorem toNat_subModI {n : Nat} (M : FermatMod n) (x : UInt32Array) (y : UInt32Array.Slice)
+    (hn : 1 ≤ n) (hx : x.size = n + 1) (hy : y.size ≤ n + 1) (hxF : toNat x < fermat n)
+    (hyF : toNat y < fermat n) :
+    toNat (subModI M x y) = (toNat x + fermat n - toNat y) % fermat n := by
+  have h2 := two_fermat_lt n hn
+  have hMs := M.size_eq
+  have hF := M.toNat_eq
+  by_cases h : toNat x < toNat y
+  · have e : subModI M x y = subInto (addInto x 0 M.arr) 0 y := by
+      have : lt x y = true := by rw [lt_iff]; exact h
+      simp only [subModI, this, ↓reduceIte]
+    have hlt : toNat x + 2 ^ (32 * 0) * toNat M.arr < 2 ^ (32 * x.size) := by
+      rw [hx, hF]; simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; lia
+    have ha : toNat (addInto x 0 M.arr) = toNat x + fermat n := by
+      rw [toNat_addInto_of_lt _ _ _ (by simp [hx, hMs]) hlt, hF]; simp
+    have has : (addInto x 0 M.arr).size = n + 1 := by
+      rw [size_addInto _ _ _ (by simp [hx, hMs]), hx]
+    have hle : 2 ^ (32 * 0) * toNat y ≤ toNat (addInto x 0 M.arr) := by
+      simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul, ha]; lia
+    rw [e, toNat_subInto_of_le _ _ _ (by rw [has]; lia) hle, ha]
+    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]
+    rw [Nat.mod_eq_of_lt (by lia)]
+  · have e : subModI M x y = subInto x 0 y := by
+      have : lt x y = false := by rw [Bool.eq_false_iff, ne_eq, lt_iff]; exact h
+      simp only [subModI, this, Bool.false_eq_true, ↓reduceIte]
+    have hle : 2 ^ (32 * 0) * toNat y ≤ toNat x := by
+      simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]; lia
+    rw [e, toNat_subInto_of_le _ _ _ (by lia) hle]
+    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul]
+    rw [show toNat x + fermat n - toNat y = (toNat x - toNat y) + 1 * fermat n by lia,
+      Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt (by lia)]
+
+/-! ## Multiplication by a power of two, with fewer arrays -/
+
+/--
+`x 2^(32 w + b)` modulo `F`, negated when `neg`: `y = x 2ᵇ` by `mulRow`, then its low `n - w`
+limbs `w` limbs up minus its top limbs, which are read in place; the other way round for the
+negation.
+-/
+public def mulPow2Core {n : Nat} (M : FermatMod n) (x : UInt32Array) (w b : Nat) (neg : Bool) :
+    UInt32Array :=
+  let y := mulRow x (2 ^ b).toUInt32
+  let A := addInto (.replicate (n + 1) 0) w (y.toSlice 0 (n - w))
+  if neg then subModI M (copyPadded (y.toSlice (n - w) (n + 2)) (n + 1)) A
+  else subModI M A (y.toSlice (n - w) (n + 2))
+
+/-- `x 2ˢ` modulo `F`, by `mulPow2Core` with `32 w + b = s mod N` and the sign of `2^(s mod 2N)`. -/
+public def mulPow2I {n : Nat} (M : FermatMod n) (x : UInt32Array) (s : Nat) : UInt32Array :=
+  let t := s % (64 * n)
+  if t < 32 * n then mulPow2Core M x (t / 32) (t % 32) false
+  else mulPow2Core M x ((t - 32 * n) / 32) ((t - 32 * n) % 32) true
+
+public theorem size_mulPow2Core {n : Nat} (M : FermatMod n) (x : UInt32Array) (w b : Nat)
+    (neg : Bool) (hw : w < n) (hx : x.size = n + 1) : (mulPow2Core M x w b neg).size = n + 1 := by
+  have hA : (addInto (.replicate (n + 1) 0) w
+      ((mulRow x (2 ^ b).toUInt32).toSlice 0 (n - w))).size = n + 1 := by
+    rw [size_addInto _ _ _ (by simp; lia)]; simp
+  simp only [mulPow2Core]
+  split
+  · exact size_subModI M _ _ (size_copyPadded _ _ (by simp [hx]; lia)) (by simp; lia)
+  · exact size_subModI M _ _ hA (by simp [hx]; lia)
+
+public theorem size_mulPow2I {n : Nat} (M : FermatMod n) (x : UInt32Array) (s : Nat)
+    (hn : 1 ≤ n) (hx : x.size = n + 1) : (mulPow2I M x s).size = n + 1 := by
+  have ht : s % (64 * n) < 64 * n := Nat.mod_lt _ (by lia)
+  simp only [mulPow2I]
+  split
+  · exact size_mulPow2Core M _ _ _ _ (by lia) hx
+  · exact size_mulPow2Core M _ _ _ _ (by lia) hx
+
+private theorem rot_val (L H P Q R : Int) (h : Q * P = R) :
+    P * L + (R + 1) - H - (L + Q * H) * P = (R + 1) * (1 - H) := by
+  subst h; grind
+
+private theorem rot_val_neg (L H P Q R : Int) (h : Q * P = R) :
+    H + (R + 1) - P * L - (L + Q * H) * P * R = (R + 1) * (1 - P * L - (R - 1) * H) := by
+  subst h; grind
+
+public theorem toNat_mulPow2Core {n : Nat} (M : FermatMod n) (x : UInt32Array) (w b : Nat)
+    (neg : Bool) (hn : 1 ≤ n) (hw : w < n) (hb : b < 32) (hx : x.size = n + 1)
+    (hxF : toNat x < fermat n) :
+    toNat (mulPow2Core M x w b neg) =
+      (toNat x * 2 ^ (32 * w + b) * (if neg then 2 ^ (32 * n) else 1)) % fermat n := by
+  have hb' : ((2 ^ b : Nat).toUInt32).toNat = 2 ^ b := by
+    simp only [Nat.toUInt32_eq, UInt32.toNat_ofNat']
+    exact Nat.mod_eq_of_lt (Nat.pow_lt_pow_right (by decide) hb)
+  have e₀ : mulPow2Core M x w b false = subModI M (addInto (.replicate (n + 1) 0) w
+      ((mulRow x (2 ^ b).toUInt32).toSlice 0 (n - w)))
+      ((mulRow x (2 ^ b).toUInt32).toSlice (n - w) (n + 2)) := by
+    simp only [mulPow2Core, Bool.false_eq_true, ↓reduceIte]
+  have e₁ : mulPow2Core M x w b true = subModI M
+      (copyPadded ((mulRow x (2 ^ b).toUInt32).toSlice (n - w) (n + 2)) (n + 1))
+      (addInto (.replicate (n + 1) 0) w ((mulRow x (2 ^ b).toUInt32).toSlice 0 (n - w))) := by
+    simp only [mulPow2Core, ↓reduceIte]
+  -- `y = x 2ᵇ`, below `2ᴺ 2³²`.
+  have hy : toNat (mulRow x (2 ^ b).toUInt32) = toNat x * 2 ^ b := by rw [toNat_mulRow, hb']
+  have hys : (mulRow x (2 ^ b).toUInt32).size = n + 2 := by simp [hx]
+  have hylt : toNat x * 2 ^ b < 2 ^ (32 * n) * 2 ^ 32 := by
+    have hP : 2 ^ b ≤ 2 ^ 31 := Nat.pow_le_pow_right (by decide) (by lia)
+    simp only [fermat] at hxF
+    have := Nat.mul_le_mul (show toNat x ≤ 2 ^ (32 * n) by lia) hP
+    have : 2 ^ (32 * n) * 2 ^ 31 < 2 ^ (32 * n) * 2 ^ 32 :=
+      Nat.mul_lt_mul_of_pos_left (by decide) (Nat.two_pow_pos _)
+    lia
+  generalize mulRow x (2 ^ b).toUInt32 = y at e₀ e₁ hy hys
+  have hsplit := toNat_split y (n - w) (by lia)
+  have hLlt : toNat (y.toSlice 0 (n - w)) < 2 ^ (32 * (n - w)) := by
+    have := toNat_lt (y.toSlice 0 (n - w))
+    simpa [show min (n - w) y.size = n - w by lia] using this
+  have hpow : 2 ^ (32 * n) = 2 ^ (32 * (n - w)) * 2 ^ (32 * w) := by
+    rw [← Nat.pow_add]; congr 1; lia
+  -- The top limbs are below `2^(32 (w + 1)) ≤ 2ᴺ`.
+  have hH : toNat (y.toSlice (n - w) y.size) < 2 ^ (32 * n) := by
+    have h₁ : 2 ^ (32 * (n - w)) * toNat (y.toSlice (n - w) y.size) <
+        2 ^ (32 * (n - w)) * (2 ^ (32 * w) * 2 ^ 32) := by
+      rw [← Nat.mul_assoc, ← hpow]; lia
+    have h₂ := Nat.lt_of_mul_lt_mul_left h₁
+    have h₃ : 2 ^ (32 * w) * 2 ^ 32 ≤ 2 ^ (32 * n) := by
+      rw [← Nat.pow_add]; exact Nat.pow_le_pow_right (by decide) (by lia)
+    lia
+  have hHs : toNat (y.toSlice (n - w) (n + 2)) = toNat (y.toSlice (n - w) y.size) := by
+    rw [hys]
+  -- The low limbs, moved up by `w` limbs.
+  have hz := toNat_zeros (n + 1)
+  have hz' : toNat ((UInt32Array.replicate (n + 1) 0).toSlice 0 (n + 1)) = 0 := by
+    simpa using hz
+  have hAlt : 2 ^ (32 * w) * toNat (y.toSlice 0 (n - w)) < 2 ^ (32 * n) := by
+    rw [hpow, Nat.mul_comm (2 ^ (32 * (n - w)))]
+    exact Nat.mul_lt_mul_of_pos_left hLlt (Nat.two_pow_pos _)
+  have hA : toNat (addInto (.replicate (n + 1) 0) w (y.toSlice 0 (n - w))) =
+      2 ^ (32 * w) * toNat (y.toSlice 0 (n - w)) := by
+    have hle : 2 ^ (32 * n) ≤ 2 ^ (32 * (n + 1)) := Nat.pow_le_pow_right (by decide) (by lia)
+    have hfit : w + (y.toSlice 0 (n - w)).size ≤ (UInt32Array.replicate (n + 1) 0).size := by
+      simp; lia
+    have hlt : toNat (UInt32Array.replicate (n + 1) 0) + 2 ^ (32 * w) *
+        toNat (y.toSlice 0 (n - w)) < 2 ^ (32 * (UInt32Array.replicate (n + 1) 0).size) := by
+      simp only [UInt32Array.size_replicate, hz']; lia
+    rw [toNat_addInto_of_lt _ _ _ hfit hlt]
+    simp_all
+  have hAs : (addInto (.replicate (n + 1) 0) w (y.toSlice 0 (n - w))).size = n + 1 := by
+    rw [size_addInto _ _ _ (by simp; lia)]; simp
+  have hx2 : toNat x * 2 ^ (32 * w + b) = toNat y * 2 ^ (32 * w) := by
+    rw [Nat.pow_add, hy, Nat.mul_comm (2 ^ (32 * w)), Nat.mul_assoc]
+  have hPQ : ((2 ^ (32 * (n - w)) : Nat) : Int) * ((2 ^ (32 * w) : Nat) : Int) =
+      ((2 ^ (32 * n) : Nat) : Int) := by rw [← Int.natCast_mul, ← hpow]
+  generalize toNat (y.toSlice 0 (n - w)) = L at *
+  generalize toNat (y.toSlice (n - w) y.size) = H at *
+  cases neg
+  · rw [e₀]
+    simp only [Bool.false_eq_true, ↓reduceIte, Nat.mul_one]
+    rw [toNat_subModI M _ _ hn hAs (by simp; lia) (by rw [hA]; simp only [fermat]; lia)
+      (by rw [hHs]; simp only [fermat]; lia), hA, hHs, hx2, hsplit]
+    apply FFT.mod_eq_iff_dvd.2
+    -- `(L + Q H) P - (P L + F - H) = (H - 1) F` with `P Q = 2ᴺ`, `F = 2ᴺ + 1`.
+    refine ⟨1 - (H : Int), ?_⟩
+    rw [Int.ofNat_sub (by simp only [fermat]; lia)]
+    simp only [fermat]
+    push_cast at hPQ ⊢
+    exact rot_val _ _ _ _ _ hPQ
+  · rw [e₁]
+    simp only [↓reduceIte]
+    have hcp : toNat (copyPadded (y.toSlice (n - w) (n + 2)) (n + 1)) = H := by
+      rw [toNat_copyPadded, hHs]
+    rw [toNat_subModI M _ _ hn (size_copyPadded _ _ (by simp; lia)) (by simp [hAs])
+      (by rw [hcp]; simp only [fermat]; lia) (by rw [hA]; simp only [fermat]; lia), hcp, hA,
+      hx2, hsplit]
+    apply FFT.mod_eq_iff_dvd.2
+    -- `(L + Q H) P 2ᴺ - (H + F - P L) = (P L + (2ᴺ - 1) H - 1) F`.
+    refine ⟨1 - ((2 ^ (32 * w) : Nat) : Int) * L - (((2 ^ (32 * n) : Nat) : Int) - 1) * H, ?_⟩
+    rw [Int.ofNat_sub (by simp only [fermat]; lia)]
+    simp only [fermat]
+    push_cast at hPQ ⊢
+    exact rot_val_neg _ _ _ _ _ hPQ
+
+public theorem toNat_mulPow2I {n : Nat} (M : FermatMod n) (x : UInt32Array) (s : Nat)
+    (hn : 1 ≤ n) (hx : x.size = n + 1) (hxF : toNat x < fermat n) :
+    toNat (mulPow2I M x s) = (toNat x * 2 ^ s) % fermat n := by
+  have hq : (2 ^ s) % fermat n = (2 ^ (s % (64 * n))) % fermat n := by
+    have hA : ((2 ^ (64 * n)) ^ (s / (64 * n))) % fermat n = 1 % fermat n := by
+      rw [Nat.pow_mod, two_pow_period, ← Nat.pow_mod, Nat.one_pow]
+    conv => lhs; rw [← Nat.div_add_mod s (64 * n), Nat.pow_add, Nat.pow_mul]
+    rw [Nat.mul_mod, hA, ← Nat.mul_mod, Nat.one_mul]
+  have hs : (toNat x * 2 ^ s) % fermat n = (toNat x * 2 ^ (s % (64 * n))) % fermat n := by
+    rw [Nat.mul_mod, hq, ← Nat.mul_mod]
+  rw [hs]
+  have ht : s % (64 * n) < 64 * n := Nat.mod_lt _ (by lia)
+  by_cases h : s % (64 * n) < 32 * n
+  · have e : mulPow2I M x s = mulPow2Core M x (s % (64 * n) / 32) (s % (64 * n) % 32) false := by
+      simp only [mulPow2I, h, ↓reduceIte]
+    rw [e, toNat_mulPow2Core M _ _ _ _ hn (by lia) (Nat.mod_lt _ (by decide)) hx hxF]
+    simp only [Bool.false_eq_true, ↓reduceIte, Nat.mul_one, Nat.div_add_mod]
+  · have e : mulPow2I M x s = mulPow2Core M x ((s % (64 * n) - 32 * n) / 32)
+        ((s % (64 * n) - 32 * n) % 32) true := by
+      simp only [mulPow2I, h, ↓reduceIte]
+    rw [e, toNat_mulPow2Core M _ _ _ _ hn (by lia) (Nat.mod_lt _ (by decide)) hx hxF]
+    simp only [↓reduceIte, Nat.div_add_mod]
+    rw [Nat.mul_assoc, ← Nat.pow_add, show s % (64 * n) - 32 * n + 32 * n = s % (64 * n) by lia]
+
+public theorem toNat_mulPow2I_lt {n : Nat} (M : FermatMod n) (x : UInt32Array) (s : Nat)
+    (hn : 1 ≤ n) (hx : x.size = n + 1) (hxF : toNat x < fermat n) :
+    toNat (mulPow2I M x s) < fermat n := by
+  rw [toNat_mulPow2I M x s hn hx hxF]
   exact Nat.mod_lt _ (by simp [fermat])
 
 end MPN.Fermat

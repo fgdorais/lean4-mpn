@@ -31,8 +31,9 @@ public def transform {n : Nat} (M : FermatMod n) : Nat → Nat → List UInt32Ar
   | k + 1, e, xs =>
     let ev := transform M k (2 * e) (evens xs)
     let od := transform M k (2 * e) (odds xs)
-    let tw := List.zipWith (fun o j => mulPow2 M o (e * j)) od (List.range (2 ^ k))
-    List.zipWith (addMod M) ev tw ++ List.zipWith (subMod M) ev tw
+    let tw := List.zipWith (fun o j => mulPow2I M o (e * j)) od (List.range (2 ^ k))
+    List.zipWith (fun x (y : UInt32Array) => addModI M x y) ev tw ++ List.zipWith (fun x
+      (y : UInt32Array) => subModI M x y) ev tw
 
 /-- The values of a list of arrays. -/
 @[expose] public def vals (xs : List UInt32Array) : List Nat :=
@@ -74,14 +75,6 @@ public theorem mem_of_getD {α : Type} (l : List α) (i : Nat) (d : α) (h : i <
   rw [getD_of_lt _ _ _ h]; exact List.getElem_mem h
 
 /-! ## Congruences -/
-
-/-- A congruence of natural numbers is a divisibility of their difference in `Int`. -/
-public theorem mod_eq_iff_dvd {a b F : Nat} : a % F = b % F ↔ (F : Int) ∣ (a : Int) - b := by
-  rw [← Int.ofNat_inj, Int.natCast_emod, Int.natCast_emod, Int.emod_eq_emod_iff_emod_sub_eq_zero,
-    Int.dvd_iff_emod_eq_zero]
-
-public theorem dvd_mod_sub (x F : Nat) : (F : Int) ∣ ((x % F : Nat) : Int) - x :=
-  mod_eq_iff_dvd.1 (Nat.mod_mod _ _)
 
 /-- The sum of a butterfly. -/
 private theorem butterfly_add (A B s F : Nat) :
@@ -168,26 +161,31 @@ public theorem transform_spec {n : Nat} (M : FermatMod n) (hn : 1 ≤ n) (k : Na
     generalize transform M k (2 * e) (evens xs) = E at *
     generalize transform M k (2 * e) (odds xs) = O at *
     -- The twiddled odd values.
-    have ltw : (List.zipWith (fun o j => mulPow2 M o (e * j)) O (List.range (2 ^ k))).length =
+    have ltw : (List.zipWith (fun o j => mulPow2I M o (e * j)) O (List.range (2 ^ k))).length =
         2 ^ k := by simp [lo]
-    have vtw : ∀ j < 2 ^ k, (List.zipWith (fun o j => mulPow2 M o (e * j)) O
-        (List.range (2 ^ k))).getD j default = mulPow2 M (O.getD j default) (e * j) :=
+    have vtw : ∀ j < 2 ^ k, (List.zipWith (fun o j => mulPow2I M o (e * j)) O
+        (List.range (2 ^ k))).getD j default = mulPow2I M (O.getD j default) (e * j) :=
         fun j hj => by
       rw [getD_zipWith _ _ _ _ _ default 0 (by rw [lo]; exact hj) (by simpa using hj),
         getD_range _ _ _ hj]
-    generalize List.zipWith (fun o j => mulPow2 M o (e * j)) O (List.range (2 ^ k)) = T at *
+    generalize List.zipWith (fun o j => mulPow2I M o (e * j)) O (List.range (2 ^ k)) = T at *
     have rO := ro
     have rE := re
     have rT : ∀ j < 2 ^ k, IsRes n (T.getD j default) := fun j hj => by
       rw [vtw j hj]
-      exact ⟨size_mulPow2 M _ _, toNat_mulPow2_lt M _ _ hn (rO j hj).1 (rO j hj).2⟩
-    have l1 : (List.zipWith (addMod M) E T).length = 2 ^ k := by simp [le, ltw]
-    have g1 : ∀ j < 2 ^ k, (List.zipWith (addMod M) E T ++ List.zipWith (subMod M) E T).getD j
-        default = addMod M (E.getD j default) (T.getD j default) := fun j hj => by
+      exact ⟨size_mulPow2I M _ _ hn (rO j hj).1, toNat_mulPow2I_lt M _ _ hn (rO j hj).1 (rO j hj).2⟩
+    have l1 : (List.zipWith (fun x
+      (y : UInt32Array) => addModI M x y) E T).length = 2 ^ k := by simp [le, ltw]
+    have g1 : ∀ j < 2 ^ k, (List.zipWith (fun x
+      (y : UInt32Array) => addModI M x y) E T ++ List.zipWith (fun x
+          (y : UInt32Array) => subModI M x y) E T).getD j
+        default = addModI M (E.getD j default) (T.getD j default) := fun j hj => by
       rw [getD_append_left _ _ _ _ (by rw [l1]; exact hj),
         getD_zipWith _ _ _ _ _ default default (by rw [le]; exact hj) (by rw [ltw]; exact hj)]
-    have g2 : ∀ j < 2 ^ k, (List.zipWith (addMod M) E T ++ List.zipWith (subMod M) E T).getD
-        (j + 2 ^ k) default = subMod M (E.getD j default) (T.getD j default) := fun j hj => by
+    have g2 : ∀ j < 2 ^ k, (List.zipWith (fun x
+      (y : UInt32Array) => addModI M x y) E T ++ List.zipWith (fun x
+          (y : UInt32Array) => subModI M x y) E T).getD
+        (j + 2 ^ k) default = subModI M (E.getD j default) (T.getD j default) := fun j hj => by
       rw [getD_append_right _ _ _ _ (by rw [l1]; lia), l1, Nat.add_sub_cancel,
         getD_zipWith _ _ _ _ _ default default (by rw [le]; exact hj) (by rw [ltw]; exact hj)]
     -- The values of the halves.
@@ -197,27 +195,34 @@ public theorem transform_spec {n : Nat} (M : FermatMod n) (hn : 1 ≤ n) (k : Na
     have hTv : ∀ j < 2 ^ k, toNat (T.getD j default) =
         (polyVal (2 ^ (2 * e * j)) (odds (vals xs)) % fermat n * 2 ^ (e * j)) % fermat n :=
       fun j hj => by
-        rw [vtw j hj, toNat_mulPow2 M _ _ hn (rO j hj).1 (rO j hj).2, vo j hj, vals, vals,
+        rw [vtw j hj, toNat_mulPow2I M _ _ hn (rO j hj).1 (rO j hj).2, vo j hj, vals, vals,
           map_odds]
+    have hTs : ∀ j < 2 ^ k, (T.getD j default).toSlice.size ≤ n + 1 := fun j hj => by
+      simp only [UInt32Array.size_toSlice, (rT j hj).1]; lia
     have hsq : ∀ j, 2 ^ (e * j) * 2 ^ (e * j) = 2 ^ (2 * e * j) := fun j => by
       rw [← Nat.pow_add, Nat.mul_assoc, Nat.two_mul]
     refine ⟨by simp [le, ltw, Nat.pow_succ]; lia, fun j hj => ?_, fun j hj => ?_⟩
     · rcases Nat.lt_or_ge j (2 ^ k) with h | h
       · rw [g1 j h]
-        exact ⟨size_addMod M _ _, by
-          rw [toNat_addMod M _ _ hn (rE j h).1 (rT j h).1 (rE j h).2 (rT j h).2]
+        exact ⟨size_addModI M _ _ (rE j h).1 (hTs j h), by
+          rw [toNat_addModI M _ _ hn (rE j h).1 (hTs j h) (rE j h).2 (rT j h).2]
           exact Nat.mod_lt _ hFpos⟩
       · obtain ⟨j', rfl⟩ : ∃ j', j = j' + 2 ^ k := ⟨j - 2 ^ k, by lia⟩
         have h' : j' < 2 ^ k := by rw [Nat.pow_succ] at hj; lia
         rw [g2 j' h']
-        exact ⟨size_subMod M _ _ (rE j' h').1, toNat_subMod_lt M _ _ (rE j' h').2 (rT j' h').2⟩
+        exact ⟨size_subModI M _ _ (rE j' h').1 (hTs j' h'), by
+          rw [toNat_subModI M _ _ hn (rE j' h').1 (hTs j' h') (rE j' h').2
+            (rT j' h').2]
+          exact Nat.mod_lt _ hFpos⟩
     · rcases Nat.lt_or_ge j (2 ^ k) with h | h
-      · rw [g1 j h, toNat_addMod M _ _ hn (rE j h).1 (rT j h).1 (rE j h).2 (rT j h).2, hEv j h,
+      · rw [g1 j h, toNat_addModI M _ _ hn (rE j h).1 (hTs j h) (rE j h).2 (rT j h).2,
+          hEv j h,
           hTv j h, butterfly_add]
         conv => rhs; rw [polyVal_evens_odds, hsq]
       · obtain ⟨j', rfl⟩ : ∃ j', j = j' + 2 ^ k := ⟨j - 2 ^ k, by lia⟩
         have h' : j' < 2 ^ k := by rw [Nat.pow_succ] at hj; lia
-        rw [g2 j' h', toNat_subMod M _ _ (rE j' h').2 (rT j' h').2, hEv j' h', hTv j' h']
+        rw [g2 j' h', toNat_subModI M _ _ hn (rE j' h').1 (hTs j' h') (rE j' h').2
+          (rT j' h').2, hEv j' h', hTv j' h']
         conv => rhs; rw [polyVal_evens_odds,
           show 2 ^ (e * (j' + 2 ^ k)) = 2 ^ (e * j') * 2 ^ (e * 2 ^ k) by
             rw [Nat.mul_add, Nat.pow_add]]
@@ -374,7 +379,7 @@ public def fftMulAt (a b : UInt32Array.Slice) (k m n : Nat)
     let y := fb.getD j default
     if h : x.toSlice.size + y.toSlice.size < a.size + b.size then normProd M (mulRec x y h)
     else x
-  let c := (transform M k (64 * n - e) fc).map fun z => mulPow2 M z (64 * n - k)
+  let c := (transform M k (64 * n - e) fc).map fun z => mulPow2I M z (64 * n - k)
   assembleFrom (.replicate (a.size + b.size) 0) 0 m (c.take ((a.size + b.size + m - 1) / m))
 
 /-- `⌈a / m⌉ + ⌈b / m⌉ ≤ ⌈(a + b) / m⌉ + 1`. -/
@@ -481,18 +486,22 @@ public theorem fftMulAt_spec (a b : UInt32Array.Slice) (k m n : Nat) (hk : 1 ≤
     simp only [UInt32Array.size_toSlice, (rfa j hj).1, (rfb j hj).1]; lia
   have hfc : ∀ j (hj : j < K), ((List.range K).map fun j =>
       if h : (FA.getD j default).toSlice.size + (FB.getD j default).toSlice.size <
-        a.size + b.size then normProd (fermatMod n) (mulRec (FA.getD j default) (FB.getD j default) h)
+        a.size + b.size then normProd (fermatMod n) (mulRec (FA.getD j default)
+          (FB.getD j default) h)
       else FA.getD j default).getD j default =
-        normProd (fermatMod n) (mulRec (FA.getD j default) (FB.getD j default) (hcond j hj)) := fun j hj => by
+        normProd (fermatMod n) (mulRec (FA.getD j default) (FB.getD j default)
+          (hcond j hj)) := fun j hj => by
     rw [getD_of_lt _ _ _ (by simp; lia), List.getElem_map, List.getElem_range,
       dite_eq_left (hcond j hj)]
   have lFC : ((List.range K).map fun j =>
       if h : (FA.getD j default).toSlice.size + (FB.getD j default).toSlice.size <
-        a.size + b.size then normProd (fermatMod n) (mulRec (FA.getD j default) (FB.getD j default) h)
+        a.size + b.size then normProd (fermatMod n) (mulRec (FA.getD j default)
+          (FB.getD j default) h)
       else FA.getD j default).length = K := by simp
   generalize ((List.range K).map fun j =>
       if h : (FA.getD j default).toSlice.size + (FB.getD j default).toSlice.size <
-        a.size + b.size then normProd (fermatMod n) (mulRec (FA.getD j default) (FB.getD j default) h)
+        a.size + b.size then normProd (fermatMod n) (mulRec (FA.getD j default)
+          (FB.getD j default) h)
       else FA.getD j default) = FC at *
   have vFC : ∀ j < K, IsRes n (FC.getD j default) ∧
       toNat (FC.getD j default) = polyVal (2 ^ (e * j)) Z % fermat n := fun j hj => by
@@ -503,7 +512,8 @@ public theorem fftMulAt_spec (a b : UInt32Array.Slice) (k m n : Nat) (hk : 1 ≤
     have hval : toNat (mulRec (FA.getD j default) (FB.getD j default) (hcond j hj)) ≤
         2 ^ (32 * n) * 2 ^ (32 * n) := by
       rw [hpv]; exact Nat.mul_le_mul (hres _ (rfa j hj)) (hres _ (rfb j hj))
-    refine ⟨⟨size_normProd (fermatMod n) _, toNat_normProd_lt (fermatMod n) _ hn (by lia) (by lia) hval⟩, ?_⟩
+    refine ⟨⟨size_normProd (fermatMod n) _, toNat_normProd_lt (fermatMod n) _ hn (by lia)
+      (by lia) hval⟩, ?_⟩
     rw [toNat_normProd (fermatMod n) _ hn (by lia) (by lia) hval, hpv, vfa j hj, vfb j hj, hfa, hfb,
       ← Nat.mul_mod, ← polyVal_polyMul, hZ]
   -- The inverse transform, with `ω⁻¹ = 2^(64 n - e)`.
@@ -562,14 +572,14 @@ public theorem fftMulAt_spec (a b : UInt32Array.Slice) (k m n : Nat) (hk : 1 ≤
     have h₁ : k < 2 ^ k := Nat.lt_two_pow_self
     have h₂ : K ≤ 64 * n := Nat.le_of_dvd (by lia) hdiv
     lia
-  have hC : ∀ l < K, toNat ((G.map fun z => mulPow2 (fermatMod n) z (64 * n - k)).getD l default) =
+  have hC : ∀ l < K, toNat ((G.map fun z => mulPow2I (fermatMod n) z (64 * n - k)).getD l default) =
       Z.getD l 0 := fun l hl => by
     rw [getD_of_lt _ _ _ (by simp; lia), List.getElem_map, ← getD_of_lt _ _ default (by lia),
-      toNat_mulPow2 (fermatMod n) _ _ hn (rG l hl).1 (rG l hl).2, hG l hl, Nat.mod_mul_mod, ← hK,
+      toNat_mulPow2I (fermatMod n) _ _ hn (rG l hl).1 (rG l hl).2, hG l hl, Nat.mod_mul_mod, ← hK,
       Nat.mul_comm (2 ^ k), Nat.mul_assoc, ← Nat.pow_add, show k + (64 * n - k) = 64 * n by lia,
       Nat.mul_mod, two_pow_period, ← Nat.mul_mod, Nat.mul_one, Nat.mod_eq_of_lt (hZlt l)]
-  have lC : (G.map fun z => mulPow2 (fermatMod n) z (64 * n - k)).length = K := by simp [lG]
-  generalize G.map (fun z => mulPow2 (fermatMod n) z (64 * n - k)) = C at *
+  have lC : (G.map fun z => mulPow2I (fermatMod n) z (64 * n - k)).length = K := by simp [lG]
+  generalize G.map (fun z => mulPow2I (fermatMod n) z (64 * n - k)) = C at *
   -- The assembly of the first `⌈(a + b) / m⌉` coefficients.
   have hceil := ceil_add_ceil a.size b.size m hm
   rw [hla, hlb] at hceil

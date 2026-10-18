@@ -274,6 +274,14 @@ public theorem inverse_mod (w w' F k : Nat) (hk : 1 ≤ k) (hw : (w ^ 2 ^ (k - 1
       exact sumRange_pow_two_mod hs hroot
     rw [Nat.mul_mod, hsum, Nat.mul_zero, Nat.zero_mod]
 
+/-- A congruence of natural numbers is a divisibility of their difference in `Int`. -/
+public theorem mod_eq_iff_dvd {a b F : Nat} : a % F = b % F ↔ (F : Int) ∣ (a : Int) - b := by
+  rw [← Int.ofNat_inj, Int.natCast_emod, Int.natCast_emod, Int.emod_eq_emod_iff_emod_sub_eq_zero,
+    Int.dvd_iff_emod_eq_zero]
+
+public theorem dvd_mod_sub (x F : Nat) : (F : Int) ∣ ((x % F : Nat) : Int) - x :=
+  mod_eq_iff_dvd.1 (Nat.mod_mod _ _)
+
 /-! ## Polynomials -/
 
 /-- `polyVal` is a finite sum, over any range that covers the coefficients. -/
