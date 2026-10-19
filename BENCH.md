@@ -35,7 +35,7 @@ rather than the ratios.
 - **Results are checked in O(1)** on both sides, so the time is the operation alone. (Before
   `15534f8`, `MPN.Nat` results were hashed, which inflated the large `b*` rows 2–4×.)
 - **Machine:** AMD Ryzen 5 5600X (Zen 3), Linux 7.1, Lean `v4.36.0-rc1`, lean4-scalar-arrays
-  `8ae4933`. Commit `2c454ec`, 2026-10-18.
+  `8ae4933`. Commit `4204471`, 2026-10-19.
 
 ### Operations
 
@@ -44,7 +44,7 @@ rather than the ratios.
 | `add`, `sub` | `add`, `sub` on limbs | `n` and `n` limbs | linear, one pass |
 | `mul1` | `mul1` | `n` limbs times a limb | linear, one pass |
 | `mul` | `mulLimbs` | `n` by `n` limbs | schoolbook by rows into wide accumulators (Comba below 16 limbs in all), Karatsuba from 112, Toom-4 from 608 (Toom-3 from 640 when Toom-4 is set higher), Toom-6 from 1792; Toom-4 by 3 from 272 between 6:5 and 15:8, Toom-3 by 2 from 192 between 4:3 and 15:8 below that, Toom-4 by 2 from 304 up to 2:1; the FFT from 36864 (beyond the table) |
-| `sqr` | `sqr` | `n` limbs | Comba square, Karatsuba from 96, Toom-4 from 576 (Toom-3 from 720 when Toom-4 is set higher), Toom-6 from 1792, the FFT from 28672 (beyond the table) |
+| `sqr` | `sqr` | `n` limbs | schoolbook square by rows into wide accumulators (Comba's square below 16 limbs), Karatsuba from 160, Toom-4 from 832 (Toom-3 from 944 when Toom-4 is set higher), Toom-6 from 2496, the FFT from 26624 (beyond the table) |
 | `div` | `div`, the quotient | `2n` by `n` limbs | `divRem1`, `divRem2`, Algorithm D, Burnikel–Ziegler from 176 |
 | `shr` | `shiftRight` by 37 bits | `n` limbs | one pass in place |
 | `badd` … `bdiv` | `MPN.Nat` `+ - * /` | as above (`bdiv`: `2n` by `n`) | word fast path, then as above |
@@ -62,49 +62,49 @@ Ratio MPN / Nat (below 1 is faster than Nat):
 
 | op | 1 | 2 | 4 | 8 | 16 | 32 | 64 | 128 | 256 | 512 | 1024 | 2048 | 4096 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `add` | 5.53 | 0.50 | 0.51 | 0.51 | 0.55 | 0.62 | 0.74 | 0.95 | 1.30 | 1.14 | 1.43 | 1.54 | 1.48 |
-| `sub` | 5.86 | 0.57 | 0.58 | 0.57 | 0.60 | 0.72 | 0.84 | 0.81 | 1.39 | 1.12 | 1.50 | 1.48 | 1.66 |
-| `mul1` | 2.98 | 0.27 | 0.30 | 0.33 | 0.35 | 0.41 | 0.52 | 0.71 | 1.05 | 1.01 | 1.31 | 1.43 | 1.47 |
-| `mul` | 3.58 | 0.58 | 0.65 | 1.08 | 1.64 | 2.22 | 2.88 | 3.54 | 3.81 | 3.93 | 4.33 | 4.87 | 4.58 |
-| `sqr` | 4.55 | 0.52 | 0.51 | 0.86 | 1.43 | 1.89 | 2.51 | 3.00 | 3.22 | 3.36 | 3.67 | 4.12 | 3.94 |
-| `div` | 4.53 | 1.81 | 2.23 | 2.68 | 3.42 | 4.80 | 6.29 | 8.04 | 7.49 | 6.46 | 6.30 | 6.17 | 6.89 |
-| `shr` | 1.98 | 1.44 | 0.87 | 0.86 | 0.87 | 0.88 | 0.88 | 0.98 | 1.18 | 0.98 | 1.13 | 1.22 | 1.19 |
-| `badd` | 1.86 | 0.36 | 0.82 | 0.80 | 0.71 | 0.75 | 0.86 | 1.03 | 1.42 | 1.22 | 1.37 |  |  |
-| `bsub` | 1.96 | 1.17 | 0.82 | 0.82 | 0.88 | 1.01 | 0.99 | 1.06 | 1.58 | 1.23 | 1.41 |  |  |
-| `bmul` | 1.68 | 0.46 | 0.77 | 1.09 | 1.77 | 2.23 | 2.85 | 3.49 | 3.69 | 3.95 | 4.30 |  |  |
-| `bdiv` | 1.76 | 1.76 | 2.52 | 2.78 | 3.09 | 4.58 | 6.11 | 8.06 | 7.48 | 6.39 | 6.31 |  |  |
-| `bgcd` | 0.45 | 1.30 | 4.61 | 3.95 | 3.61 | 3.73 | 3.82 | 4.06 | 4.51 | 4.65 | 4.13 |  |  |
-| `bshl` | 0.77 | 0.79 | 0.85 | 0.77 | 0.81 | 0.82 | 0.67 | 0.86 | 1.22 | 0.93 | 1.19 |  |  |
-| `bshr` | 1.72 | 0.27 | 0.84 | 0.81 | 0.69 | 0.82 | 0.76 | 0.92 | 1.18 | 0.79 | 0.94 |  |  |
-| `bsqrt` | 1.05 | 0.40 | 0.93 | 1.64 | 2.12 | 1.63 | 2.04 | 1.42 | 1.25 | 0.97 | 0.84 |  |  |
-| `btostr` | 0.94 | 0.86 | 0.06 | 0.05 | 0.05 | 0.05 | 0.06 | 0.07 | 0.09 | 0.09 | 0.10 |  |  |
-| `bofstr` | 2.24 | 0.97 | 0.19 | 0.11 | 0.09 | 0.09 | 0.09 | 0.09 | 0.09 | 0.09 | 0.10 |  |  |
-| `btonat` | 1.18 | 1.16 | 1.79 | 5.16 | 9.07 | 20.37 | 39.86 | 69.38 | 143.59 | 183.94 | 245.26 |  |  |
-| `bofnat` | 1.83 | 0.52 | 1.15 | 2.69 | 6.38 | 12.06 | 23.71 | 44.74 | 88.39 | 103.69 | 153.74 |  |  |
+| `add` | 4.86 | 0.52 | 0.53 | 0.51 | 0.55 | 0.60 | 0.74 | 0.95 | 1.30 | 1.19 | 1.44 | 1.56 | 1.49 |
+| `sub` | 5.69 | 0.59 | 0.59 | 0.58 | 0.56 | 0.69 | 0.81 | 0.76 | 1.37 | 1.14 | 1.49 | 1.51 | 1.69 |
+| `mul1` | 3.00 | 0.27 | 0.28 | 0.28 | 0.30 | 0.36 | 0.49 | 0.70 | 1.07 | 1.05 | 1.33 | 1.44 | 1.49 |
+| `mul` | 3.58 | 0.58 | 0.62 | 1.00 | 1.58 | 2.20 | 2.94 | 3.50 | 3.79 | 3.98 | 4.31 | 4.90 | 4.66 |
+| `sqr` | 3.87 | 0.51 | 0.55 | 0.87 | 1.37 | 1.63 | 1.87 | 2.05 | 2.25 | 2.38 | 2.85 | 3.08 | 3.18 |
+| `div` | 3.99 | 2.06 | 2.20 | 2.77 | 3.32 | 4.80 | 6.47 | 8.26 | 7.60 | 6.52 | 6.40 | 6.13 | 6.86 |
+| `shr` | 1.53 | 1.14 | 0.67 | 0.67 | 0.67 | 0.69 | 0.76 | 0.84 | 1.05 | 0.92 | 1.07 | 1.18 | 1.18 |
+| `badd` | 1.85 | 0.33 | 0.79 | 0.78 | 0.82 | 0.87 | 0.95 | 1.07 | 1.41 | 1.20 | 1.41 |  |  |
+| `bsub` | 1.87 | 1.36 | 0.93 | 0.85 | 0.93 | 0.94 | 1.00 | 1.10 | 1.61 | 1.26 | 1.42 |  |  |
+| `bmul` | 1.84 | 0.58 | 0.82 | 1.22 | 1.75 | 2.19 | 2.83 | 3.54 | 3.74 | 3.99 | 4.39 |  |  |
+| `bdiv` | 1.83 | 1.76 | 2.48 | 3.20 | 3.22 | 4.54 | 6.42 | 8.26 | 7.62 | 6.55 | 6.34 |  |  |
+| `bgcd` | 0.46 | 1.31 | 4.07 | 3.59 | 3.56 | 3.69 | 3.77 | 4.11 | 4.59 | 4.80 | 4.28 |  |  |
+| `bshl` | 0.65 | 0.96 | 0.73 | 0.67 | 0.73 | 0.71 | 0.78 | 0.79 | 1.21 | 0.93 | 1.14 |  |  |
+| `bshr` | 1.40 | 0.34 | 0.67 | 0.67 | 0.66 | 0.75 | 0.75 | 0.88 | 1.12 | 0.88 | 0.97 |  |  |
+| `bsqrt` | 1.09 | 0.40 | 0.90 | 1.61 | 2.14 | 1.62 | 2.00 | 1.35 | 1.19 | 0.89 | 0.79 |  |  |
+| `btostr` | 0.90 | 0.80 | 0.06 | 0.04 | 0.04 | 0.05 | 0.06 | 0.07 | 0.09 | 0.09 | 0.10 |  |  |
+| `bofstr` | 2.49 | 0.99 | 0.19 | 0.11 | 0.09 | 0.08 | 0.08 | 0.08 | 0.09 | 0.09 | 0.09 |  |  |
+| `btonat` | 0.96 | 0.95 | 1.98 | 5.02 | 11.23 | 22.90 | 44.29 | 69.75 | 151.63 | 182.75 | 247.89 |  |  |
+| `bofnat` | 1.65 | 0.57 | 1.12 | 2.58 | 7.11 | 14.31 | 24.85 | 51.35 | 92.05 | 110.08 | 153.03 |  |  |
 
 Time of MPN:
 
 | op | 1 | 2 | 4 | 8 | 16 | 32 | 64 | 128 | 256 | 512 | 1024 | 2048 | 4096 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `add` | 44.6 ns | 40.5 ns | 41.2 ns | 42.7 ns | 45.4 ns | 52.1 ns | 66.7 ns | 102 ns | 175 ns | 308 ns | 586 ns | 1.12 µs | 2.24 µs |
-| `sub` | 50.5 ns | 51.3 ns | 50.5 ns | 51.4 ns | 62.2 ns | 67 ns | 83.7 ns | 122 ns | 193 ns | 331 ns | 625 ns | 1.19 µs | 2.38 µs |
-| `mul1` | 31 ns | 31.9 ns | 35.4 ns | 39.6 ns | 42.1 ns | 50.7 ns | 71.3 ns | 108 ns | 204 ns | 367 ns | 710 ns | 1.35 µs | 2.64 µs |
-| `mul` | 34.8 ns | 47.2 ns | 63 ns | 100 ns | 192 ns | 472 ns | 1.45 µs | 4.85 µs | 15.1 µs | 46.4 µs | 129 µs | 368 µs | 972 µs |
-| `sqr` | 48.2 ns | 42.6 ns | 52 ns | 80.6 ns | 167 ns | 408 ns | 1.26 µs | 4.11 µs | 12.8 µs | 38.9 µs | 109 µs | 310 µs | 824 µs |
-| `div` | 43 ns | 94 ns | 212 ns | 306 ns | 527 ns | 1.21 µs | 3.33 µs | 11.5 µs | 36.2 µs | 106 µs | 317 µs | 920 µs | 2.66 ms |
-| `shr` | 19.6 ns | 59.5 ns | 63.8 ns | 64.3 ns | 64.7 ns | 68.3 ns | 72.3 ns | 86.7 ns | 125 ns | 195 ns | 341 ns | 609 ns | 1.2 µs |
-| `badd` | 14.9 ns | 31.5 ns | 66.2 ns | 66.8 ns | 69.4 ns | 73.9 ns | 91.5 ns | 127 ns | 199 ns | 331 ns | 612 ns |  |  |
-| `bsub` | 16.9 ns | 102 ns | 81.1 ns | 83.9 ns | 90.5 ns | 94.8 ns | 108 ns | 151 ns | 229 ns | 369 ns | 662 ns |  |  |
-| `bmul` | 16.3 ns | 48.7 ns | 86.6 ns | 128 ns | 221 ns | 507 ns | 1.48 µs | 4.81 µs | 15 µs | 46.2 µs | 128 µs |  |  |
-| `bdiv` | 15.6 ns | 91.8 ns | 248 ns | 339 ns | 560 ns | 1.24 µs | 3.38 µs | 11.6 µs | 36.2 µs | 106 µs | 317 µs |  |  |
-| `bgcd` | 46.6 ns | 77.2 ns | 802 ns | 2.32 µs | 4.4 µs | 10 µs | 23.4 µs | 57.7 µs | 165 µs | 493 µs | 1.64 ms |  |  |
-| `bshl` | 77.1 ns | 80.7 ns | 65.4 ns | 63.5 ns | 64.9 ns | 69.2 ns | 71.9 ns | 91.6 ns | 134 ns | 213 ns | 398 ns |  |  |
-| `bshr` | 17.1 ns | 17 ns | 67.5 ns | 68.2 ns | 68.7 ns | 72.4 ns | 77.8 ns | 93.8 ns | 133 ns | 203 ns | 345 ns |  |  |
-| `bsqrt` | 97.7 ns | 534 ns | 1.31 µs | 2.63 µs | 4.39 µs | 5.77 µs | 11.6 µs | 28.7 µs | 80.3 µs | 232 µs | 663 µs |  |  |
-| `btostr` | 27.5 ns | 30.2 ns | 427 ns | 831 ns | 1.87 µs | 4.65 µs | 12.9 µs | 40.4 µs | 140 µs | 518 µs | 1.98 ms |  |  |
-| `bofstr` | 316 ns | 452 ns | 735 ns | 1.29 µs | 2.51 µs | 5.08 µs | 10.7 µs | 23.9 µs | 59.8 µs | 167 µs | 512 µs |  |  |
-| `btonat` | 11.2 ns | 129 ns | 251 ns | 598 ns | 1.27 µs | 2.75 µs | 5.54 µs | 11.1 µs | 22.4 µs | 45.8 µs | 93.2 µs |  |  |
-| `bofnat` | 18.5 ns | 73.2 ns | 133 ns | 334 ns | 830 ns | 1.64 µs | 3.32 µs | 6.8 µs | 13.7 µs | 28.1 µs | 57.5 µs |  |  |
+| `add` | 38.8 ns | 40.9 ns | 42.1 ns | 41.8 ns | 44.6 ns | 50.9 ns | 66.6 ns | 100 ns | 174 ns | 307 ns | 591 ns | 1.12 µs | 2.24 µs |
+| `sub` | 50.3 ns | 51.2 ns | 50.3 ns | 50.2 ns | 56.6 ns | 61.7 ns | 78.2 ns | 117 ns | 189 ns | 329 ns | 621 ns | 1.19 µs | 2.37 µs |
+| `mul1` | 31.2 ns | 31.9 ns | 33.3 ns | 33 ns | 36.2 ns | 44.8 ns | 65.3 ns | 106 ns | 204 ns | 366 ns | 704 ns | 1.35 µs | 2.65 µs |
+| `mul` | 34.8 ns | 47.3 ns | 59.1 ns | 94.4 ns | 187 ns | 466 ns | 1.45 µs | 4.79 µs | 15 µs | 46.2 µs | 128 µs | 368 µs | 973 µs |
+| `sqr` | 41 ns | 42.4 ns | 52.6 ns | 82.1 ns | 163 ns | 347 ns | 926 ns | 2.81 µs | 8.88 µs | 27.6 µs | 83.7 µs | 229 µs | 667 µs |
+| `div` | 40.3 ns | 99.1 ns | 212 ns | 302 ns | 524 ns | 1.21 µs | 3.45 µs | 11.9 µs | 36.7 µs | 107 µs | 322 µs | 919 µs | 2.64 ms |
+| `shr` | 19 ns | 53 ns | 52.9 ns | 53.9 ns | 54.1 ns | 56.5 ns | 63.9 ns | 80.5 ns | 119 ns | 186 ns | 331 ns | 597 ns | 1.19 µs |
+| `badd` | 14.8 ns | 30.4 ns | 63.3 ns | 64.6 ns | 67.7 ns | 74.1 ns | 89.2 ns | 123 ns | 196 ns | 326 ns | 609 ns |  |  |
+| `bsub` | 16.5 ns | 117 ns | 83.6 ns | 83.2 ns | 99.2 ns | 95 ns | 111 ns | 156 ns | 225 ns | 375 ns | 660 ns |  |  |
+| `bmul` | 16.7 ns | 52.1 ns | 80.4 ns | 118 ns | 213 ns | 493 ns | 1.47 µs | 4.82 µs | 15.1 µs | 46.3 µs | 132 µs |  |  |
+| `bdiv` | 16.5 ns | 92.7 ns | 253 ns | 358 ns | 557 ns | 1.24 µs | 3.54 µs | 11.9 µs | 36.9 µs | 108 µs | 320 µs |  |  |
+| `bgcd` | 47 ns | 77.7 ns | 712 ns | 2.11 µs | 4.31 µs | 9.84 µs | 23.1 µs | 58.3 µs | 168 µs | 509 µs | 1.7 ms |  |  |
+| `bshl` | 74.4 ns | 74.3 ns | 60.9 ns | 59.3 ns | 60.6 ns | 64.9 ns | 69.7 ns | 87.8 ns | 135 ns | 212 ns | 395 ns |  |  |
+| `bshr` | 16.9 ns | 16.8 ns | 60.5 ns | 61.4 ns | 61.9 ns | 64.3 ns | 70.3 ns | 87.8 ns | 126 ns | 194 ns | 338 ns |  |  |
+| `bsqrt` | 100 ns | 545 ns | 1.29 µs | 2.55 µs | 4.37 µs | 5.65 µs | 11.3 µs | 27.4 µs | 76.2 µs | 216 µs | 624 µs |  |  |
+| `btostr` | 26.5 ns | 50.3 ns | 403 ns | 786 ns | 1.79 µs | 4.49 µs | 12.7 µs | 39.8 µs | 139 µs | 516 µs | 2.1 ms |  |  |
+| `bofstr` | 324 ns | 451 ns | 736 ns | 1.26 µs | 2.45 µs | 5 µs | 10.5 µs | 23.4 µs | 59.6 µs | 165 µs | 510 µs |  |  |
+| `btonat` | 8.89 ns | 117 ns | 256 ns | 597 ns | 1.28 µs | 2.84 µs | 5.58 µs | 11.3 µs | 23.2 µs | 46.6 µs | 94.2 µs |  |  |
+| `bofnat` | 16.8 ns | 71.2 ns | 128 ns | 333 ns | 839 ns | 1.66 µs | 3.33 µs | 6.83 µs | 13.9 µs | 28.4 µs | 58 µs |  |  |
 
 ## Where it stands
 
@@ -112,10 +112,10 @@ Time of MPN:
   where `Nat`'s wrapper dominates. They stay within 1.2–1.6× at large sizes, where GMP's assembly
   and 64-bit limbs win.
 - **Multiplication** is 2.9–4.9× behind from 64 limbs up (under 4× to 512 limbs), **squaring**
-  2.5–4.1×. 32-bit limbs need 4× as many limb products as GMP's 64-bit limbs, and Lean has no
+  1.9–3.2×. 32-bit limbs need 4× as many limb products as GMP's 64-bit limbs, and Lean has no
   64 × 64 → 128-bit multiply; the schoolbook rows make up for part of it by vectorizing, two
   limb products per instruction with SSE2. Beyond the table,
-  Toom-6 from 1792 limbs (also for squares) and the FFT from 36864 (28672 for squares), 29%
+  Toom-6 from 1792 limbs (2496 for squares) and the FFT from 36864 (26624 for squares), 29%
   faster than Toom-4 at 65536.
 - **Division** is 6.2–8.0× behind from 64 limbs up, about 1.5× multiplication's gap: GMP divides
   `2n` by `n` limbs for about the cost of one `n × n` product, and this library for 2.4 of its
@@ -124,7 +124,7 @@ Time of MPN:
   at 256 limbs and even with it at 5.
 - **`gcd`** is 3.6–4.7× behind from 4 limbs, Lehmer with word cofactors and both new numbers in
   one pass; GMP's subquadratic `hgcd` would show from a few hundred limbs.
-- **`sqrt`** is 1.3–2.1× behind from 8 to 256 limbs, faster from 512 and up to 4; **decimal
+- **`sqrt`** is 1.2–2.1× behind from 8 to 256 limbs, faster from 512 and up to 4; **decimal
   strings** are 10–20× faster than `Nat`, whose conversions work digit by digit.
 - **On an Apple M2** (`caab3b6`): the linear operations are within 1.2–2.2× from 1024 limbs,
   multiplication 2.5–5.2× from 64 limbs (1.6–1.85× faster than at `b4e717f`, where it was
@@ -139,6 +139,7 @@ above; ratios before `15534f8` for `MPN.Nat` rows were inflated by the hashing c
 
 | date | commit | change | effect |
 |---|---|---|---|
+| 2026-10-19 | `4204471` | Schoolbook squares by rows into wide accumulators: the products below the diagonal by the rows of `rowsMul`, then `2 S + D` and the carries in one pass; proved. Square thresholds re-tuned: Karatsuba from 160 (was 96), Toom-4 832, Toom-6 2496, the FFT 26624 | `sqr` 64 limbs: 1.26 µs → 926 ns (−27%), 256: 12.8 → 8.88 µs, 1024: 109 → 83.7 µs, 4096: 824 → 667 µs (3.94 → 3.18× `Nat`); `bsqrt` 1024: 663 → 624 µs |
 | 2026-10-18 | `2c454ec` | Schoolbook products by rows into `UInt64` accumulators, low and high halves of each product into neighboring accumulators and the carries in one pass at the end, so that the rows vectorize; proved. Thresholds re-tuned: Karatsuba from 112 (was 64), Toom-3 640, Toom-4 608, Toom-6 1792, the FFT 36864 | `mul` 64 limbs: 2.08 → 1.45 µs (−30%), 256: 20.5 → 15.1 µs, 1024: 167 → 129 µs, 4096: 1.13 → 0.97 ms (5.38 → 4.58× `Nat`); `div` 4096: 3.24 → 2.66 ms; `bsqrt` 1024: 761 → 663 µs. The kernel alone: 0.58 → 0.45 ns per limb product at 32 limbs, 0.39 → 0.27 at 256 |
 | 2026-10-18 | `7c484a8` | Toom-6 and Toom-6 squaring, from 1344 and 1792 limbs, proved, with a generated interpolation; the FFT now from 32768 and 28672 | `mul` 4096 limbs: 1.31 → 1.13 ms; `div` 4096: 3.45 ms at `b4e717f` → 3.24 ms; same binary against the old defaults: products 8192 −11%, 16384 −14% (9.07 → 7.76 ms), squares −6% from 6144 limbs; between 1344 and 3776 limbs ±5% |
 | 2026-10-18 | `ac005d7` | Schönhage–Strassen FFT modulo `2ᴺ + 1` for products from 18000 limbs and squares from 16000, proved; in-place residue operations (`20ee58d`) | Beyond the table: `65536 × 65536` 64.9 → 46.1 ms (−29%), `32768²` 16.8 → 13.3 ms (−21%); the FFT alone went from 113% to 85% of Toom at 32768 limbs with the in-place operations |
