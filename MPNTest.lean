@@ -331,6 +331,22 @@ def sqrFFTConfig : Config := { sqrBasecase := 2, sqrKaratsuba := 4, sqrToom3 := 
     toNat (div (ofNat ones) (ofNat yones)) == ones / yones &&
     toNat (mod (ofNat ones) (ofNat (yones / 2 + 1))) == ones % (yones / 2 + 1)
 
+-- Barrett's division with Newton's reciprocal (`divModMu`), on divisors from three limbs, long
+-- dividends (several blocks), all ones, and divisors with small top limbs.
+#guard [3, 4, 5, 7, 8, 17, 33, 64, 100, 129].all fun n => [0, 1, 2, n - 1, n, n + 1, 2 * n + 3,
+    5 * n].all fun m =>
+  let x := sample1 (32 * (m + n)) 23
+  let y := sample1 (32 * n) 29
+  let ones := 2 ^ (32 * (m + n)) - 1
+  let yones := 2 ^ (32 * n) - 1
+  let ysmall := 2 ^ (32 * (n - 1)) + 12345
+  let p := divModMu (ofNat x) (ofNat y)
+  let q := divModMu (ofNat ones) (ofNat yones)
+  let r := divModMu (ofNat x) (ofNat ysmall)
+  toNat p.1 == x / y && toNat p.2 == x % y && toNat q.1 == ones / yones &&
+    toNat q.2 == ones % yones && toNat r.1 == x / ysmall && toNat r.2 == x % ysmall &&
+    isTrimmed p.1 && isTrimmed p.2
+
 -- Schoolbook division alone, on divisors that are not normalized.
 #guard [2, 3, 7].all fun n => [1, 2, 33].all fun m =>
   let x := sample1 (32 * (m + n)) 23

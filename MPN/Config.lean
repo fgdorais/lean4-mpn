@@ -104,6 +104,9 @@ public structure Config where
   divDC : Nat := 176
   /-- Blocks of half the divisor need at least `4` limbs, so that the recursion has two. -/
   four_le_divDC : 4 ≤ divDC := by decide
+  /-- The size of the divisor from which division uses Barrett's division with Newton's
+  reciprocal instead of blocks. -/
+  divMu : Nat := 1000000
   deriving Repr
 
 public meta register_option mpn.mul.karatsubaThreshold : Nat := {
@@ -191,6 +194,12 @@ public meta register_option mpn.div.dcThreshold : Nat := {
   descr := "the size of the divisor, in limbs, from which division divides by blocks recursively"
 }
 
+public meta register_option mpn.div.muThreshold : Nat := {
+  defValue := ({} : Config).divMu
+  descr := "the size of the divisor, in limbs, from which division uses Barrett's division with \
+    Newton's reciprocal"
+}
+
 open Lean Elab Term in
 /-- The `Config` given by the `mpn.*` options in effect, with defaults from `Config`. -/
 elab "mpn_config%" : term => do
@@ -231,6 +240,7 @@ elab "mpn_config%" : term => do
     throwError "mpn.sqr.toom6Threshold must be at least 32, but it is {sqrToom6}"
   let sqrFFT := mpn.sqr.fftThreshold.get opts
   let divDC := mpn.div.dcThreshold.get opts
+  let divMu := mpn.div.muThreshold.get opts
   unless 4 ≤ divDC do
     throwError "mpn.div.dcThreshold must be at least 4, but it is {divDC}"
   let sqrBasecase := mpn.sqr.basecaseThreshold.get opts
@@ -251,6 +261,7 @@ elab "mpn_config%" : term => do
   let st₆ := quote sqrToom6
   let sf := quote sqrFFT
   let dc := quote divDC
+  let mu := quote divMu
   let stx ← `(({ mulKaratsuba := $m
                  mulToom3 := $t
                  mulToom32 := $t₂
@@ -266,7 +277,8 @@ elab "mpn_config%" : term => do
                  sqrToom4 := $st₄
                  sqrToom6 := $st₆
                  sqrFFT := $sf
-                 divDC := $dc } : Config))
+                 divDC := $dc
+                 divMu := $mu } : Config))
   elabTerm stx (mkConst ``Config)
 
 end MPN
