@@ -1,5 +1,9 @@
 """Generate the interpolation of Toom-(d/2+1) with natural points 0..d-1, ∞ (degree d) as Lean:
-a definition with lets and a proof by step lemmas, each step checked by lia."""
+a definition with lets and a proof by step lemmas, each step checked by lia.
+
+The values r_j = (w_j - c_0 - j^d c_d) / j, then differences of the r_j without division (each
+level l! times the divided differences), the first of each level divided by l!, and Horner's rule
+back to the coefficients."""
 import sys
 from fractions import Fraction
 
@@ -58,26 +62,33 @@ for j in range(1, npts + 1):
                      f' C₀ C{sub(d)}\n    ({expr(v)}) h₀ h{sub(d)}\n'
                      f'    (by rw [hw{sub(j)}]; simp only [UInt32.reduceToNat]; lia)')
     lets.append((nm, term)); vals[nm] = v
-# divided differences
+# divided differences, undivided: e_l,i = l! times the divided difference, by subtractions
+# only; the first of each level, the one Horner's rule needs, divided by l! at the end
+import math
 level = [f'r{sub(j)}' for j in range(1, npts + 1)]
 nc = [level[0]]
 for l in range(1, npts):
     nxt = []
     for i in range(len(level) - 1):
         a, b = level[i + 1], level[i]
-        v = div(lin(vals[a], vals[b], 1, -1), l)
-        nm = f'd{sub(l)}_{sub(i)}'
-        if l == 1:
-            term = f'subVal {a} {b}'
-            proof.append(f'  have h{nm} : toNat {nm} = {expr(v)} := toNat_sStep {a} {b} _ _ ({expr(v)}) h{a} h{b} (by lia)')
-        else:
-            term = f'divExact{l} (subVal {a} {b})'
-            proof.append(f'  have h{nm} : toNat {nm} = {expr(v)} := toNat_ddStep {a} {b} divExact{l} {l} toNat_divExact{l} _ _\n'
-                         f'    ({expr(v)}) h{a} h{b} (by lia)')
+        v = lin(vals[a], vals[b], 1, -1)
+        nm = f'e{sub(l)}_{sub(i)}'
+        term = f'subVal {a} {b}'
+        proof.append(f'  have h{nm} : toNat {nm} = {expr(v)} := toNat_sStep {a} {b} _ _ ({expr(v)}) h{a} h{b} (by lia)')
         lets.append((nm, term)); vals[nm] = v
         nxt.append(nm)
     level = nxt
-    nc.append(level[0])
+    f = math.factorial(l)
+    if f == 1:
+        nc.append(level[0])
+    else:
+        e = level[0]
+        v = div(vals[e], f)
+        nm = f'd{sub(l)}'
+        lets.append((nm, f'divExact{f} {e}')); vals[nm] = v
+        proof.append(f'  have h{nm} : toNat {nm} = {expr(v)} := toNat_divExact{f} {e} _\n'
+                     f'    (by rw [h{e}] <;> lia)')
+        nc.append(nm)
 # Horner: nodes x = i + 1 for i = top-1 .. 0
 top = len(nc) - 1
 q = [nc[top]]
@@ -107,7 +118,7 @@ for t, nm in enumerate(q):
 ws = ' '.join(w[1:])
 out = []
 out.append(f'/--\nThe coefficients `c₀, …, c{sub(d)}` from `c₀`, `c{sub(d)}` and the values `w_j = c(j)`, '
-           f'`j = 1, …, {npts}`:\nthe values `r_j`, their divided differences and Horner\'s rule '
+           f'`j = 1, …, {npts}`:\nthe values `r_j`, their differences and Horner\'s rule '
            f'(generated).\n-/')
 out.append(f'public def {name} (c₀ {ws} c{sub(d)} : UInt32Array) : List UInt32Array :=')
 for nm, term in lets:

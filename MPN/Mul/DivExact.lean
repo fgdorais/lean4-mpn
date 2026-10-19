@@ -251,4 +251,51 @@ public theorem toNat_divExact6 (x : UInt32Array) (X : Nat) (hx : toNat x = 6 * X
     toNat (divExact6 x) = X :=
   toNat_divExact3 _ _ (toNat_divExact2 _ _ (by rw [hx]; lia))
 
+/-- `x / (2ˢ d)`, exact when `2ˢ d` divides `x`: a shift by `s < 32` bits, then by the odd `d`. -/
+public def divExactShiftOdd (x : UInt32Array) (s : Nat) (d inv : UInt32) : UInt32Array :=
+  divExactOdd (shrLimbs x s.toUInt64) d inv
+
+public theorem toNat_divExactShiftOdd (x : UInt32Array) (s : Nat) (hs : s < 32) (d inv : UInt32)
+    (hinv : d.toNat * inv.toNat % 2 ^ 32 = 1) (hodd : d.toNat % 2 = 1) (X : Nat)
+    (hx : toNat x = 2 ^ s * d.toNat * X) : toNat (divExactShiftOdd x s d inv) = X := by
+  apply toNat_divExactOdd _ d inv hinv hodd
+  rw [toNat_shrLimbs _ _ hs, hx, Nat.mul_assoc, Nat.mul_div_cancel_left _ (Nat.two_pow_pos s)]
+
+/-- `x / 24`, exact when `24` divides `x`: by `8`, then by `3`. -/
+public def divExact24 (x : UInt32Array) : UInt32Array := divExactShiftOdd x 3 3 0xAAAAAAAB
+
+public theorem toNat_divExact24 (x : UInt32Array) (X : Nat) (hx : toNat x = 24 * X) :
+    toNat (divExact24 x) = X :=
+  toNat_divExactShiftOdd x 3 (by decide) 3 0xAAAAAAAB (by decide) (by decide) X (by rw [hx]; rfl)
+
+/-- `x / 120`, exact when `120` divides `x`: by `8`, then by `15`. -/
+public def divExact120 (x : UInt32Array) : UInt32Array := divExactShiftOdd x 3 15 0xEEEEEEEF
+
+public theorem toNat_divExact120 (x : UInt32Array) (X : Nat) (hx : toNat x = 120 * X) :
+    toNat (divExact120 x) = X :=
+  toNat_divExactShiftOdd x 3 (by decide) 15 0xEEEEEEEF (by decide) (by decide) X (by rw [hx]; rfl)
+
+/-- `x / 720`, exact when `720` divides `x`: by `16`, then by `45`. -/
+public def divExact720 (x : UInt32Array) : UInt32Array := divExactShiftOdd x 4 45 0xA4FA4FA5
+
+public theorem toNat_divExact720 (x : UInt32Array) (X : Nat) (hx : toNat x = 720 * X) :
+    toNat (divExact720 x) = X :=
+  toNat_divExactShiftOdd x 4 (by decide) 45 0xA4FA4FA5 (by decide) (by decide) X (by rw [hx]; rfl)
+
+/-- `x / 5040`, exact when `5040` divides `x`: by `16`, then by `315`. -/
+public def divExact5040 (x : UInt32Array) : UInt32Array := divExactShiftOdd x 4 315 0xF2FF2FF3
+
+public theorem toNat_divExact5040 (x : UInt32Array) (X : Nat) (hx : toNat x = 5040 * X) :
+    toNat (divExact5040 x) = X :=
+  toNat_divExactShiftOdd x 4 (by decide) 315 0xF2FF2FF3 (by decide) (by decide) X
+    (by rw [hx]; rfl)
+
+/-- `x / 40320`, exact when `40320` divides `x`: by `128`, then by `315`. -/
+public def divExact40320 (x : UInt32Array) : UInt32Array := divExactShiftOdd x 7 315 0xF2FF2FF3
+
+public theorem toNat_divExact40320 (x : UInt32Array) (X : Nat) (hx : toNat x = 40320 * X) :
+    toNat (divExact40320 x) = X :=
+  toNat_divExactShiftOdd x 7 (by decide) 315 0xF2FF2FF3 (by decide) (by decide) X
+    (by rw [hx]; rfl)
+
 end MPN
