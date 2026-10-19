@@ -319,8 +319,11 @@ block of the division, and `topSize` usually stops at the first limb.
   slower at 30720, 7.5% faster at 32768. On the M2, Toom-6 products win from 1664–1728 limbs
   (flat within 1% from 1600; Zen 3 1344), but Toom-6 squaring never beats Toom-4 squaring up to
   3776 (1.7% behind there; Zen 3 1792), so `sqrToom6 = 1792` costs the M2 2–11% between 1792
-  and 3776 limbs; its FFT squares win from 22528 (Zen 3 28672). Defaults per architecture
-  will come,
+  and 3776 limbs; its FFT squares win from 22528 (Zen 3 28672). With the row kernel (M2 at
+  `caab3b6`), every product threshold rose more on the M2 than on Zen 3: Karatsuba 128 (Zen 3
+  112, flat 104–132), Toom-3 912 (640), Toom-3 by 2 248 (192), Toom-4 by 2 512 (304), Toom-4 by 3
+  336 (272), Toom-4 992 (608), Toom-6 3392 (1792), the FFT 32768 (36864), and division by blocks
+  from 104 (176). Defaults per architecture will come,
   but after the remaining algorithms are verified, so that the tuning sees all of them.
 - [ ] **A raw GMP baseline.** The `Nat` column is Lean's wrapper around GMP, which copies both
   the operand and the result and allocates twice per operation, so below about 64 limbs it

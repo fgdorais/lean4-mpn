@@ -126,8 +126,9 @@ Time of MPN:
   one pass; GMP's subquadratic `hgcd` would show from a few hundred limbs.
 - **`sqrt`** is 1.3–2.1× behind from 8 to 256 limbs, faster from 512 and up to 4; **decimal
   strings** are 10–20× faster than `Nat`, whose conversions work digit by digit.
-- **On an Apple M2** (`b4e717f`), the gaps are wider: the linear operations are within 1.2–2.3×
-  from 1024 limbs, multiplication 4.7–8.3× from 64 limbs, squaring 2.2–4.3× and division 5.6–11×.
+- **On an Apple M2** (`caab3b6`): the linear operations are within 1.2–2.2× from 1024 limbs,
+  multiplication 2.5–5.2× from 64 limbs (1.6–1.85× faster than at `b4e717f`, where it was
+  4.7–8.3×), squaring 2.1–4.2× and division 5.5–8.0×.
 - **Conversions to and from `Nat`** cost about one operation on `Nat` (some 40 ns) per two
   limbs, against one linear pass for `Nat` itself; they are a boundary, not arithmetic.
 
