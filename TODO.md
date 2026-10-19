@@ -205,7 +205,10 @@ block of the division, and `topSize` usually stops at the first limb.
   Squares too (`sqrRowsMul`, 2026-10-19): the rows `aᵢ a[i + 1...]` into accumulators at limb
   `2 i + 1` with the same `addRow`, then `2 S + D` and the carries in one pass, from 16 limbs.
   `sqr` 64 limbs −27%, 256 −31%, 4096 −19% (3.18× `Nat`); Karatsuba squaring from 160, and
-  Toom-3 squaring hardly wins any more (Toom-4 squaring from 832).
+  Toom-3 squaring hardly wins any more (Toom-4 squaring from 832). On the M2 (`e0a0473`): `sqr`
+  64 limbs −15%, 256 −24%, 4096 −18% (3.52× `Nat`); Karatsuba squaring from 160 as on Zen 3,
+  Toom-4 squaring from 960 (flat 960–1056), Toom-3 and Toom-6 squaring never win below their
+  caps (944, 3776), FFT squaring from 24576.
 - [ ] **Toom-8½, Toom-6 by 5 and the like**: Toom-8 gained 7–11% over Toom-4 in a one-level
   prototype at 6144–16384 limbs, about as much as Toom-6; the generator handles any degree.
   Unbalanced Toom-6 shapes (beyond six fifths) still go to Toom-4 by 3.
