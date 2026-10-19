@@ -82,23 +82,23 @@ public structure Config where
   /-- The size from which squaring uses the schoolbook square instead of multiplying. -/
   sqrBasecase : Nat := 2
   /-- The size from which squaring uses Karatsuba. -/
-  sqrKaratsuba : Nat := 96
+  sqrKaratsuba : Nat := 160
   /-- Karatsuba needs at least `4` limbs to make its squares smaller. -/
   four_le_sqrKaratsuba : 4 ≤ sqrKaratsuba := by decide
   /-- The size from which squaring uses Toom-3 instead of Karatsuba. -/
-  sqrToom3 : Nat := 720
+  sqrToom3 : Nat := 944
   /-- Toom-3 needs at least `12` limbs to make its squares smaller. -/
   twelve_le_sqrToom3 : 12 ≤ sqrToom3 := by decide
   /-- The size from which squaring uses Toom-4 instead of Toom-3 or Karatsuba. -/
-  sqrToom4 : Nat := 576
+  sqrToom4 : Nat := 832
   /-- Toom-4 needs at least `32` limbs for its split. -/
   thirtytwo_le_sqrToom4 : 32 ≤ sqrToom4 := by decide
   /-- The size from which squaring uses Toom-6 instead of Toom-4 and those below. -/
-  sqrToom6 : Nat := 1792
+  sqrToom6 : Nat := 2496
   /-- Toom-6 needs at least `32` limbs for its split. -/
   thirtytwo_le_sqrToom6 : 32 ≤ sqrToom6 := by decide
   /-- The size from which squaring uses the FFT. -/
-  sqrFFT : Nat := 28672
+  sqrFFT : Nat := 26624
   /-- The size of the divisor from which division computes its quotient in blocks of half the
   divisor, with recursive divisions, instead of one limb at a time. -/
   divDC : Nat := 176
