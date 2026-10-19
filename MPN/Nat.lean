@@ -13,6 +13,7 @@ public import MPN.Div
 public import MPN.Bits
 public import MPN.Decimal
 public import MPN.MulSubMul
+public import MPN.Generic.HGCD
 import Std.Data.String.ToNat
 import all Init.Data.Repr
 
@@ -1461,18 +1462,18 @@ the greatest common divisor since their matrix has determinant `±1`; when the s
 or does not make the second number smaller, one step of Euclid's algorithm is taken instead. On
 words when both are small.
 -/
-public def gcd (x y : MPN.Nat) : MPN.Nat :=
+def gcdLehmer (x y : MPN.Nat) : MPN.Nat :=
   match x, y with
   | small a, small b => small (wordGcd a b)
   | x, y =>
     if _h : y = small 0 then x
-    else if blt x y then gcd y (mod x y)
+    else if blt x y then gcdLehmer y (mod x y)
     else
       let w := leadWords x.limbs y.limbs
       let m := lehmerSteps w.x w.y 1 0 0 1 100
       match lehmerStep x y m.A.toInt m.B.toInt m.C.toInt m.D.toInt with
-      | some p => if _hy : blt p.2 y then gcd p.1 p.2 else gcd y (mod x y)
-      | none => gcd y (mod x y)
+      | some p => if _hy : blt p.2 y then gcdLehmer p.1 p.2 else gcdLehmer y (mod x y)
+      | none => gcdLehmer y (mod x y)
 termination_by y.toNat
 decreasing_by
   all_goals first
@@ -1486,36 +1487,162 @@ private theorem gcd_mod_step (x y : MPN.Nat) :
     _root_.Nat.gcd y.toNat (mod x y).toNat = _root_.Nat.gcd x.toNat y.toNat := by
   rw [toNat_mod, Nat.gcd_comm x.toNat y.toNat, Nat.gcd_rec y.toNat x.toNat, Nat.gcd_comm]
 
-@[simp] public theorem toNat_gcd (x y : MPN.Nat) :
-    (gcd x y).toNat = _root_.Nat.gcd x.toNat y.toNat := by
-  induction x, y using gcd.induct with
-  | case1 a b => rw [gcd]; exact toNat_wordGcd a b
+private theorem toNat_gcdLehmer (x y : MPN.Nat) :
+    (gcdLehmer x y).toNat = _root_.Nat.gcd x.toNat y.toNat := by
+  induction x, y using gcdLehmer.induct with
+  | case1 a b => rw [gcdLehmer]; exact toNat_wordGcd a b
   | case2 x hxy =>
-    rw [gcd]
+    rw [gcdLehmer]
     · simp only [↓reduceDIte, toNat_small, UInt64.toNat_zero, Nat.gcd_zero_right]
     · exact hxy
   | case3 x y hxy h hlt ih =>
-    rw [gcd]
+    rw [gcdLehmer]
     · rw [dite_eq_right h, ite_eq_left hlt, ih, gcd_mod_step]
     · exact hxy
   | case4 x y hxy h hlt w m p hp hy ih =>
-    rw [gcd]
+    rw [gcdLehmer]
     · rw [dite_eq_right h, ite_eq_right hlt]
       simp only [w, m] at hp
       simp only [hp, dite_eq_left hy, ih, lehmerStep_gcd _ _ _ _ _ _ _ hp]
     · exact hxy
   | case5 x y hxy h hlt w m p hp hy ih =>
-    rw [gcd]
+    rw [gcdLehmer]
     · rw [dite_eq_right h, ite_eq_right hlt]
       simp only [w, m] at hp
       simp only [hp, dite_eq_right hy, ih, gcd_mod_step]
     · exact hxy
   | case6 x y hxy h hlt w m hp ih =>
-    rw [gcd]
+    rw [gcdLehmer]
     · rw [dite_eq_right h, ite_eq_right hlt]
       simp only [w, m] at hp
       simp only [hp, ih, gcd_mod_step]
     · exact hxy
+
+
+/-! ## Half-gcd -/
+
+/-- A limb holding `k`, as a slice. -/
+private def limbOf (k : Nat) : UInt32Array.Slice := (UInt32Array.mk #[k.toUInt32]).toSlice
+
+private theorem toNat_limbOf (k : Nat) (h : k < 2 ^ 32) : MPN.toNat (limbOf k) = k := by
+  rw [limbOf, toNat_toSlice]
+  simp [Nat.toUInt32_eq, UInt32.toNat_ofNat', Nat.mod_eq_of_lt h]
+
+/--
+Lehmer's steps on the leading words of `a ≥ b` as a matrix of `NatOps`, the base step of
+half-gcd: the cofactors `A`, `B`, `C`, `D` of `lehmerSteps` give `M = [[|D|, |B|], [|C|, |A|]]`,
+whose `applyInv` is `(|A a + B b|, |C a + D b|)`, when their determinant is `±1`.
+-/
+public def lehmerMat (a b : UInt32Array.Slice) : Option (Mat2 UInt32Array.Slice) :=
+  let w := leadWords a.copy b.copy
+  let m := lehmerSteps w.x w.y 1 0 0 1 100
+  let A := m.A.toInt.natAbs
+  let B := m.B.toInt.natAbs
+  let C := m.C.toInt.natAbs
+  let D := m.D.toInt.natAbs
+  if A < 2 ^ 32 ∧ B < 2 ^ 32 ∧ C < 2 ^ 32 ∧ D < 2 ^ 32 then
+    if D * A = B * C + 1 then some ⟨limbOf D, limbOf B, limbOf C, limbOf A, false⟩
+    else if B * C = D * A + 1 then some ⟨limbOf D, limbOf B, limbOf C, limbOf A, true⟩
+    else none
+  else none
+
+private theorem unimodular_lehmerMat (a b : UInt32Array.Slice) (S : Mat2 UInt32Array.Slice)
+    (h : lehmerMat a b = some S) : ops32.Unimodular S := by
+  unfold lehmerMat at h
+  dsimp only at h
+  split at h
+  · rename_i hb
+    obtain ⟨hA, hB, hC, hD⟩ := hb
+    split at h
+    · rename_i he
+      rw [Option.some.injEq] at h
+      subst h
+      simp only [NatOps.Unimodular, ops32_val]
+      rw [toNat_limbOf _ hD, toNat_limbOf _ hA, toNat_limbOf _ hB, toNat_limbOf _ hC]
+      simp only [Bool.false_eq_true, ↓reduceIte]
+      lia
+    · split at h
+      · rename_i _ he
+        rw [Option.some.injEq] at h
+        subst h
+        simp only [NatOps.Unimodular, ops32_val]
+        rw [toNat_limbOf _ hD, toNat_limbOf _ hA, toNat_limbOf _ hB, toNat_limbOf _ hC]
+        simp only [↓reduceIte]
+        lia
+      · exact absurd h (by simp)
+  · exact absurd h (by simp)
+
+/-- The size below which half-gcd computes its matrices by Lehmer's steps alone. -/
+public def hgcdBase : Nat := 8
+
+/-- One reduction of `x ≥ y` by half-gcd (`NatOps.hgcdReduce`), trimmed. -/
+public def hgcdNat (x y : MPN.Nat) : MPN.Nat × MPN.Nat :=
+  let p := ops32.hgcdReduce lehmerMat hgcdBase x.limbs.toSlice y.limbs.toSlice
+  (ofLimbs (trim p.1.copy) (isTrimmed_trim _), ofLimbs (trim p.2.copy) (isTrimmed_trim _))
+
+private theorem gcd_hgcdNat (x y : MPN.Nat) :
+    _root_.Nat.gcd (hgcdNat x y).1.toNat (hgcdNat x y).2.toNat =
+      _root_.Nat.gcd x.toNat y.toNat := by
+  have h := ops32.gcd_hgcdReduce lehmerMat unimodular_lehmerMat hgcdBase x.limbs.toSlice
+    y.limbs.toSlice
+  simp only [ops32_val] at h
+  simp only [hgcdNat, toNat_ofLimbs, toNat_trim, toNat_copy]
+  rw [h, toNat_toSlice, toNat_toSlice, ← toNat_toSlice, ← toNat_toSlice, toNat_limbs, toNat_limbs]
+
+/-- The smaller of two numbers. -/
+def minNat (x y : MPN.Nat) : MPN.Nat := if blt x y then x else y
+
+/-- `hgcdNat` on the larger number first. -/
+def hgcdOrd (x y : MPN.Nat) : MPN.Nat × MPN.Nat := if blt x y then hgcdNat y x else hgcdNat x y
+
+private theorem gcd_hgcdOrd (x y : MPN.Nat) :
+    _root_.Nat.gcd (hgcdOrd x y).1.toNat (hgcdOrd x y).2.toNat =
+      _root_.Nat.gcd x.toNat y.toNat := by
+  unfold hgcdOrd
+  split
+  · rw [gcd_hgcdNat, Nat.gcd_comm]
+  · rw [gcd_hgcdNat]
+
+private theorem toNat_minNat_le (x y : MPN.Nat) : (minNat x y).toNat ≤ y.toNat := by
+  unfold minNat
+  split
+  · rename_i h; rw [blt_iff] at h; lia
+  · exact Nat.le_refl _
+
+/--
+The greatest common divisor: from `half` limbs of the smaller number, reductions by half-gcd
+while they make it smaller, and Lehmer's algorithm (`gcdLehmer`) below and otherwise.
+-/
+public def gcdWith (half : Nat) (x y : MPN.Nat) : MPN.Nat :=
+  if half ≤ (minNat x y).limbs.size then
+    let p := hgcdOrd x y
+    if _hy : blt p.2 (minNat x y) then gcdWith half p.1 p.2 else gcdLehmer x y
+  else gcdLehmer x y
+termination_by y.toNat
+decreasing_by
+  rw [blt_iff] at _hy
+  have := toNat_minNat_le x y
+  lia
+
+@[simp] public theorem toNat_gcdWith (half : Nat) (x y : MPN.Nat) :
+    (gcdWith half x y).toNat = _root_.Nat.gcd x.toNat y.toNat := by
+  induction x, y using gcdWith.induct half with
+  | case1 x y h p hy ih =>
+    rw [gcdWith, ite_eq_left h]
+    simp only [p] at hy ih
+    rw [dite_eq_left hy, ih, gcd_hgcdOrd]
+  | case2 x y h p hy =>
+    rw [gcdWith, ite_eq_left h]
+    simp only [p] at hy
+    rw [dite_eq_right hy, toNat_gcdLehmer]
+  | case3 x y h =>
+    rw [gcdWith, ite_eq_right h, toNat_gcdLehmer]
+
+/-- The greatest common divisor, with half-gcd from `config.gcdHalf` limbs (`gcdWith`). -/
+public def gcd (x y : MPN.Nat) : MPN.Nat := gcdWith config.gcdHalf x y
+
+@[simp] public theorem toNat_gcd (x y : MPN.Nat) :
+    (gcd x y).toNat = _root_.Nat.gcd x.toNat y.toNat := toNat_gcdWith _ x y
 
 /-- The least common multiple, `x / gcd x y * y`, and `0` when either is `0`. -/
 public def lcm (x y : MPN.Nat) : MPN.Nat :=

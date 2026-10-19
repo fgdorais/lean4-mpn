@@ -178,6 +178,16 @@ block of the division, and `topSize` usually stops at the first limb.
   passes and as many arrays per butterfly; in-place residue operations brought the crossover
   from about 48k to 18k limbs. GMP's `√2` trick does not apply: `n` is set by the size of the
   coefficients, not by the order of the roots.
+- [x] **A base-generic layer and division by a reciprocal** (`Generic.Ops`, `Generic.Barrett`,
+  2026-10-19): `NatOps` bundles whole-number operations at a base `B` with their value-level
+  specifications, and `ops32` instantiates it on 32-bit limbs; algorithms over it carry over to
+  64-bit limbs. Barrett's division with Newton's reciprocal (`divMu`): `fixQuot` checks each
+  quotient estimate exactly against `x = q d + r`, so the estimates need no proof; Newton on the
+  top `⌈n/2⌉ + 1` limbs (the guard limb keeps the error under a unit; without it errors grew from
+  level to level), with truncated products. 1.27–1.5× slower than division by blocks from 1024 to
+  32768 limbs (about 3.9 products against 2.5–3.1), so off by default (`divMu`). Next for it:
+  products modulo `βⁿ - 1` from the FFT without padding, and a proof of Barrett's bound for a
+  wrapped remainder; it pays at FFT sizes.
 - [ ] **FFT, next:** the pointwise products of residues modulo `F` by the FFT itself at very large
   sizes (GMP's recursive `mpn_mul_fft`), a fused butterfly (one pass for `a ± 2ˢ b`), and `fftK`
   tuned per machine.
@@ -232,8 +242,16 @@ block of the division, and `topSize` usually stops at the first limb.
     9–18×). This is already GMP's `hgcd2` in our limbs (two-limb leading words, one-limb cofactors);
     the next size up, 124-bit words and 62-bit cofactors, would need Euclid in emulated 128-bit
     arithmetic, already 11–21% of the time in 64-bit, for passes that do twice the products for half
-    the steps, so it is not worth it. Left: subquadratic `hgcd`, GMP's advantage from a few hundred
-    limbs.
+    the steps, so it is not worth it. Half-gcd since 2026-10-19 (`Generic.HGCD`, base-generic over
+    `NatOps`): the matrix of the top half recursively, a Euclid step, the matrix of the top of what
+    is left, with Lehmer's word steps at the base (`lehmerMat`). Only the determinant `±1` and the
+    gcd are proved; a matrix from top limbs that overshoots the full numbers fails a sign check
+    (`applyInvC`) and is dropped, and `gcdWith` keeps a reduction only when it made the smaller
+    number smaller. From 8192 limbs (`gcdHalf`): `gcd` 12288 limbs −19%, 16384 −29%, 32768 −52%;
+    1.7–5× slower than Lehmer below, where allocation, comparisons and trimming in small `NatOps`
+    operations take two thirds of the time, and the matrices are applied to the full numbers
+    (GMP applies them to the low halves only, half the products, which needs the exact relation
+    `(a, b) = M (x, y)` in the specification).
   - [x] integer square root: Newton's iteration at growing precision, from the root of the top
     half (`sqrt (n / 4ᵏ)` for `k` a quarter of the bits), which starts within `2ᵏ` above the root;
     one Newton step, which is at least the root by AM-GM, then steps down while `x² > n` with one

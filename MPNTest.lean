@@ -438,6 +438,18 @@ def bigNatValues : List Nat :=
   let b := g * sample1 250 79
   (MPN.Nat.gcd (MPN.Nat.ofNat a) (MPN.Nat.ofNat b)).toNat == Nat.gcd a b
 
+-- Half-gcd (`gcdWith` from 4 limbs) on random numbers of many sizes, common factors, Fibonacci
+-- numbers (the longest runs of quotients 1) and equal sizes.
+#guard [4, 5, 9, 16, 17, 33, 64, 100, 257].all fun n => [0, 1, n / 3, n].all fun d =>
+  let a := sample1 (32 * n) (n + 3)
+  let b := sample1 (32 * (n - d)) (n + 5)
+  let g := sample1 (32 * (n / 4 + 1)) 7
+  let fib := (List.range (n * 46)).foldl (fun (p : Nat × Nat) _ => (p.2, p.1 + p.2)) (0, 1)
+  (MPN.Nat.gcdWith 4 (MPN.Nat.ofNat a) (MPN.Nat.ofNat b)).toNat == Nat.gcd a b &&
+    (MPN.Nat.gcdWith 4 (MPN.Nat.ofNat (a * g)) (MPN.Nat.ofNat (b * g))).toNat ==
+      Nat.gcd (a * g) (b * g) &&
+    (MPN.Nat.gcdWith 4 (MPN.Nat.ofNat fib.2) (MPN.Nat.ofNat fib.1)).toNat == Nat.gcd fib.2 fib.1
+
 -- Shifts, bitwise operations, `log2`, `sqrt` and `pow` against `Nat`.
 #guard bigNatValues.all fun a =>
   let x := MPN.Nat.ofNat a

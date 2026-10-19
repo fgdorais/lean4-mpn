@@ -354,7 +354,7 @@ algorithms (`Generic.Barrett`) on the operations of this library, with `divModSl
 fallback.
 -/
 
-private theorem toNat_slice_lo (s : UInt32Array.Slice) (k : Nat) :
+public theorem toNat_slice_lo (s : UInt32Array.Slice) (k : Nat) :
     toNat (s.slice 0 k) = toNat s % (2 ^ 32) ^ k := by
   have hc : toNat (s.slice 0 k) = ofLimbs (s.copy.toList.take k) := by
     rw [toNat, UInt32Array.Slice.copy_slice, UInt32Array.toList_extract,
@@ -370,7 +370,7 @@ private theorem toNat_slice_lo (s : UInt32Array.Slice) (k : Nat) :
   rw [hc, hs, ← Nat.pow_mul, Nat.add_mul_mod_self_left,
     Nat.mod_eq_of_lt (ofLimbs_take_lt _ _)]
 
-private theorem toNat_slice_hi (s : UInt32Array.Slice) (k : Nat) :
+public theorem toNat_slice_hi (s : UInt32Array.Slice) (k : Nat) :
     toNat (s.slice k s.size) = toNat s / (2 ^ 32) ^ k := by
   rw [← Nat.pow_mul]
   by_cases hk : k ≤ s.size
@@ -378,19 +378,19 @@ private theorem toNat_slice_hi (s : UInt32Array.Slice) (k : Nat) :
   · rw [toNat_of_size_eq_zero (by simp; lia), Nat.div_eq_of_lt]
     exact Nat.lt_of_lt_of_le (toNat_lt s) (Nat.pow_le_pow_right (by decide) (by lia))
 
-private theorem toNat_shl (k : Nat) (x : UInt32Array.Slice) :
+public theorem toNat_shl (k : Nat) (x : UInt32Array.Slice) :
     toNat (UInt32Array.replicate k 0 ++ x.copy).toSlice = toNat x * (2 ^ 32) ^ k := by
   rw [toNat_toSlice, UInt32Array.toList_append, UInt32Array.toList_replicate, ofLimbs_append,
     ofLimbs_replicate_zero, List.length_replicate, ← Nat.pow_mul, toNat]
   lia
 
-private theorem toNat_pow (k : Nat) :
+public theorem toNat_pow (k : Nat) :
     toNat ((UInt32Array.replicate k 0).push 1).toSlice = (2 ^ 32) ^ k := by
   rw [toNat_toSlice, UInt32Array.toList_push, UInt32Array.toList_replicate, ofLimbs_concat,
     ofLimbs_replicate_zero, List.length_replicate, ← Nat.pow_mul]
   simp
 
-private theorem toNat_sub_slice (x y : UInt32Array.Slice) (h : toNat y ≤ toNat x) :
+public theorem toNat_sub_slice (x y : UInt32Array.Slice) (h : toNat y ≤ toNat x) :
     toNat (subLimbs x (y.slice 0 x.size)).toSlice = toNat x - toNat y := by
   have hy : toNat (y.slice 0 x.size) = toNat y := by
     rw [toNat_slice_lo, Nat.mod_eq_of_lt]
@@ -399,16 +399,24 @@ private theorem toNat_sub_slice (x y : UInt32Array.Slice) (h : toNat y ≤ toNat
   rw [toNat_toSlice, ← toNat_toSlice, toNat_subLimbs _ _ (by simp; lia) (by rw [hy]; exact h), hy]
 
 /-- The operations of `NatOps` on slices of 32-bit limbs. -/
-public def ops32 : NatOps UInt32Array.Slice where
+@[expose] public def ops32 : NatOps UInt32Array.Slice where
   B := 2 ^ 32
   one_lt_B := by decide
   val := toNat
   size := fun x => x.size
   val_lt x := by rw [← Nat.pow_mul]; exact toNat_lt x
-  mul x y := (mulLimbs x y).toSlice
-  val_mul x y := isMul_mulLimbs.toNat_eq x y
-  add x y := (addLimbs x y).toSlice
-  val_add x y := toNat_addLimbs x y
+  mul x y :=
+    let r := (mulLimbs x y).toSlice
+    r.slice 0 (topSize r)
+  val_mul x y := by
+    show toNat ((mulLimbs x y).toSlice.slice 0 (topSize _)) = _
+    rw [toNat_slice_topSize]; exact isMul_mulLimbs.toNat_eq x y
+  add x y :=
+    let r := (addLimbs x y).toSlice
+    r.slice 0 (topSize r)
+  val_add x y := by
+    show toNat ((addLimbs x y).toSlice.slice 0 (topSize _)) = _
+    rw [toNat_slice_topSize]; exact toNat_addLimbs x y
   sub x y :=
     let r := (subLimbs x (y.slice 0 x.size)).toSlice
     r.slice 0 (topSize r)
@@ -460,6 +468,8 @@ private theorem isTrimmed_divModSlow_snd (a b : UInt32Array.Slice) :
       exact isTrimmed_ofWord64 _
     · rw [divModSlow_of_two_le_topSize a b h₃]
       exact isTrimmed_trim _
+
+@[simp] public theorem ops32_val (x : UInt32Array.Slice) : ops32.val x = toNat x := rfl
 
 /-! ## Division by a reciprocal -/
 

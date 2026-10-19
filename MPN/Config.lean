@@ -107,6 +107,8 @@ public structure Config where
   /-- The size of the divisor from which division uses Barrett's division with Newton's
   reciprocal instead of blocks. -/
   divMu : Nat := 1000000
+  /-- The size of the smaller number from which the greatest common divisor uses half-gcd. -/
+  gcdHalf : Nat := 8192
   deriving Repr
 
 public meta register_option mpn.mul.karatsubaThreshold : Nat := {
@@ -200,6 +202,12 @@ public meta register_option mpn.div.muThreshold : Nat := {
     Newton's reciprocal"
 }
 
+public meta register_option mpn.gcd.halfThreshold : Nat := {
+  defValue := ({} : Config).gcdHalf
+  descr := "the size of the smaller number, in limbs, from which the greatest common divisor \
+    uses half-gcd"
+}
+
 open Lean Elab Term in
 /-- The `Config` given by the `mpn.*` options in effect, with defaults from `Config`. -/
 elab "mpn_config%" : term => do
@@ -241,6 +249,7 @@ elab "mpn_config%" : term => do
   let sqrFFT := mpn.sqr.fftThreshold.get opts
   let divDC := mpn.div.dcThreshold.get opts
   let divMu := mpn.div.muThreshold.get opts
+  let gcdHalf := mpn.gcd.halfThreshold.get opts
   unless 4 ≤ divDC do
     throwError "mpn.div.dcThreshold must be at least 4, but it is {divDC}"
   let sqrBasecase := mpn.sqr.basecaseThreshold.get opts
@@ -262,6 +271,7 @@ elab "mpn_config%" : term => do
   let sf := quote sqrFFT
   let dc := quote divDC
   let mu := quote divMu
+  let gh := quote gcdHalf
   let stx ← `(({ mulKaratsuba := $m
                  mulToom3 := $t
                  mulToom32 := $t₂
@@ -278,7 +288,8 @@ elab "mpn_config%" : term => do
                  sqrToom6 := $st₆
                  sqrFFT := $sf
                  divDC := $dc
-                 divMu := $mu } : Config))
+                 divMu := $mu
+                 gcdHalf := $gh } : Config))
   elabTerm stx (mkConst ``Config)
 
 end MPN
