@@ -28,31 +28,50 @@ def sample (n seed : Nat) : UInt32Array := Id.run do
     r := r.push (s / 2 ^ 32).toUInt32
   return r
 
-/-- Runs `f a b` `reps` times, folding a limb of each result into a checksum. -/
-@[noinline] def repeatMul (f : UInt32Array.Slice → UInt32Array.Slice → UInt32Array)
-    (a b : UInt32Array) (reps : Nat) : UInt32 := Id.run do
+/-- Runs `f a b` `reps` times, folding `check` of each result, constant time, into a checksum. -/
+@[noinline] def repeatOp {α β : Type} (f : α → α → β) (check : β → UInt32) (a b : α)
+    (reps : Nat) : UInt32 := Id.run do
   let mut acc : UInt32 := 0
   for _ in [0:reps] do
-    acc := acc + (f a b)[0]!
+    acc := acc + check (f a b)
   return acc
 
 /-- The median time of `f a b` in nanoseconds, over trials of at least `minNs` each. -/
-def time (f : UInt32Array.Slice → UInt32Array.Slice → UInt32Array) (a b : UInt32Array)
-    (trials := 7) (minNs := 5_000_000) : IO Nat := do
+def timeOp {α β : Type} (f : α → α → β) (check : β → UInt32) (a b : α) (trials := 7)
+    (minNs := 5_000_000) : IO Nat := do
   let mut reps := 1
   repeat
     let t₀ ← IO.monoNanosNow
-    let _ ← IO.lazyPure fun _ => repeatMul f a b reps
+    let _ ← IO.lazyPure fun _ => repeatOp f check a b reps
     let t₁ ← IO.monoNanosNow
     if t₁ - t₀ ≥ minNs then break
     reps := reps * 2
   let mut samples := #[]
   for _ in [0:trials] do
     let t₀ ← IO.monoNanosNow
-    let _ ← IO.lazyPure fun _ => repeatMul f a b reps
+    let _ ← IO.lazyPure fun _ => repeatOp f check a b reps
     let t₁ ← IO.monoNanosNow
     samples := samples.push ((t₁ - t₀) / reps)
   return (samples.qsort (· < ·))[trials / 2]!
+
+/--
+The smallest size `n` in `sizes` from which `fast` beats `slow` on the inputs `input n` at `n` and
+at the next `confirm` sizes, or `none` if it never does.
+-/
+def crossoverOn {α β : Type} (slow fast : α → α → β) (check : β → UInt32) (input : Nat → α × α)
+    (sizes : List Nat) (confirm := 3) (log : Bool := false) : IO (Option Nat) := do
+  let mut wins : List Nat := []
+  for n in sizes do
+    let (a, b) := input n
+    let ts ← timeOp slow check a b
+    let tf ← timeOp fast check a b
+    if log then IO.println s!"  {n} limbs: {ts} ns vs {tf} ns"
+    if tf < ts then
+      wins := wins ++ [n]
+      if wins.length > confirm then return wins.head?
+    else
+      wins := []
+  return wins.head?
 
 /--
 The smallest size `n` in `sizes` from which `fast` beats `slow` on operands of `shape n` limbs at
@@ -61,20 +80,9 @@ The smallest size `n` in `sizes` from which `fast` beats `slow` on operands of `
 -/
 def crossover (slow fast : UInt32Array.Slice → UInt32Array.Slice → UInt32Array)
     (sizes : List Nat) (shape : Nat → Nat × Nat := fun n => (n, n)) (confirm := 3)
-    (log : Bool := false) : IO (Option Nat) := do
-  let mut wins : List Nat := []
-  for n in sizes do
-    let a := sample (shape n).1 1
-    let b := sample (shape n).2 2
-    let ts ← time slow a b
-    let tf ← time fast a b
-    if log then IO.println s!"  {n} limbs: {ts} ns vs {tf} ns"
-    if tf < ts then
-      wins := wins ++ [n]
-      if wins.length > confirm then return wins.head?
-    else
-      wins := []
-  return wins.head?
+    (log : Bool := false) : IO (Option Nat) :=
+  crossoverOn (fun a b : UInt32Array => slow a b) (fun a b => fast a b) (·[0]!)
+    (fun n => (sample (shape n).1 1, sample (shape n).2 2)) sizes confirm log
 
 /-- One step of Karatsuba over schoolbook, or schoolbook where Karatsuba does not apply. -/
 def karatsubaStep (a b : UInt32Array.Slice) : UInt32Array :=
@@ -418,6 +426,63 @@ def tuneDivDC (log : Bool) : IO Nat := medianOf 3 do
     IO.eprintln "warning: division by blocks never won up to 488 limbs; using 488"
     return 488
 
+/-- A constant-time check of a number. -/
+def checkNat : MPN.Nat → UInt32
+  | .small w => w.toUInt32
+  | .large a _ => a.size.toUInt32 + a[0]!
+
+/-- `n` pseudorandom limbs as a number. -/
+def sampleNat (n seed : Nat) : MPN.Nat := MPN.Nat.ofNat (MPN.toNat (sample n seed))
+
+/-- Decimal digits by `toDecimalWith strDC`, of a trimmed array. -/
+def decimalWith (strDC : Nat) (a _ : UInt32Array) : String :=
+  if h : isTrimmed a = true then MPN.Nat.toDecimalWith strDC a h else ""
+
+/--
+Tunes `gcdHalf`: where half-gcd beats Lehmer's algorithm on two numbers of `n` limbs, with half-gcd
+from `n` limbs, so that the numbers it reduces finish by Lehmer's algorithm.
+-/
+def tuneGcdHalf (log : Bool) : IO Nat := medianOf 3 do
+  let sizes := (List.range 32).map (1024 + 512 * ·)
+  match ← crossoverOn (MPN.Nat.gcdWith 1000000000) (fun x y => MPN.Nat.gcdWith x.limbs.size x y) checkNat
+      (fun n => (sampleNat n 1, sampleNat n 2)) sizes (confirm := 2) (log := log) with
+  | some n =>
+    if log then IO.println s!"  found {n}"
+    return n
+  | none =>
+    IO.eprintln "warning: half-gcd never won up to 16896 limbs; using 16896"
+    return 16896
+
+/-- Tunes `strDC`: where writing decimal digits by divide and conquer beats the base case. -/
+def tuneStrDC (log : Bool) : IO Nat := medianOf 3 do
+  let sizes := (List.range 60).map (16 + 8 * ·)
+  match ← crossoverOn (decimalWith 1000000000) (decimalWith 0) (·.utf8ByteSize.toUInt32)
+      (fun n => let a := (sample (n - 1) 1).push 1; (a, a)) sizes (log := log) with
+  | some n =>
+    if log then IO.println s!"  found {n}"
+    return n
+  | none =>
+    IO.eprintln "warning: writing by divide and conquer never won up to 488 limbs; using 488"
+    return 488
+
+/--
+Tunes `parseDC`: where reading decimal digits by divide and conquer beats the base case, on
+strings of `9 n` digits.
+-/
+def tuneParseDC (log : Bool) : IO Nat := medianOf 3 do
+  let sizes := (List.range 48).map (128 + 64 * ·)
+  let digits (n : Nat) : String :=
+    String.ofList ((List.range (9 * n)).map fun i => Char.ofNat (48 + (i * 7 + i / 3) % 10))
+  match ← crossoverOn (fun t (_ : String) => MPN.Nat.ofStringWith 1000000000 t)
+      (fun t _ => MPN.Nat.ofStringWith 0 t) (fun r => checkNat r.get!)
+      (fun n => (digits n, digits n)) sizes (log := log) with
+  | some n =>
+    if log then IO.println s!"  found {n}"
+    return n
+  | none =>
+    IO.eprintln "warning: reading by divide and conquer never won up to 3136; using 3136"
+    return 3136
+
 end Tune
 
 open Tune in
@@ -473,6 +538,12 @@ public def main (args : List String) : IO UInt32 := do
     sqrToom6 := max 32 sqrToom6, thirtytwo_le_sqrToom6 := by lia } log
   IO.println "divDC: one level of division by blocks against Algorithm D, at 2n / n"
   let divDC ← tuneDivDC log
+  IO.println "gcdHalf: half-gcd against Lehmer's algorithm"
+  let gcdHalf ← tuneGcdHalf log
+  IO.println "strDC: writing decimal digits by divide and conquer against the base case"
+  let strDC ← tuneStrDC log
+  IO.println "parseDC: reading decimal digits by divide and conquer against the base case"
+  let parseDC ← tuneParseDC log
   let cfg : Config := {
     mulKaratsuba := max 4 karatsuba, four_le_mulKaratsuba := by lia,
     mulToom3 := max 12 toom3, twelve_le_mulToom3 := by lia,
@@ -486,7 +557,7 @@ public def main (args : List String) : IO UInt32 := do
     sqrToom3 := max 12 sqrToom3, twelve_le_sqrToom3 := by lia,
     sqrToom4 := max 32 sqrToom4, thirtytwo_le_sqrToom4 := by lia,
     sqrToom6 := max 32 sqrToom6, thirtytwo_le_sqrToom6 := by lia, sqrFFT,
-    divDC := max 4 divDC, four_le_divDC := by lia }
+    divDC := max 4 divDC, four_le_divDC := by lia, gcdHalf, strDC, parseDC }
   IO.println ""
   IO.println s!"Found:   {repr cfg}"
   IO.println s!"Default: {repr ({} : Config)}"
@@ -496,7 +567,8 @@ public def main (args : List String) : IO UInt32 := do
     ("mulToom4", cfg.mulToom4), ("mulToom6", cfg.mulToom6), ("mulFFT", cfg.mulFFT),
     ("mulUnbalanced", cfg.mulUnbalanced), ("sqrBasecase", cfg.sqrBasecase),
     ("sqrKaratsuba", cfg.sqrKaratsuba), ("sqrToom3", cfg.sqrToom3), ("sqrToom4", cfg.sqrToom4),
-    ("sqrToom6", cfg.sqrToom6), ("sqrFFT", cfg.sqrFFT), ("divDC", cfg.divDC)]
+    ("sqrToom6", cfg.sqrToom6), ("sqrFFT", cfg.sqrFFT), ("divDC", cfg.divDC),
+    ("gcdHalf", cfg.gcdHalf), ("strDC", cfg.strDC), ("parseDC", cfg.parseDC)]
   IO.println "To compile these into the library, add to its `require` in lakefile.toml:"
   IO.println s!"  options = \{ {", ".intercalate (opts.map fun (k, v) => s!"{k} = \"{v}\"")} }"
   IO.println "or build this package with:"

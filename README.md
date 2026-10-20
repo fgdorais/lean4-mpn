@@ -17,10 +17,11 @@ bijection, and `toString` and `ofString?` with `Nat.repr` and `String.toNat?`.
 
 ## Tuning
 
-Multiplication, squaring and division switch algorithms at size thresholds collected in
-`MPN.Config`. The defaults were measured on one machine; `lake exe tune` measures them on yours
-in several minutes and prints the options that set them. A project that depends on this library
-passes them with its `require`, together with `march`, which compiles the library's C code for a
+Multiplication, squaring, division, the greatest common divisor and decimal strings switch
+algorithms at size thresholds collected in `MPN.Config`. The defaults were measured on one
+machine; `lake exe tune` measures them on yours in several minutes (all but `divMu`, which is off
+by default) and prints the options that set them. A project that depends on this library passes
+them with its `require`, together with `march`, which compiles the library's C code for a
 given processor:
 
 ```toml

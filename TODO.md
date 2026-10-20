@@ -354,8 +354,14 @@ block of the division, and `topSize` usually stops at the first limb.
   `caab3b6`), every product threshold rose more on the M2 than on Zen 3: Karatsuba 128 (Zen 3
   112, flat 104–132), Toom-3 912 (640), Toom-3 by 2 248 (192), Toom-4 by 2 512 (304), Toom-4 by 3
   336 (272), Toom-4 992 (608), Toom-6 3392 (1792), the FFT 32768 (36864), and division by blocks
-  from 104 (176). Defaults per architecture will come,
-  but after the remaining algorithms are verified, so that the tuning sees all of them.
+  from 104 (176). Since 2026-10-20 `tune` also measures `gcdHalf` (half-gcd from the measured
+  size, so that what it reduces finishes by Lehmer's algorithm; from 0 it found 6656 on Zen 3,
+  biased by half-gcd at small sizes), `strDC` and `parseDC`; on Zen 3 they come out at the
+  defaults, 4608, 80 and 1024. The same run (at `e5809db`) put Toom-6 at 1472 (default 1792),
+  divide-and-conquer division at 136 (176), Karatsuba squaring at 196 (160) and Toom-3 squaring
+  never winning to its 980-limb cap (944); one run, to compare with more. Defaults per
+  architecture will come, but after the remaining algorithms are verified, so that the tuning sees
+  all of them.
 - [ ] **A raw GMP baseline.** The `Nat` column is Lean's wrapper around GMP, which copies both
   the operand and the result and allocates twice per operation, so below about 64 limbs it
   measures mostly that overhead (we beat it there). Calling `mpn_*` directly needs C, so it
