@@ -40,6 +40,7 @@ public import MPN.Div
 public import MPN.Generic.Ops
 public import MPN.Generic.Barrett
 public import MPN.Generic.HGCD
+public import MPN.Generic.Radix
 public import MPN.Bits
 public import MPN.Decimal
 public import MPN.Nat

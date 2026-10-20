@@ -7,6 +7,7 @@ module
 public import MPN.Add
 public import MPN.Div.Limb
 public import MPN.Mul.Limb
+public import MPN.Generic.Radix
 
 /-!
 # Decimal strings
@@ -30,26 +31,6 @@ open ScalarArray
 namespace MPN
 
 /-! ## Digits -/
-
-/-- The `k` low decimal digits of `d`, with leading zeros. -/
-def padDigits : Nat → Nat → List Char
-  | 0, _ => []
-  | k + 1, d => padDigits k (d / 10) ++ [Nat.digitChar (d % 10)]
-
-/-- The digits of `10ᵏ n + d` are those of `n` followed by the `k` digits of `d`. -/
-theorem toDigits_pow_mul_add (k : Nat) {n d : Nat} (hn : 0 < n) (hd : d < 10 ^ k) :
-    Nat.toDigits 10 (10 ^ k * n + d) = Nat.toDigits 10 n ++ padDigits k d := by
-  induction k generalizing d with
-  | zero =>
-    rw [Nat.pow_zero] at hd
-    rw [show d = 0 by lia, padDigits, Nat.pow_zero, Nat.one_mul, Nat.add_zero, List.append_nil]
-  | succ k ih =>
-    have hpos : 0 < 10 ^ k * n := Nat.mul_pos (Nat.pow_pos (by decide)) hn
-    have e : 10 ^ (k + 1) * n + d = 10 * (10 ^ k * n + d / 10) + d % 10 := by
-      rw [Nat.pow_succ, Nat.mul_comm (10 ^ k) 10, Nat.mul_assoc]; lia
-    rw [e, ← Nat.toDigits_append_toDigits (by decide) (by lia) (Nat.mod_lt _ (by decide)),
-      Nat.toDigits_of_lt_base (Nat.mod_lt _ (by decide)),
-      ih (by rw [Nat.pow_succ] at hd; lia), padDigits, List.append_assoc]
 
 /-- Pushes the `k` low decimal digits of `d`, with leading zeros, onto `s`. -/
 def pushDigits (s : String) : Nat → Nat → String

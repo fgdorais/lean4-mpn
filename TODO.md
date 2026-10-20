@@ -261,7 +261,14 @@ block of the division, and `topSize` usually stops at the first limb.
     thresholds: chunks of nine digits, by `divRem1` by `10⁹` one way and a fold over the
     characters the other. Equal to `Nat.repr` and `String.toNat?`, and 10–20× faster than
     `Nat`'s, which works digit by digit, from 4 limbs up; words go to the runtime's `USize.repr`.
-    Both are quadratic: GMP's subquadratic versions (by powers `10^(9·2ᵏ)`) would be next.
+    Both quadratic below, and since 2026-10-19 by divide and conquer above (`Generic.Radix`,
+    base-generic over `NatOps`; GMP's subquadratic `mpn_get_str`/`mpn_set_str`): with the powers
+    `10^(2ʲ)`, `toDec` divides by the largest power below the number and writes the quotient, then
+    the remainder padded to `2ʲ` digits, splitting it the same way; `fromDec` splits the digits
+    into a high part and `2ʲ` low digits and multiplies. Only the conversions of short numbers
+    come from the instance (the chunks above). `toString` from 80 limbs (`strDC`): 256 limbs
+    140 → 82 µs, 1024: 1.98 ms → 594 µs, 8192: 10× faster; `ofString?` from 1024 limbs
+    (`parseDC`): 1024 −5%, 8192 3.5× faster.
     Reading a short number costs 350 ns against 140 ns, mostly in `String.isNat` and the string
     iterator.
 

@@ -450,6 +450,29 @@ def bigNatValues : List Nat :=
       Nat.gcd (a * g) (b * g) &&
     (MPN.Nat.gcdWith 4 (MPN.Nat.ofNat fib.2) (MPN.Nat.ofNat fib.1)).toNat == Nat.gcd fib.2 fib.1
 
+-- Decimal strings by divide and conquer (`toDecimalWith` from 2 limbs) on random numbers, powers
+-- of ten and their neighbors, which exercise the leading and padded zeros.
+#guard [2, 3, 5, 8, 17, 40, 100].all fun n =>
+  let x := sample1 (32 * n) (n + 11)
+  let t := 10 ^ (9 * n)
+  [x, t, t - 1, t + 1, 10 ^ (9 * n + 5) + 7, 2 ^ (32 * n) - 1].all fun v =>
+    let a := trim (ofNat v)
+    MPN.Nat.toDecimalWith 2 a (isTrimmed_trim _) == Nat.repr v
+
+-- Decimal strings read by divide and conquer (`ofStringWith` from 18 digits), with underscores,
+-- leading zeros, powers of ten, and strings that are not numbers.
+#guard [2, 3, 5, 8, 17, 40, 100].all fun n =>
+  let x := sample1 (32 * n) (n + 13)
+  let t := 10 ^ (9 * n)
+  [x, t, t - 1, t + 1, 10 ^ (9 * n + 5) + 7, 2 ^ (32 * n) - 1].all fun v =>
+    let str := toString v
+    let under := String.ofList ((str.toList.zip (List.range str.length)).flatMap fun (c, i) =>
+      if i % 7 = 3 then ['_', c] else [c])
+    (MPN.Nat.ofStringWith 2 str).map MPN.Nat.toNat == some v &&
+      (MPN.Nat.ofStringWith 2 ("000" ++ str)).map MPN.Nat.toNat == some v &&
+      (MPN.Nat.ofStringWith 2 under).map MPN.Nat.toNat == under.toNat? &&
+      (MPN.Nat.ofStringWith 2 (str ++ "x")).isNone
+
 -- Shifts, bitwise operations, `log2`, `sqrt` and `pow` against `Nat`.
 #guard bigNatValues.all fun a =>
   let x := MPN.Nat.ofNat a

@@ -14,6 +14,7 @@ public import MPN.Bits
 public import MPN.Decimal
 public import MPN.MulSubMul
 public import MPN.Generic.HGCD
+public import MPN.Generic.Radix
 import Std.Data.String.ToNat
 import all Init.Data.Repr
 
@@ -1157,13 +1158,39 @@ decreasing_by
 
 /-! ## Decimal strings -/
 
+/-- The decimal digits of a slice by chunks of nine digits (`toDecimal`), `toDec`'s base case. -/
+public def decBase (x : UInt32Array.Slice) : String := toDecimal (trim x.copy) (isTrimmed_trim _)
+
+private theorem decBase_spec (x : UInt32Array.Slice) :
+    (decBase x).toList = _root_.Nat.toDigits 10 (ops32.val x) := by
+  rw [decBase, toDecimal_eq, _root_.Nat.toList_repr, toNat_trim, toNat_copy, ops32_val]
+
+/-- The size below which divide and conquer writes digits by chunks (`decBase`). -/
+public def decBaseSize : Nat := 32
+
+/--
+The decimal digits of limbs: by chunks of nine digits below `strDC` limbs (`toDecimal`), and by
+divide and conquer from `strDC` limbs (`NatOps.toDec`), down to `decBaseSize` limbs.
+-/
+public def toDecimalWith (strDC : Nat) (a : UInt32Array) (h : isTrimmed a = true) : String :=
+  if strDC ≤ a.size then ops32.toDec decBase decBaseSize a.toSlice else toDecimal a h
+
+public theorem toDecimalWith_eq (strDC : Nat) (a : UInt32Array) (h : isTrimmed a = true) :
+    toDecimalWith strDC a h = _root_.Nat.repr (MPN.toNat a) := by
+  unfold toDecimalWith
+  split
+  · rw [← String.toList_inj, ops32.toDec_spec decBase decBaseSize decBase_spec,
+      _root_.Nat.toList_repr,
+      ops32_val]
+  · exact toDecimal_eq a h
+
 /--
 The decimal digits, like `Nat.repr`. A word that fits in a `USize` goes to the runtime's
 `USize.repr` directly, without a `Nat` above `2⁶³`, which would be a GMP number.
 -/
 public def repr : MPN.Nat → String
   | small n => if n.toUSize.toUInt64 = n then n.toUSize.repr else _root_.Nat.repr n.toNat
-  | large a h => toDecimal a h.1
+  | large a h => toDecimalWith config.strDC a h.1
 
 private theorem usize_repr (n : USize) : n.repr = _root_.Nat.repr n.toNat := by
   unfold USize.repr
@@ -1179,22 +1206,78 @@ public theorem repr_eq (x : MPN.Nat) : x.repr = _root_.Nat.repr x.toNat := by
       rw [USize.toNat_toUInt64] at this
       rw [ite_eq_left h, usize_repr, this]
     · rw [ite_eq_right h]
-  | large a h => exact toDecimal_eq a h.1
+  | large a h => exact toDecimalWith_eq _ a h.1
 
-/-- The number that a string of decimal digits denotes, like `String.toNat?`. -/
-public def ofString? (s : String) : Option MPN.Nat :=
+/-- The value of `len` digits of `arr` from `start` by chunks of nine digits, `fromDec`'s base. -/
+public def parseBase (arr : Array Char) (start len : Nat) : UInt32Array.Slice :=
+  (trim (arr.foldl DecimalState.step .init start (start + len)).finish).toSlice
+
+private theorem foldl_chars (arr : Array Char) (start len : Nat) :
+    arr.foldl DecimalState.step .init start (start + len) =
+      (NatOps.chars arr start len).foldl DecimalState.step .init := by
+  rw [Array.foldl_eq_foldl_extract, ← Array.foldl_toList, Array.toList_extract,
+    List.extract_eq_take_drop, Nat.add_sub_cancel_left, NatOps.chars]
+
+/-- The size, in digits, below which divide and conquer reads digits by chunks (`parseBase`). -/
+public def parseBaseSize : Nat := 300
+
+private theorem parseBase_spec (arr : Array Char) (hd : ∀ c ∈ arr.toList, c.isDigit = true)
+    (start len : Nat) :
+    ops32.val (parseBase arr start len) =
+      _root_.Nat.ofDigitChars 10 (NatOps.chars arr start len) 0 := by
+  have hc : ∀ c ∈ NatOps.chars arr start len, c.isDigit = true := fun c hc =>
+    hd c (List.mem_of_mem_drop (List.mem_of_mem_take hc))
+  rw [ops32_val, parseBase, toNat_toSlice, ← toNat_toSlice, toNat_trim, foldl_chars,
+    toNat_finish_foldl _ (fun c h => Or.inl (hc c h))]
+  congr 1
+  apply List.filter_eq_self.2
+  intro c h
+  have := hc c h
+  simp only [bne_iff_ne, ne_eq]
+  rintro rfl
+  exact absurd this (by decide)
+
+/--
+The number that a string of decimal digits denotes, like `String.toNat?`: from `9 parseDC` digits
+(at least `parseDC` limbs) by divide and conquer (`NatOps.fromDec`), and below by chunks of nine
+digits.
+-/
+public def ofStringWith (parseDC : Nat) (s : String) : Option MPN.Nat :=
   if s.isNat then
-    some (ofLimbs (trim (s.foldl DecimalState.step .init).finish) (isTrimmed_trim _))
+    if 9 * parseDC ≤ s.length then
+      let ds := (s.toList.filter (· != '_')).toArray
+      some (ofLimbs (trim (ops32.fromDec parseBase parseBaseSize ds).copy) (isTrimmed_trim _))
+    else some (ofLimbs (trim (s.foldl DecimalState.step .init).finish) (isTrimmed_trim _))
   else
     none
 
-public theorem ofString?_eq (s : String) : ofString? s = s.toNat?.map ofNat := by
+public theorem ofStringWith_eq (parseDC : Nat) (s : String) :
+    ofStringWith parseDC s = s.toNat?.map ofNat := by
   by_cases h : s.isNat = true
-  · rw [ofString?, ite_eq_left h, String.toNat?_eq_some_ofDigitChars h, Option.map_some,
-      Option.some.injEq, ← toNat_inj, toNat_ofLimbs, toNat_ofNat, toNat_trim,
-      String.foldl_eq_foldl_toList]
-    exact toNat_finish_foldl _ (String.isNat_iff.1 h).2.1
-  · rw [ofString?, ite_eq_right h, String.toNat?_eq_none (by simpa using h), Option.map_none]
+  · rw [ofStringWith, ite_eq_left h, String.toNat?_eq_some_ofDigitChars h, Option.map_some]
+    dsimp only
+    split
+    · rw [Option.some.injEq, ← toNat_inj, toNat_ofLimbs, toNat_ofNat, toNat_trim, toNat_copy]
+      have hd : ∀ c ∈ (s.toList.filter (· != '_')).toArray.toList, c.isDigit = true := by
+        intro c hc
+        simp only [List.mem_filter, bne_iff_ne, ne_eq] at hc
+        rcases (String.isNat_iff.1 h).2.1 c hc.1 with h' | h'
+        · exact h'
+        · exact absurd h' hc.2
+      have := ops32.fromDec_spec parseBase parseBaseSize _
+        (fun st ln _ => parseBase_spec _ hd st ln)
+      rw [ops32_val] at this
+      rw [this, List.toList_toArray]
+    · rw [Option.some.injEq, ← toNat_inj, toNat_ofLimbs, toNat_ofNat, toNat_trim,
+        String.foldl_eq_foldl_toList]
+      exact toNat_finish_foldl _ (String.isNat_iff.1 h).2.1
+  · rw [ofStringWith, ite_eq_right h, String.toNat?_eq_none (by simpa using h), Option.map_none]
+
+/-- The number that a string of decimal digits denotes, like `String.toNat?`. -/
+public def ofString? (s : String) : Option MPN.Nat := ofStringWith config.parseDC s
+
+public theorem ofString?_eq (s : String) : ofString? s = s.toNat?.map ofNat :=
+  ofStringWith_eq _ s
 
 public instance : DecidableEq MPN.Nat := decEq
 public instance : Add MPN.Nat := ⟨add⟩

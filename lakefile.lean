@@ -25,8 +25,8 @@ changing the options, build once with `-R` to reconfigure.
   binaries then run only on processors with those instructions.
 * `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`, `mulToom43`, `mulToom4`, `mulToom6`,
   `mulFFT`, `mulUnbalanced`, `sqrBasecase`, `sqrKaratsuba`, `sqrToom3`, `sqrToom4`, `sqrToom6`,
-  `sqrFFT`, `divDC`, `divMu`, `gcdHalf`: the thresholds, by the names of the fields of
-  `MPN.Config`. The keys have no dots, since TOML passes a quoted key as one name.
+  `sqrFFT`, `divDC`, `divMu`, `gcdHalf`, `strDC`, `parseDC`: the thresholds, by the names of the
+  fields of `MPN.Config`. The keys have no dots, since TOML passes a quoted key as one name.
 -/
 
 /--
@@ -58,7 +58,9 @@ def thresholdOptions : Array LeanOption :=
     opt `sqr.fftThreshold (get_config? sqrFFT) ++
     opt `div.dcThreshold (get_config? divDC) ++
     opt `div.muThreshold (get_config? divMu) ++
-    opt `gcd.halfThreshold (get_config? gcdHalf)
+    opt `gcd.halfThreshold (get_config? gcdHalf) ++
+    opt `str.dcThreshold (get_config? strDC) ++
+    opt `str.parseDCThreshold (get_config? parseDC)
 
 /-- `-march=<value>` when the `march` option is given. -/
 def marchArgs : Array String :=

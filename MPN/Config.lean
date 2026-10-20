@@ -109,6 +109,11 @@ public structure Config where
   divMu : Nat := 1000000
   /-- The size of the smaller number from which the greatest common divisor uses half-gcd. -/
   gcdHalf : Nat := 8192
+  /-- The size from which decimal strings are written by divide and conquer. -/
+  strDC : Nat := 80
+  /-- The size of the result, in limbs, from which decimal strings are read by divide and
+  conquer. -/
+  parseDC : Nat := 1024
   deriving Repr
 
 public meta register_option mpn.mul.karatsubaThreshold : Nat := {
@@ -208,6 +213,16 @@ public meta register_option mpn.gcd.halfThreshold : Nat := {
     uses half-gcd"
 }
 
+public meta register_option mpn.str.dcThreshold : Nat := {
+  defValue := ({} : Config).strDC
+  descr := "the size, in limbs, from which decimal strings are written by divide and conquer"
+}
+
+public meta register_option mpn.str.parseDCThreshold : Nat := {
+  defValue := ({} : Config).parseDC
+  descr := "the size, in limbs, from which decimal strings are read by divide and conquer"
+}
+
 open Lean Elab Term in
 /-- The `Config` given by the `mpn.*` options in effect, with defaults from `Config`. -/
 elab "mpn_config%" : term => do
@@ -250,6 +265,8 @@ elab "mpn_config%" : term => do
   let divDC := mpn.div.dcThreshold.get opts
   let divMu := mpn.div.muThreshold.get opts
   let gcdHalf := mpn.gcd.halfThreshold.get opts
+  let strDC := mpn.str.dcThreshold.get opts
+  let parseDC := mpn.str.parseDCThreshold.get opts
   unless 4 ≤ divDC do
     throwError "mpn.div.dcThreshold must be at least 4, but it is {divDC}"
   let sqrBasecase := mpn.sqr.basecaseThreshold.get opts
@@ -272,6 +289,8 @@ elab "mpn_config%" : term => do
   let dc := quote divDC
   let mu := quote divMu
   let gh := quote gcdHalf
+  let sd := quote strDC
+  let pd := quote parseDC
   let stx ← `(({ mulKaratsuba := $m
                  mulToom3 := $t
                  mulToom32 := $t₂
@@ -289,7 +308,9 @@ elab "mpn_config%" : term => do
                  sqrFFT := $sf
                  divDC := $dc
                  divMu := $mu
-                 gcdHalf := $gh } : Config))
+                 gcdHalf := $gh
+                 strDC := $sd
+                 parseDC := $pd } : Config))
   elabTerm stx (mkConst ``Config)
 
 end MPN

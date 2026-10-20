@@ -33,12 +33,12 @@ options = { march = "native", mulKaratsuba = "64", mulToom3 = "480", divDC = "17
 
 The keys are the fields of `MPN.Config`: `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`,
 `mulToom43`, `mulToom4`, `mulToom6`, `mulFFT`, `mulUnbalanced`, `sqrBasecase`, `sqrKaratsuba`,
-`sqrToom3`, `sqrToom4`, `sqrToom6`, `sqrFFT`, `divDC`, `divMu` and `gcdHalf`; an invalid value
-stops the build. With `march = "native"` the C compiler may use the vector instructions of the
-build machine (5–12% faster products with AVX2), and the program then runs only on processors that
-have them. Lake keeps the configuration it elaborated, so after changing the options, build once
-with `lake build -R`. In this package itself, the same options go on the command line:
-`lake build -R -K march=native`.
+`sqrToom3`, `sqrToom4`, `sqrToom6`, `sqrFFT`, `divDC`, `divMu`, `gcdHalf`, `strDC` and `parseDC`;
+an invalid value stops the build. With `march = "native"` the C compiler may use the vector
+instructions of the build machine (5–12% faster products with AVX2), and the program then runs only
+on processors that have them. Lake keeps the configuration it elaborated, so after changing the
+options, build once with `lake build -R`. In this package itself, the same options go on the
+command line: `lake build -R -K march=native`.
 
 ## Programs
 
