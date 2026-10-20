@@ -139,6 +139,7 @@ above; ratios before `15534f8` for `MPN.Nat` rows were inflated by the hashing c
 
 | date | commit | change | effect |
 |---|---|---|---|
+| 2026-10-20 | (this commit) | Half-gcd: matrices applied to the low halves only (`applySplit`), with the exact relation `(a, b) = M (x, y)` proved; from 4608 limbs (was 8192) | Beyond the table: `gcd` 8192 limbs 85 → 64 ms (−25%), 12288: 157 → 112 ms, 16384: 242 → 170 ms, 32768: 0.66 → 0.43 s (3.1× faster than Lehmer) |
 | 2026-10-19 | `19ef59a` | Decimal strings by divide and conquer on the base-generic layer (`Generic.Radix`): writing from 80 limbs, reading from 1024 | `btostr` 256 limbs: 140 → 82 µs, 512: 518 → 215 µs, 1024: 1.98 ms → 594 µs; `bofstr` 1024: 512 → 489 µs; beyond the table, writing 10× and reading 3.5× faster at 8192 limbs |
 | 2026-10-19 | `e7f6adc` | Half-gcd on the base-generic layer (`Generic.HGCD`), from 8192 limbs | Beyond the table: `gcd` 12288 limbs 192 → 157 ms (−19%), 16384: 340 → 242 ms (−29%), 32768: 1.36 → 0.66 s (−52%) |
 | 2026-10-19 | `4204471` | Schoolbook squares by rows into wide accumulators: the products below the diagonal by the rows of `rowsMul`, then `2 S + D` and the carries in one pass; proved. Square thresholds re-tuned: Karatsuba from 160 (was 96), Toom-4 832, Toom-6 2496, the FFT 26624 | `sqr` 64 limbs: 1.26 µs → 926 ns (−27%), 256: 12.8 → 8.88 µs, 1024: 109 → 83.7 µs, 4096: 824 → 667 µs (3.94 → 3.18× `Nat`); `bsqrt` 1024: 663 → 624 µs |

@@ -245,13 +245,13 @@ block of the division, and `topSize` usually stops at the first limb.
     the steps, so it is not worth it. Half-gcd since 2026-10-19 (`Generic.HGCD`, base-generic over
     `NatOps`): the matrix of the top half recursively, a Euclid step, the matrix of the top of what
     is left, with Lehmer's word steps at the base (`lehmerMat`). Only the determinant `±1` and the
-    gcd are proved; a matrix from top limbs that overshoots the full numbers fails a sign check
-    (`applyInvC`) and is dropped, and `gcdWith` keeps a reduction only when it made the smaller
-    number smaller. From 8192 limbs (`gcdHalf`): `gcd` 12288 limbs −19%, 16384 −29%, 32768 −52%;
-    1.7–5× slower than Lehmer below, where allocation, comparisons and trimming in small `NatOps`
-    operations take two thirds of the time, and the matrices are applied to the full numbers
-    (GMP applies them to the low halves only, half the products, which needs the exact relation
-    `(a, b) = M (x, y)` in the specification).
+    gcd are proved, with the exact relation `(a, b) = M (x, y)`: the matrix of the top limbs and
+    the numbers it brings them to extend to the full numbers with products by the low limbs only
+    (`applySplit`, as in GMP), and a matrix that overshoots fails a sign check and is dropped;
+    `gcdWith` keeps a reduction only when it made the smaller number smaller. From 4608 limbs
+    (`gcdHalf`): `gcd` 5120 limbs −7%, 8192 −25%, 16384 −49%, 32768 −68%; up to 2–3× slower
+    than Lehmer far below, where allocation, comparisons and trimming in small `NatOps`
+    operations dominate.
   - [x] integer square root: Newton's iteration at growing precision, from the root of the top
     half (`sqrt (n / 4ᵏ)` for `k` a quarter of the bits), which starts within `2ᵏ` above the root;
     one Newton step, which is at least the root by AM-GM, then steps down while `x² > n` with one

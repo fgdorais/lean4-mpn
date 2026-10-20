@@ -149,29 +149,127 @@ public theorem gcd_applyInv (M : Mat2 α) (hM : o.Unimodular M) (a b : α) :
   · congr 1; push_cast; lia
   · congr 1; push_cast; lia
 
+/-! ## The exact relation -/
+
+/-- `(a, b) = M (x, y)`, on values. -/
+@[expose] public def Fwd (M : Mat2 α) (a b x y : α) : Prop :=
+  o.val a = o.val M.m11 * o.val x + o.val M.m12 * o.val y ∧
+    o.val b = o.val M.m21 * o.val x + o.val M.m22 * o.val y
+
+public theorem fwd_matId (a b : α) : o.Fwd o.matId a b a b := by
+  simp [Fwd, matId, val_one, val_zero]
+
+public theorem fwd_matMul (M N : Mat2 α) (a b a₁ b₁ x y : α) (h₁ : o.Fwd M a b a₁ b₁)
+    (h₂ : o.Fwd N a₁ b₁ x y) : o.Fwd (o.matMul M N) a b x y := by
+  unfold Fwd at *
+  simp only [matMul, o.val_add, o.val_mul]
+  rw [h₁.1, h₁.2, h₂.1, h₂.2]
+  constructor <;> grind
+
+/-- The gcd is that of the numbers a matrix of determinant `±1` takes to `a` and `b`. -/
+public theorem gcd_of_fwd (M : Mat2 α) (hM : o.Unimodular M) (a b x y : α)
+    (h : o.Fwd M a b x y) : Nat.gcd (o.val a) (o.val b) = Nat.gcd (o.val x) (o.val y) := by
+  have g := gcd_unimodular (o.val x) (o.val y) (o.val M.m11) (o.val M.m12) (o.val M.m21)
+    (o.val M.m22) (by
+      unfold Unimodular at hM
+      cases hn : M.neg <;> rw [hn] at hM <;> simp at hM
+      · left; lia
+      · right; lia)
+  rw [← g, h.1, h.2]
+  norm_cast
+
+/-- The determinant `±1` on natural numbers, by its sign. -/
+private theorem det_nat (M : Mat2 α) (hM : o.Unimodular M) :
+    (M.neg = false → o.val M.m11 * o.val M.m22 = o.val M.m12 * o.val M.m21 + 1) ∧
+      (M.neg = true → o.val M.m12 * o.val M.m21 = o.val M.m11 * o.val M.m22 + 1) := by
+  unfold Unimodular at hM
+  constructor
+  · intro hn
+    rw [hn] at hM
+    have : ((o.val M.m11 * o.val M.m22 : Nat) : Int) =
+        ((o.val M.m12 * o.val M.m21 + 1 : Nat) : Int) := by
+      push_cast; simp at hM; lia
+    exact Int.ofNat_inj.1 this
+  · intro hn
+    rw [hn] at hM
+    have : ((o.val M.m12 * o.val M.m21 : Nat) : Int) =
+        ((o.val M.m11 * o.val M.m22 + 1 : Nat) : Int) := by
+      push_cast; simp at hM; lia
+    exact Int.ofNat_inj.1 this
+
+private theorem fwd_pos (m₁₁ m₁₂ m₂₁ m₂₂ a b X Y : Nat) (hd : m₁₁ * m₂₂ = m₁₂ * m₂₁ + 1)
+    (hX : X + m₁₂ * b = m₂₂ * a) (hY : Y + m₂₁ * a = m₁₁ * b) :
+    a = m₁₁ * X + m₁₂ * Y ∧ b = m₂₁ * X + m₂₂ * Y := by
+  constructor <;> grind
+
+private theorem fwd_neg (m₁₁ m₁₂ m₂₁ m₂₂ a b X Y : Nat) (hd : m₁₂ * m₂₁ = m₁₁ * m₂₂ + 1)
+    (hX : X + m₂₂ * a = m₁₂ * b) (hY : Y + m₁₁ * b = m₂₁ * a) :
+    a = m₁₁ * X + m₁₂ * Y ∧ b = m₂₁ * X + m₂₂ * Y := by
+  constructor <;> grind
+
+private theorem split_pos (m₁₁ m₁₂ m₂₁ m₂₂ x₁ y₁ ah al bh bl P X Y : Nat)
+    (hd : m₁₁ * m₂₂ = m₁₂ * m₂₁ + 1)
+    (ha : ah = m₁₁ * x₁ + m₁₂ * y₁) (hb : bh = m₂₁ * x₁ + m₂₂ * y₁)
+    (hX : X + m₁₂ * bl = x₁ * P + m₂₂ * al) (hY : Y + m₂₁ * al = y₁ * P + m₁₁ * bl) :
+    ah * P + al = m₁₁ * X + m₁₂ * Y ∧ bh * P + bl = m₂₁ * X + m₂₂ * Y := by
+  constructor <;> grind
+
+private theorem split_neg (m₁₁ m₁₂ m₂₁ m₂₂ x₁ y₁ ah al bh bl P X Y : Nat)
+    (hd : m₁₂ * m₂₁ = m₁₁ * m₂₂ + 1)
+    (ha : ah = m₁₁ * x₁ + m₁₂ * y₁) (hb : bh = m₂₁ * x₁ + m₂₂ * y₁)
+    (hX : X + m₂₂ * al = x₁ * P + m₁₂ * bl) (hY : Y + m₁₁ * bl = y₁ * P + m₂₁ * al) :
+    ah * P + al = m₁₁ * X + m₁₂ * Y ∧ bh * P + bl = m₂₁ * X + m₂₂ * Y := by
+  constructor <;> grind
+
 /--
-`applyInv` when its signs are right: `m₂₂ a ≥ m₁₂ b` and `m₁₁ b ≥ m₂₁ a` for determinant `1`, the
-reverse for `-1`, so that `(a, b) = M (x, y)` exactly and `M` composes with the matrices of `x`
-and `y`. A matrix from the top limbs of `a` and `b` that went one step too far fails this.
+`M⁻¹ (a, b)` when its entries are nonnegative: `m₂₂ a ≥ m₁₂ b` and `m₁₁ b ≥ m₂₁ a` for determinant
+`1`, the reverse for `-1`, so that `(a, b) = M (x, y)` exactly. A matrix from the top limbs of `a`
+and `b` that went one step too far fails this.
 -/
 public def applyInvC (M : Mat2 α) (a b : α) : Option (α × α) :=
   let p₁ := o.mul M.m22 a
   let q₁ := o.mul M.m12 b
   let p₂ := o.mul M.m11 b
   let q₂ := o.mul M.m21 a
-  if (if M.neg then o.le p₁ q₁ && o.le p₂ q₂ else o.le q₁ p₁ && o.le q₂ p₂) then
-    some (o.absDiff p₁ q₁, o.absDiff p₂ q₂)
-  else none
+  if !M.neg then
+    if o.le q₁ p₁ && o.le q₂ p₂ then some (o.sub p₁ q₁, o.sub p₂ q₂) else none
+  else
+    if o.le p₁ q₁ && o.le p₂ q₂ then some (o.sub q₁ p₁, o.sub q₂ p₂) else none
 
-public theorem gcd_applyInvC (M : Mat2 α) (hM : o.Unimodular M) (a b : α) (p : α × α)
-    (h : o.applyInvC M a b = some p) :
-    Nat.gcd (o.val p.1) (o.val p.2) = Nat.gcd (o.val a) (o.val b) := by
+public theorem fwd_applyInvC (M : Mat2 α) (hM : o.Unimodular M) (a b : α) (p : α × α)
+    (h : o.applyInvC M a b = some p) : o.Fwd M a b p.1 p.2 := by
+  obtain ⟨hd₁, hd₂⟩ := o.det_nat M hM
   unfold applyInvC at h
   dsimp only at h
-  split at h <;> split at h <;>
-    first
-    | (rw [Option.some.injEq] at h; subst h; exact o.gcd_applyInv M hM a b)
-    | exact absurd h (by simp)
+  split at h
+  · rename_i hn
+    simp only [Bool.not_eq_true'] at hn
+    split at h
+    · rename_i hc
+      simp only [Bool.and_eq_true, o.le_iff, o.val_mul] at hc
+      rw [Option.some.injEq] at h
+      subst h
+      have hX := o.val_sub (o.mul M.m22 a) (o.mul M.m12 b) 
+        (by rw [o.val_mul, o.val_mul]; exact hc.1)
+      have hY := o.val_sub (o.mul M.m11 b) (o.mul M.m21 a) 
+        (by rw [o.val_mul, o.val_mul]; exact hc.2)
+      rw [o.val_mul, o.val_mul] at hX hY
+      exact fwd_pos _ _ _ _ _ _ _ _ (hd₁ hn) (by rw [hX]; lia) (by rw [hY]; lia)
+    · exact absurd h (by simp)
+  · rename_i hn
+    simp only [Bool.not_eq_true', Bool.not_eq_false] at hn
+    split at h
+    · rename_i hc
+      simp only [Bool.and_eq_true, o.le_iff, o.val_mul] at hc
+      rw [Option.some.injEq] at h
+      subst h
+      have hX := o.val_sub (o.mul M.m12 b) (o.mul M.m22 a) 
+        (by rw [o.val_mul, o.val_mul]; exact hc.1)
+      have hY := o.val_sub (o.mul M.m21 a) (o.mul M.m11 b) 
+        (by rw [o.val_mul, o.val_mul]; exact hc.2)
+      rw [o.val_mul, o.val_mul] at hX hY
+      exact fwd_neg _ _ _ _ _ _ _ _ (hd₂ hn) (by rw [hX]; lia) (by rw [hY]; lia)
+    · exact absurd h (by simp)
 
 /-- The pair `p` with the larger number first, and `M` with its columns swapped if they were not. -/
 public def orient (M : Mat2 α) (p : α × α) : Mat2 α × α × α :=
@@ -184,17 +282,78 @@ public theorem unimodular_orient (M : Mat2 α) (hM : o.Unimodular M) (p : α × 
   · exact hM
   · exact o.unimodular_matMul _ _ hM o.unimodular_matSwap
 
-public theorem gcd_orient (M : Mat2 α) (p : α × α) :
-    Nat.gcd (o.val (o.orient M p).2.1) (o.val (o.orient M p).2.2) =
-      Nat.gcd (o.val p.1) (o.val p.2) := by
+public theorem fwd_orient (M : Mat2 α) (a b : α) (p : α × α) (h : o.Fwd M a b p.1 p.2) :
+    o.Fwd (o.orient M p).1 a b (o.orient M p).2.1 (o.orient M p).2.2 := by
   unfold orient
   split
-  · rfl
-  · exact Nat.gcd_comm _ _
+  · exact h
+  · apply o.fwd_matMul _ _ a b p.1 p.2 _ _ h
+    simp [Fwd, matSwap, val_one, val_zero]
 
-/-- What half-gcd computes: a matrix of determinant `±1`, and a pair with the same gcd. -/
+/--
+`M⁻¹ (a, b)` from `(x₁, y₁) = M⁻¹ (⌊a / Bˢ⌋, ⌊b / Bˢ⌋)`: `x₁ Bˢ ± (m₂₂ aₗ - m₁₂ bₗ)` and
+`y₁ Bˢ ± (m₁₁ bₗ - m₂₁ aₗ)` with the low limbs `aₗ`, `bₗ` of `a`, `b`, so that the products are
+with the `s` low limbs only; none when a number would be negative, as in `applyInvC`.
+-/
+public def applySplit (M : Mat2 α) (x₁ y₁ a b : α) (s : Nat) : Option (α × α) :=
+  let aₗ := o.lo s a
+  let bₗ := o.lo s b
+  let t₁ := o.mul M.m22 aₗ
+  let u₁ := o.mul M.m12 bₗ
+  let t₂ := o.mul M.m11 bₗ
+  let u₂ := o.mul M.m21 aₗ
+  if !M.neg then
+    let X := o.add (o.shl s x₁) t₁
+    let Y := o.add (o.shl s y₁) t₂
+    if o.le u₁ X && o.le u₂ Y then some (o.sub X u₁, o.sub Y u₂) else none
+  else
+    let X := o.add (o.shl s x₁) u₁
+    let Y := o.add (o.shl s y₁) u₂
+    if o.le t₁ X && o.le t₂ Y then some (o.sub X t₁, o.sub Y t₂) else none
+
+public theorem fwd_applySplit (M : Mat2 α) (hM : o.Unimodular M) (x₁ y₁ a b : α) (s : Nat)
+    (h₁ : o.Fwd M (o.hi s a) (o.hi s b) x₁ y₁) (p : α × α)
+    (h : o.applySplit M x₁ y₁ a b s = some p) : o.Fwd M a b p.1 p.2 := by
+  obtain ⟨hd₁, hd₂⟩ := o.det_nat M hM
+  unfold Fwd at h₁ ⊢
+  rw [o.val_hi, o.val_hi] at h₁
+  have ha := Nat.div_add_mod' (o.val a) (o.B ^ s)
+  have hb := Nat.div_add_mod' (o.val b) (o.B ^ s)
+  unfold applySplit at h
+  dsimp only at h
+  split at h
+  · rename_i hn
+    simp only [Bool.not_eq_true'] at hn
+    split at h
+    · rename_i hc
+      simp only [Bool.and_eq_true, o.le_iff] at hc
+      rw [Option.some.injEq] at h
+      subst h
+      have hX := o.val_sub _ _ hc.1
+      have hY := o.val_sub _ _ hc.2
+      simp only [o.val_mul, o.val_add, o.val_shl, o.val_lo] at hX hY hc
+      rw [← ha, ← hb]
+      exact split_pos _ _ _ _ _ _ _ _ _ _ _ _ _ (hd₁ hn) h₁.1 h₁.2 (by rw [hX]; lia)
+        (by rw [hY]; lia)
+    · exact absurd h (by simp)
+  · rename_i hn
+    simp only [Bool.not_eq_true', Bool.not_eq_false] at hn
+    split at h
+    · rename_i hc
+      simp only [Bool.and_eq_true, o.le_iff] at hc
+      rw [Option.some.injEq] at h
+      subst h
+      have hX := o.val_sub _ _ hc.1
+      have hY := o.val_sub _ _ hc.2
+      simp only [o.val_mul, o.val_add, o.val_shl, o.val_lo] at hX hY hc
+      rw [← ha, ← hb]
+      exact split_neg _ _ _ _ _ _ _ _ _ _ _ _ _ (hd₂ hn) h₁.1 h₁.2 (by rw [hX]; lia)
+        (by rw [hY]; lia)
+    · exact absurd h (by simp)
+
+/-- What half-gcd computes: a matrix of determinant `±1` and the numbers it takes to `a`, `b`. -/
 @[expose] public def HgcdOK (a b : α) (r : Mat2 α × α × α) : Prop :=
-  o.Unimodular r.1 ∧ Nat.gcd (o.val r.2.1) (o.val r.2.2) = Nat.gcd (o.val a) (o.val b)
+  o.Unimodular r.1 ∧ o.Fwd r.1 a b r.2.1 r.2.2
 
 /--
 The base case: steps from `step`, the instance's reduction of two short numbers (Lehmer's steps
@@ -217,35 +376,36 @@ def baseLoop (step : α → α → Option (Mat2 α)) (s : Nat) (a b : α) (M : M
     else (M, a, b)
 
 theorem baseLoop_ok (step : α → α → Option (Mat2 α))
-    (hstep : ∀ a b S, step a b = some S → o.Unimodular S) (s : Nat) :
-    ∀ fuel (a b : α) (M : Mat2 α), o.Unimodular M →
-      o.HgcdOK a b (o.baseLoop step s a b M fuel) := by
+    (hstep : ∀ a b S, step a b = some S → o.Unimodular S) (s : Nat) (a₀ b₀ : α) :
+    ∀ fuel (a b : α) (M : Mat2 α), o.Unimodular M → o.Fwd M a₀ b₀ a b →
+      o.HgcdOK a₀ b₀ (o.baseLoop step s a b M fuel) := by
   intro fuel
   induction fuel with
-  | zero => intro a b M hM; exact ⟨hM, rfl⟩
+  | zero => intro a b M hM hF; exact ⟨hM, hF⟩
   | succ fuel ih =>
-    intro a b M hM
+    intro a b M hM hF
     simp only [baseLoop]
     split
     · split
-      · exact ⟨hM, rfl⟩
+      · exact ⟨hM, hF⟩
       · rename_i S hS
         split
-        · exact ⟨hM, rfl⟩
+        · exact ⟨hM, hF⟩
         · rename_i p hp
           split
-          · obtain ⟨h₁, h₂⟩ := ih p.1 p.2 _ (o.unimodular_matMul _ _ hM (hstep _ _ _ hS))
-            exact ⟨h₁, by rw [h₂, o.gcd_applyInvC S (hstep _ _ _ hS) a b p hp]⟩
-          · exact ⟨hM, rfl⟩
-    · exact ⟨hM, rfl⟩
+          · exact ih p.1 p.2 _ (o.unimodular_matMul _ _ hM (hstep _ _ _ hS))
+              (o.fwd_matMul _ _ _ _ _ _ _ _ hF (o.fwd_applyInvC S (hstep _ _ _ hS) a b p hp))
+          · exact ⟨hM, hF⟩
+    · exact ⟨hM, hF⟩
 
 /--
 Half-gcd: the matrix of Euclid's steps that brings `a ≥ b`, of `n` limbs, below `Bˢ` with
 `s = ⌊n / 2⌋ + 1`, or close to it, and the numbers it brings them to. Below `T` limbs by
-`baseLoop`; above, the matrix of the top `n - s` limbs, recursively, applied to `a` and `b`, then
-one step of Euclid's algorithm, then the matrix of the top limbs of what is left. A matrix from
-top limbs that went too far for the full numbers (`applyInvC`) is dropped. Only the determinant
-and the gcd are proved (`hgcd_ok`): the caller checks how far the numbers came down.
+`baseLoop`; above, the matrix and numbers of the top `n - s` limbs, recursively, extended to `a`
+and `b` with products by their low `s` limbs (`applySplit`), then one step of Euclid's algorithm,
+then the same for the top limbs of what is left. A matrix from top limbs that went too far for
+the full numbers is dropped. Only the determinant and the exact relation are proved (`hgcd_ok`):
+the caller checks how far the numbers came down.
 -/
 public def hgcd (step : α → α → Option (Mat2 α)) (T : Nat) (a b : α) : Mat2 α × α × α :=
   let n := o.size a
@@ -253,10 +413,11 @@ public def hgcd (step : α → α → Option (Mat2 α)) (T : Nat) (a b : α) : M
   if !(o.le (o.pow s) b) then (o.matId, a, b)
   else if n ≤ T then o.baseLoop step s a b o.matId (32 * n)
   else
-    match o.applyInvC (hgcd step T (o.hi s a) (o.hi s b)).1 a b with
+    let R₁ := hgcd step T (o.hi s a) (o.hi s b)
+    match o.applySplit R₁.1 R₁.2.1 R₁.2.2 a b s with
     | none => (o.matId, a, b)
     | some p =>
-      let r := o.orient (hgcd step T (o.hi s a) (o.hi s b)).1 p
+      let r := o.orient R₁.1 p
       if !(o.le (o.pow s) r.2.2) then r
       else
         -- One step of Euclid's algorithm, then the top limbs of what is left.
@@ -265,11 +426,11 @@ public def hgcd (step : α → α → Option (Mat2 α)) (T : Nat) (a b : α) : M
         let m := o.size r.2.2
         if _h : n < m then (M₃, r.2.2, qr.2)
         else
-          match o.applyInvC (hgcd step T (o.hi (2 * s - m) r.2.2) (o.hi (2 * s - m) qr.2)).1
-              r.2.2 qr.2 with
+          let R₂ := hgcd step T (o.hi (2 * s - m) r.2.2) (o.hi (2 * s - m) qr.2)
+          match o.applySplit R₂.1 R₂.2.1 R₂.2.2 r.2.2 qr.2 (2 * s - m) with
           | none => (M₃, r.2.2, qr.2)
           | some p₂ =>
-            let r₂ := o.orient (hgcd step T (o.hi (2 * s - m) r.2.2) (o.hi (2 * s - m) qr.2)).1 p₂
+            let r₂ := o.orient R₂.1 p₂
             (o.matMul M₃ r₂.1, r₂.2)
 termination_by o.size a
 decreasing_by
@@ -283,24 +444,22 @@ public theorem hgcd_ok (step : α → α → Option (Mat2 α))
     unfold hgcd
     dsimp only
     split
-    · exact ⟨o.unimodular_matId, rfl⟩
+    · exact ⟨o.unimodular_matId, o.fwd_matId a b⟩
     split
-    · exact o.baseLoop_ok step hstep _ _ _ _ _ o.unimodular_matId
+    · exact o.baseLoop_ok step hstep _ _ _ _ _ _ _ o.unimodular_matId (o.fwd_matId a b)
     rename_i hT
     have hR₁ := ih (o.size (o.hi (o.size a / 2 + 1) a)) (by rw [o.size_hi]; lia)
       (o.hi (o.size a / 2 + 1) a) (o.hi (o.size a / 2 + 1) b) rfl
     split
-    · exact ⟨o.unimodular_matId, rfl⟩
+    · exact ⟨o.unimodular_matId, o.fwd_matId a b⟩
     rename_i p hp
-    have hg₁ := o.gcd_applyInvC _ hR₁.1 a b p hp
+    have hF₁ := o.fwd_applySplit _ hR₁.1 _ _ a b _ hR₁.2 p hp
     have hM₂ := o.unimodular_orient _ hR₁.1 p
-    have hg₂ := o.gcd_orient (o.hgcd step T (o.hi (o.size a / 2 + 1) a)
-      (o.hi (o.size a / 2 + 1) b)).1 p
-    rw [hg₁] at hg₂
+    have hF₂ := o.fwd_orient _ a b p hF₁
     generalize o.orient (o.hgcd step T (o.hi (o.size a / 2 + 1) a)
-      (o.hi (o.size a / 2 + 1) b)).1 p = r at hM₂ hg₂
+      (o.hi (o.size a / 2 + 1) b)).1 p = r at hM₂ hF₂
     split
-    · exact ⟨hM₂, hg₂⟩
+    · exact ⟨hM₂, hF₂⟩
     rename_i hb₁
     -- After the step of Euclid's algorithm, with `b₁ ≥ Bˢ > 0`.
     have hd : 0 < o.val r.2.2 := by
@@ -309,24 +468,28 @@ public theorem hgcd_ok (step : α → α → Option (Mat2 α))
       rw [o.val_pow] at this
       have := Nat.pow_pos (n := o.size a / 2 + 1) (Nat.lt_trans Nat.zero_lt_one o.one_lt_B)
       lia
-    have hg₃ : Nat.gcd (o.val r.2.2) (o.val (o.divRem r.2.1 r.2.2).2) =
-        Nat.gcd (o.val a) (o.val b) := by
-      rw [← hg₂, (o.val_divRem _ _ (by lia)).2, Nat.gcd_comm (o.val r.2.1) (o.val r.2.2),
-        Nat.gcd_rec (o.val r.2.2) (o.val r.2.1), Nat.gcd_comm]
+    have hF₃ : o.Fwd (o.matMul r.1 (o.matStep (o.divRem r.2.1 r.2.2).1)) a b r.2.2
+        (o.divRem r.2.1 r.2.2).2 := by
+      apply o.fwd_matMul _ _ a b r.2.1 r.2.2 _ _ hF₂
+      obtain ⟨hq, hr⟩ := o.val_divRem r.2.1 r.2.2 (by lia)
+      refine ⟨?_, ?_⟩
+      · simp only [matStep, val_one, hq, hr]
+        rw [Nat.mul_comm (o.val r.2.1 / o.val r.2.2), Nat.one_mul]
+        exact (Nat.div_add_mod _ _).symm
+      · simp [matStep, val_one, val_zero]
     have hM₃ := o.unimodular_matMul _ _ hM₂ (o.unimodular_matStep (o.divRem r.2.1 r.2.2).1)
     split
-    · exact ⟨hM₃, hg₃⟩
+    · exact ⟨hM₃, hF₃⟩
     rename_i hm
     have hR₂ := ih _ (by rw [o.size_hi]; lia)
       (o.hi (2 * (o.size a / 2 + 1) - o.size r.2.2) r.2.2)
       (o.hi (2 * (o.size a / 2 + 1) - o.size r.2.2) (o.divRem r.2.1 r.2.2).2) rfl
     split
-    · exact ⟨hM₃, hg₃⟩
+    · exact ⟨hM₃, hF₃⟩
     rename_i p₂ hp₂
-    have hg₄ := o.gcd_applyInvC _ hR₂.1 _ _ p₂ hp₂
-    refine ⟨o.unimodular_matMul _ _ hM₃ (o.unimodular_orient _ hR₂.1 p₂), ?_⟩
-    show Nat.gcd (o.val (o.orient _ p₂).2.1) (o.val (o.orient _ p₂).2.2) = _
-    rw [o.gcd_orient, hg₄, hg₃]
+    have hF₄ := o.fwd_applySplit _ hR₂.1 _ _ _ _ _ hR₂.2 p₂ hp₂
+    exact ⟨o.unimodular_matMul _ _ hM₃ (o.unimodular_orient _ hR₂.1 p₂),
+      o.fwd_matMul _ _ a b _ _ _ _ hF₃ (o.fwd_orient _ _ _ p₂ hF₄)⟩
 
 /--
 One reduction of `a ≥ b` for the greatest common divisor: the numbers of `hgcd`, the larger first.
@@ -340,7 +503,8 @@ public theorem gcd_hgcdReduce (step : α → α → Option (Mat2 α))
     (hstep : ∀ a b S, step a b = some S → o.Unimodular S) (T : Nat) (a b : α) :
     Nat.gcd (o.val (o.hgcdReduce step T a b).1) (o.val (o.hgcdReduce step T a b).2) =
       Nat.gcd (o.val a) (o.val b) := by
-  have h := (o.hgcd_ok step hstep T a b).2
+  obtain ⟨hM, hF⟩ := o.hgcd_ok step hstep T a b
+  have h := (o.gcd_of_fwd _ hM a b _ _ hF).symm
   unfold hgcdReduce
   dsimp only
   split

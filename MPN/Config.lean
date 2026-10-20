@@ -108,7 +108,7 @@ public structure Config where
   reciprocal instead of blocks. -/
   divMu : Nat := 1000000
   /-- The size of the smaller number from which the greatest common divisor uses half-gcd. -/
-  gcdHalf : Nat := 8192
+  gcdHalf : Nat := 4608
   /-- The size from which decimal strings are written by divide and conquer. -/
   strDC : Nat := 80
   /-- The size of the result, in limbs, from which decimal strings are read by divide and
