@@ -37,6 +37,7 @@ public import MPN.Div.Basecase
 public import MPN.Div.DC
 public import MPN.Div.Two
 public import MPN.Div
+public import MPN.Generic.Limb
 public import MPN.Generic.Ops
 public import MPN.Generic.Barrett
 public import MPN.Generic.HGCD
