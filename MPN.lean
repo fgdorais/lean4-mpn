@@ -4,5 +4,6 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import Bignum.Nat
-public import Bignum.UInt
+public import MPN.UInt
+public import MPN.UIntArray
+public import MPN.AddSub

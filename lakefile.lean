@@ -1,33 +1,21 @@
 import Lake
 open Lake DSL
 
-package «lean4-bignum» where
+package «lean4-mpn» where
   version := v!"0.1.0"
-  testDriver := "BignumTest"
+  testDriver := "MPNTest"
 
 -- Switch to `main` once fgdorais/lean4-scalar-arrays#9 is merged.
 require «lean4-scalar-arrays» from git
   "https://github.com/fgdorais/lean4-scalar-arrays" @ "bignum-test"
 
-/-- The native implementations of the word operations. -/
-target bignum.o pkg : System.FilePath := do
-  let src ← inputTextFile <| pkg.dir / "c" / "bignum.c"
-  buildLeanO (pkg.buildDir / "c" / "bignum.o") src (traceArgs := #["-O3", "-fPIC"])
+@[default_target]
+lean_lib MPN
 
 @[default_target]
-lean_lib Bignum where
-  moreLinkObjs := #[bignum.o]
-
-@[default_target]
-lean_lib BignumTest where
+lean_lib MPNTest where
   precompileModules := true
 
-/-- The native code used only by the benchmark. -/
-target bench.o pkg : System.FilePath := do
-  let src ← inputTextFile <| pkg.dir / "c" / "bench.c"
-  buildLeanO (pkg.buildDir / "c" / "bench.o") src (traceArgs := #["-O3", "-fPIC"])
-
-/-- Benchmarks the multiplication variants: `lake exe bench`. -/
+/-- Benchmarks the multiplication variants and the conversions: `lake exe bench [mul|conv]`. -/
 lean_exe bench where
   root := `Bench
-  moreLinkObjs := #[bench.o]

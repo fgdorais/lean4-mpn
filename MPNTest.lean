@@ -1,0 +1,67 @@
+/-
+Copyright © 2026 François G. Dorais. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+-/
+import MPN
+
+/-! Word operations -/
+
+/-- Checks the high-word operations of an `n`-bit type against `Nat` on its edge values. -/
+def checkWords (n : Nat) (ofNat : Nat → α) (toNat : α → Nat)
+    (addh subh : α → α → α → α) (mulh : α → α → α) : Bool :=
+  let vs := [0, 1, 2, 2 ^ (n - 1) - 1, 2 ^ (n - 1), 2 ^ n - 2, 2 ^ n - 1]
+  vs.all fun x => vs.all fun y =>
+    toNat (mulh (ofNat x) (ofNat y)) == x * y / 2 ^ n &&
+    vs.all fun c =>
+      toNat (addh (ofNat c) (ofNat x) (ofNat y)) == (c + (x + y) / 2 ^ n) % 2 ^ n &&
+      -- A borrow makes the high word of `x - y` all ones, which `subh` subtracts from `c`.
+      toNat (subh (ofNat c) (ofNat x) (ofNat y)) == (c + if x < y then 1 else 0) % 2 ^ n
+
+#guard checkWords 32 UInt32.ofNat UInt32.toNat UInt32.addh UInt32.subh UInt32.mulh
+#guard checkWords 64 UInt64.ofNat UInt64.toNat UInt64.addh UInt64.subh UInt64.mulh
+
+/-! Addition and subtraction -/
+
+open ScalarArray
+
+/-- The `n` low base `2⁶⁴` limbs of `m`. -/
+def limbs (n m : Nat) : UInt64Array := .ofFn fun (i : Fin n) => (m / 2 ^ (64 * i.1)).toUInt64
+
+/-- The value of the limbs `r[off], …, r[off + n - 1]`. -/
+def window (r : UInt64Array) (off n : Nat) : Nat :=
+  (List.range n).foldr (fun i v => r[off + i]!.toNat + 2 ^ 64 * v) 0
+
+/-- Edge values of up to `n` limbs, where carries and borrows propagate the most. -/
+def edges (n : Nat) : List Nat :=
+  [0, 1, 2 ^ 63, 2 ^ (64 * n) - 1, 2 ^ (64 * n) - 2, 2 ^ (64 * (n - 1)), 2 ^ (64 * n) / 3]
+
+/-- Checks `addN` and `subN` on `n`-limb numbers written at offset 1 of a 2-limb padded buffer. -/
+def checkAddSub (n : Nat) : Bool :=
+  let r := UInt64Array.replicate (n + 2) 0xAAAAAAAAAAAAAAAA
+  (edges n).all fun x => (edges n).all fun y => [0, 1, 2, 2 ^ 64 - 1].all fun c =>
+    let a := (limbs n x).toSlice
+    let b := (limbs n y).toSlice
+    let (s, cs) := MPN.addN r 1 a b c.toUInt64
+    let (d, cd) := MPN.subN r 1 a b c.toUInt64
+    window s 1 n + 2 ^ (64 * n) * cs.toNat == x + y + c &&
+    window d 1 n + y + c == x + 2 ^ (64 * n) * cd.toNat &&
+    -- The padding limbs are untouched.
+    s[0]! == r[0]! && s[n + 1]! == r[n + 1]! && d[0]! == r[0]! && d[n + 1]! == r[n + 1]!
+
+#guard [1, 2, 3, 5].all checkAddSub
+#guard (MPN.addN .empty 0 UInt64Array.empty.toSlice UInt64Array.empty.toSlice 5).2 == 5
+
+/-- Checks `add` and `sub` on an `m`-limb `a` and an `n`-limb `b`, with `n ≤ m`. -/
+def checkAddSubGen (m n : Nat) : Bool :=
+  let r := UInt64Array.replicate (m + 2) 0xAAAAAAAAAAAAAAAA
+  (edges m).all fun x => (edges n).all fun y => [0, 1, 2 ^ 64 - 1].all fun c =>
+    let y := y % 2 ^ (64 * n)
+    let a := (limbs m x).toSlice
+    let b := (limbs n y).toSlice
+    let (s, cs) := MPN.add r 1 a b c.toUInt64
+    let (d, cd) := MPN.sub r 1 a b c.toUInt64
+    window s 1 m + 2 ^ (64 * m) * cs.toNat == x + y + c &&
+    window d 1 m + y + c == x + 2 ^ (64 * m) * cd.toNat &&
+    s[0]! == r[0]! && s[m + 1]! == r[m + 1]! && d[0]! == r[0]! && d[m + 1]! == r[m + 1]!
+
+#guard [(1, 0), (1, 1), (3, 1), (3, 2), (4, 4), (5, 0)].all fun (m, n) => checkAddSubGen m n
