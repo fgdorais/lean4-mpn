@@ -9,23 +9,60 @@ public import MPN.UIntArray
 /-!
 # Addition and subtraction
 
-Like GMP's `mpn` functions, these write their result into the limbs of `r` from limb `off` on,
-in place when `r` is not shared, and return the carry or borrow out:
+Like GMP's `mpn` functions, these write their result into the limbs of the slice `r`, in place
+when its array is not shared, and return the array and the carry or borrow out. All the slices
+have `USize` bounds, so the loops index with `USize`.
 
-* `addN r off a b c` and `subN r off a b c` are `a + b + c` and `a - b - c` on the first
-  `min a.size b.size` limbs of `a` and `b`, like `mpn_add_n` and `mpn_sub_n`;
-* `add1 r off a c` and `sub1 r off a c` are `a + c` and `a - c`, like `mpn_add_1` and
-  `mpn_sub_1`;
-* `add r off a b c` and `sub r off a b c` are `a + b + c` and `a - b - c` on all of `a`, for
-  `b.size ≤ a.size`, like `mpn_add` and `mpn_sub`.
+* `addN r a b c` and `subN r a b c` are `a + b + c` and `a - b - c` on the first `n` limbs, where
+  `n` is the least of the sizes of `r`, `a` and `b`, like `mpn_add_n` and `mpn_sub_n`;
+* `add1 r a c` and `sub1 r a c` are `a + c` and `a - c` on the first `min r.size a.size` limbs,
+  like `mpn_add_1` and `mpn_sub_1`;
+* `add r a b c` and `sub r a b c` are `a + b + c` and `a - b - c` on the first
+  `min r.size a.size` limbs, for `b.size ≤ a.size`, like `mpn_add` and `mpn_sub`.
 
 The carry and the borrow are words, so they may be any `UInt64`; from a carry or borrow of at most
 one, the result is again at most one.
 -/
 
-open ScalarArray
+open ScalarArray UInt64Array
 
 namespace MPN
+
+/-- The bounds of a loop that writes limbs `rs` to `rs + n - 1` of `arr`. -/
+abbrev LoopBound (arr : UInt64Array) (rs n : USize) : Prop :=
+  rs.toNat + n.toNat ≤ arr.size ∧ rs.toNat + n.toNat < USize.size
+
+private theorem LoopBound.of_uset {arr : UInt64Array} {rs n : USize} (hr : LoopBound arr rs n)
+    (i : USize) (v : UInt64) (h) : LoopBound (arr.uset i v h) rs n := by
+  simp only [LoopBound, UInt64Array.size_uset] at hr ⊢
+  exact hr
+
+/-- The limbs of `r` as a loop bound. -/
+private theorem loopBound_of_le (r : USlice) {n : USize} (hn : n ≤ r.size) :
+    LoopBound r.array r.start n := by
+  have := r.toNat_size
+  have := USize.le_iff_toNat_le.1 hn
+  have := USize.le_iff_toNat_le.1 r.start_le_stop
+  have := r.stop.toNat_lt_size
+  have := r.stop_le_size
+  constructor <;> lia
+
+private theorem toNat_add_one {j n : USize} (h : j < n) : (j + 1).toNat = j.toNat + 1 := by
+  have := USize.lt_iff_toNat_lt.1 h
+  have := n.toNat_lt_size
+  have : 4294967296 ≤ USize.size := by cases USize.size_eq <;> lia
+  rw [USize.toNat_add_of_lt (a := j) (b := 1) (by rw [USize.toNat_one]; lia), USize.toNat_one]
+
+private theorem toNat_rs_add {arr : UInt64Array} {rs n j : USize} (hr : LoopBound arr rs n)
+    (h : j < n) : (rs + j).toNat = rs.toNat + j.toNat := by
+  have := USize.lt_iff_toNat_lt.1 h
+  exact USize.toNat_add_of_lt (by lia)
+
+private theorem uset_bound {arr : UInt64Array} {rs n j : USize} (hr : LoopBound arr rs n)
+    (h : j < n) : (rs + j).toNat < arr.size := by
+  have := USize.lt_iff_toNat_lt.1 h
+  rw [toNat_rs_add hr h]
+  lia
 
 /-! ## Addition -/
 
@@ -40,88 +77,126 @@ private theorem add_step (x y c : UInt64) :
   generalize c.toNat = c at *
   lia
 
-/-- Adds limbs `j` to `n - 1` of `a` and `b`, and the carry `c`, into `r` from limb `off + j` on. -/
-def addNLoop (r : UInt64Array) (off : Nat) (a b : UInt64Array.Slice) (n : Nat)
-    (hn : n ≤ a.size ∧ n ≤ b.size) (j : Nat) (c : UInt64) : UInt64Array × UInt64 :=
+/--
+Adds limbs `j` to `n - 1` of `a` and `b`, and the carry `c`, into `arr` from limb `rs + j` on.
+-/
+def addNLoop (arr : UInt64Array) (rs : USize) (a b : USlice) (n : USize)
+    (hn : n ≤ a.size ∧ n ≤ b.size) (hr : LoopBound arr rs n) (j : USize) (c : UInt64) :
+    UInt64Array × UInt64 :=
   if h : j < n then
-    let x := a[j]
-    let y := b[j]
+    let x := a[j]'(USize.lt_of_lt_of_le h hn.1)
+    let y := b[j]'(USize.lt_of_lt_of_le h hn.2)
     let s := x + y
-    addNLoop (r.set! (off + j) (s + c)) off a b n hn (j + 1)
+    addNLoop (arr.uset (rs + j) (s + c) (uset_bound hr h)) rs a b n hn (hr.of_uset ..) (j + 1)
       (UInt64.addh (UInt64.addh 0 x y) s c)
   else
-    (r, c)
+    (arr, c)
+termination_by n.toNat - j.toNat
+decreasing_by
+  have := USize.lt_iff_toNat_lt.1 h
+  rw [toNat_add_one h]
+  lia
 
-/--
-Writes the low `n` limbs of `a + b + c` into `r` from limb `off` on, where `n = min a.size b.size`,
-and returns the carry out, like GMP's `mpn_add_n` with a carry in.
--/
-public def addN (r : UInt64Array) (off : Nat) (a b : UInt64Array.Slice) (c : UInt64 := 0) :
-    UInt64Array × UInt64 :=
-  addNLoop r off a b (min a.size b.size) ⟨Nat.min_le_left .., Nat.min_le_right ..⟩ 0 c
-
-private theorem addNLoop_spec (r : UInt64Array) (off : Nat) (a b : UInt64Array.Slice) (n : Nat)
-    (hn : n ≤ a.size ∧ n ≤ b.size) (j : Nat) (c : UInt64) (hr : off + n ≤ r.size) :
-    (addNLoop r off a b n hn j c).1.size = r.size ∧
-      (∀ i, (i < off + j ∨ off + n ≤ i) → (addNLoop r off a b n hn j c).1[i]! = r[i]!) ∧
-      (addNLoop r off a b n hn j c).1.valAt (off + j) (n - j) +
-          2 ^ (64 * (n - j)) * (addNLoop r off a b n hn j c).2.toNat =
-        a.array.valAt (a.start + j) (n - j) + b.array.valAt (b.start + j) (n - j) + c.toNat := by
-  induction r, j, c using addNLoop.induct off a b n hn with
-  | case1 r j c h x y s ih =>
+private theorem addNLoop_spec (arr : UInt64Array) (rs : USize) (a b : USlice) (n : USize)
+    (hn : n ≤ a.size ∧ n ≤ b.size) (hr : LoopBound arr rs n) (j : USize) (c : UInt64) :
+    (addNLoop arr rs a b n hn hr j c).1.size = arr.size ∧
+      (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
+        (addNLoop arr rs a b n hn hr j c).1[i]! = arr[i]!) ∧
+      (addNLoop arr rs a b n hn hr j c).1.valAt (rs.toNat + j.toNat) (n.toNat - j.toNat) +
+          2 ^ (64 * (n.toNat - j.toNat)) * (addNLoop arr rs a b n hn hr j c).2.toNat =
+        a.array.valAt (a.start.toNat + j.toNat) (n.toNat - j.toNat) +
+          b.array.valAt (b.start.toNat + j.toNat) (n.toNat - j.toNat) + c.toNat := by
+  induction arr, hr, j, c using addNLoop.induct rs a b n hn with
+  | case1 arr hr j c h x y s ih =>
     rw [addNLoop]
     simp only [h, ↓reduceDIte]
-    obtain ⟨ih₁, ih₂, ih₃⟩ := ih (by simpa using hr)
-    simp only [UInt64Array.size_set!] at ih₁
-    have hv : (addNLoop (r.set! (off + j) (s + c)) off a b n hn (j + 1)
-        (UInt64.addh (UInt64.addh 0 x y) s c)).1[off + j]! = s + c := by
-      rw [ih₂ (off + j) (.inl (by lia)), UInt64Array.getElem!_set!]
-      simp; lia
+    have hj := USize.lt_iff_toNat_lt.1 h
+    have hj₁ := toNat_add_one h
+    have hidx := toNat_rs_add hr h
+    have hna := USize.le_iff_toNat_le.1 hn.1
+    have hnb := USize.le_iff_toNat_le.1 hn.2
+    obtain ⟨ih₁, ih₂, ih₃⟩ := ih
+    rw [hj₁] at ih₂ ih₃
+    simp only [UInt64Array.size_uset] at ih₁
+    have hv : (addNLoop (arr.uset (rs + j) (s + c) (uset_bound hr h)) rs a b n hn (hr.of_uset ..)
+        (j + 1) (UInt64.addh (UInt64.addh 0 x y) s c)).1[rs.toNat + j.toNat]! = s + c := by
+      rw [ih₂ _ (.inl (by lia)), getElem!_uset]
+      simp [hidx]
     refine ⟨ih₁, fun i hi => ?_, ?_⟩
-    · rw [ih₂ i (by lia), UInt64Array.getElem!_set!]
-      grind
-    · obtain ⟨k, hk⟩ : ∃ k, n - j = k + 1 := ⟨n - j - 1, by lia⟩
-      have hk' : n - (j + 1) = k := by lia
-      rw [hk' , ← Nat.add_assoc, ← Nat.add_assoc] at ih₃
+    · rw [ih₂ i (by lia), getElem!_uset]
+      simp only [hidx]
+      split <;> lia
+    · obtain ⟨k, hk⟩ : ∃ k, n.toNat - j.toNat = k + 1 := ⟨n.toNat - j.toNat - 1, by lia⟩
+      rw [show n.toNat - (j.toNat + 1) = k by lia, ← Nat.add_assoc, ← Nat.add_assoc] at ih₃
       rw [hk, UInt64Array.valAt_succ, UInt64Array.valAt_succ, UInt64Array.valAt_succ, hv,
-        ← UInt64Array.Slice.getElem_eq_getElem! a j (by lia),
-        ← UInt64Array.Slice.getElem_eq_getElem! b j (by lia), Nat.mul_succ, Nat.pow_add]
+        ← USlice.getElem_eq_getElem! a j (USize.lt_of_lt_of_le h hn.1),
+        ← USlice.getElem_eq_getElem! b j (USize.lt_of_lt_of_le h hn.2), Nat.mul_succ, Nat.pow_add]
       have := add_step x y c
-      generalize (addNLoop _ _ _ _ _ _ _ _).1.valAt _ _ = R at *
-      generalize (addNLoop _ _ _ _ _ _ _ _).2.toNat = c' at *
+      generalize (addNLoop _ _ _ _ _ _ _ _ _).1.valAt _ _ = R at *
+      generalize (addNLoop _ _ _ _ _ _ _ _ _).2.toNat = c' at *
       generalize (UInt64.addh _ _ _).toNat = c₁ at *
       generalize 2 ^ (64 * k) = P at *
       grind
-  | case2 r j c h =>
+  | case2 arr hr j c h =>
     rw [addNLoop]
-    simp [h, show n - j = 0 by lia]
+    have : n.toNat - j.toNat = 0 := by have := USize.lt_iff_toNat_lt (a := j) (b := n); lia
+    simp [h, this]
 
-@[simp] public theorem size_addN (r : UInt64Array) (off : Nat) (a b : UInt64Array.Slice)
-    (c : UInt64) (hr : off + min a.size b.size ≤ r.size) : (addN r off a b c).1.size = r.size :=
-  (addNLoop_spec r off a b _ _ 0 c hr).1
+/-- The least of three sizes. -/
+@[inline] def min3 (a b c : USize) : USize := min (min a b) c
+
+private theorem toNat_min3 (a b c : USize) :
+    (min3 a b c).toNat = min (min a.toNat b.toNat) c.toNat := by
+  simp [min3, USize.toNat_min]
+
+private theorem min3_le (r a b : USlice) :
+    min3 a.size b.size r.size ≤ a.size ∧ min3 a.size b.size r.size ≤ b.size :=
+  ⟨USize.le_trans (USize.min_le_left ..) (USize.min_le_left ..),
+    USize.le_trans (USize.min_le_left ..) (USize.min_le_right ..)⟩
+
+private theorem min3_bound (r a b : USlice) :
+    LoopBound r.array r.start (min3 a.size b.size r.size) :=
+  loopBound_of_le r (USize.min_le_right ..)
+
+/--
+Writes the low `n` limbs of `a + b + c` into `r` and returns the carry out, where `n` is the least
+of `r.size`, `a.size` and `b.size`, like GMP's `mpn_add_n` with a carry in.
+-/
+public def addN (r a b : USlice) (c : UInt64 := 0) : UInt64Array × UInt64 :=
+  addNLoop r.array r.start a b (min3 a.size b.size r.size) (min3_le r a b) (min3_bound r a b) 0 c
+
+@[simp] public theorem size_addN (r a b : USlice) (c : UInt64) :
+    (addN r a b c).1.size = r.array.size :=
+  (addNLoop_spec _ _ _ _ _ (min3_le r a b) (min3_bound r a b) 0 c).1
 
 /-- `addN` leaves the limbs of `r` outside the ones it writes unchanged. -/
-public theorem getElem!_addN (r : UInt64Array) (off : Nat) (a b : UInt64Array.Slice) (c : UInt64)
-    (hr : off + min a.size b.size ≤ r.size) (i : Nat)
-    (hi : i < off ∨ off + min a.size b.size ≤ i) :
-    (addN r off a b c).1[i]! = r[i]! :=
-  (addNLoop_spec r off a b _ _ 0 c hr).2.1 i (by lia)
+public theorem getElem!_addN (r a b : USlice) (c : UInt64) (i : Nat)
+    (hi : i < r.start.toNat ∨
+      r.start.toNat + min (min a.size.toNat b.size.toNat) r.size.toNat ≤ i) :
+    (addN r a b c).1[i]! = r.array[i]! :=
+  (addNLoop_spec _ _ _ _ _ (min3_le r a b) (min3_bound r a b) 0 c).2.1 i
+    (by simpa [toNat_min3] using hi)
 
-public theorem valAt_addN (r : UInt64Array) (off : Nat) (a b : UInt64Array.Slice) (c : UInt64)
-    (hr : off + min a.size b.size ≤ r.size) :
-    (addN r off a b c).1.valAt off (min a.size b.size) +
-        2 ^ (64 * min a.size b.size) * (addN r off a b c).2.toNat =
-      a.array.valAt a.start (min a.size b.size) + b.array.valAt b.start (min a.size b.size) +
-        c.toNat := by
-  simpa [addN] using (addNLoop_spec r off a b _ _ 0 c hr).2.2
+public theorem valAt_addN (r a b : USlice) (c : UInt64) :
+    let n := min (min a.size.toNat b.size.toNat) r.size.toNat
+    (addN r a b c).1.valAt r.start.toNat n + 2 ^ (64 * n) * (addN r a b c).2.toNat =
+      a.array.valAt a.start.toNat n + b.array.valAt b.start.toNat n + c.toNat := by
+  have := (addNLoop_spec r.array r.start a b _ (min3_le r a b) (min3_bound r a b) 0 c).2.2
+  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, toNat_min3] at this
+  exact this
 
 /-- `addN` on slices of the same size. -/
-public theorem valAt_addN_of_size_eq (r : UInt64Array) (off : Nat) (a b : UInt64Array.Slice)
-    (c : UInt64) (hab : a.size = b.size) (hr : off + a.size ≤ r.size) :
-    (addN r off a b c).1.valAt off a.size + 2 ^ (64 * a.size) * (addN r off a b c).2.toNat =
+public theorem valAt_addN_of_size_eq (r a b : USlice) (c : UInt64) (hab : a.size = b.size)
+    (hr : r.size = a.size) :
+    (addN r a b c).1.valAt r.start.toNat r.size.toNat +
+        2 ^ (64 * r.size.toNat) * (addN r a b c).2.toNat =
       a.toNat + b.toNat + c.toNat := by
-  have := valAt_addN r off a b c (by simpa [hab] using hr)
-  simpa [hab, UInt64Array.Slice.toNat_eq_valAt] using this
+  have := valAt_addN r a b c
+  simp only [← hab, ← hr, Nat.min_self] at this
+  rw [USlice.toNat_eq_valAt, USlice.toNat_eq_valAt, ← hab, ← hr]
+  exact this
+
+/-! ### Carry propagation -/
 
 /-- One limb of `add1`: the low word of `x + c` and the carry out. -/
 private theorem add1_step (x c : UInt64) :
@@ -132,120 +207,172 @@ private theorem add1_step (x c : UInt64) :
   generalize c.toNat = c at *
   lia
 
-/-- Adds the carry `c` to limbs `j` to `a.size - 1` of `a` into `r` from limb `off + j` on. -/
-def add1Loop (r : UInt64Array) (off : Nat) (a : UInt64Array.Slice) (j : Nat) (c : UInt64) :
-    UInt64Array × UInt64 :=
-  if h : j < a.size then
-    let x := a[j]
-    add1Loop (r.set! (off + j) (x + c)) off a (j + 1) (UInt64.addh 0 x c)
+/-- Adds the carry `c` to limbs `j` to `n - 1` of `a` into `arr` from limb `rs + j` on. -/
+def add1Loop (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize) (hn : n ≤ a.size)
+    (hr : LoopBound arr rs n) (j : USize) (c : UInt64) : UInt64Array × UInt64 :=
+  if h : j < n then
+    let x := a[j]'(USize.lt_of_lt_of_le h hn)
+    add1Loop (arr.uset (rs + j) (x + c) (uset_bound hr h)) rs a n hn (hr.of_uset ..) (j + 1)
+      (UInt64.addh 0 x c)
   else
-    (r, c)
+    (arr, c)
+termination_by n.toNat - j.toNat
+decreasing_by
+  have := USize.lt_iff_toNat_lt.1 h
+  rw [toNat_add_one h]
+  lia
 
-/--
-Writes the limbs of `a + c` into `r` from limb `off` on and returns the carry out, like GMP's
-`mpn_add_1`.
--/
-public def add1 (r : UInt64Array) (off : Nat) (a : UInt64Array.Slice) (c : UInt64) :
-    UInt64Array × UInt64 :=
-  add1Loop r off a 0 c
-
-private theorem add1Loop_spec (r : UInt64Array) (off : Nat) (a : UInt64Array.Slice) (j : Nat)
-    (c : UInt64) (hr : off + a.size ≤ r.size) :
-    (add1Loop r off a j c).1.size = r.size ∧
-      (∀ i, (i < off + j ∨ off + a.size ≤ i) → (add1Loop r off a j c).1[i]! = r[i]!) ∧
-      (add1Loop r off a j c).1.valAt (off + j) (a.size - j) +
-          2 ^ (64 * (a.size - j)) * (add1Loop r off a j c).2.toNat =
-        a.array.valAt (a.start + j) (a.size - j) + c.toNat := by
-  induction r, j, c using add1Loop.induct off a with
-  | case1 r j c h x ih =>
+private theorem add1Loop_spec (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize)
+    (hn : n ≤ a.size) (hr : LoopBound arr rs n) (j : USize) (c : UInt64) :
+    (add1Loop arr rs a n hn hr j c).1.size = arr.size ∧
+      (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
+        (add1Loop arr rs a n hn hr j c).1[i]! = arr[i]!) ∧
+      (add1Loop arr rs a n hn hr j c).1.valAt (rs.toNat + j.toNat) (n.toNat - j.toNat) +
+          2 ^ (64 * (n.toNat - j.toNat)) * (add1Loop arr rs a n hn hr j c).2.toNat =
+        a.array.valAt (a.start.toNat + j.toNat) (n.toNat - j.toNat) + c.toNat := by
+  induction arr, hr, j, c using add1Loop.induct rs a n hn with
+  | case1 arr hr j c h x ih =>
     rw [add1Loop]
     simp only [h, ↓reduceDIte]
-    obtain ⟨ih₁, ih₂, ih₃⟩ := ih (by simpa using hr)
-    simp only [UInt64Array.size_set!] at ih₁
-    have hv : (add1Loop (r.set! (off + j) (x + c)) off a (j + 1)
-        (UInt64.addh 0 x c)).1[off + j]! = x + c := by
-      rw [ih₂ (off + j) (.inl (by lia)), UInt64Array.getElem!_set!]
-      simp; lia
+    have hj := USize.lt_iff_toNat_lt.1 h
+    have hj₁ := toNat_add_one h
+    have hidx := toNat_rs_add hr h
+    have hna := USize.le_iff_toNat_le.1 hn
+    obtain ⟨ih₁, ih₂, ih₃⟩ := ih
+    rw [hj₁] at ih₂ ih₃
+    simp only [UInt64Array.size_uset] at ih₁
+    have hv : (add1Loop (arr.uset (rs + j) (x + c) (uset_bound hr h)) rs a n hn (hr.of_uset ..)
+        (j + 1) (UInt64.addh 0 x c)).1[rs.toNat + j.toNat]! = x + c := by
+      rw [ih₂ _ (.inl (by lia)), getElem!_uset]
+      simp [hidx]
     refine ⟨ih₁, fun i hi => ?_, ?_⟩
-    · rw [ih₂ i (by lia), UInt64Array.getElem!_set!]
-      grind
-    · obtain ⟨k, hk⟩ : ∃ k, a.size - j = k + 1 := ⟨a.size - j - 1, by lia⟩
-      have hk' : a.size - (j + 1) = k := by lia
-      rw [hk', ← Nat.add_assoc, ← Nat.add_assoc] at ih₃
+    · rw [ih₂ i (by lia), getElem!_uset]
+      simp only [hidx]
+      split <;> lia
+    · obtain ⟨k, hk⟩ : ∃ k, n.toNat - j.toNat = k + 1 := ⟨n.toNat - j.toNat - 1, by lia⟩
+      rw [show n.toNat - (j.toNat + 1) = k by lia, ← Nat.add_assoc, ← Nat.add_assoc] at ih₃
       rw [hk, UInt64Array.valAt_succ, UInt64Array.valAt_succ, hv,
-        ← UInt64Array.Slice.getElem_eq_getElem! a j (by lia), Nat.mul_succ, Nat.pow_add]
+        ← USlice.getElem_eq_getElem! a j (USize.lt_of_lt_of_le h hn), Nat.mul_succ, Nat.pow_add]
       have := add1_step x c
-      generalize (add1Loop _ _ _ _ _).1.valAt _ _ = R at *
-      generalize (add1Loop _ _ _ _ _).2.toNat = c' at *
+      generalize (add1Loop _ _ _ _ _ _ _ _).1.valAt _ _ = R at *
+      generalize (add1Loop _ _ _ _ _ _ _ _).2.toNat = c' at *
       generalize (UInt64.addh _ _ _).toNat = c₁ at *
       generalize 2 ^ (64 * k) = P at *
       grind
-  | case2 r j c h =>
+  | case2 arr hr j c h =>
     rw [add1Loop]
-    simp [h, show a.size - j = 0 by lia]
+    have : n.toNat - j.toNat = 0 := by have := USize.lt_iff_toNat_lt (a := j) (b := n); lia
+    simp [h, this]
 
-@[simp] public theorem size_add1 (r : UInt64Array) (off : Nat) (a : UInt64Array.Slice)
-    (c : UInt64) (hr : off + a.size ≤ r.size) : (add1 r off a c).1.size = r.size :=
-  (add1Loop_spec r off a 0 c hr).1
-
-/-- `add1` leaves the limbs of `r` outside the ones it writes unchanged. -/
-public theorem getElem!_add1 (r : UInt64Array) (off : Nat) (a : UInt64Array.Slice) (c : UInt64)
-    (hr : off + a.size ≤ r.size) (i : Nat) (hi : i < off ∨ off + a.size ≤ i) :
-    (add1 r off a c).1[i]! = r[i]! :=
-  (add1Loop_spec r off a 0 c hr).2.1 i (by lia)
-
-public theorem valAt_add1 (r : UInt64Array) (off : Nat) (a : UInt64Array.Slice) (c : UInt64)
-    (hr : off + a.size ≤ r.size) :
-    (add1 r off a c).1.valAt off a.size + 2 ^ (64 * a.size) * (add1 r off a c).2.toNat =
-      a.toNat + c.toNat := by
-  simpa [add1, UInt64Array.Slice.toNat_eq_valAt] using (add1Loop_spec r off a 0 c hr).2.2
+private theorem min_bound (r : USlice) (n : USize) :
+    LoopBound r.array r.start (min n r.size) :=
+  loopBound_of_le r (USize.min_le_right ..)
 
 /--
-Writes the limbs of `a + b + c` into `r` from limb `off` on and returns the carry out, like GMP's
-`mpn_add`. It writes `a.size` limbs and requires `b.size ≤ a.size`.
+Writes the limbs of `a + c` into `r` and returns the carry out, on the first `min r.size a.size`
+limbs, like GMP's `mpn_add_1`.
 -/
-public def add (r : UInt64Array) (off : Nat) (a b : UInt64Array.Slice) (c : UInt64 := 0) :
-    UInt64Array × UInt64 :=
-  let p := addN r off a b c
-  add1Loop p.1 off a b.size p.2
+public def add1 (r a : USlice) (c : UInt64) : UInt64Array × UInt64 :=
+  add1Loop r.array r.start a (min a.size r.size) (USize.min_le_left ..) (min_bound r a.size) 0 c
 
-@[simp] public theorem size_add (r : UInt64Array) (off : Nat) (a b : UInt64Array.Slice)
-    (c : UInt64) (hba : b.size ≤ a.size) (hr : off + a.size ≤ r.size) :
-    (add r off a b c).1.size = r.size := by
-  have h₁ := size_addN r off a b c (by lia)
-  rw [add, (add1Loop_spec _ off a b.size _ (by lia)).1, h₁]
+@[simp] public theorem size_add1 (r a : USlice) (c : UInt64) :
+    (add1 r a c).1.size = r.array.size :=
+  (add1Loop_spec _ _ _ _ (USize.min_le_left ..) (min_bound r a.size) 0 c).1
+
+/-- `add1` leaves the limbs of `r` outside the ones it writes unchanged. -/
+public theorem getElem!_add1 (r a : USlice) (c : UInt64) (i : Nat)
+    (hi : i < r.start.toNat ∨ r.start.toNat + min a.size.toNat r.size.toNat ≤ i) :
+    (add1 r a c).1[i]! = r.array[i]! :=
+  (add1Loop_spec _ _ _ _ (USize.min_le_left ..) (min_bound r a.size) 0 c).2.1 i
+    (by simpa [USize.toNat_min] using hi)
+
+public theorem valAt_add1 (r a : USlice) (c : UInt64) (har : a.size ≤ r.size) :
+    (add1 r a c).1.valAt r.start.toNat a.size.toNat +
+        2 ^ (64 * a.size.toNat) * (add1 r a c).2.toNat =
+      a.toNat + c.toNat := by
+  have := (add1Loop_spec _ _ _ _ (USize.min_le_left ..) (min_bound r a.size) 0 c).2.2
+  have h := USize.le_iff_toNat_le.1 har
+  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, USize.toNat_min,
+    show min a.size.toNat r.size.toNat = a.size.toNat by lia] at this
+  rw [USlice.toNat_eq_valAt]
+  exact this
+
+/-! ### General addition -/
+
+private theorem size_addNLoop (arr : UInt64Array) (rs : USize) (a b : USlice) (n : USize)
+    (hn : n ≤ a.size ∧ n ≤ b.size) (hr : LoopBound arr rs n) (j : USize) (c : UInt64) :
+    (addNLoop arr rs a b n hn hr j c).1.size = arr.size :=
+  (addNLoop_spec arr rs a b n hn hr j c).1
+
+private theorem add_le (r a b : USlice) :
+    min b.size (min a.size r.size) ≤ a.size ∧ min b.size (min a.size r.size) ≤ b.size :=
+  ⟨USize.le_trans (USize.min_le_right ..) (USize.min_le_left ..), USize.min_le_left ..⟩
+
+private theorem add_bound (r a b : USlice) :
+    LoopBound r.array r.start (min b.size (min a.size r.size)) :=
+  loopBound_of_le r (USize.le_trans (USize.min_le_right ..) (USize.min_le_right ..))
+
+private theorem add_bound₁ (r a b : USlice) (c : UInt64) :
+    LoopBound (addNLoop r.array r.start a b _ (add_le r a b) (add_bound r a b) 0 c).1 r.start
+      (min a.size r.size) := by
+  have := min_bound r a.size
+  simp only [LoopBound, size_addNLoop] at this ⊢
+  exact this
+
+/--
+Writes the limbs of `a + b + c` into `r` and returns the carry out, on the first
+`min r.size a.size` limbs, like GMP's `mpn_add`. It requires `b.size ≤ a.size`.
+-/
+public def add (r a b : USlice) (c : UInt64 := 0) : UInt64Array × UInt64 :=
+  let p := addNLoop r.array r.start a b _ (add_le r a b) (add_bound r a b) 0 c
+  add1Loop p.1 r.start a (min a.size r.size) (USize.min_le_left ..) (add_bound₁ r a b c)
+    (min b.size (min a.size r.size)) p.2
+
+@[simp] public theorem size_add (r a b : USlice) (c : UInt64) :
+    (add r a b c).1.size = r.array.size := by
+  rw [add, (add1Loop_spec ..).1, size_addNLoop]
 
 /-- `add` leaves the limbs of `r` outside the ones it writes unchanged. -/
-public theorem getElem!_add (r : UInt64Array) (off : Nat) (a b : UInt64Array.Slice) (c : UInt64)
-    (hba : b.size ≤ a.size) (hr : off + a.size ≤ r.size) (i : Nat)
-    (hi : i < off ∨ off + a.size ≤ i) :
-    (add r off a b c).1[i]! = r[i]! := by
-  have h₁ := size_addN r off a b c (by lia)
-  rw [add, (add1Loop_spec _ off a b.size _ (by lia)).2.1 i (by lia),
-    getElem!_addN r off a b c (by lia) i (by lia)]
+public theorem getElem!_add (r a b : USlice) (c : UInt64) (i : Nat)
+    (hi : i < r.start.toNat ∨ r.start.toNat + min a.size.toNat r.size.toNat ≤ i) :
+    (add r a b c).1[i]! = r.array[i]! := by
+  have hn := USize.toNat_min a.size r.size
+  have hm := USize.toNat_min b.size (min a.size r.size)
+  rw [hn] at hm
+  rw [add, (add1Loop_spec ..).2.1 i (by rw [hn, hm]; lia),
+    (addNLoop_spec ..).2.1 i (by rw [hm, USize.toNat_zero]; lia)]
 
-public theorem valAt_add (r : UInt64Array) (off : Nat) (a b : UInt64Array.Slice) (c : UInt64)
-    (hba : b.size ≤ a.size) (hr : off + a.size ≤ r.size) :
-    (add r off a b c).1.valAt off a.size + 2 ^ (64 * a.size) * (add r off a b c).2.toNat =
+public theorem valAt_add (r a b : USlice) (c : UInt64) (hba : b.size ≤ a.size)
+    (har : a.size ≤ r.size) :
+    (add r a b c).1.valAt r.start.toNat a.size.toNat +
+        2 ^ (64 * a.size.toNat) * (add r a b c).2.toNat =
       a.toNat + b.toNat + c.toNat := by
-  have hmin : min a.size b.size = b.size := by lia
-  have h₁ := size_addN r off a b c (by lia)
-  have h₂ := valAt_addN r off a b c (by lia)
-  rw [hmin] at h₂
-  obtain ⟨-, h₃, h₄⟩ := add1Loop_spec (addN r off a b c).1 off a b.size (addN r off a b c).2
-    (by lia)
-  have h₅ : (add r off a b c).1.valAt off b.size = (addN r off a b c).1.valAt off b.size :=
+  have h₁ := USize.le_iff_toNat_le.1 hba
+  have h₂ := USize.le_iff_toNat_le.1 har
+  have hm : (min b.size (min a.size r.size)).toNat = b.size.toNat := by
+    rw [USize.toNat_min, USize.toNat_min]; lia
+  have hn : (min a.size r.size).toNat = a.size.toNat := by rw [USize.toNat_min]; lia
+  have hN := (addNLoop_spec r.array r.start a b _ (add_le r a b) (add_bound r a b) 0 c).2.2
+  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, hm] at hN
+  obtain ⟨-, h₃, h₄⟩ := add1Loop_spec _ r.start a _ (USize.min_le_left ..) (add_bound₁ r a b c)
+    (min b.size (min a.size r.size)) (addNLoop r.array r.start a b _ (add_le r a b)
+      (add_bound r a b) 0 c).2
+  rw [hm, hn] at h₄
+  rw [hm, hn] at h₃
+  have h₅ : (add r a b c).1.valAt r.start.toNat b.size.toNat =
+      (addNLoop r.array r.start a b _ (add_le r a b) (add_bound r a b) 0 c).1.valAt r.start.toNat
+        b.size.toNat :=
     UInt64Array.valAt_congr _ fun i _ hi => h₃ i (by lia)
   rw [add] at h₅ ⊢
-  obtain ⟨k, hk⟩ : ∃ k, a.size = b.size + k := ⟨a.size - b.size, by lia⟩
-  rw [show a.size - b.size = k by lia] at h₄
-  rw [UInt64Array.Slice.toNat_eq_valAt, UInt64Array.Slice.toNat_eq_valAt, hk,
-    UInt64Array.valAt_add, UInt64Array.valAt_add, h₅, Nat.mul_add, Nat.pow_add]
-  generalize (add1Loop _ _ _ _ _).1.valAt _ _ = R at *
-  generalize (add1Loop _ _ _ _ _).2.toNat = c' at *
-  generalize (addN _ _ _ _ _).1.valAt _ _ = L at *
-  generalize (addN _ _ _ _ _).2.toNat = c₁ at *
-  generalize 2 ^ (64 * b.size) = P at *
+  obtain ⟨k, hk⟩ : ∃ k, a.size.toNat = b.size.toNat + k := ⟨a.size.toNat - b.size.toNat, by lia⟩
+  rw [show a.size.toNat - b.size.toNat = k by lia] at h₄
+  rw [USlice.toNat_eq_valAt, USlice.toNat_eq_valAt, hk, UInt64Array.valAt_add,
+    UInt64Array.valAt_add, h₅, Nat.mul_add, Nat.pow_add]
+  generalize (add1Loop _ _ _ _ _ _ _ _).1.valAt _ _ = R at *
+  generalize (add1Loop _ _ _ _ _ _ _ _).2.toNat = c' at *
+  generalize (addNLoop _ _ _ _ _ _ _ _ _).1.valAt _ _ = L at *
+  generalize (addNLoop _ _ _ _ _ _ _ _ _).2.toNat = c₁ at *
+  generalize 2 ^ (64 * b.size.toNat) = P at *
   generalize 2 ^ (64 * k) = Q at *
   grind
 
@@ -263,91 +390,109 @@ private theorem sub_step (x y c : UInt64) :
   split <;> split <;> lia
 
 /--
-Subtracts limbs `j` to `n - 1` of `b`, and the borrow `c`, from those of `a` into `r` from limb
-`off + j` on.
+Subtracts limbs `j` to `n - 1` of `b`, and the borrow `c`, from those of `a` into `arr` from
+limb `rs + j` on.
 -/
-def subNLoop (r : UInt64Array) (off : Nat) (a b : UInt64Array.Slice) (n : Nat)
-    (hn : n ≤ a.size ∧ n ≤ b.size) (j : Nat) (c : UInt64) : UInt64Array × UInt64 :=
-  if h : j < n then
-    let x := a[j]
-    let y := b[j]
-    let d := x - y
-    subNLoop (r.set! (off + j) (d - c)) off a b n hn (j + 1)
-      (UInt64.subh (UInt64.subh 0 x y) d c)
-  else
-    (r, c)
-
-/--
-Writes the low `n` limbs of `a - b - c` into `r` from limb `off` on, where `n = min a.size b.size`,
-and returns the borrow out, like GMP's `mpn_sub_n` with a borrow in.
--/
-public def subN (r : UInt64Array) (off : Nat) (a b : UInt64Array.Slice) (c : UInt64 := 0) :
+def subNLoop (arr : UInt64Array) (rs : USize) (a b : USlice) (n : USize)
+    (hn : n ≤ a.size ∧ n ≤ b.size) (hr : LoopBound arr rs n) (j : USize) (c : UInt64) :
     UInt64Array × UInt64 :=
-  subNLoop r off a b (min a.size b.size) ⟨Nat.min_le_left .., Nat.min_le_right ..⟩ 0 c
+  if h : j < n then
+    let x := a[j]'(USize.lt_of_lt_of_le h hn.1)
+    let y := b[j]'(USize.lt_of_lt_of_le h hn.2)
+    let s := x - y
+    subNLoop (arr.uset (rs + j) (s - c) (uset_bound hr h)) rs a b n hn (hr.of_uset ..) (j + 1)
+      (UInt64.subh (UInt64.subh 0 x y) s c)
+  else
+    (arr, c)
+termination_by n.toNat - j.toNat
+decreasing_by
+  have := USize.lt_iff_toNat_lt.1 h
+  rw [toNat_add_one h]
+  lia
 
-private theorem subNLoop_spec (r : UInt64Array) (off : Nat) (a b : UInt64Array.Slice) (n : Nat)
-    (hn : n ≤ a.size ∧ n ≤ b.size) (j : Nat) (c : UInt64) (hr : off + n ≤ r.size) :
-    (subNLoop r off a b n hn j c).1.size = r.size ∧
-      (∀ i, (i < off + j ∨ off + n ≤ i) → (subNLoop r off a b n hn j c).1[i]! = r[i]!) ∧
-      (subNLoop r off a b n hn j c).1.valAt (off + j) (n - j) +
-          b.array.valAt (b.start + j) (n - j) + c.toNat =
-        a.array.valAt (a.start + j) (n - j) +
-          2 ^ (64 * (n - j)) * (subNLoop r off a b n hn j c).2.toNat := by
-  induction r, j, c using subNLoop.induct off a b n hn with
-  | case1 r j c h x y d ih =>
+private theorem subNLoop_spec (arr : UInt64Array) (rs : USize) (a b : USlice) (n : USize)
+    (hn : n ≤ a.size ∧ n ≤ b.size) (hr : LoopBound arr rs n) (j : USize) (c : UInt64) :
+    (subNLoop arr rs a b n hn hr j c).1.size = arr.size ∧
+      (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
+        (subNLoop arr rs a b n hn hr j c).1[i]! = arr[i]!) ∧
+      (subNLoop arr rs a b n hn hr j c).1.valAt (rs.toNat + j.toNat) (n.toNat - j.toNat) +
+          b.array.valAt (b.start.toNat + j.toNat) (n.toNat - j.toNat) + c.toNat =
+        a.array.valAt (a.start.toNat + j.toNat) (n.toNat - j.toNat) +
+          2 ^ (64 * (n.toNat - j.toNat)) * (subNLoop arr rs a b n hn hr j c).2.toNat := by
+  induction arr, hr, j, c using subNLoop.induct rs a b n hn with
+  | case1 arr hr j c h x y s ih =>
     rw [subNLoop]
     simp only [h, ↓reduceDIte]
-    obtain ⟨ih₁, ih₂, ih₃⟩ := ih (by simpa using hr)
-    simp only [UInt64Array.size_set!] at ih₁
-    have hv : (subNLoop (r.set! (off + j) (d - c)) off a b n hn (j + 1)
-        (UInt64.subh (UInt64.subh 0 x y) d c)).1[off + j]! = d - c := by
-      rw [ih₂ (off + j) (.inl (by lia)), UInt64Array.getElem!_set!]
-      simp; lia
+    have hj := USize.lt_iff_toNat_lt.1 h
+    have hj₁ := toNat_add_one h
+    have hidx := toNat_rs_add hr h
+    have hna := USize.le_iff_toNat_le.1 hn.1
+    have hnb := USize.le_iff_toNat_le.1 hn.2
+    obtain ⟨ih₁, ih₂, ih₃⟩ := ih
+    rw [hj₁] at ih₂ ih₃
+    simp only [UInt64Array.size_uset] at ih₁
+    have hv : (subNLoop (arr.uset (rs + j) (s - c) (uset_bound hr h)) rs a b n hn (hr.of_uset ..)
+        (j + 1) (UInt64.subh (UInt64.subh 0 x y) s c)).1[rs.toNat + j.toNat]! = s - c := by
+      rw [ih₂ _ (.inl (by lia)), getElem!_uset]
+      simp [hidx]
     refine ⟨ih₁, fun i hi => ?_, ?_⟩
-    · rw [ih₂ i (by lia), UInt64Array.getElem!_set!]
-      grind
-    · obtain ⟨k, hk⟩ : ∃ k, n - j = k + 1 := ⟨n - j - 1, by lia⟩
-      have hk' : n - (j + 1) = k := by lia
-      rw [hk' , ← Nat.add_assoc, ← Nat.add_assoc] at ih₃
+    · rw [ih₂ i (by lia), getElem!_uset]
+      simp only [hidx]
+      split <;> lia
+    · obtain ⟨k, hk⟩ : ∃ k, n.toNat - j.toNat = k + 1 := ⟨n.toNat - j.toNat - 1, by lia⟩
+      rw [show n.toNat - (j.toNat + 1) = k by lia, ← Nat.add_assoc, ← Nat.add_assoc] at ih₃
       rw [hk, UInt64Array.valAt_succ, UInt64Array.valAt_succ, UInt64Array.valAt_succ, hv,
-        ← UInt64Array.Slice.getElem_eq_getElem! a j (by lia),
-        ← UInt64Array.Slice.getElem_eq_getElem! b j (by lia), Nat.mul_succ, Nat.pow_add]
+        ← USlice.getElem_eq_getElem! a j (USize.lt_of_lt_of_le h hn.1),
+        ← USlice.getElem_eq_getElem! b j (USize.lt_of_lt_of_le h hn.2), Nat.mul_succ, Nat.pow_add]
       have := sub_step x y c
-      generalize (subNLoop _ _ _ _ _ _ _ _).1.valAt _ _ = R at *
-      generalize (subNLoop _ _ _ _ _ _ _ _).2.toNat = c' at *
+      generalize (subNLoop _ _ _ _ _ _ _ _ _).1.valAt _ _ = R at *
+      generalize (subNLoop _ _ _ _ _ _ _ _ _).2.toNat = c' at *
       generalize (UInt64.subh _ _ _).toNat = c₁ at *
       generalize 2 ^ (64 * k) = P at *
       grind
-  | case2 r j c h =>
+  | case2 arr hr j c h =>
     rw [subNLoop]
-    simp [h, show n - j = 0 by lia]
+    have : n.toNat - j.toNat = 0 := by have := USize.lt_iff_toNat_lt (a := j) (b := n); lia
+    simp [h, this]
 
-@[simp] public theorem size_subN (r : UInt64Array) (off : Nat) (a b : UInt64Array.Slice)
-    (c : UInt64) (hr : off + min a.size b.size ≤ r.size) : (subN r off a b c).1.size = r.size :=
-  (subNLoop_spec r off a b _ _ 0 c hr).1
+/--
+Writes the low `n` limbs of `a - b - c` into `r` and returns the borrow out, where `n` is the least
+of `r.size`, `a.size` and `b.size`, like GMP's `mpn_sub_n` with a borrow in.
+-/
+public def subN (r a b : USlice) (c : UInt64 := 0) : UInt64Array × UInt64 :=
+  subNLoop r.array r.start a b (min3 a.size b.size r.size) (min3_le r a b) (min3_bound r a b) 0 c
+
+@[simp] public theorem size_subN (r a b : USlice) (c : UInt64) :
+    (subN r a b c).1.size = r.array.size :=
+  (subNLoop_spec _ _ _ _ _ (min3_le r a b) (min3_bound r a b) 0 c).1
 
 /-- `subN` leaves the limbs of `r` outside the ones it writes unchanged. -/
-public theorem getElem!_subN (r : UInt64Array) (off : Nat) (a b : UInt64Array.Slice) (c : UInt64)
-    (hr : off + min a.size b.size ≤ r.size) (i : Nat)
-    (hi : i < off ∨ off + min a.size b.size ≤ i) :
-    (subN r off a b c).1[i]! = r[i]! :=
-  (subNLoop_spec r off a b _ _ 0 c hr).2.1 i (by lia)
+public theorem getElem!_subN (r a b : USlice) (c : UInt64) (i : Nat)
+    (hi : i < r.start.toNat ∨
+      r.start.toNat + min (min a.size.toNat b.size.toNat) r.size.toNat ≤ i) :
+    (subN r a b c).1[i]! = r.array[i]! :=
+  (subNLoop_spec _ _ _ _ _ (min3_le r a b) (min3_bound r a b) 0 c).2.1 i
+    (by simpa [toNat_min3] using hi)
 
-public theorem valAt_subN (r : UInt64Array) (off : Nat) (a b : UInt64Array.Slice) (c : UInt64)
-    (hr : off + min a.size b.size ≤ r.size) :
-    (subN r off a b c).1.valAt off (min a.size b.size) +
-        b.array.valAt b.start (min a.size b.size) + c.toNat =
-      a.array.valAt a.start (min a.size b.size) +
-        2 ^ (64 * min a.size b.size) * (subN r off a b c).2.toNat := by
-  simpa [subN] using (subNLoop_spec r off a b _ _ 0 c hr).2.2
+public theorem valAt_subN (r a b : USlice) (c : UInt64) :
+    let n := min (min a.size.toNat b.size.toNat) r.size.toNat
+    (subN r a b c).1.valAt r.start.toNat n + b.array.valAt b.start.toNat n + c.toNat =
+      a.array.valAt a.start.toNat n + 2 ^ (64 * n) * (subN r a b c).2.toNat := by
+  have := (subNLoop_spec r.array r.start a b _ (min3_le r a b) (min3_bound r a b) 0 c).2.2
+  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, toNat_min3] at this
+  exact this
 
 /-- `subN` on slices of the same size. -/
-public theorem valAt_subN_of_size_eq (r : UInt64Array) (off : Nat) (a b : UInt64Array.Slice)
-    (c : UInt64) (hab : a.size = b.size) (hr : off + a.size ≤ r.size) :
-    (subN r off a b c).1.valAt off a.size + b.toNat + c.toNat =
-      a.toNat + 2 ^ (64 * a.size) * (subN r off a b c).2.toNat := by
-  have := valAt_subN r off a b c (by simpa [hab] using hr)
-  simpa [hab, UInt64Array.Slice.toNat_eq_valAt] using this
+public theorem valAt_subN_of_size_eq (r a b : USlice) (c : UInt64) (hab : a.size = b.size)
+    (hr : r.size = a.size) :
+    (subN r a b c).1.valAt r.start.toNat r.size.toNat + b.toNat + c.toNat =
+      a.toNat + 2 ^ (64 * r.size.toNat) * (subN r a b c).2.toNat := by
+  have := valAt_subN r a b c
+  simp only [← hab, ← hr, Nat.min_self] at this
+  rw [USlice.toNat_eq_valAt, USlice.toNat_eq_valAt, ← hab, ← hr]
+  exact this
+
+/-! ### Borrow propagation -/
 
 /-- One limb of `sub1`: the low word of `x - c` and the borrow out. -/
 private theorem sub1_step (x c : UInt64) :
@@ -358,122 +503,167 @@ private theorem sub1_step (x c : UInt64) :
   generalize c.toNat = c at *
   split <;> lia
 
-/--
-Subtracts the borrow `c` from limbs `j` to `a.size - 1` of `a` into `r` from limb `off + j` on.
--/
-def sub1Loop (r : UInt64Array) (off : Nat) (a : UInt64Array.Slice) (j : Nat) (c : UInt64) :
-    UInt64Array × UInt64 :=
-  if h : j < a.size then
-    let x := a[j]
-    sub1Loop (r.set! (off + j) (x - c)) off a (j + 1) (UInt64.subh 0 x c)
+/-- Subtracts the borrow `c` from limbs `j` to `n - 1` of `a` into `arr` from limb `rs + j` on. -/
+def sub1Loop (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize) (hn : n ≤ a.size)
+    (hr : LoopBound arr rs n) (j : USize) (c : UInt64) : UInt64Array × UInt64 :=
+  if h : j < n then
+    let x := a[j]'(USize.lt_of_lt_of_le h hn)
+    sub1Loop (arr.uset (rs + j) (x - c) (uset_bound hr h)) rs a n hn (hr.of_uset ..) (j + 1)
+      (UInt64.subh 0 x c)
   else
-    (r, c)
+    (arr, c)
+termination_by n.toNat - j.toNat
+decreasing_by
+  have := USize.lt_iff_toNat_lt.1 h
+  rw [toNat_add_one h]
+  lia
 
-/--
-Writes the limbs of `a - c` into `r` from limb `off` on and returns the borrow out, like GMP's
-`mpn_sub_1`.
--/
-public def sub1 (r : UInt64Array) (off : Nat) (a : UInt64Array.Slice) (c : UInt64) :
-    UInt64Array × UInt64 :=
-  sub1Loop r off a 0 c
-
-private theorem sub1Loop_spec (r : UInt64Array) (off : Nat) (a : UInt64Array.Slice) (j : Nat)
-    (c : UInt64) (hr : off + a.size ≤ r.size) :
-    (sub1Loop r off a j c).1.size = r.size ∧
-      (∀ i, (i < off + j ∨ off + a.size ≤ i) → (sub1Loop r off a j c).1[i]! = r[i]!) ∧
-      (sub1Loop r off a j c).1.valAt (off + j) (a.size - j) + c.toNat =
-        a.array.valAt (a.start + j) (a.size - j) +
-          2 ^ (64 * (a.size - j)) * (sub1Loop r off a j c).2.toNat := by
-  induction r, j, c using sub1Loop.induct off a with
-  | case1 r j c h x ih =>
+private theorem sub1Loop_spec (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize)
+    (hn : n ≤ a.size) (hr : LoopBound arr rs n) (j : USize) (c : UInt64) :
+    (sub1Loop arr rs a n hn hr j c).1.size = arr.size ∧
+      (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
+        (sub1Loop arr rs a n hn hr j c).1[i]! = arr[i]!) ∧
+      (sub1Loop arr rs a n hn hr j c).1.valAt (rs.toNat + j.toNat) (n.toNat - j.toNat) +
+          c.toNat =
+        a.array.valAt (a.start.toNat + j.toNat) (n.toNat - j.toNat) +
+          2 ^ (64 * (n.toNat - j.toNat)) * (sub1Loop arr rs a n hn hr j c).2.toNat := by
+  induction arr, hr, j, c using sub1Loop.induct rs a n hn with
+  | case1 arr hr j c h x ih =>
     rw [sub1Loop]
     simp only [h, ↓reduceDIte]
-    obtain ⟨ih₁, ih₂, ih₃⟩ := ih (by simpa using hr)
-    simp only [UInt64Array.size_set!] at ih₁
-    have hv : (sub1Loop (r.set! (off + j) (x - c)) off a (j + 1)
-        (UInt64.subh 0 x c)).1[off + j]! = x - c := by
-      rw [ih₂ (off + j) (.inl (by lia)), UInt64Array.getElem!_set!]
-      simp; lia
+    have hj := USize.lt_iff_toNat_lt.1 h
+    have hj₁ := toNat_add_one h
+    have hidx := toNat_rs_add hr h
+    have hna := USize.le_iff_toNat_le.1 hn
+    obtain ⟨ih₁, ih₂, ih₃⟩ := ih
+    rw [hj₁] at ih₂ ih₃
+    simp only [UInt64Array.size_uset] at ih₁
+    have hv : (sub1Loop (arr.uset (rs + j) (x - c) (uset_bound hr h)) rs a n hn (hr.of_uset ..)
+        (j + 1) (UInt64.subh 0 x c)).1[rs.toNat + j.toNat]! = x - c := by
+      rw [ih₂ _ (.inl (by lia)), getElem!_uset]
+      simp [hidx]
     refine ⟨ih₁, fun i hi => ?_, ?_⟩
-    · rw [ih₂ i (by lia), UInt64Array.getElem!_set!]
-      grind
-    · obtain ⟨k, hk⟩ : ∃ k, a.size - j = k + 1 := ⟨a.size - j - 1, by lia⟩
-      have hk' : a.size - (j + 1) = k := by lia
-      rw [hk', ← Nat.add_assoc, ← Nat.add_assoc] at ih₃
+    · rw [ih₂ i (by lia), getElem!_uset]
+      simp only [hidx]
+      split <;> lia
+    · obtain ⟨k, hk⟩ : ∃ k, n.toNat - j.toNat = k + 1 := ⟨n.toNat - j.toNat - 1, by lia⟩
+      rw [show n.toNat - (j.toNat + 1) = k by lia, ← Nat.add_assoc, ← Nat.add_assoc] at ih₃
       rw [hk, UInt64Array.valAt_succ, UInt64Array.valAt_succ, hv,
-        ← UInt64Array.Slice.getElem_eq_getElem! a j (by lia), Nat.mul_succ, Nat.pow_add]
+        ← USlice.getElem_eq_getElem! a j (USize.lt_of_lt_of_le h hn), Nat.mul_succ, Nat.pow_add]
       have := sub1_step x c
-      generalize (sub1Loop _ _ _ _ _).1.valAt _ _ = R at *
-      generalize (sub1Loop _ _ _ _ _).2.toNat = c' at *
+      generalize (sub1Loop _ _ _ _ _ _ _ _).1.valAt _ _ = R at *
+      generalize (sub1Loop _ _ _ _ _ _ _ _).2.toNat = c' at *
       generalize (UInt64.subh _ _ _).toNat = c₁ at *
       generalize 2 ^ (64 * k) = P at *
       grind
-  | case2 r j c h =>
+  | case2 arr hr j c h =>
     rw [sub1Loop]
-    simp [h, show a.size - j = 0 by lia]
-
-@[simp] public theorem size_sub1 (r : UInt64Array) (off : Nat) (a : UInt64Array.Slice)
-    (c : UInt64) (hr : off + a.size ≤ r.size) : (sub1 r off a c).1.size = r.size :=
-  (sub1Loop_spec r off a 0 c hr).1
-
-/-- `sub1` leaves the limbs of `r` outside the ones it writes unchanged. -/
-public theorem getElem!_sub1 (r : UInt64Array) (off : Nat) (a : UInt64Array.Slice) (c : UInt64)
-    (hr : off + a.size ≤ r.size) (i : Nat) (hi : i < off ∨ off + a.size ≤ i) :
-    (sub1 r off a c).1[i]! = r[i]! :=
-  (sub1Loop_spec r off a 0 c hr).2.1 i (by lia)
-
-public theorem valAt_sub1 (r : UInt64Array) (off : Nat) (a : UInt64Array.Slice) (c : UInt64)
-    (hr : off + a.size ≤ r.size) :
-    (sub1 r off a c).1.valAt off a.size + c.toNat =
-      a.toNat + 2 ^ (64 * a.size) * (sub1 r off a c).2.toNat := by
-  simpa [sub1, UInt64Array.Slice.toNat_eq_valAt] using (sub1Loop_spec r off a 0 c hr).2.2
+    have : n.toNat - j.toNat = 0 := by have := USize.lt_iff_toNat_lt (a := j) (b := n); lia
+    simp [h, this]
 
 /--
-Writes the limbs of `a - b - c` into `r` from limb `off` on and returns the borrow out, like GMP's
-`mpn_sub`. It writes `a.size` limbs and requires `b.size ≤ a.size`.
+Writes the limbs of `a - c` into `r` and returns the borrow out, on the first `min r.size a.size`
+limbs, like GMP's `mpn_sub_1`.
 -/
-public def sub (r : UInt64Array) (off : Nat) (a b : UInt64Array.Slice) (c : UInt64 := 0) :
-    UInt64Array × UInt64 :=
-  let p := subN r off a b c
-  sub1Loop p.1 off a b.size p.2
+public def sub1 (r a : USlice) (c : UInt64) : UInt64Array × UInt64 :=
+  sub1Loop r.array r.start a (min a.size r.size) (USize.min_le_left ..) (min_bound r a.size) 0 c
 
-@[simp] public theorem size_sub (r : UInt64Array) (off : Nat) (a b : UInt64Array.Slice)
-    (c : UInt64) (hba : b.size ≤ a.size) (hr : off + a.size ≤ r.size) :
-    (sub r off a b c).1.size = r.size := by
-  have h₁ := size_subN r off a b c (by lia)
-  rw [sub, (sub1Loop_spec _ off a b.size _ (by lia)).1, h₁]
+@[simp] public theorem size_sub1 (r a : USlice) (c : UInt64) :
+    (sub1 r a c).1.size = r.array.size :=
+  (sub1Loop_spec _ _ _ _ (USize.min_le_left ..) (min_bound r a.size) 0 c).1
+
+/-- `sub1` leaves the limbs of `r` outside the ones it writes unchanged. -/
+public theorem getElem!_sub1 (r a : USlice) (c : UInt64) (i : Nat)
+    (hi : i < r.start.toNat ∨ r.start.toNat + min a.size.toNat r.size.toNat ≤ i) :
+    (sub1 r a c).1[i]! = r.array[i]! :=
+  (sub1Loop_spec _ _ _ _ (USize.min_le_left ..) (min_bound r a.size) 0 c).2.1 i
+    (by simpa [USize.toNat_min] using hi)
+
+public theorem valAt_sub1 (r a : USlice) (c : UInt64) (har : a.size ≤ r.size) :
+    (sub1 r a c).1.valAt r.start.toNat a.size.toNat + c.toNat =
+      a.toNat + 2 ^ (64 * a.size.toNat) * (sub1 r a c).2.toNat := by
+  have := (sub1Loop_spec _ _ _ _ (USize.min_le_left ..) (min_bound r a.size) 0 c).2.2
+  have h := USize.le_iff_toNat_le.1 har
+  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, USize.toNat_min,
+    show min a.size.toNat r.size.toNat = a.size.toNat by lia] at this
+  rw [USlice.toNat_eq_valAt]
+  exact this
+
+/-! ### General subtraction -/
+
+private theorem size_subNLoop (arr : UInt64Array) (rs : USize) (a b : USlice) (n : USize)
+    (hn : n ≤ a.size ∧ n ≤ b.size) (hr : LoopBound arr rs n) (j : USize) (c : UInt64) :
+    (subNLoop arr rs a b n hn hr j c).1.size = arr.size :=
+  (subNLoop_spec arr rs a b n hn hr j c).1
+
+private theorem sub_le (r a b : USlice) :
+    min b.size (min a.size r.size) ≤ a.size ∧ min b.size (min a.size r.size) ≤ b.size :=
+  ⟨USize.le_trans (USize.min_le_right ..) (USize.min_le_left ..), USize.min_le_left ..⟩
+
+private theorem sub_bound (r a b : USlice) :
+    LoopBound r.array r.start (min b.size (min a.size r.size)) :=
+  loopBound_of_le r (USize.le_trans (USize.min_le_right ..) (USize.min_le_right ..))
+
+private theorem sub_bound₁ (r a b : USlice) (c : UInt64) :
+    LoopBound (subNLoop r.array r.start a b _ (sub_le r a b) (sub_bound r a b) 0 c).1 r.start
+      (min a.size r.size) := by
+  have := min_bound r a.size
+  simp only [LoopBound, size_subNLoop] at this ⊢
+  exact this
+
+/--
+Writes the limbs of `a - b - c` into `r` and returns the borrow out, on the first
+`min r.size a.size` limbs, like GMP's `mpn_sub`. It requires `b.size ≤ a.size`.
+-/
+public def sub (r a b : USlice) (c : UInt64 := 0) : UInt64Array × UInt64 :=
+  let p := subNLoop r.array r.start a b _ (sub_le r a b) (sub_bound r a b) 0 c
+  sub1Loop p.1 r.start a (min a.size r.size) (USize.min_le_left ..) (sub_bound₁ r a b c)
+    (min b.size (min a.size r.size)) p.2
+
+@[simp] public theorem size_sub (r a b : USlice) (c : UInt64) :
+    (sub r a b c).1.size = r.array.size := by
+  rw [sub, (sub1Loop_spec ..).1, size_subNLoop]
 
 /-- `sub` leaves the limbs of `r` outside the ones it writes unchanged. -/
-public theorem getElem!_sub (r : UInt64Array) (off : Nat) (a b : UInt64Array.Slice) (c : UInt64)
-    (hba : b.size ≤ a.size) (hr : off + a.size ≤ r.size) (i : Nat)
-    (hi : i < off ∨ off + a.size ≤ i) :
-    (sub r off a b c).1[i]! = r[i]! := by
-  have h₁ := size_subN r off a b c (by lia)
-  rw [sub, (sub1Loop_spec _ off a b.size _ (by lia)).2.1 i (by lia),
-    getElem!_subN r off a b c (by lia) i (by lia)]
+public theorem getElem!_sub (r a b : USlice) (c : UInt64) (i : Nat)
+    (hi : i < r.start.toNat ∨ r.start.toNat + min a.size.toNat r.size.toNat ≤ i) :
+    (sub r a b c).1[i]! = r.array[i]! := by
+  have hn := USize.toNat_min a.size r.size
+  have hm := USize.toNat_min b.size (min a.size r.size)
+  rw [hn] at hm
+  rw [sub, (sub1Loop_spec ..).2.1 i (by rw [hn, hm]; lia),
+    (subNLoop_spec ..).2.1 i (by rw [hm, USize.toNat_zero]; lia)]
 
-public theorem valAt_sub (r : UInt64Array) (off : Nat) (a b : UInt64Array.Slice) (c : UInt64)
-    (hba : b.size ≤ a.size) (hr : off + a.size ≤ r.size) :
-    (sub r off a b c).1.valAt off a.size + b.toNat + c.toNat =
-      a.toNat + 2 ^ (64 * a.size) * (sub r off a b c).2.toNat := by
-  have hmin : min a.size b.size = b.size := by lia
-  have h₁ := size_subN r off a b c (by lia)
-  have h₂ := valAt_subN r off a b c (by lia)
-  rw [hmin] at h₂
-  obtain ⟨-, h₃, h₄⟩ := sub1Loop_spec (subN r off a b c).1 off a b.size (subN r off a b c).2
-    (by lia)
-  have h₅ : (sub r off a b c).1.valAt off b.size = (subN r off a b c).1.valAt off b.size :=
+public theorem valAt_sub (r a b : USlice) (c : UInt64) (hba : b.size ≤ a.size)
+    (har : a.size ≤ r.size) :
+    (sub r a b c).1.valAt r.start.toNat a.size.toNat + b.toNat + c.toNat =
+      a.toNat + 2 ^ (64 * a.size.toNat) * (sub r a b c).2.toNat := by
+  have h₁ := USize.le_iff_toNat_le.1 hba
+  have h₂ := USize.le_iff_toNat_le.1 har
+  have hm : (min b.size (min a.size r.size)).toNat = b.size.toNat := by
+    rw [USize.toNat_min, USize.toNat_min]; lia
+  have hn : (min a.size r.size).toNat = a.size.toNat := by rw [USize.toNat_min]; lia
+  have hN := (subNLoop_spec r.array r.start a b _ (sub_le r a b) (sub_bound r a b) 0 c).2.2
+  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, hm] at hN
+  obtain ⟨-, h₃, h₄⟩ := sub1Loop_spec _ r.start a _ (USize.min_le_left ..) (sub_bound₁ r a b c)
+    (min b.size (min a.size r.size)) (subNLoop r.array r.start a b _ (sub_le r a b)
+      (sub_bound r a b) 0 c).2
+  rw [hm, hn] at h₄
+  rw [hm, hn] at h₃
+  have h₅ : (sub r a b c).1.valAt r.start.toNat b.size.toNat =
+      (subNLoop r.array r.start a b _ (sub_le r a b) (sub_bound r a b) 0 c).1.valAt r.start.toNat
+        b.size.toNat :=
     UInt64Array.valAt_congr _ fun i _ hi => h₃ i (by lia)
   rw [sub] at h₅ ⊢
-  obtain ⟨k, hk⟩ : ∃ k, a.size = b.size + k := ⟨a.size - b.size, by lia⟩
-  rw [show a.size - b.size = k by lia] at h₄
-  rw [UInt64Array.Slice.toNat_eq_valAt, UInt64Array.Slice.toNat_eq_valAt, hk,
-    UInt64Array.valAt_add, UInt64Array.valAt_add, h₅, Nat.mul_add, Nat.pow_add]
-  generalize (sub1Loop _ _ _ _ _).1.valAt _ _ = R at *
-  generalize (sub1Loop _ _ _ _ _).2.toNat = c' at *
-  generalize (subN _ _ _ _ _).1.valAt _ _ = L at *
-  generalize (subN _ _ _ _ _).2.toNat = c₁ at *
-  generalize 2 ^ (64 * b.size) = P at *
+  obtain ⟨k, hk⟩ : ∃ k, a.size.toNat = b.size.toNat + k := ⟨a.size.toNat - b.size.toNat, by lia⟩
+  rw [show a.size.toNat - b.size.toNat = k by lia] at h₄
+  rw [USlice.toNat_eq_valAt, USlice.toNat_eq_valAt, hk, UInt64Array.valAt_add,
+    UInt64Array.valAt_add, h₅, Nat.mul_add, Nat.pow_add]
+  generalize (sub1Loop _ _ _ _ _ _ _ _).1.valAt _ _ = R at *
+  generalize (sub1Loop _ _ _ _ _ _ _ _).2.toNat = c' at *
+  generalize (subNLoop _ _ _ _ _ _ _ _ _).1.valAt _ _ = L at *
+  generalize (subNLoop _ _ _ _ _ _ _ _ _).2.toNat = c₁ at *
+  generalize 2 ^ (64 * b.size.toNat) = P at *
   generalize 2 ^ (64 * k) = Q at *
   grind
 

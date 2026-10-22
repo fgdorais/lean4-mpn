@@ -35,31 +35,43 @@ def window (r : UInt64Array) (off n : Nat) : Nat :=
 def edges (n : Nat) : List Nat :=
   [0, 1, 2 ^ 63, 2 ^ (64 * n) - 1, 2 ^ (64 * n) - 2, 2 ^ (64 * (n - 1)), 2 ^ (64 * n) / 3]
 
+/-- The limbs `1` to `n` of `r`, a window between two padding limbs. -/
+def inner (r : UInt64Array) (n : Nat) : UInt64Array.USlice := r.uslice 1 (n + 1).toUSize
+
 /-- Checks `addN` and `subN` on `n`-limb numbers written at offset 1 of a 2-limb padded buffer. -/
 def checkAddSub (n : Nat) : Bool :=
   let r := UInt64Array.replicate (n + 2) 0xAAAAAAAAAAAAAAAA
   (edges n).all fun x => (edges n).all fun y => [0, 1, 2, 2 ^ 64 - 1].all fun c =>
-    let a := (limbs n x).toSlice
-    let b := (limbs n y).toSlice
-    let (s, cs) := MPN.addN r 1 a b c.toUInt64
-    let (d, cd) := MPN.subN r 1 a b c.toUInt64
+    let a := (limbs n x).toUSlice
+    let b := (limbs n y).toUSlice
+    let (s, cs) := MPN.addN (inner r n) a b c.toUInt64
+    let (d, cd) := MPN.subN (inner r n) a b c.toUInt64
     window s 1 n + 2 ^ (64 * n) * cs.toNat == x + y + c &&
     window d 1 n + y + c == x + 2 ^ (64 * n) * cd.toNat &&
     -- The padding limbs are untouched.
     s[0]! == r[0]! && s[n + 1]! == r[n + 1]! && d[0]! == r[0]! && d[n + 1]! == r[n + 1]!
 
 #guard [1, 2, 3, 5].all checkAddSub
-#guard (MPN.addN .empty 0 UInt64Array.empty.toSlice UInt64Array.empty.toSlice 5).2 == 5
+#guard
+  let e := UInt64Array.empty.toUSlice
+  (MPN.addN e e e 5).2 == 5
+
+-- A window shorter than the operands: only its limbs are written.
+#guard
+  let r := UInt64Array.replicate 4 7
+  let a := (limbs 3 (2 ^ 192 - 1)).toUSlice
+  let (s, c) := MPN.addN (inner r 2) a a
+  s.toList == [7, 0xFFFFFFFFFFFFFFFE, 0xFFFFFFFFFFFFFFFF, 7] && c == 1
 
 /-- Checks `add` and `sub` on an `m`-limb `a` and an `n`-limb `b`, with `n ≤ m`. -/
 def checkAddSubGen (m n : Nat) : Bool :=
   let r := UInt64Array.replicate (m + 2) 0xAAAAAAAAAAAAAAAA
   (edges m).all fun x => (edges n).all fun y => [0, 1, 2 ^ 64 - 1].all fun c =>
     let y := y % 2 ^ (64 * n)
-    let a := (limbs m x).toSlice
-    let b := (limbs n y).toSlice
-    let (s, cs) := MPN.add r 1 a b c.toUInt64
-    let (d, cd) := MPN.sub r 1 a b c.toUInt64
+    let a := (limbs m x).toUSlice
+    let b := (limbs n y).toUSlice
+    let (s, cs) := MPN.add (inner r m) a b c.toUInt64
+    let (d, cd) := MPN.sub (inner r m) a b c.toUInt64
     window s 1 m + 2 ^ (64 * m) * cs.toNat == x + y + c &&
     window d 1 m + y + c == x + 2 ^ (64 * m) * cd.toNat &&
     s[0]! == r[0]! && s[m + 1]! == r[m + 1]! && d[0]! == r[0]! && d[m + 1]! == r[m + 1]!

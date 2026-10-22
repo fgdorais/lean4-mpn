@@ -171,12 +171,12 @@ def main (args : List String) : IO Unit := do
       | "add" =>
         row noNat op n
           (time (fun (x y : UInt64Array) =>
-            MPN.add (.replicate x.size 0) 0 x.toSlice y.toSlice) checkPair a b)
+            MPN.add (UInt64Array.replicate x.size 0).toUSlice x.toUSlice y.toUSlice) checkPair a b)
           (time (· + ·) checkNat na nb)
       | "sub" =>
         row noNat op n
           (time (fun (x y : UInt64Array) =>
-            MPN.sub (.replicate x.size 0) 0 x.toSlice y.toSlice) checkPair s b)
+            MPN.sub (UInt64Array.replicate x.size 0).toUSlice x.toUSlice y.toUSlice) checkPair s b)
           (time (· - ·) checkNat ns nb)
       | "mul1" =>
         row noNat op n

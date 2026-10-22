@@ -36,14 +36,14 @@ so five runs make the tables reliable. Within one run, distrust a row whose spre
 - **One limb:** operands below `2⁶³` are `Nat`'s unboxed scalars, which need no allocation.
 - **Results are checked in O(1)** on both sides (the size and the first limb, or the low word), so
   the time is the operation alone.
-- **Machine:** AMD Ryzen 5 5600X (Zen 3), Linux 7.1, Lean `v4.35.0`, lean4-scalar-arrays
-  `3addfc4`. Commit `5c419ae`, 2026-10-22.
+- **Machine:** AMD Ryzen 5 5600X (Zen 3), Linux 7.1, Lean `v4.36.0-rc1`, lean4-scalar-arrays
+  `85c955d`. 2026-10-22, with the `USize` add/sub (history below).
 
 ### Operations
 
 | op | operation | operands | algorithm |
 |---|---|---|---|
-| `add`, `sub` | `MPN.add`, `MPN.sub` | `n` and `n` limbs (`sub`: `n + 1` and `n`) | `addN`/`subN`, then `add1`/`sub1` |
+| `add`, `sub` | `MPN.add`, `MPN.sub` | `n` and `n` limbs (`sub`: `n + 1` and `n`) | `addN`/`subN`, then `add1`/`sub1`, on `USlice`s with `USize` indices |
 | `mul1` | `MPN.mul1` | `n` limbs times a limb | one pass |
 | `addmul1` | `MPN.addMul1` | `n` limbs times a limb, added to `n` limbs | one pass |
 | `mul` | `MPN.mulBasecase` | `n` by `n` limbs | schoolbook by rows: `mul1`, then `addMul1` |
@@ -56,25 +56,25 @@ Ratio MPN / Nat (below 1 is faster than Nat):
 
 | op | 1 | 2 | 3 | 4 | 6 | 8 | 12 | 16 | 24 | 32 | 48 | 64 | 128 | 256 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `add` | 0.51 | 0.67 | 0.59 | 0.71 | 0.77 | 0.83 | 0.95 | 1.06 | 1.33 | 1.49 | 1.86 | 2.17 | 3.13 | 3.29 |
-| `sub` | 0.63 | 0.57 | 0.64 | 0.62 | 0.68 | 0.72 | 0.83 | 0.87 | 1.04 | 1.29 | 1.60 | 1.95 | 2.78 | 3.30 |
-| `mul1` | 0.27 | 0.32 | 0.31 | 0.35 | 0.41 | 0.45 | 0.53 | 0.62 | 0.81 | 0.95 | 1.23 | 1.46 | 2.22 | 2.46 |
-| `addmul1` | 0.21 | 0.22 | 0.22 | 0.24 | 0.28 | 0.35 | 0.37 | 0.41 | 0.56 | 0.65 | 0.85 | 1.01 | 1.49 | 1.73 |
-| `mul` | 0.44 | 0.71 | 1.05 | 1.40 | 2.11 | 2.86 | 4.26 | 5.28 | 7.65 | 9.00 | 11.04 | 12.55 | 16.56 | 22.37 |
-| `comba` | 0.82 | 1.46 | 2.17 | 2.84 | 3.87 | 4.90 | 6.49 | 7.67 | 9.13 | 9.80 | 10.70 | 11.35 | 13.19 | 16.41 |
-| `mulref` | 0.25 | 0.34 | 0.54 | 0.70 | 1.22 | 1.72 | 2.70 | 3.49 | 5.00 | 6.56 | 8.14 | 9.36 | 12.78 | 17.35 |
+| `add` | 0.42 | 0.53 | 0.48 | 0.54 | 0.58 | 0.58 | 0.61 | 0.66 | 0.71 | 0.75 | 0.84 | 0.95 | 1.21 | 1.21 |
+| `sub` | 0.52 | 0.46 | 0.53 | 0.48 | 0.52 | 0.52 | 0.56 | 0.58 | 0.59 | 0.65 | 0.72 | 0.82 | 1.16 | 1.31 |
+| `mul1` | 0.27 | 0.34 | 0.32 | 0.37 | 0.43 | 0.46 | 0.56 | 0.65 | 0.84 | 0.97 | 1.24 | 1.48 | 2.25 | 2.74 |
+| `addmul1` | 0.19 | 0.22 | 0.22 | 0.23 | 0.27 | 0.33 | 0.38 | 0.42 | 0.57 | 0.65 | 0.86 | 0.98 | 1.47 | 1.71 |
+| `mul` | 0.45 | 0.70 | 1.06 | 1.45 | 2.18 | 3.02 | 4.39 | 5.40 | 7.60 | 9.17 | 10.97 | 12.64 | 16.77 | 22.56 |
+| `comba` | 0.82 | 1.42 | 2.15 | 2.71 | 3.84 | 4.79 | 6.44 | 7.47 | 9.03 | 9.79 | 10.62 | 11.21 | 13.24 | 16.50 |
+| `mulref` | 0.23 | 0.33 | 0.51 | 0.69 | 1.19 | 1.70 | 2.68 | 3.53 | 5.01 | 6.65 | 8.17 | 9.43 | 12.84 | 17.44 |
 
 Time of MPN:
 
 | op | 1 | 2 | 3 | 4 | 6 | 8 | 12 | 16 | 24 | 32 | 48 | 64 | 128 | 256 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `add` | 74.9 ns | 79.8 ns | 83.9 ns | 86.4 ns | 92.9 ns | 101 ns | 115 ns | 130 ns | 165 ns | 194 ns | 253 ns | 312 ns | 545 ns | 1.01 µs |
-| `sub` | 76.3 ns | 79.5 ns | 82.3 ns | 84.5 ns | 94.9 ns | 99.4 ns | 115 ns | 132 ns | 168 ns | 198 ns | 262 ns | 325 ns | 570 ns | 1.06 µs |
-| `mul1` | 47.9 ns | 50.5 ns | 54.1 ns | 55.7 ns | 63.7 ns | 71.2 ns | 84.3 ns | 99.9 ns | 134 ns | 163 ns | 222 ns | 279 ns | 516 ns | 978 ns |
-| `addmul1` | 47.6 ns | 51.2 ns | 54.5 ns | 58.4 ns | 65.4 ns | 74.2 ns | 89.5 ns | 105 ns | 145 ns | 177 ns | 242 ns | 308 ns | 563 ns | 1.07 µs |
-| `mul` | 65.5 ns | 96.8 ns | 133 ns | 184 ns | 299 ns | 446 ns | 831 ns | 1.34 µs | 2.89 µs | 4.84 µs | 10.3 µs | 17.7 µs | 67.4 µs | 264 µs |
-| `comba` | 122 ns | 200 ns | 276 ns | 372 ns | 546 ns | 759 ns | 1.26 µs | 1.94 µs | 3.45 µs | 5.27 µs | 9.96 µs | 16 µs | 53.3 µs | 192 µs |
-| `mulref` | 36.7 ns | 46.3 ns | 68.8 ns | 92.2 ns | 172 ns | 267 ns | 526 ns | 887 ns | 1.9 µs | 3.54 µs | 7.58 µs | 13.2 µs | 51.5 µs | 203 µs |
+| `add` | 59.5 ns | 61.7 ns | 64 ns | 64.2 ns | 69.7 ns | 69.3 ns | 73.8 ns | 79.9 ns | 87.6 ns | 97.1 ns | 113 ns | 137 ns | 208 ns | 345 ns |
+| `sub` | 62.1 ns | 63.3 ns | 64.1 ns | 65.7 ns | 71.9 ns | 71.1 ns | 76.8 ns | 82.4 ns | 92.8 ns | 106 ns | 124 ns | 147 ns | 229 ns | 388 ns |
+| `mul1` | 47.4 ns | 51.9 ns | 54.3 ns | 57.6 ns | 66.1 ns | 70.7 ns | 87.1 ns | 102 ns | 135 ns | 163 ns | 222 ns | 280 ns | 517 ns | 980 ns |
+| `addmul1` | 44.3 ns | 49.9 ns | 52.4 ns | 54.7 ns | 62.9 ns | 70.2 ns | 88 ns | 104 ns | 143 ns | 177 ns | 241 ns | 306 ns | 562 ns | 1.07 µs |
+| `mul` | 63.8 ns | 93.9 ns | 133 ns | 188 ns | 305 ns | 465 ns | 847 ns | 1.35 µs | 2.88 µs | 4.89 µs | 10.2 µs | 17.7 µs | 67.6 µs | 264 µs |
+| `comba` | 117 ns | 192 ns | 271 ns | 352 ns | 538 ns | 747 ns | 1.25 µs | 1.86 µs | 3.43 µs | 5.23 µs | 9.86 µs | 15.8 µs | 53.1 µs | 193 µs |
+| `mulref` | 33.5 ns | 44.5 ns | 65.4 ns | 89.6 ns | 167 ns | 262 ns | 523 ns | 883 ns | 1.9 µs | 3.54 µs | 7.6 µs | 13.3 µs | 51.6 µs | 204 µs |
 
 ## History
 
@@ -83,3 +83,4 @@ Times are the fastest of five runs, in the format of the tables above.
 | date | commit | change | effect |
 |---|---|---|---|
 | 2026-10-22 | `5c419ae` | baseline: verified `add`/`sub`, `mul1`/`addMul1`, `mulBasecase` and `mulComba` on `UInt64` limbs, plain `Nat`-indexed loops | `mul` 184 ns at 4 limbs, 1.34 µs at 16, 17.7 µs at 64; `comba` 372 ns, 1.94 µs, 16.0 µs; `mulref` 92.2 ns, 887 ns, 13.2 µs |
+| 2026-10-22 | `b13f8e6`+ | `add`/`sub` on `USlice`: `USize` indices, `uget`/`uset` without bounds checks; Lean `v4.36.0-rc1` (other rows within ±4%) | `add` 86.4 → 65.5 ns at 4 limbs, 130 → 80.2 ns at 16, 312 → 138 ns at 64, 1.01 µs → 346 ns at 256; `sub` likewise (−20%, −35%, −54%, −63%) |
