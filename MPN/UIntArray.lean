@@ -36,6 +36,20 @@ public theorem valAt_succ (a : UInt64Array) (lo n : Nat) :
     a.valAt lo (n + 1) = a[lo]!.toNat + 2 ^ 64 * a.valAt (lo + 1) n := by
   rw [valAt]
 
+@[simp] public theorem valAt_one (a : UInt64Array) (lo : Nat) : a.valAt lo 1 = a[lo]!.toNat := by
+  simp [valAt_succ]
+
+public theorem valAt_lt (a : UInt64Array) (lo n : Nat) : a.valAt lo n < 2 ^ (64 * n) := by
+  induction n generalizing lo with
+  | zero => simp
+  | succ n ih =>
+    have h₁ := ih (lo + 1)
+    have h₂ := a[lo]!.toNat_lt
+    rw [valAt_succ, Nat.mul_succ, Nat.pow_add]
+    generalize a.valAt _ n = v at *
+    generalize 2 ^ (64 * n) = P at *
+    lia
+
 /-- `valAt` only depends on the limbs it reads. -/
 public theorem valAt_congr {a b : UInt64Array} {lo : Nat} :
     (n : Nat) → (∀ i, lo ≤ i → i < lo + n → a[i]! = b[i]!) → a.valAt lo n = b.valAt lo n
@@ -73,6 +87,16 @@ public theorem getElem!_set! (a : UInt64Array) (i j : Nat) (v : UInt64) :
   rw [getElem!_eq_getElem!_data, getElem!_eq_getElem!_data, data_set!]
   have := a.size_data
   grind
+
+@[simp] public theorem getElem!_set!_self (a : UInt64Array) (i : Nat) (v : UInt64)
+    (h : i < a.size) : (a.set! i v)[i]! = v := by
+  rw [getElem!_set!]
+  simp [h]
+
+public theorem getElem!_set!_of_ne (a : UInt64Array) {i j : Nat} (v : UInt64) (h : i ≠ j) :
+    (a.set! i v)[j]! = a[j]! := by
+  rw [getElem!_set!]
+  simp [h]
 
 /-- The natural number whose little-endian base `2⁶⁴` limbs are the elements of `s`. -/
 public def Slice.toNat (s : UInt64Array.Slice) : Nat := s.array.valAt s.start s.size

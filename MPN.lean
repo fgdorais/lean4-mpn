@@ -7,3 +7,5 @@ module
 public import MPN.UInt
 public import MPN.UIntArray
 public import MPN.AddSub
+public import MPN.Mul.Basecase
+public import MPN.Mul.Comba
