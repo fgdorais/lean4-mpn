@@ -5,9 +5,8 @@ package «lean4-mpn» where
   version := v!"0.1.0"
   testDriver := "MPNTest"
 
--- Switch to `main` once fgdorais/lean4-scalar-arrays#9 is merged.
 require «lean4-scalar-arrays» from git
-  "https://github.com/fgdorais/lean4-scalar-arrays" @ "bignum-test"
+  "https://github.com/fgdorais/lean4-scalar-arrays" @ "main"
 
 @[default_target]
 lean_lib MPN
