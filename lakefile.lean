@@ -16,6 +16,6 @@ lean_lib MPN
 lean_lib MPNTest where
   precompileModules := true
 
-/-- Benchmarks the multiplication variants and the conversions: `lake exe bench [mul|conv]`. -/
+/-- Times the library against `Nat`: `lake exe bench [--no-nat] [op…] [size…]`, see BENCH.md. -/
 lean_exe bench where
   root := `Bench
