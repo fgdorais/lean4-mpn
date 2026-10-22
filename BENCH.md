@@ -37,18 +37,18 @@ so five runs make the tables reliable. Within one run, distrust a row whose spre
 - **Results are checked in O(1)** on both sides (the size and the first limb, or the low word), so
   the time is the operation alone.
 - **Machine:** AMD Ryzen 5 5600X (Zen 3), Linux 7.1, Lean `v4.36.0-rc1`, lean4-scalar-arrays
-  `85c955d`. 2026-10-22, with the `USize` add/sub (history below).
+  `85c955d`. 2026-10-22, with `USize` multiplication (history below).
 
 ### Operations
 
 | op | operation | operands | algorithm |
 |---|---|---|---|
 | `add`, `sub` | `MPN.add`, `MPN.sub` | `n` and `n` limbs (`sub`: `n + 1` and `n`) | `addN`/`subN`, then `add1`/`sub1`, on `USlice`s with `USize` indices |
-| `mul1` | `MPN.mul1` | `n` limbs times a limb | one pass |
-| `addmul1` | `MPN.addMul1` | `n` limbs times a limb, added to `n` limbs | one pass |
-| `mul` | `MPN.mulBasecase` | `n` by `n` limbs | schoolbook by rows: `mul1`, then `addMul1` |
-| `comba` | `MPN.mulComba` | `n` by `n` limbs | schoolbook by columns into a three-word accumulator |
-| `mulref` | `Bench.refMul` | `n` by `n` limbs | schoolbook by rows, a hand-written loop with the arithmetic of `addMul1`; not part of the library, the target for its loops |
+| `mul1` | `MPN.mul1` | `n` limbs times a limb | one pass, `USize` indices |
+| `addmul1` | `MPN.addMul1` | `n` limbs times a limb, added to `n` limbs | one pass, `USize` indices |
+| `mul` | `MPN.mulBasecase` | `n` by `n` limbs | schoolbook by rows: `mul1`, then `addMul1`, `USize` indices |
+| `comba` | `MPN.mulComba` | `n` by `n` limbs | schoolbook by columns into a three-word accumulator, `USize` indices |
+| `mulref` | `Bench.refMul` | `n` by `n` limbs | schoolbook by rows, a hand-written loop with `Nat` indices and the arithmetic of `addMul1`; not part of the library, kept as a control since its code does not change |
 
 ## Current results
 
@@ -56,25 +56,25 @@ Ratio MPN / Nat (below 1 is faster than Nat):
 
 | op | 1 | 2 | 3 | 4 | 6 | 8 | 12 | 16 | 24 | 32 | 48 | 64 | 128 | 256 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `add` | 0.42 | 0.53 | 0.48 | 0.54 | 0.58 | 0.58 | 0.61 | 0.66 | 0.71 | 0.75 | 0.84 | 0.95 | 1.21 | 1.21 |
-| `sub` | 0.52 | 0.46 | 0.53 | 0.48 | 0.52 | 0.52 | 0.56 | 0.58 | 0.59 | 0.65 | 0.72 | 0.82 | 1.16 | 1.31 |
-| `mul1` | 0.27 | 0.34 | 0.32 | 0.37 | 0.43 | 0.46 | 0.56 | 0.65 | 0.84 | 0.97 | 1.24 | 1.48 | 2.25 | 2.74 |
-| `addmul1` | 0.19 | 0.22 | 0.22 | 0.23 | 0.27 | 0.33 | 0.38 | 0.42 | 0.57 | 0.65 | 0.86 | 0.98 | 1.47 | 1.71 |
-| `mul` | 0.45 | 0.70 | 1.06 | 1.45 | 2.18 | 3.02 | 4.39 | 5.40 | 7.60 | 9.17 | 10.97 | 12.64 | 16.77 | 22.56 |
-| `comba` | 0.82 | 1.42 | 2.15 | 2.71 | 3.84 | 4.79 | 6.44 | 7.47 | 9.03 | 9.79 | 10.62 | 11.21 | 13.24 | 16.50 |
-| `mulref` | 0.23 | 0.33 | 0.51 | 0.69 | 1.19 | 1.70 | 2.68 | 3.53 | 5.01 | 6.65 | 8.17 | 9.43 | 12.84 | 17.44 |
+| `add` | 0.44 | 0.52 | 0.46 | 0.54 | 0.58 | 0.58 | 0.62 | 0.65 | 0.72 | 0.76 | 0.85 | 0.94 | 1.21 | 1.26 |
+| `sub` | 0.52 | 0.46 | 0.52 | 0.47 | 0.51 | 0.51 | 0.56 | 0.53 | 0.58 | 0.62 | 0.71 | 0.84 | 1.11 | 1.30 |
+| `mul1` | 0.26 | 0.29 | 0.26 | 0.30 | 0.32 | 0.33 | 0.36 | 0.38 | 0.42 | 0.46 | 0.52 | 0.61 | 0.78 | 0.87 |
+| `addmul1` | 0.20 | 0.20 | 0.19 | 0.20 | 0.22 | 0.24 | 0.24 | 0.24 | 0.28 | 0.31 | 0.36 | 0.43 | 0.55 | 0.59 |
+| `mul` | 0.45 | 0.57 | 0.79 | 0.92 | 1.29 | 1.58 | 1.92 | 2.20 | 2.75 | 3.07 | 3.56 | 4.12 | 5.14 | 6.72 |
+| `comba` | 0.78 | 1.26 | 1.85 | 2.29 | 3.08 | 3.72 | 4.60 | 5.04 | 5.39 | 5.21 | 5.11 | 5.11 | 4.88 | 5.21 |
+| `mulref` | 0.22 | 0.32 | 0.51 | 0.68 | 1.19 | 1.70 | 2.72 | 3.55 | 5.05 | 6.63 | 8.18 | 9.50 | 12.77 | 17.44 |
 
 Time of MPN:
 
 | op | 1 | 2 | 3 | 4 | 6 | 8 | 12 | 16 | 24 | 32 | 48 | 64 | 128 | 256 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `add` | 59.5 ns | 61.7 ns | 64 ns | 64.2 ns | 69.7 ns | 69.3 ns | 73.8 ns | 79.9 ns | 87.6 ns | 97.1 ns | 113 ns | 137 ns | 208 ns | 345 ns |
-| `sub` | 62.1 ns | 63.3 ns | 64.1 ns | 65.7 ns | 71.9 ns | 71.1 ns | 76.8 ns | 82.4 ns | 92.8 ns | 106 ns | 124 ns | 147 ns | 229 ns | 388 ns |
-| `mul1` | 47.4 ns | 51.9 ns | 54.3 ns | 57.6 ns | 66.1 ns | 70.7 ns | 87.1 ns | 102 ns | 135 ns | 163 ns | 222 ns | 280 ns | 517 ns | 980 ns |
-| `addmul1` | 44.3 ns | 49.9 ns | 52.4 ns | 54.7 ns | 62.9 ns | 70.2 ns | 88 ns | 104 ns | 143 ns | 177 ns | 241 ns | 306 ns | 562 ns | 1.07 µs |
-| `mul` | 63.8 ns | 93.9 ns | 133 ns | 188 ns | 305 ns | 465 ns | 847 ns | 1.35 µs | 2.88 µs | 4.89 µs | 10.2 µs | 17.7 µs | 67.6 µs | 264 µs |
-| `comba` | 117 ns | 192 ns | 271 ns | 352 ns | 538 ns | 747 ns | 1.25 µs | 1.86 µs | 3.43 µs | 5.23 µs | 9.86 µs | 15.8 µs | 53.1 µs | 193 µs |
-| `mulref` | 33.5 ns | 44.5 ns | 65.4 ns | 89.6 ns | 167 ns | 262 ns | 523 ns | 883 ns | 1.9 µs | 3.54 µs | 7.6 µs | 13.3 µs | 51.6 µs | 204 µs |
+| `add` | 60.6 ns | 62.3 ns | 64.3 ns | 65.8 ns | 69.8 ns | 69.6 ns | 74.4 ns | 78.9 ns | 88.9 ns | 96.8 ns | 114 ns | 135 ns | 208 ns | 344 ns |
+| `sub` | 62.1 ns | 63.8 ns | 66 ns | 65.8 ns | 71.8 ns | 72.1 ns | 78.8 ns | 83.6 ns | 92.9 ns | 104 ns | 124 ns | 151 ns | 233 ns | 393 ns |
+| `mul1` | 44.9 ns | 45.1 ns | 46.3 ns | 47.5 ns | 49.7 ns | 51.8 ns | 55.7 ns | 59.3 ns | 68.8 ns | 76.9 ns | 92 ns | 115 ns | 181 ns | 311 ns |
+| `addmul1` | 45.2 ns | 46.4 ns | 46 ns | 47.4 ns | 50 ns | 51.4 ns | 56 ns | 61.6 ns | 71.2 ns | 81.1 ns | 101 ns | 127 ns | 208 ns | 369 ns |
+| `mul` | 63.2 ns | 77.5 ns | 99.9 ns | 120 ns | 180 ns | 243 ns | 375 ns | 549 ns | 1.03 µs | 1.64 µs | 3.3 µs | 5.77 µs | 20.7 µs | 78.6 µs |
+| `comba` | 111 ns | 172 ns | 235 ns | 298 ns | 431 ns | 573 ns | 887 ns | 1.26 µs | 2.02 µs | 2.79 µs | 4.75 µs | 7.16 µs | 19.7 µs | 60.9 µs |
+| `mulref` | 31.6 ns | 43.5 ns | 64.6 ns | 88.3 ns | 167 ns | 262 ns | 524 ns | 883 ns | 1.9 µs | 3.54 µs | 7.6 µs | 13.3 µs | 51.6 µs | 204 µs |
 
 ## History
 
@@ -84,3 +84,4 @@ Times are the fastest of five runs, in the format of the tables above.
 |---|---|---|---|
 | 2026-10-22 | `5c419ae` | baseline: verified `add`/`sub`, `mul1`/`addMul1`, `mulBasecase` and `mulComba` on `UInt64` limbs, plain `Nat`-indexed loops | `mul` 184 ns at 4 limbs, 1.34 µs at 16, 17.7 µs at 64; `comba` 372 ns, 1.94 µs, 16.0 µs; `mulref` 92.2 ns, 887 ns, 13.2 µs |
 | 2026-10-22 | `b13f8e6`+ | `add`/`sub` on `USlice`: `USize` indices, `uget`/`uset` without bounds checks; Lean `v4.36.0-rc1` (other rows within ±4%) | `add` 86.4 → 65.5 ns at 4 limbs, 130 → 80.2 ns at 16, 312 → 138 ns at 64, 1.01 µs → 346 ns at 256; `sub` likewise (−20%, −35%, −54%, −63%) |
+| 2026-10-22 | `6c5e6dc`+ | `mul1`, `addMul1`, `mulBasecase` and `mulComba` on `USlice` with `USize` indices (`mulref` unchanged, ±1%) | `mul` 188 → 121 ns at 4 limbs, 1.35 µs → 551 ns at 16, 17.7 → 5.77 µs at 64, 264 → 79.1 µs at 256; `comba` 352 → 304 ns, 1.86 → 1.27 µs, 15.8 → 7.16 µs, 193 → 61.5 µs; `mul1`/`addmul1` −12–16% at 4 limbs, −58–68% from 64 |

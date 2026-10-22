@@ -28,42 +28,6 @@ open ScalarArray UInt64Array
 
 namespace MPN
 
-/-- The bounds of a loop that writes limbs `rs` to `rs + n - 1` of `arr`. -/
-abbrev LoopBound (arr : UInt64Array) (rs n : USize) : Prop :=
-  rs.toNat + n.toNat ≤ arr.size ∧ rs.toNat + n.toNat < USize.size
-
-private theorem LoopBound.of_uset {arr : UInt64Array} {rs n : USize} (hr : LoopBound arr rs n)
-    (i : USize) (v : UInt64) (h) : LoopBound (arr.uset i v h) rs n := by
-  simp only [LoopBound, UInt64Array.size_uset] at hr ⊢
-  exact hr
-
-/-- The limbs of `r` as a loop bound. -/
-private theorem loopBound_of_le (r : USlice) {n : USize} (hn : n ≤ r.size) :
-    LoopBound r.array r.start n := by
-  have := r.toNat_size
-  have := USize.le_iff_toNat_le.1 hn
-  have := USize.le_iff_toNat_le.1 r.start_le_stop
-  have := r.stop.toNat_lt_size
-  have := r.stop_le_size
-  constructor <;> lia
-
-private theorem toNat_add_one {j n : USize} (h : j < n) : (j + 1).toNat = j.toNat + 1 := by
-  have := USize.lt_iff_toNat_lt.1 h
-  have := n.toNat_lt_size
-  have : 4294967296 ≤ USize.size := by cases USize.size_eq <;> lia
-  rw [USize.toNat_add_of_lt (a := j) (b := 1) (by rw [USize.toNat_one]; lia), USize.toNat_one]
-
-private theorem toNat_rs_add {arr : UInt64Array} {rs n j : USize} (hr : LoopBound arr rs n)
-    (h : j < n) : (rs + j).toNat = rs.toNat + j.toNat := by
-  have := USize.lt_iff_toNat_lt.1 h
-  exact USize.toNat_add_of_lt (by lia)
-
-private theorem uset_bound {arr : UInt64Array} {rs n j : USize} (hr : LoopBound arr rs n)
-    (h : j < n) : (rs + j).toNat < arr.size := by
-  have := USize.lt_iff_toNat_lt.1 h
-  rw [toNat_rs_add hr h]
-  lia
-
 /-! ## Addition -/
 
 /-- One limb of `addN`: the low word of `x + y + c` and the carry out. -/
@@ -87,14 +51,14 @@ def addNLoop (arr : UInt64Array) (rs : USize) (a b : USlice) (n : USize)
     let x := a[j]'(USize.lt_of_lt_of_le h hn.1)
     let y := b[j]'(USize.lt_of_lt_of_le h hn.2)
     let s := x + y
-    addNLoop (arr.uset (rs + j) (s + c) (uset_bound hr h)) rs a b n hn (hr.of_uset ..) (j + 1)
+    addNLoop (arr.uset (rs + j) (s + c) (hr.uset_bound h)) rs a b n hn (hr.of_uset ..) (j + 1)
       (UInt64.addh (UInt64.addh 0 x y) s c)
   else
     (arr, c)
 termination_by n.toNat - j.toNat
 decreasing_by
   have := USize.lt_iff_toNat_lt.1 h
-  rw [toNat_add_one h]
+  rw [USize.toNat_add_one_of_lt h]
   lia
 
 private theorem addNLoop_spec (arr : UInt64Array) (rs : USize) (a b : USlice) (n : USize)
@@ -111,14 +75,14 @@ private theorem addNLoop_spec (arr : UInt64Array) (rs : USize) (a b : USlice) (n
     rw [addNLoop]
     simp only [h, ↓reduceDIte]
     have hj := USize.lt_iff_toNat_lt.1 h
-    have hj₁ := toNat_add_one h
-    have hidx := toNat_rs_add hr h
+    have hj₁ := USize.toNat_add_one_of_lt h
+    have hidx := hr.toNat_add h
     have hna := USize.le_iff_toNat_le.1 hn.1
     have hnb := USize.le_iff_toNat_le.1 hn.2
     obtain ⟨ih₁, ih₂, ih₃⟩ := ih
     rw [hj₁] at ih₂ ih₃
     simp only [UInt64Array.size_uset] at ih₁
-    have hv : (addNLoop (arr.uset (rs + j) (s + c) (uset_bound hr h)) rs a b n hn (hr.of_uset ..)
+    have hv : (addNLoop (arr.uset (rs + j) (s + c) (hr.uset_bound h)) rs a b n hn (hr.of_uset ..)
         (j + 1) (UInt64.addh (UInt64.addh 0 x y) s c)).1[rs.toNat + j.toNat]! = s + c := by
       rw [ih₂ _ (.inl (by lia)), getElem!_uset]
       simp [hidx]
@@ -156,7 +120,7 @@ private theorem min3_le (r a b : USlice) :
 
 private theorem min3_bound (r a b : USlice) :
     LoopBound r.array r.start (min3 a.size b.size r.size) :=
-  loopBound_of_le r (USize.min_le_right ..)
+  r.loopBound (USize.min_le_right ..)
 
 /--
 Writes the low `n` limbs of `a + b + c` into `r` and returns the carry out, where `n` is the least
@@ -212,14 +176,14 @@ def add1Loop (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize) (hn : n �
     (hr : LoopBound arr rs n) (j : USize) (c : UInt64) : UInt64Array × UInt64 :=
   if h : j < n then
     let x := a[j]'(USize.lt_of_lt_of_le h hn)
-    add1Loop (arr.uset (rs + j) (x + c) (uset_bound hr h)) rs a n hn (hr.of_uset ..) (j + 1)
+    add1Loop (arr.uset (rs + j) (x + c) (hr.uset_bound h)) rs a n hn (hr.of_uset ..) (j + 1)
       (UInt64.addh 0 x c)
   else
     (arr, c)
 termination_by n.toNat - j.toNat
 decreasing_by
   have := USize.lt_iff_toNat_lt.1 h
-  rw [toNat_add_one h]
+  rw [USize.toNat_add_one_of_lt h]
   lia
 
 private theorem add1Loop_spec (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize)
@@ -235,13 +199,13 @@ private theorem add1Loop_spec (arr : UInt64Array) (rs : USize) (a : USlice) (n :
     rw [add1Loop]
     simp only [h, ↓reduceDIte]
     have hj := USize.lt_iff_toNat_lt.1 h
-    have hj₁ := toNat_add_one h
-    have hidx := toNat_rs_add hr h
+    have hj₁ := USize.toNat_add_one_of_lt h
+    have hidx := hr.toNat_add h
     have hna := USize.le_iff_toNat_le.1 hn
     obtain ⟨ih₁, ih₂, ih₃⟩ := ih
     rw [hj₁] at ih₂ ih₃
     simp only [UInt64Array.size_uset] at ih₁
-    have hv : (add1Loop (arr.uset (rs + j) (x + c) (uset_bound hr h)) rs a n hn (hr.of_uset ..)
+    have hv : (add1Loop (arr.uset (rs + j) (x + c) (hr.uset_bound h)) rs a n hn (hr.of_uset ..)
         (j + 1) (UInt64.addh 0 x c)).1[rs.toNat + j.toNat]! = x + c := by
       rw [ih₂ _ (.inl (by lia)), getElem!_uset]
       simp [hidx]
@@ -266,7 +230,7 @@ private theorem add1Loop_spec (arr : UInt64Array) (rs : USize) (a : USlice) (n :
 
 private theorem min_bound (r : USlice) (n : USize) :
     LoopBound r.array r.start (min n r.size) :=
-  loopBound_of_le r (USize.min_le_right ..)
+  r.loopBound (USize.min_le_right ..)
 
 /--
 Writes the limbs of `a + c` into `r` and returns the carry out, on the first `min r.size a.size`
@@ -310,7 +274,7 @@ private theorem add_le (r a b : USlice) :
 
 private theorem add_bound (r a b : USlice) :
     LoopBound r.array r.start (min b.size (min a.size r.size)) :=
-  loopBound_of_le r (USize.le_trans (USize.min_le_right ..) (USize.min_le_right ..))
+  r.loopBound (USize.le_trans (USize.min_le_right ..) (USize.min_le_right ..))
 
 private theorem add_bound₁ (r a b : USlice) (c : UInt64) :
     LoopBound (addNLoop r.array r.start a b _ (add_le r a b) (add_bound r a b) 0 c).1 r.start
@@ -400,14 +364,14 @@ def subNLoop (arr : UInt64Array) (rs : USize) (a b : USlice) (n : USize)
     let x := a[j]'(USize.lt_of_lt_of_le h hn.1)
     let y := b[j]'(USize.lt_of_lt_of_le h hn.2)
     let s := x - y
-    subNLoop (arr.uset (rs + j) (s - c) (uset_bound hr h)) rs a b n hn (hr.of_uset ..) (j + 1)
+    subNLoop (arr.uset (rs + j) (s - c) (hr.uset_bound h)) rs a b n hn (hr.of_uset ..) (j + 1)
       (UInt64.subh (UInt64.subh 0 x y) s c)
   else
     (arr, c)
 termination_by n.toNat - j.toNat
 decreasing_by
   have := USize.lt_iff_toNat_lt.1 h
-  rw [toNat_add_one h]
+  rw [USize.toNat_add_one_of_lt h]
   lia
 
 private theorem subNLoop_spec (arr : UInt64Array) (rs : USize) (a b : USlice) (n : USize)
@@ -424,14 +388,14 @@ private theorem subNLoop_spec (arr : UInt64Array) (rs : USize) (a b : USlice) (n
     rw [subNLoop]
     simp only [h, ↓reduceDIte]
     have hj := USize.lt_iff_toNat_lt.1 h
-    have hj₁ := toNat_add_one h
-    have hidx := toNat_rs_add hr h
+    have hj₁ := USize.toNat_add_one_of_lt h
+    have hidx := hr.toNat_add h
     have hna := USize.le_iff_toNat_le.1 hn.1
     have hnb := USize.le_iff_toNat_le.1 hn.2
     obtain ⟨ih₁, ih₂, ih₃⟩ := ih
     rw [hj₁] at ih₂ ih₃
     simp only [UInt64Array.size_uset] at ih₁
-    have hv : (subNLoop (arr.uset (rs + j) (s - c) (uset_bound hr h)) rs a b n hn (hr.of_uset ..)
+    have hv : (subNLoop (arr.uset (rs + j) (s - c) (hr.uset_bound h)) rs a b n hn (hr.of_uset ..)
         (j + 1) (UInt64.subh (UInt64.subh 0 x y) s c)).1[rs.toNat + j.toNat]! = s - c := by
       rw [ih₂ _ (.inl (by lia)), getElem!_uset]
       simp [hidx]
@@ -508,14 +472,14 @@ def sub1Loop (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize) (hn : n �
     (hr : LoopBound arr rs n) (j : USize) (c : UInt64) : UInt64Array × UInt64 :=
   if h : j < n then
     let x := a[j]'(USize.lt_of_lt_of_le h hn)
-    sub1Loop (arr.uset (rs + j) (x - c) (uset_bound hr h)) rs a n hn (hr.of_uset ..) (j + 1)
+    sub1Loop (arr.uset (rs + j) (x - c) (hr.uset_bound h)) rs a n hn (hr.of_uset ..) (j + 1)
       (UInt64.subh 0 x c)
   else
     (arr, c)
 termination_by n.toNat - j.toNat
 decreasing_by
   have := USize.lt_iff_toNat_lt.1 h
-  rw [toNat_add_one h]
+  rw [USize.toNat_add_one_of_lt h]
   lia
 
 private theorem sub1Loop_spec (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize)
@@ -532,13 +496,13 @@ private theorem sub1Loop_spec (arr : UInt64Array) (rs : USize) (a : USlice) (n :
     rw [sub1Loop]
     simp only [h, ↓reduceDIte]
     have hj := USize.lt_iff_toNat_lt.1 h
-    have hj₁ := toNat_add_one h
-    have hidx := toNat_rs_add hr h
+    have hj₁ := USize.toNat_add_one_of_lt h
+    have hidx := hr.toNat_add h
     have hna := USize.le_iff_toNat_le.1 hn
     obtain ⟨ih₁, ih₂, ih₃⟩ := ih
     rw [hj₁] at ih₂ ih₃
     simp only [UInt64Array.size_uset] at ih₁
-    have hv : (sub1Loop (arr.uset (rs + j) (x - c) (uset_bound hr h)) rs a n hn (hr.of_uset ..)
+    have hv : (sub1Loop (arr.uset (rs + j) (x - c) (hr.uset_bound h)) rs a n hn (hr.of_uset ..)
         (j + 1) (UInt64.subh 0 x c)).1[rs.toNat + j.toNat]! = x - c := by
       rw [ih₂ _ (.inl (by lia)), getElem!_uset]
       simp [hidx]
@@ -602,7 +566,7 @@ private theorem sub_le (r a b : USlice) :
 
 private theorem sub_bound (r a b : USlice) :
     LoopBound r.array r.start (min b.size (min a.size r.size)) :=
-  loopBound_of_le r (USize.le_trans (USize.min_le_right ..) (USize.min_le_right ..))
+  r.loopBound (USize.le_trans (USize.min_le_right ..) (USize.min_le_right ..))
 
 private theorem sub_bound₁ (r a b : USlice) (c : UInt64) :
     LoopBound (subNLoop r.array r.start a b _ (sub_le r a b) (sub_bound r a b) 0 c).1 r.start

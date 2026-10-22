@@ -243,4 +243,52 @@ public theorem toUSlice_toNat (a : UInt64Array) (h : a.size < USize.size) :
   rw [USlice.toNat_eq_valAt, toNat_eq_valAt]
   simp [toUSlice, USlice.size, usize, Nat.mod_eq_of_lt h]
 
+/-! ### Loops over `USize` indices -/
+
+/-- The successor of an index below `n` does not overflow. -/
+public theorem _root_.USize.toNat_add_one_of_lt {j n : USize} (h : j < n) :
+    (j + 1).toNat = j.toNat + 1 := by
+  have := USize.lt_iff_toNat_lt.1 h
+  have := n.toNat_lt_size
+  have : 4294967296 ≤ USize.size := by cases USize.size_eq <;> lia
+  rw [USize.toNat_add_of_lt (a := j) (b := 1) (by rw [USize.toNat_one]; lia), USize.toNat_one]
+
+/--
+The bounds of a loop over limbs `rs` to `rs + n - 1` of `arr`: they are limbs of `arr`, and their
+indices do not overflow.
+-/
+public abbrev LoopBound (arr : UInt64Array) (rs n : USize) : Prop :=
+  rs.toNat + n.toNat ≤ arr.size ∧ rs.toNat + n.toNat < USize.size
+
+public theorem LoopBound.of_uset {arr : UInt64Array} {rs n : USize} (hr : LoopBound arr rs n)
+    (i : USize) (v : UInt64) (h) : LoopBound (arr.uset i v h) rs n := by
+  simp only [LoopBound, size_uset] at hr ⊢
+  exact hr
+
+public theorem LoopBound.toNat_add {arr : UInt64Array} {rs n j : USize} (hr : LoopBound arr rs n)
+    (h : j < n) : (rs + j).toNat = rs.toNat + j.toNat := by
+  have := USize.lt_iff_toNat_lt.1 h
+  exact USize.toNat_add_of_lt (by lia)
+
+public theorem LoopBound.uset_bound {arr : UInt64Array} {rs n j : USize}
+    (hr : LoopBound arr rs n) (h : j < n) : (rs + j).toNat < arr.size := by
+  have := USize.lt_iff_toNat_lt.1 h
+  rw [hr.toNat_add h]
+  lia
+
+public theorem uget_eq_getElem! (a : UInt64Array) (i : USize) (h : i.toNat < a.size) :
+    a.uget i h = a[i.toNat]! := by
+  show a[i] = _
+  rw [getElem_usize, getElem!_eq_getElem]
+
+/-- The first `n` limbs of `r`, for `n ≤ r.size`, as a loop bound. -/
+public theorem USlice.loopBound (r : USlice) {n : USize} (hn : n ≤ r.size) :
+    LoopBound r.array r.start n := by
+  have := r.toNat_size
+  have := USize.le_iff_toNat_le.1 hn
+  have := USize.le_iff_toNat_le.1 r.start_le_stop
+  have := r.stop.toNat_lt_size
+  have := r.stop_le_size
+  constructor <;> lia
+
 end ScalarArray.UInt64Array

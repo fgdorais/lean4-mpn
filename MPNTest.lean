@@ -85,12 +85,12 @@ def checkMul (m n : Nat) : Bool :=
   let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
   let r := UInt64Array.replicate (m + n + 2) pad
   (edges m).all fun x => (edges n).all fun y => [0, 1, 2 ^ 64 - 1].all fun c =>
-    let a := (limbs m x).toSlice
-    let b := (limbs n y).toSlice
+    let a := (limbs m x).toUSlice
+    let b := (limbs n y).toUSlice
     let z := y % 2 ^ 64
-    let (p, cp) := MPN.mul1 r 1 a z.toUInt64 c.toUInt64
-    let (q, cq) := MPN.addMul1 r 1 a z.toUInt64 c.toUInt64
-    let s := MPN.mulBasecase r 1 a b
+    let (p, cp) := MPN.mul1 (inner r m) a z.toUInt64 c.toUInt64
+    let (q, cq) := MPN.addMul1 (inner r m) a z.toUInt64 c.toUInt64
+    let s := MPN.mulBasecase (inner r (m + n)) a b
     window p 1 m + 2 ^ (64 * m) * cp.toNat == x * z + c &&
     window q 1 m + 2 ^ (64 * m) * cq.toNat == window r 1 m + x * z + c &&
     window s 1 (m + n) == x * y &&
@@ -106,8 +106,14 @@ def checkComba (m n : Nat) : Bool :=
   (edges m).all fun x => (edges n).all fun y =>
     let x := x % 2 ^ (64 * m)
     let y := y % 2 ^ (64 * n)
-    let s := MPN.mulComba r 1 (limbs m x).toSlice (limbs n y).toSlice
+    let s := MPN.mulComba (inner r (m + n)) (limbs m x).toUSlice (limbs n y).toUSlice
     window s 1 (m + n) == x * y && s[0]! == pad && s[m + n + 1]! == pad
 
 #guard [(0, 0), (0, 3), (3, 0), (1, 1), (2, 1), (1, 2), (3, 3), (4, 2), (2, 5), (7, 7)].all
   fun (m, n) => checkComba m n
+
+-- A window too short for the product: `mulBasecase` and `mulComba` leave it unchanged.
+#guard
+  let r := UInt64Array.replicate 5 7
+  let a := (limbs 2 (2 ^ 100)).toUSlice
+  MPN.mulBasecase (inner r 3) a a == r && MPN.mulComba (inner r 3) a a == r

@@ -180,23 +180,25 @@ def main (args : List String) : IO Unit := do
           (time (· - ·) checkNat ns nb)
       | "mul1" =>
         row noNat op n
-          (time (fun (x _ : UInt64Array) => MPN.mul1 (.replicate x.size 0) 0 x.toSlice 7)
-            checkPair a a)
+          (time (fun (x _ : UInt64Array) =>
+            MPN.mul1 (UInt64Array.replicate x.size 0).toUSlice x.toUSlice 7) checkPair a a)
           (time (fun x _ => x * 7) checkNat na na)
       | "addmul1" =>
         -- `b` is shared, so `addMul1` first copies it, as `Nat` allocates its result.
         row noNat op n
-          (time (fun (x y : UInt64Array) => MPN.addMul1 y 0 x.toSlice 7) checkPair a b)
+          (time (fun (x y : UInt64Array) => MPN.addMul1 y.toUSlice x.toUSlice 7) checkPair a b)
           (time (fun x y => y + x * 7) checkNat na nb)
       | "mul" =>
         row noNat op n
           (time (fun (x y : UInt64Array) =>
-            MPN.mulBasecase (.replicate (x.size + y.size) 0) 0 x.toSlice y.toSlice) checkArr a b)
+            MPN.mulBasecase (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
+              y.toUSlice) checkArr a b)
           (time (· * ·) checkNat na nb)
       | "comba" =>
         row noNat op n
           (time (fun (x y : UInt64Array) =>
-            MPN.mulComba (.replicate (x.size + y.size) 0) 0 x.toSlice y.toSlice) checkArr a b)
+            MPN.mulComba (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
+              y.toUSlice) checkArr a b)
           (time (· * ·) checkNat na nb)
       | "mulref" =>
         row noNat op n (time refMul checkArr a b) (time (· * ·) checkNat na nb)
