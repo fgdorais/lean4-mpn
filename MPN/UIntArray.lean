@@ -291,4 +291,185 @@ public theorem USlice.loopBound (r : USlice) {n : USize} (hn : n ≤ r.size) :
   have := r.stop_le_size
   constructor <;> lia
 
+/-! ### Sub-slices -/
+
+/--
+The elements of `s` from index `i` up to, but not including, `j`, as a `USlice` of the same array.
+Bounds past the end of `s` are clamped to it, and an `i` past `j` to `j`.
+-/
+@[inline, expose] public def USlice.slice (s : USlice) (i j : USize) : USlice :=
+  let j' := min j s.size
+  let i' := min i j'
+  { array := s.array
+    start := s.start + i'
+    stop := s.start + j'
+    start_le_stop := by
+      have := s.toNat_size
+      have := s.stop.toNat_lt_size
+      have := USize.le_iff_toNat_le.1 s.start_le_stop
+      have hj : j'.toNat ≤ s.size.toNat := by simp only [j', USize.toNat_min]; lia
+      have hi : i'.toNat ≤ j'.toNat := by simp only [i', USize.toNat_min]; lia
+      rw [USize.le_iff_toNat_le, USize.toNat_add_of_lt (by lia), USize.toNat_add_of_lt (by lia)]
+      lia
+    stop_le_size := by
+      have := s.toNat_size
+      have := s.stop.toNat_lt_size
+      have := s.stop_le_size
+      have := USize.le_iff_toNat_le.1 s.start_le_stop
+      have hj : j'.toNat ≤ s.size.toNat := by simp only [j', USize.toNat_min]; lia
+      rw [USize.toNat_add_of_lt (by lia)]
+      lia }
+
+@[simp] public theorem USlice.array_slice (s : USlice) (i j : USize) :
+    (s.slice i j).array = s.array := rfl
+
+public theorem USlice.start_slice (s : USlice) {i j : USize} (hij : i.toNat ≤ j.toNat)
+    (hj : j.toNat ≤ s.size.toNat) : (s.slice i j).start.toNat = s.start.toNat + i.toNat := by
+  have := s.toNat_size
+  have := s.stop.toNat_lt_size
+  have := USize.le_iff_toNat_le.1 s.start_le_stop
+  simp only [slice]
+  rw [USize.toNat_add_of_lt (by rw [USize.toNat_min, USize.toNat_min]; lia),
+    USize.toNat_min, USize.toNat_min]
+  lia
+
+public theorem USlice.stop_slice (s : USlice) {j : USize} (i : USize)
+    (hj : j.toNat ≤ s.size.toNat) : (s.slice i j).stop.toNat = s.start.toNat + j.toNat := by
+  have := s.toNat_size
+  have := s.stop.toNat_lt_size
+  have := USize.le_iff_toNat_le.1 s.start_le_stop
+  simp only [slice]
+  rw [USize.toNat_add_of_lt (by rw [USize.toNat_min]; lia), USize.toNat_min]
+  lia
+
+public theorem USlice.size_slice (s : USlice) {i j : USize} (hij : i.toNat ≤ j.toNat)
+    (hj : j.toNat ≤ s.size.toNat) : (s.slice i j).size.toNat = j.toNat - i.toNat := by
+  rw [(s.slice i j).toNat_size, s.stop_slice i hj, s.start_slice hij hj]
+  lia
+
+public theorem USlice.toNat_slice (s : USlice) {i j : USize} (hij : i.toNat ≤ j.toNat)
+    (hj : j.toNat ≤ s.size.toNat) :
+    (s.slice i j).toNat = s.array.valAt (s.start.toNat + i.toNat) (j.toNat - i.toNat) := by
+  rw [toNat_eq_valAt, s.start_slice hij hj, s.size_slice hij hj, array_slice]
+
+/-- The low `m` of `n` limbs of a value: its residue modulo `2^(64 m)`. -/
+public theorem valAt_mod (a : UInt64Array) (lo : Nat) {m n : Nat} (h : m ≤ n) :
+    a.valAt lo m = a.valAt lo n % 2 ^ (64 * m) := by
+  obtain ⟨k, rfl⟩ : ∃ k, n = m + k := ⟨n - m, by lia⟩
+  rw [valAt_add, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (valAt_lt ..)]
+
+/-- The same bounds on another array of the same size, such as the result of writing to `s`. -/
+@[inline, expose] public def USlice.reseat (s : USlice) (arr : UInt64Array)
+    (h : arr.size = s.array.size) : USlice where
+  array := arr
+  start := s.start
+  stop := s.stop
+  start_le_stop := s.start_le_stop
+  stop_le_size := h ▸ s.stop_le_size
+
+@[simp] public theorem USlice.array_reseat (s : USlice) (arr : UInt64Array) (h) :
+    (s.reseat arr h).array = arr := rfl
+
+@[simp] public theorem USlice.start_reseat (s : USlice) (arr : UInt64Array) (h) :
+    (s.reseat arr h).start = s.start := rfl
+
+@[simp] public theorem USlice.size_reseat (s : USlice) (arr : UInt64Array) (h) :
+    (s.reseat arr h).size = s.size := rfl
+
+@[simp] public theorem start_toUSlice (a : UInt64Array) : a.toUSlice.start = 0 := rfl
+
+@[simp] public theorem array_toUSlice (a : UInt64Array) : a.toUSlice.array = a := rfl
+
+public theorem size_toUSlice (a : UInt64Array) (h : a.size < USize.size) :
+    a.toUSlice.size.toNat = a.size := by
+  simp [toUSlice, USlice.size, usize, Nat.mod_eq_of_lt h]
+
+/-! ### In-place loops
+
+`foldUInPlace n f arr rs hr j b` replaces limbs `rs + j` to `rs + n - 1` of `arr` while threading
+an accumulator: limb `rs + j` holding `x` becomes `(f j hj x b).1`, and `(f j hj x b).2` is the
+next accumulator. Its definition is a loop of `uset`s, which checks that `arr` is exclusive at
+every store; its implementation, through `foldUInPlaceThen`, makes `arr` exclusive once and then
+stores without checks. That is safe because `f` only sees the limbs, never the array: anything
+`f` reads, even another reference to the same array, is the object from before the loop.
+-/
+
+/-- Replaces limbs `rs + j` to `rs + n - 1` of `arr` with `f`, threading an accumulator. -/
+public def foldUInPlace {β : Type} (n : USize) (f : (j : USize) → j < n → UInt64 → β → UInt64 × β)
+    (arr : UInt64Array) (rs : USize) (hr : LoopBound arr rs n) (j : USize) (b : β) :
+    UInt64Array × β :=
+  if h : j < n then
+    let p := f j h (arr.uget (rs + j) (hr.uset_bound h)) b
+    foldUInPlace n f (arr.uset (rs + j) p.1 (hr.uset_bound h)) rs (hr.of_uset ..) (j + 1) p.2
+  else
+    (arr, b)
+termination_by n.toNat - j.toNat
+decreasing_by
+  have := USize.lt_iff_toNat_lt.1 h
+  rw [USize.toNat_add_one_of_lt h]
+  lia
+
+public theorem foldUInPlace_lt {β : Type} (n : USize)
+    (f : (j : USize) → j < n → UInt64 → β → UInt64 × β) (arr : UInt64Array) (rs : USize)
+    (hr : LoopBound arr rs n) (j : USize) (b : β) (h : j < n) :
+    foldUInPlace n f arr rs hr j b =
+      foldUInPlace n f (arr.uset (rs + j) (f j h (arr.uget (rs + j) (hr.uset_bound h)) b).1
+        (hr.uset_bound h)) rs (hr.of_uset ..) (j + 1)
+        (f j h (arr.uget (rs + j) (hr.uset_bound h)) b).2 := by
+  rw [foldUInPlace]
+  simp only [h, ↓reduceDIte]
+
+public theorem foldUInPlace_ge {β : Type} (n : USize)
+    (f : (j : USize) → j < n → UInt64 → β → UInt64 × β) (arr : UInt64Array) (rs : USize)
+    (hr : LoopBound arr rs n) (j : USize) (b : β) (h : ¬j < n) :
+    foldUInPlace n f arr rs hr j b = (arr, b) := by
+  rw [foldUInPlace]
+  simp only [h, ↓reduceDIte]
+
+public theorem size_foldUInPlace {β : Type} (n : USize)
+    (f : (j : USize) → j < n → UInt64 → β → UInt64 × β) (arr : UInt64Array) (rs : USize)
+    (hr : LoopBound arr rs n) (j : USize) (b : β) :
+    (foldUInPlace n f arr rs hr j b).1.size = arr.size := by
+  induction arr, hr, j, b using foldUInPlace.induct n f rs with
+  | case1 arr hr j b h p ih =>
+    rw [foldUInPlace_lt _ _ _ _ _ _ _ h]
+    exact ih.trans (size_uset ..)
+  | case2 arr hr j b h =>
+    rw [foldUInPlace_ge _ _ _ _ _ _ _ h]
+
+@[specialize]
+private unsafe def foldUInPlaceThenImpl {β γ : Type} (n : USize)
+    (f : (j : USize) → j < n → UInt64 → β → UInt64 × β) (arr : UInt64Array) (rs : USize)
+    (_ : LoopBound arr rs n) (j : USize) (b : β)
+    (g : (arr' : UInt64Array) → arr'.size = arr.size → β → γ) : γ :=
+  loop (ensureExclusiveUnsafe arr) j b
+where
+  @[specialize] loop (a : UInt64Array) (j : USize) (b : β) : γ :=
+    if j < n then
+      let p := f j lcProof (a.uget (rs + j) lcProof) b
+      loop (setUnsafe a (rs + j) p.1) (j + 1) p.2
+    else
+      g a lcProof b
+
+/--
+`foldUInPlace` followed by `g` on the new array and the last accumulator, which the loop calls
+itself instead of returning a pair. `g` also receives a proof that the size is unchanged. The
+implementation makes `arr` exclusive once, before the loop, which then stores without checks.
+-/
+@[implemented_by foldUInPlaceThenImpl]
+public def foldUInPlaceThen {β γ : Type} (n : USize)
+    (f : (j : USize) → j < n → UInt64 → β → UInt64 × β) (arr : UInt64Array) (rs : USize)
+    (hr : LoopBound arr rs n) (j : USize) (b : β)
+    (g : (arr' : UInt64Array) → arr'.size = arr.size → β → γ) : γ :=
+  g (foldUInPlace n f arr rs hr j b).1 (size_foldUInPlace ..) (foldUInPlace n f arr rs hr j b).2
+
+public theorem foldUInPlaceThen_eq {β γ : Type} (n : USize)
+    (f : (j : USize) → j < n → UInt64 → β → UInt64 × β) (arr : UInt64Array) (rs : USize)
+    (hr : LoopBound arr rs n) (j : USize) (b : β)
+    (g : (arr' : UInt64Array) → arr'.size = arr.size → β → γ) :
+    foldUInPlaceThen n f arr rs hr j b g =
+      g (foldUInPlace n f arr rs hr j b).1 (size_foldUInPlace ..)
+        (foldUInPlace n f arr rs hr j b).2 := by
+  rw [foldUInPlaceThen]
+
 end ScalarArray.UInt64Array

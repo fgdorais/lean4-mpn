@@ -43,7 +43,7 @@ private theorem mul1_step (y x c : UInt64) :
 /--
 Writes limbs `j` to `n - 1` of `a * x`, plus the carry `c`, into `arr` from limb `rs + j` on.
 -/
-def mul1Loop (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize) (hn : n ≤ a.size)
+public def mul1Loop (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize) (hn : n ≤ a.size)
     (hr : LoopBound arr rs n) (x : UInt64) (j : USize) (c : UInt64) : UInt64Array × UInt64 :=
   if h : j < n then
     let y := a[j]'(USize.lt_of_lt_of_le h hn)
@@ -57,6 +57,35 @@ decreasing_by
   have := USize.lt_iff_toNat_lt.1 h
   rw [USize.toNat_add_one_of_lt h]
   lia
+
+/-- The step of `mul1Loop`: limb `j` of `a * x` plus the carry, and the high word. -/
+@[inline, expose] public def mul1Step (a : USlice) (n : USize) (hn : n ≤ a.size) (x : UInt64)
+    (j : USize) (h : j < n) (_ : UInt64) (c : UInt64) : UInt64 × UInt64 :=
+  let y := a[j]'(USize.lt_of_lt_of_le h hn)
+  let p := y * x
+  (p + c, UInt64.addh (y.mulh x) p c)
+
+private theorem mul1Loop_eq_fold (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize)
+    (hn : n ≤ a.size) (hr : LoopBound arr rs n) (x : UInt64) (j : USize) (c : UInt64) :
+    mul1Loop arr rs a n hn hr x j c = foldUInPlace n (mul1Step a n hn x) arr rs hr j c := by
+  induction arr, hr, j, c using mul1Loop.induct rs a n hn x with
+  | case1 arr hr j c h =>
+    rename_i ih
+    rw [mul1Loop, foldUInPlace_lt _ _ _ _ _ _ _ h]
+    simp only [h, ↓reduceDIte]
+    exact ih
+  | case2 arr hr j c h =>
+    rw [mul1Loop, foldUInPlace_ge _ _ _ _ _ _ _ h]
+    simp only [h, ↓reduceDIte]
+
+/-- `mul1Loop` with `foldUInPlaceThen`, which checks that `arr` is exclusive once. -/
+public def mul1LoopFast (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize) (hn : n ≤ a.size)
+    (hr : LoopBound arr rs n) (x : UInt64) (j : USize) (c : UInt64) : UInt64Array × UInt64 :=
+  foldUInPlaceThen n (mul1Step a n hn x) arr rs hr j c fun arr' _ c => (arr', c)
+
+@[csimp] public theorem mul1Loop_csimp : @mul1Loop = @mul1LoopFast := by
+  funext arr rs a n hn hr x j c
+  rw [mul1LoopFast, foldUInPlaceThen_eq, mul1Loop_eq_fold]
 
 private theorem mul1Loop_spec (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize)
     (hn : n ≤ a.size) (hr : LoopBound arr rs n) (x : UInt64) (j : USize) (c : UInt64) :
@@ -151,7 +180,7 @@ private theorem addMul1_step (z y x c : UInt64) :
 Adds limbs `j` to `n - 1` of `a * x`, plus the carry `c`, to the limbs of `arr` from limb
 `rs + j` on.
 -/
-def addMul1Loop (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize) (hn : n ≤ a.size)
+public def addMul1Loop (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize) (hn : n ≤ a.size)
     (hr : LoopBound arr rs n) (x : UInt64) (j : USize) (c : UInt64) : UInt64Array × UInt64 :=
   if h : j < n then
     let y := a[j]'(USize.lt_of_lt_of_le h hn)
@@ -167,6 +196,39 @@ decreasing_by
   have := USize.lt_iff_toNat_lt.1 h
   rw [USize.toNat_add_one_of_lt h]
   lia
+
+/--
+The step of `addMul1Loop`: limb `z` plus limb `j` of `a * x` plus the carry, and the high word.
+-/
+@[inline, expose] public def addMul1Step (a : USlice) (n : USize) (hn : n ≤ a.size) (x : UInt64)
+    (j : USize) (h : j < n) (z : UInt64) (c : UInt64) : UInt64 × UInt64 :=
+  let y := a[j]'(USize.lt_of_lt_of_le h hn)
+  let p := y * x
+  let t := p + c
+  (t + z, UInt64.addh (UInt64.addh (y.mulh x) p c) t z)
+
+private theorem addMul1Loop_eq_fold (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize)
+    (hn : n ≤ a.size) (hr : LoopBound arr rs n) (x : UInt64) (j : USize) (c : UInt64) :
+    addMul1Loop arr rs a n hn hr x j c = foldUInPlace n (addMul1Step a n hn x) arr rs hr j c := by
+  induction arr, hr, j, c using addMul1Loop.induct rs a n hn x with
+  | case1 arr hr j c h =>
+    rename_i ih
+    rw [addMul1Loop, foldUInPlace_lt _ _ _ _ _ _ _ h]
+    simp only [h, ↓reduceDIte]
+    exact ih
+  | case2 arr hr j c h =>
+    rw [addMul1Loop, foldUInPlace_ge _ _ _ _ _ _ _ h]
+    simp only [h, ↓reduceDIte]
+
+/-- `addMul1Loop` with `foldUInPlaceThen`, which checks that `arr` is exclusive once. -/
+public def addMul1LoopFast (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize)
+    (hn : n ≤ a.size) (hr : LoopBound arr rs n) (x : UInt64) (j : USize) (c : UInt64) :
+    UInt64Array × UInt64 :=
+  foldUInPlaceThen n (addMul1Step a n hn x) arr rs hr j c fun arr' _ c => (arr', c)
+
+@[csimp] public theorem addMul1Loop_csimp : @addMul1Loop = @addMul1LoopFast := by
+  funext arr rs a n hn hr x j c
+  rw [addMul1LoopFast, foldUInPlaceThen_eq, addMul1Loop_eq_fold]
 
 private theorem addMul1Loop_spec (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize)
     (hn : n ≤ a.size) (hr : LoopBound arr rs n) (x : UInt64) (j : USize) (c : UInt64) :
@@ -309,6 +371,58 @@ decreasing_by
   rw [USize.toNat_add_one_of_lt h]
   lia
 
+/--
+`addMul1Loop` passing the array and the carry to a continuation `k` instead of returning a pair,
+through `foldUInPlaceThen`: the compiler specializes the loop to each `k`, so that the carry stays
+unboxed and nothing is allocated, and the array is made exclusive once. `k` receives a proof that
+the array still has its size `S`.
+-/
+@[inline] def addMul1LoopK {β : Type} (S : Nat) (arr : UInt64Array) (hS : arr.size = S)
+    (rs : USize) (a : USlice) (n : USize) (hn : n ≤ a.size) (hr : LoopBound arr rs n) (x : UInt64)
+    (j : USize) (c : UInt64) (k : (arr' : UInt64Array) → arr'.size = S → UInt64 → β) : β :=
+  foldUInPlaceThen n (addMul1Step a n hn x) arr rs hr j c fun arr' h' c => k arr' (h'.trans hS) c
+
+private theorem addMul1LoopK_eq {β : Type} (S : Nat) (arr : UInt64Array) (rs : USize) (a : USlice)
+    (n : USize) (hn : n ≤ a.size) (hr : LoopBound arr rs n) (x : UInt64) (j : USize) (c : UInt64)
+    (k : (arr' : UInt64Array) → arr'.size = S → UInt64 → β) (hS : arr.size = S)
+    (hk : (addMul1Loop arr rs a n hn hr x j c).1.size = S) :
+    addMul1LoopK S arr hS rs a n hn hr x j c k =
+      k (addMul1Loop arr rs a n hn hr x j c).1 hk (addMul1Loop arr rs a n hn hr x j c).2 := by
+  rw [addMul1LoopK, foldUInPlaceThen_eq]
+  simp only [addMul1Loop_eq_fold]
+
+/-- `mulBasecaseLoop` with `addMul1LoopK`, which allocates nothing for the carry of a row. -/
+def mulBasecaseLoopK (arr : UInt64Array) (rs : USize) (a b : USlice)
+    (hr : MulBound arr rs a.size.toNat b.size.toNat) (i : USize) : UInt64Array :=
+  if h : i < b.size then
+    addMul1LoopK arr.size arr rfl (rs + i) a a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _))
+      (hr.row h) b[i] 0 0 fun arr' h' c =>
+        mulBasecaseLoopK (arr'.uset (rs + i + a.size) c (by
+            rw [h', hr.toNat_top h]
+            have := USize.lt_iff_toNat_lt.1 h
+            lia))
+          rs a b (by simp only [MulBound, size_uset, h']; exact hr) (i + 1)
+  else
+    arr
+termination_by b.size.toNat - i.toNat
+decreasing_by
+  have := USize.lt_iff_toNat_lt.1 h
+  rw [USize.toNat_add_one_of_lt h]
+  lia
+
+private theorem mulBasecaseLoopK_eq (arr : UInt64Array) (rs : USize) (a b : USlice)
+    (hr : MulBound arr rs a.size.toNat b.size.toNat) (i : USize) :
+    mulBasecaseLoopK arr rs a b hr i = mulBasecaseLoop arr rs a b hr i := by
+  induction arr, hr, i using mulBasecaseLoop.induct rs a b with
+  | case1 arr hr i h p ih =>
+    rw [mulBasecaseLoopK, mulBasecaseLoop]
+    simp only [h, ↓reduceDIte]
+    rw [addMul1LoopK_eq (hk := size_addMul1Loop ..)]
+    exact ih
+  | case2 arr hr i h =>
+    rw [mulBasecaseLoopK, mulBasecaseLoop]
+    simp only [h, ↓reduceDIte]
+
 private theorem mulBound_of (r a b : USlice) (h : a.size ≤ r.size ∧ b.size ≤ r.size - a.size) :
     MulBound r.array r.start a.size.toNat b.size.toNat := by
   have := r.loopBound (USize.le_iff_toNat_le.2 (Nat.le_refl r.size.toNat))
@@ -327,7 +441,7 @@ public def mulBasecase (r a b : USlice) : UInt64Array :=
     let hr := mulBound_of r a b h.2
     let p := mul1Loop r.array r.start a a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _))
       (r.loopBound h.2.1) (b[(0 : USize)]'h.1) 0 0
-    mulBasecaseLoop (p.1.uset (r.start + a.size) p.2 (by
+    mulBasecaseLoopK (p.1.uset (r.start + a.size) p.2 (by
         rw [size_mul1Loop, USize.toNat_add_of_lt (by lia)]
         have := USize.lt_iff_toNat_lt.1 h.1
         lia))
@@ -411,7 +525,7 @@ private theorem mulBasecaseLoop_spec (arr : UInt64Array) (rs : USize) (a b : USl
     (mulBasecase r a b).size = r.array.size := by
   rw [mulBasecase]
   split
-  · rw [(mulBasecaseLoop_spec ..).1, size_uset, size_mul1Loop]
+  · rw [mulBasecaseLoopK_eq, (mulBasecaseLoop_spec ..).1, size_uset, size_mul1Loop]
   · rfl
 
 /-- `mulBasecase` leaves the limbs of `r` outside the ones it writes unchanged. -/
@@ -424,7 +538,8 @@ public theorem getElem!_mulBasecase (r a b : USlice) (k : Nat)
     have hr := mulBound_of r a b h.2
     have ht : (r.start + a.size).toNat = r.start.toNat + a.size.toNat :=
       USize.toNat_add_of_lt (by lia)
-    rw [(mulBasecaseLoop_spec ..).2.1 k (by rw [USize.toNat_one]; lia), getElem!_uset, ht]
+    rw [mulBasecaseLoopK_eq, (mulBasecaseLoop_spec ..).2.1 k (by rw [USize.toNat_one]; lia),
+      getElem!_uset, ht]
     simp only [show ¬(r.start.toNat + a.size.toNat = k) by have := USize.lt_iff_toNat_lt.1 h.1; lia,
       ↓reduceIte]
     exact (mul1Loop_spec ..).2.1 k (by rw [USize.toNat_zero]; lia)
@@ -447,7 +562,8 @@ public theorem valAt_mulBasecase (r a b : USlice) (hb : 0 < b.size)
   obtain ⟨-, hp₂, hp₃⟩ := mul1Loop_spec r.array r.start a a.size
     (USize.le_iff_toNat_le.2 (Nat.le_refl _)) (r.loopBound h.2.1) (b[(0 : USize)]'hb) 0 0
   simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, UInt64.toNat_zero] at hp₃
-  rw [(mulBasecaseLoop_spec ..).2.2 (by rw [USize.toNat_one]; lia), USize.toNat_one,
+  rw [mulBasecaseLoopK_eq, (mulBasecaseLoop_spec ..).2.2 (by rw [USize.toNat_one]; lia),
+    USize.toNat_one,
     UInt64Array.valAt_add, UInt64Array.valAt_one, getElem!_uset, ht]
   simp only [↓reduceIte]
   have hrow : ((mul1Loop r.array r.start a a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _))

@@ -117,3 +117,28 @@ def checkComba (m n : Nat) : Bool :=
   let r := UInt64Array.replicate 5 7
   let a := (limbs 2 (2 ^ 100)).toUSlice
   MPN.mulBasecase (inner r 3) a a == r && MPN.mulComba (inner r 3) a a == r
+
+/-! Karatsuba multiplication -/
+
+/-- Pseudorandom numbers of exactly `n` limbs. -/
+def randomLimbs (n seed : Nat) : Nat := Id.run do
+  let mut s := seed
+  let mut x := 0
+  for _ in [0:n] do
+    s := (s * 6364136223846793005 + 1442695040888963407) % 2 ^ 64
+    x := x * 2 ^ 64 + s
+  return x ||| 2 ^ (64 * n - 1)
+
+/-- Checks `mulKaratsuba` on an `m`-limb `a` and an `n`-limb `b`, on random and all-ones limbs. -/
+def checkKaratsuba (m n : Nat) : Bool :=
+  let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
+  let r := UInt64Array.replicate (m + n + 2) pad
+  [(randomLimbs m 1, randomLimbs n 2), (2 ^ (64 * m) - 1, 2 ^ (64 * n) - 1),
+    (2 ^ (64 * m) - 1, 2 ^ (64 * (n - 1)))].all fun (x, y) =>
+    let s := MPN.mulKaratsuba (inner r (m + n)) (limbs m x).toUSlice (limbs n y).toUSlice
+    window s 1 (m + n) == x * y && s[0]! == pad && s[m + n + 1]! == pad
+
+-- Around `karatsubaThreshold = 64`: one level, two levels (130 splits into 65), unbalanced
+-- operands below and above the split point, and below the threshold.
+#guard [(64, 64), (65, 64), (100, 77), (127, 65), (130, 130), (130, 60), (257, 256), (63, 63),
+  (50, 10)].all fun (m, n) => checkKaratsuba m n

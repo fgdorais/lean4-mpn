@@ -129,7 +129,7 @@ def fmtRatio (x : Float) : String :=
   let frac := toString (n % 100)
   toString (n / 100) ++ "." ++ "".pushn '0' (2 - frac.length) ++ frac
 
-def sizes : List Nat := [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 128, 256]
+def sizes : List Nat := [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 512]
 
 /--
 Times one operation at one size against `Nat`, unless `noNat`, and prints a table row: the two
@@ -151,7 +151,7 @@ def row (noNat : Bool) (name : String) (n : Nat) (mpn : IO Timing) (nat : IO Tim
 /-- The value of an array of limbs. -/
 def toNat (a : UInt64Array) : Nat := a.foldr (fun d n => n * 2 ^ 64 + d.toNat) 0
 
-def ops : List String := ["add", "sub", "mul1", "addmul1", "mul", "comba", "mulref"]
+def ops : List String := ["add", "sub", "mul1", "addmul1", "mul", "comba", "kara", "mulref"]
 
 def main (args : List String) : IO Unit := do
   let noNat := args.contains "--no-nat"
@@ -198,6 +198,12 @@ def main (args : List String) : IO Unit := do
         row noNat op n
           (time (fun (x y : UInt64Array) =>
             MPN.mulComba (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
+              y.toUSlice) checkArr a b)
+          (time (· * ·) checkNat na nb)
+      | "kara" =>
+        row noNat op n
+          (time (fun (x y : UInt64Array) =>
+            MPN.mulKaratsuba (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
               y.toUSlice) checkArr a b)
           (time (· * ·) checkNat na nb)
       | "mulref" =>
