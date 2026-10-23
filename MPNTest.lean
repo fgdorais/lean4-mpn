@@ -317,5 +317,22 @@ def checkMPNMul (m n : Nat) : Bool :=
       s[0]! == pad && s[m + n + 1]! == pad
 
 -- Below and above `fftThreshold`, and an unbalanced pair on each side of `fftMinSmall`.
-#guard [(2559, 2560), (2560, 2560), (3000, 2200), (5000, 600), (5000, 300), (4, 3)].all
+#guard [(2559, 2560), (2560, 2560), (3000, 2200), (5000, 330), (5000, 300), (4, 3)].all
   fun (m, n) => checkMPNMul m n
+
+/-- Checks `fftSqr` with `2ᵏ` pieces and `MPN.sqr` on an `n`-limb `a`. -/
+def checkMPNSqr (n k : Nat) : Bool :=
+  let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
+  let r := UInt64Array.replicate (2 * n + 2) pad
+  let p := MPN.FFT.fftParams (2 * n) k
+  decide (MPN.FFT.FFTCheck (inner r (2 * n)) (limbs n 1).toUSlice (limbs n 1).toUSlice k p.1
+    p.2) &&
+  [randomLimbs n 1, 2 ^ (64 * n) - 1].all fun x =>
+    let s := MPN.FFT.fftSqr (inner r (2 * n)) (limbs n x).toUSlice k
+    let t := MPN.sqr (inner r (2 * n)) (limbs n x).toUSlice
+    window s 1 (2 * n) == x * x && window t 1 (2 * n) == x * x &&
+      s[0]! == pad && s[2 * n + 1]! == pad && t[0]! == pad && t[2 * n + 1]! == pad
+
+-- `MPN.sqr` on each side of `sqrFFTThreshold`.
+#guard [(1, 1), (7, 2), (100, 4), (300, 6), (2047, 8), (2048, 8), (2500, 8)].all
+  fun (n, k) => checkMPNSqr n k

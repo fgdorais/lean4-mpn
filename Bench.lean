@@ -152,8 +152,8 @@ def row (noNat : Bool) (name : String) (n : Nat) (mpn : IO Timing) (nat : IO Tim
 def toNat (a : UInt64Array) : Nat := a.foldr (fun d n => n * 2 ^ 64 + d.toNat) 0
 
 def ops : List String :=
-  ["add", "sub", "mul1", "addmul1", "mul", "sqr", "comba", "kara", "toom", "kara2", "toom2", "fft", "fft2", "auto",
-    "ksqr", "mulref"]
+  ["add", "sub", "mul1", "addmul1", "mul", "sqr", "comba", "kara", "toom", "kara2", "toom2", "fft",
+    "fft2", "auto", "ksqr", "fftsqr", "toomsqr", "autosqr", "mulref"]
 
 def main (args : List String) : IO Unit := do
   let noNat := args.contains "--no-nat"
@@ -247,6 +247,23 @@ def main (args : List String) : IO Unit := do
             MPN.FFT.fftMul (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
               y.toUSlice (MPN.FFT.fftK (x.size + y.size))) checkArr a b)
           (time (· * ·) checkNat na nb)
+      | "fftsqr" =>
+        row noNat op n
+          (time (fun (x _ : UInt64Array) =>
+            MPN.FFT.fftSqr (UInt64Array.replicate (2 * x.size) 0).toUSlice x.toUSlice
+              (MPN.FFT.fftK (2 * x.size))) checkArr a a)
+          (time (fun x _ => x * x) checkNat na na)
+      | "toomsqr" =>
+        row noNat op n
+          (time (fun (x _ : UInt64Array) =>
+            MPN.mulToom (UInt64Array.replicate (2 * x.size) 0).toUSlice x.toUSlice x.toUSlice)
+            checkArr a a)
+          (time (fun x _ => x * x) checkNat na na)
+      | "autosqr" =>
+        row noNat op n
+          (time (fun (x _ : UInt64Array) =>
+            MPN.sqr (UInt64Array.replicate (2 * x.size) 0).toUSlice x.toUSlice) checkArr a a)
+          (time (fun x _ => x * x) checkNat na na)
       | "auto" =>
         row noNat op n
           (time (fun (x y : UInt64Array) =>
@@ -263,6 +280,29 @@ def main (args : List String) : IO Unit := do
       | "mulref" =>
         row noNat op n (time refMul checkArr a b) (time (· * ·) checkNat na nb)
       | _ =>
+        -- `fftb<s>`, `toomb<s>`: `n` by `s` limbs, for tuning `fftMinSmall`.
+        if op.startsWith "fsq" then
+          let k := (op.drop 3).toString.toNat!
+          row noNat op n
+            (time (fun (x _ : UInt64Array) =>
+              MPN.FFT.fftSqr (UInt64Array.replicate (2 * x.size) 0).toUSlice x.toUSlice k)
+              checkArr a a)
+            (time (fun x _ => x * x) checkNat na na)
+        else
+        let sb := if op.startsWith "fftb" then (op.drop 4).toString.toNat?
+          else if op.startsWith "toomb" then (op.drop 5).toString.toNat? else none
+        if let some sz := sb then
+          let h := sample sz 2
+          row noNat op n
+            (time (fun (x y : UInt64Array) =>
+              if op.startsWith "fftb" then
+                MPN.FFT.fftMul (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
+                  y.toUSlice (MPN.FFT.fftK (x.size + y.size))
+              else
+                MPN.mulToom (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
+                  y.toUSlice) checkArr a h)
+            (time (· * ·) checkNat na (toNat h))
+        else
         -- `fft<k>`: the FFT with `2ᵏ` pieces, for tuning `fftK`.
         match (op.drop 3).toString.toNat? with
         | some k =>
