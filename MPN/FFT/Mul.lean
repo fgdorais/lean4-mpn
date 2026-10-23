@@ -1326,33 +1326,230 @@ total. They cross at 260 to 330 limbs for 4096 to 65536 limbs in the other opera
 public def fftMinSmall : Nat := 320
 
 /--
-Writes the `a.size + b.size` limbs of `a b` into `r`: by `fftMul` from `fftThreshold` limbs in
-the larger operand when the smaller one has `fftMinSmall` limbs, by `mulToom` otherwise, which
-uses the Toom methods, Karatsuba and the schoolbook method by the sizes. It requires
-`0 < a.size`, `0 < b.size` and `a.size + b.size ≤ r.size`.
+Writes the `a.size + b.size` limbs of `a b` into `r`, for operands of comparable sizes: by
+`fftMul` from `fftThreshold` limbs in the larger operand when the smaller one has `fftMinSmall`
+limbs, by `mulToom` otherwise, which uses the Toom methods, Karatsuba and the schoolbook method
+by the sizes. It requires `0 < a.size`, `0 < b.size` and `a.size + b.size ≤ r.size`.
 -/
-public def mul (r a b : USlice) : UInt64Array :=
+public def mulBal (r a b : USlice) : UInt64Array :=
   if fftThreshold ≤ max a.size.toNat b.size.toNat ∧ fftMinSmall ≤ min a.size.toNat b.size.toNat then
     fftMul r a b (fftK (a.size.toNat + b.size.toNat))
   else mulToom r a b
 
+@[simp] public theorem size_mulBal (r a b : USlice) : (mulBal r a b).size = r.array.size := by
+  rw [mulBal]; split <;> simp
+
+/-- `mulBal` leaves the limbs of `r` outside the ones it writes unchanged. -/
+public theorem getElem!_mulBal (r a b : USlice) (i : Nat)
+    (hi : i < r.start.toNat ∨ r.start.toNat + a.size.toNat + b.size.toNat ≤ i) :
+    (mulBal r a b)[i]! = r.array[i]! := by
+  rw [mulBal]; split
+  · exact getElem!_fftMul r a b _ i hi
+  · exact getElem!_mulToom r a b i hi
+
+public theorem valAt_mulBal (r a b : USlice) (ha : 0 < a.size) (hb : 0 < b.size)
+    (hr : a.size.toNat + b.size.toNat ≤ r.size.toNat) :
+    (mulBal r a b).valAt r.start.toNat (a.size.toNat + b.size.toNat) = a.toNat * b.toNat := by
+  rw [mulBal]; split
+  · exact valAt_fftMul r a b _ ha hb hr
+  · exact valAt_mulToom r a b ha hb hr
+
+/-! ## Unbalanced products -/
+
+/--
+The products of pieces `i` to `i + cnt - 1` of `a`, of `c` limbs, by `b`, each by `mulBal` into
+a new array, added to the region of `T` limbs at `rs` of `arr`, piece `j` from limb `j c` on.
+-/
+public def chunkLoop (T c rs : Nat) (a b : USlice) : UInt64Array → Nat → Nat → UInt64Array
+  | arr, _, 0 => arr
+  | arr, i, cnt + 1 =>
+    let P := mulBal
+      (UInt64Array.replicate ((FFT.pieceSl a c i).size.toNat + b.size.toNat) 0).toUSlice
+      (FFT.pieceSl a c i) b
+    chunkLoop T c rs a b
+      (addCoef arr rs T (i * c) P 0 ((FFT.pieceSl a c i).size.toNat + b.size.toNat)) (i + 1) cnt
+
+set_option maxHeartbeats 400000 in
+public theorem chunkLoop_spec (T c rs : Nat) (a b : USlice) (hc : 1 ≤ c)
+    (haS : a.array.size < USize.size) (hb : 0 < b.size) (hab : a.size.toNat + b.size.toNat ≤ T)
+    (hTS : T < USize.size) (cnt : Nat) :
+    ∀ arr i, arr.size < USize.size → rs + T ≤ arr.size → (i + cnt) * c < a.size.toNat + c →
+      arr.valAt rs T + sumRange (fun j => 2 ^ (64 * ((i + j) * c)) *
+        (FFT.piece a c (i + j) * b.toNat)) cnt < 2 ^ (64 * T) →
+      (chunkLoop T c rs a b arr i cnt).size = arr.size ∧
+      (∀ t, (t < rs ∨ rs + T ≤ t) → (chunkLoop T c rs a b arr i cnt)[t]! = arr[t]!) ∧
+      (chunkLoop T c rs a b arr i cnt).valAt rs T = arr.valAt rs T +
+        sumRange (fun j => 2 ^ (64 * ((i + j) * c)) * (FFT.piece a c (i + j) * b.toNat)) cnt := by
+  induction cnt with
+  | zero => intro arr i _ _ _ _; exact ⟨rfl, fun _ _ => rfl, by simp [chunkLoop]⟩
+  | succ cnt ih =>
+    intro arr i hS hT hcov hsum
+    rw [sumRange_succ_left] at hsum ⊢
+    simp only [Nat.add_zero] at hsum ⊢
+    have hs' : sumRange (fun j => 2 ^ (64 * ((i + (j + 1)) * c)) *
+        (FFT.piece a c (i + (j + 1)) * b.toNat)) cnt = sumRange (fun j =>
+          2 ^ (64 * ((i + 1 + j) * c)) * (FFT.piece a c (i + 1 + j) * b.toNat)) cnt :=
+      sumRange_congr fun j _ => by rw [show i + (j + 1) = i + 1 + j by lia]
+    rw [hs'] at hsum ⊢
+    rw [chunkLoop]
+    -- The product of piece `i` by `b`.
+    obtain ⟨p₁, p₂⟩ := FFT.pieceSl_spec a c i haS
+    have hic : i * c < a.size.toNat := by
+      have := Nat.mul_le_mul_right c (show i + 1 ≤ i + (cnt + 1) by lia)
+      rw [Nat.add_mul, Nat.one_mul] at this; lia
+    have hlen : (FFT.pieceSl a c i).size.toNat + b.size.toNat < USize.size := by
+      rw [p₁]; lia
+    have hrep := size_toUSlice (UInt64Array.replicate ((FFT.pieceSl a c i).size.toNat +
+      b.size.toNat) 0) (by rw [size_replicate]; exact hlen)
+    simp only [size_replicate] at hrep
+    have hv := valAt_mulBal (UInt64Array.replicate ((FFT.pieceSl a c i).size.toNat +
+      b.size.toNat) 0).toUSlice (FFT.pieceSl a c i) b
+      (USize.lt_iff_toNat_lt.2 (by rw [p₁, USize.toNat_zero]; lia)) hb
+      (by rw [hrep]; exact Nat.le_refl _)
+    have hsz := size_mulBal (UInt64Array.replicate ((FFT.pieceSl a c i).size.toNat +
+      b.size.toNat) 0).toUSlice (FFT.pieceSl a c i) b
+    rw [start_toUSlice, USize.toNat_zero, p₂] at hv
+    rw [array_toUSlice, size_replicate] at hsz
+    generalize mulBal (UInt64Array.replicate ((FFT.pieceSl a c i).size.toNat + b.size.toNat)
+      0).toUSlice (FFT.pieceSl a c i) b = P at *
+    -- Added from limb `i c` on.
+    obtain ⟨c₁, c₂, c₃⟩ := addCoef_spec arr rs T (i * c) P 0
+      ((FFT.pieceSl a c i).size.toNat + b.size.toNat) hS hT (by lia) (by rw [hsz]; exact hlen)
+      (by rw [hsz]; lia) (by rw [hv]; lia)
+    rw [hv] at c₃
+    generalize addCoef arr rs T (i * c) P 0 ((FFT.pieceSl a c i).size.toNat + b.size.toNat) = A
+      at *
+    obtain ⟨i₁, i₂, i₃⟩ := ih A (i + 1) (by rw [c₁]; exact hS) (by rw [c₁]; exact hT) (by lia)
+      (by rw [c₃]; lia)
+    refine ⟨i₁.trans c₁, fun t ht => by rw [i₂ t ht, c₂ t ht], ?_⟩
+    rw [i₃, c₃]
+    lia
+
+/--
+`a b` for `b.size ≤ a.size`, by `mulBal` on the pieces of `a` of `b.size` limbs, the products
+added into the zeroed limbs of `r`, like GMP's `mpn_mul` on unbalanced operands.
+-/
+public def mulChunked (r a b : USlice) : UInt64Array :=
+  chunkLoop (a.size.toNat + b.size.toNat) b.size.toNat r.start.toNat a b
+    (zeroInto (r.slice 0 (a.size + b.size))) 0 ((a.size.toNat + b.size.toNat - 1) / b.size.toNat)
+
+private theorem mulChunked_spec (r a b : USlice) (hb : 0 < b.size)
+    (hr : a.size.toNat + b.size.toNat ≤ r.size.toNat) (haS : a.array.size < USize.size)
+    (hrS : r.array.size < USize.size) :
+    (mulChunked r a b).size = r.array.size ∧
+      (∀ i, (i < r.start.toNat ∨ r.start.toNat + a.size.toNat + b.size.toNat ≤ i) →
+        (mulChunked r a b)[i]! = r.array[i]!) ∧
+      (mulChunked r a b).valAt r.start.toNat (a.size.toNat + b.size.toNat) =
+        a.toNat * b.toNat := by
+  have hb' := USize.lt_iff_toNat_lt.1 hb
+  rw [USize.toNat_zero] at hb'
+  -- The number of pieces covers `a`, and no more.
+  generalize hL : (a.size.toNat + b.size.toNat - 1) / b.size.toNat = L
+  have hL₁ : a.size.toNat ≤ L * b.size.toNat := by
+    have h₁ := Nat.div_add_mod (a.size.toNat + b.size.toNat - 1) b.size.toNat
+    have h₂ := Nat.mod_lt (a.size.toNat + b.size.toNat - 1) hb'
+    rw [hL, Nat.mul_comm] at h₁
+    lia
+  have hL₂ : L * b.size.toNat < a.size.toNat + b.size.toNat := by
+    rw [← hL]
+    exact Nat.lt_of_le_of_lt (Nat.div_mul_le_self _ _) (by lia)
+  -- The sum of the products of the pieces is `a b`.
+  have hab : sumRange (fun j => 2 ^ (64 * ((0 + j) * b.size.toNat)) *
+      (FFT.piece a b.size.toNat (0 + j) * b.toNat)) L = a.toNat * b.toNat := by
+    rw [← FFT.polyVal_pieces a b.size.toNat L hL₁,
+      polyVal_eq_sumRange _ _ L (by rw [FFT.length_pieces]; exact Nat.le_refl _),
+      sumRange_mul_right]
+    exact sumRange_congr fun j hj => by
+      rw [FFT.getD_pieces, ite_eq_left hj, Nat.zero_add, ← Nat.pow_mul,
+        show 64 * b.size.toNat * j = 64 * (j * b.size.toNat) by lia]
+      grind
+  have hablt : a.toNat * b.toNat < 2 ^ (64 * (a.size.toNat + b.size.toNat)) := by
+    rw [Nat.mul_add, Nat.pow_add]
+    have h₁ : a.toNat < 2 ^ (64 * a.size.toNat) := by rw [USlice.toNat_eq_valAt]; exact valAt_lt ..
+    have h₂ : b.toNat < 2 ^ (64 * b.size.toNat) := by rw [USlice.toNat_eq_valAt]; exact valAt_lt ..
+    exact Nat.mul_lt_mul'' h₁ h₂
+  -- Zeroing the result, and adding the products.
+  have hT : (a.size + b.size).toNat = a.size.toNat + b.size.toNat :=
+    USize.toNat_add_of_lt (by have := r.size.toNat_lt_size; lia)
+  have hrs := r.toNat_size
+  have hrst := r.stop_le_size
+  have hrle := USize.le_iff_toNat_le.1 r.start_le_stop
+  have e₁ := r.start_slice (i := 0) (j := a.size + b.size) (by simp) (by rw [hT]; exact hr)
+  have e₂ := r.size_slice (i := 0) (j := a.size + b.size) (by simp) (by rw [hT]; exact hr)
+  rw [USize.toNat_zero, Nat.add_zero] at e₁
+  rw [USize.toNat_zero, Nat.sub_zero, hT] at e₂
+  obtain ⟨z₁, z₂, z₃⟩ := zeroInto_spec (r.slice 0 (a.size + b.size))
+  simp only [USlice.array_slice, e₁, e₂] at z₁ z₂ z₃
+  rw [mulChunked, hL]
+  generalize zeroInto (r.slice 0 (a.size + b.size)) = R₀ at *
+  obtain ⟨c₁, c₂, c₃⟩ := chunkLoop_spec (a.size.toNat + b.size.toNat) b.size.toNat r.start.toNat
+    a b (by lia) haS hb (Nat.le_refl _) (by have := r.size.toNat_lt_size; lia) L R₀ 0
+    (by rw [z₁]; exact hrS) (by rw [z₁]; lia) (by lia) (by rw [z₃, Nat.zero_add, hab]; exact hablt)
+  refine ⟨by rw [c₁, z₁], fun i hi => ?_, ?_⟩
+  · rw [c₂ i (by lia), z₂ i (by lia)]
+  · rw [c₃, z₃, Nat.zero_add, hab]
+
+/-- The size of the smaller operand from which `mul` splits unbalanced products. -/
+public def chunkMinSmall : Nat := 96
+
+/--
+The size of the smaller operand from which `mul` no longer splits unbalanced products when the
+larger one is in the range of the FFT: from 1536 limbs, one FFT on the whole product is 10–20%
+faster than one per piece, and they tie at 1024 (Zen 3, 2026-10-23).
+-/
+public def chunkMaxSmall : Nat := 1024
+
+/-- `mul` for `b.size ≤ a.size`. -/
+public def mulU (r a b : USlice) : UInt64Array :=
+  if chunkMinSmall ≤ b.size.toNat ∧ 2 * b.size.toNat ≤ a.size.toNat ∧
+      (b.size.toNat < chunkMaxSmall ∨ a.size.toNat < fftThreshold) ∧
+      a.size.toNat + b.size.toNat ≤ r.size.toNat ∧
+      a.array.size < USize.size ∧ r.array.size < USize.size then
+    mulChunked r a b
+  else mulBal r a b
+
+private theorem mulU_spec (r a b : USlice) :
+    (mulU r a b).size = r.array.size ∧
+      (∀ i, (i < r.start.toNat ∨ r.start.toNat + a.size.toNat + b.size.toNat ≤ i) →
+        (mulU r a b)[i]! = r.array[i]!) ∧
+      (0 < a.size → 0 < b.size → a.size.toNat + b.size.toNat ≤ r.size.toNat →
+        (mulU r a b).valAt r.start.toNat (a.size.toNat + b.size.toNat) = a.toNat * b.toNat) := by
+  rw [mulU]
+  split
+  · rename_i h
+    have h₁ := h.1
+    simp only [chunkMinSmall] at h₁
+    have hb : 0 < b.size := USize.lt_iff_toNat_lt.2 (by rw [USize.toNat_zero]; lia)
+    obtain ⟨s₁, s₂, s₃⟩ := mulChunked_spec r a b hb h.2.2.2.1 h.2.2.2.2.1 h.2.2.2.2.2
+    exact ⟨s₁, s₂, fun _ _ _ => s₃⟩
+  · exact ⟨size_mulBal r a b, getElem!_mulBal r a b, valAt_mulBal r a b⟩
+
+/--
+Writes the `a.size + b.size` limbs of `a b` into `r`: by `mulChunked` when the larger operand
+has at least twice the limbs of the smaller, which has at least `chunkMinSmall` limbs, and less
+than `chunkMaxSmall` unless the larger one is below `fftThreshold`; by `mulBal` otherwise. It
+requires `0 < a.size`, `0 < b.size` and `a.size + b.size ≤ r.size`.
+-/
+public def mul (r a b : USlice) : UInt64Array :=
+  if b.size ≤ a.size then mulU r a b else mulU r b a
+
 @[simp] public theorem size_mul (r a b : USlice) : (mul r a b).size = r.array.size := by
-  rw [mul]; split <;> simp
+  rw [mul]; split <;> exact (mulU_spec ..).1
 
 /-- `mul` leaves the limbs of `r` outside the ones it writes unchanged. -/
 public theorem getElem!_mul (r a b : USlice) (i : Nat)
     (hi : i < r.start.toNat ∨ r.start.toNat + a.size.toNat + b.size.toNat ≤ i) :
     (mul r a b)[i]! = r.array[i]! := by
   rw [mul]; split
-  · exact getElem!_fftMul r a b _ i hi
-  · exact getElem!_mulToom r a b i hi
+  · exact (mulU_spec r a b).2.1 i hi
+  · exact (mulU_spec r b a).2.1 i (by lia)
 
 public theorem valAt_mul (r a b : USlice) (ha : 0 < a.size) (hb : 0 < b.size)
     (hr : a.size.toNat + b.size.toNat ≤ r.size.toNat) :
     (mul r a b).valAt r.start.toNat (a.size.toNat + b.size.toNat) = a.toNat * b.toNat := by
   rw [mul]; split
-  · exact valAt_fftMul r a b _ ha hb hr
-  · exact valAt_mulToom r a b ha hb hr
+  · exact (mulU_spec r a b).2.2 ha hb hr
+  · rw [Nat.add_comm, Nat.mul_comm]; exact (mulU_spec r b a).2.2 hb ha (by lia)
 
 /--
 The size, in limbs, from which `sqr` uses the FFT, where it ties `sqrKaratsuba` (Zen 3,

@@ -23,7 +23,7 @@ comes with Lean.
 | `MPN.Mul.Toom` | `mulToom`: Toom-4 and Toom-4 by 3 from `toom4Threshold = 600` limbs, Toom-3, Toom-3 by 2 and Toom-4 by 2 from `toom3Threshold = 384` limbs | `mpn_toom44_mul`, `mpn_toom43_mul`, `mpn_toom33_mul`, `mpn_toom32_mul`, `mpn_toom42_mul` |
 | `MPN.FFT.Fermat` | in place on windows of one array, modulo `2^(64 n) + 1`: `normAt`, `addModAt`, `subModAt`, `mulPow2At` | `mpn_fft_add_modF`, `mpn_fft_sub_modF`, `mpn_fft_mul_2exp_modF` |
 | `MPN.FFT.Transform` | `fwd`, `inv`: the transforms of length `2ᵏ`, in place | `mpn_fft_fft`, `mpn_fft_fftinv` |
-| `MPN.FFT.Mul` | `fftMul`, `fftSqr`: Schönhage–Strassen with `2ᵏ` pieces; `MPN.mul` and `MPN.sqr`, which choose the FFT from `fftThreshold = 3072` limbs in the larger operand and `sqrFFTThreshold = 2048` limbs, and `mulToom` or `sqrKaratsuba` below | `mpn_mul_fft`, `mpn_mul`, `mpn_sqr` |
+| `MPN.FFT.Mul` | `fftMul`, `fftSqr`: Schönhage–Strassen with `2ᵏ` pieces; `MPN.mul` and `MPN.sqr`, which split unbalanced products into pieces (`mulChunked`) and choose the FFT from `fftThreshold = 3072` limbs in the larger operand and `sqrFFTThreshold = 2048` limbs, and `mulToom` or `sqrKaratsuba` below | `mpn_mul_fft`, `mpn_mul`, `mpn_sqr` |
 | `MPN.Sqr.Basecase` | `sqrBasecase` | `mpn_sqr_basecase` |
 | `MPN.Sqr.Karatsuba` | `sqrKaratsuba`, from `sqrKaratsubaThreshold = 96` limbs | `mpn_kara_sqr_n` |
 

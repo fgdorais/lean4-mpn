@@ -328,6 +328,12 @@ def checkMPNMul (m n : Nat) : Bool :=
 #guard [(3071, 3071), (3072, 3000), (3072, 1500), (5000, 330), (5000, 300), (4, 3)].all
   fun (m, n) => checkMPNMul m n
 
+-- Unbalanced products, split into chunks of the smaller operand: around `chunkMinSmall`, around
+-- twice the smaller operand, a last chunk of one limb, and around `chunkMaxSmall`.
+#guard [(1000, 96), (1000, 95), (1000, 500), (999, 500), (1001, 100), (3071, 1500), (5000, 1023),
+  (5000, 1024)].all
+  fun (m, n) => checkMPNMul m n
+
 /-- Checks `fftSqr` with `2ᵏ` pieces and `MPN.sqr` on an `n`-limb `a`. -/
 def checkMPNSqr (n k : Nat) : Bool :=
   let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
