@@ -286,56 +286,65 @@ public theorem valAt_shl63Into_half (r : USlice) (h₀ : 0 < r.size.toNat)
   subst this
   lia
 
-/-! ## Exact division by 3 -/
+/-! ## Exact division by an odd constant -/
 
-/-- The step of `divExact3Into`: limb `x`, minus the borrow, times the inverse of `3`. -/
-@[inline, expose] public def divExact3Step (n : USize) (j : USize) (_h : j < n) (x c : UInt64) :
-    UInt64 × UInt64 :=
-  let q := (x - c) * 0xAAAAAAAAAAAAAAAB
-  (q, q.mulh 3 + (decide (x < c)).toUInt64)
+/--
+The step of `divExactInto` by `d` with inverse `dinv` modulo `2⁶⁴`: limb `x`, minus the borrow,
+times `dinv`, and the borrow out.
+-/
+@[inline, expose] public def divExactStep (d dinv : UInt64) (n : USize) (j : USize) (_h : j < n)
+    (x c : UInt64) : UInt64 × UInt64 :=
+  let q := (x - c) * dinv
+  (q, q.mulh d + (decide (x < c)).toUInt64)
 
-private theorem divExact3Step_spec (n j : USize) (h : j < n) (x c : UInt64) :
-    3 * (divExact3Step n j h x c).1.toNat + c.toNat =
-      x.toNat + 2 ^ 64 * (divExact3Step n j h x c).2.toNat := by
-  have := x.toNat_lt; have := c.toNat_lt
-  simp only [divExact3Step, UInt64.toNat_mul, UInt64.toNat_sub, UInt64.toNat_add, UInt64.toNat_mulh,
-    UInt64.reduceToNat]
-  -- `q = d 3⁻¹` modulo `2⁶⁴`, where `d = x - c` modulo `2⁶⁴`, so `3 q = d + 2⁶⁴ hi`.
-  generalize hd : (2 ^ 64 - c.toNat + x.toNat) % 2 ^ 64 = d
-  have hdlt : d < 2 ^ 64 := by rw [← hd]; exact Nat.mod_lt _ (by decide)
-  have hq : 3 * (d * 12297829382473034411 % 2 ^ 64) % 2 ^ 64 = d := by
-    rw [Nat.mul_mod, Nat.mod_mod, ← Nat.mul_mod, ← Nat.mul_assoc, Nat.mul_comm 3 d, Nat.mul_assoc,
-      Nat.mul_mod, show 3 * 12297829382473034411 % 2 ^ 64 = 1 by decide, Nat.mul_one, Nat.mod_mod,
-      Nat.mod_eq_of_lt hdlt]
-  have hdiv := Nat.mod_add_div (3 * (d * 12297829382473034411 % 2 ^ 64)) (2 ^ 64)
+private theorem divExactStep_spec (d dinv : UInt64) (hd : d.toNat * dinv.toNat % 2 ^ 64 = 1)
+    (n j : USize) (h : j < n) (x c : UInt64) :
+    d.toNat * (divExactStep d dinv n j h x c).1.toNat + c.toNat =
+      x.toNat + 2 ^ 64 * (divExactStep d dinv n j h x c).2.toNat := by
+  have := x.toNat_lt; have := c.toNat_lt; have hdl := d.toNat_lt
+  simp only [divExactStep, UInt64.toNat_mul, UInt64.toNat_sub, UInt64.toNat_add,
+    UInt64.toNat_mulh]
+  -- `q = (x - c) d⁻¹` modulo `2⁶⁴`, so `d q = (x - c) + 2⁶⁴ hi`.
+  generalize hD : (2 ^ 64 - c.toNat + x.toNat) % 2 ^ 64 = D
+  have hDlt : D < 2 ^ 64 := by rw [← hD]; exact Nat.mod_lt _ (by decide)
+  have hq : d.toNat * (D * dinv.toNat % 2 ^ 64) % 2 ^ 64 = D := by
+    rw [Nat.mul_mod, Nat.mod_mod, ← Nat.mul_mod, ← Nat.mul_assoc, Nat.mul_comm d.toNat D,
+      Nat.mul_assoc, Nat.mul_mod, hd, Nat.mul_one, Nat.mod_mod, Nat.mod_eq_of_lt hDlt]
+  have hdiv := Nat.mod_add_div (d.toNat * (D * dinv.toNat % 2 ^ 64)) (2 ^ 64)
   rw [hq] at hdiv
-  have hhi : d * 12297829382473034411 % 2 ^ 64 * 3 / 2 ^ 64 ≤ 2 := by
-    have := Nat.mod_lt (d * 12297829382473034411) (show 0 < 2 ^ 64 by decide)
-    lia
+  have hhi : D * dinv.toNat % 2 ^ 64 * d.toNat / 2 ^ 64 < d.toNat := by
+    have h₁ := Nat.mod_lt (D * dinv.toNat) (show 0 < 2 ^ 64 by decide)
+    have hd₀ : 0 < d.toNat := by
+      rcases Nat.eq_zero_or_pos d.toNat with e | e
+      · rw [e, Nat.zero_mul, Nat.zero_mod] at hd; exact absurd hd (by decide)
+      · exact e
+    rw [Nat.div_lt_iff_lt_mul (by decide), Nat.mul_comm d.toNat]
+    exact Nat.mul_lt_mul_of_pos_right h₁ hd₀
   have hb : (decide (x < c)).toUInt64.toNat = if x.toNat < c.toNat then 1 else 0 := by
     by_cases hxc : x < c
     · simp only [decide_eq_true hxc, UInt64.lt_iff_toNat_lt.1 hxc, ↓reduceIte]; rfl
     · simp only [decide_eq_false hxc,
         show ¬x.toNat < c.toNat from fun h' => hxc (UInt64.lt_iff_toNat_lt.2 h'), ↓reduceIte]; rfl
-  rw [hb, Nat.mod_eq_of_lt (show d * 12297829382473034411 % 2 ^ 64 * 3 / 2 ^ 64 +
+  rw [hb, Nat.mod_eq_of_lt (show D * dinv.toNat % 2 ^ 64 * d.toNat / 2 ^ 64 +
     (if x.toNat < c.toNat then 1 else 0) < 2 ^ 64 by split <;> lia)]
-  rw [Nat.mul_comm (d * 12297829382473034411 % 2 ^ 64) 3] at hhi ⊢
-  generalize 3 * (d * 12297829382473034411 % 2 ^ 64) = T at *
+  rw [Nat.mul_comm (D * dinv.toNat % 2 ^ 64) d.toNat] at hhi ⊢
+  generalize d.toNat * (D * dinv.toNat % 2 ^ 64) = T at *
   generalize x.toNat = x at *
   generalize c.toNat = c at *
   split <;> lia
 
-private theorem divExact3_spec (n : USize) (arr : UInt64Array) (rs : USize)
+private theorem divExact_spec (d dinv : UInt64) (hd : d.toNat * dinv.toNat % 2 ^ 64 = 1)
+    (n : USize) (arr : UInt64Array) (rs : USize)
     (hr : LoopBound arr rs n) (j : USize) (c : UInt64) :
-    (foldUInPlace n (divExact3Step n) arr rs hr j c).1.size = arr.size ∧
+    (foldUInPlace n (divExactStep d dinv n) arr rs hr j c).1.size = arr.size ∧
       (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
-        (foldUInPlace n (divExact3Step n) arr rs hr j c).1[i]! = arr[i]!) ∧
-      3 * (foldUInPlace n (divExact3Step n) arr rs hr j c).1.valAt (rs.toNat + j.toNat)
-          (n.toNat - j.toNat) + c.toNat =
+        (foldUInPlace n (divExactStep d dinv n) arr rs hr j c).1[i]! = arr[i]!) ∧
+      d.toNat * (foldUInPlace n (divExactStep d dinv n) arr rs hr j c).1.valAt
+          (rs.toNat + j.toNat) (n.toNat - j.toNat) + c.toNat =
         arr.valAt (rs.toNat + j.toNat) (n.toNat - j.toNat) +
           2 ^ (64 * (n.toNat - j.toNat)) *
-            (foldUInPlace n (divExact3Step n) arr rs hr j c).2.toNat := by
-  induction arr, hr, j, c using foldUInPlace.induct n (divExact3Step n) rs with
+            (foldUInPlace n (divExactStep d dinv n) arr rs hr j c).2.toNat := by
+  induction arr, hr, j, c using foldUInPlace.induct n (divExactStep d dinv n) rs with
   | case1 arr hr j c h p ih =>
     rw [foldUInPlace_lt _ _ _ _ _ _ _ h]
     have hj := USize.lt_iff_toNat_lt.1 h
@@ -358,14 +367,15 @@ private theorem divExact3_spec (n : USize) (arr : UInt64Array) (rs : USize)
       obtain ⟨k, hk⟩ : ∃ k, n.toNat - j.toNat = k + 1 := ⟨n.toNat - j.toNat - 1, by lia⟩
       rw [show n.toNat - (j.toNat + 1) = k by lia, ← Nat.add_assoc] at ih₃
       rw [hk, UInt64Array.valAt_succ, UInt64Array.valAt_succ, hv, ← hx, Nat.mul_succ, Nat.pow_add]
-      have hs := divExact3Step_spec n j h (arr.uget (rs + j) (hr.uset_bound h)) c
+      have hs := divExactStep_spec d dinv hd n j h (arr.uget (rs + j) (hr.uset_bound h)) c
       generalize (foldUInPlace (β := UInt64) _ _ _ _ _ _ _).1.valAt _ _ = R at *
       generalize (foldUInPlace (β := UInt64) _ _ _ _ _ _ _).2.toNat = c' at *
-      generalize (divExact3Step n j h _ c).2.toNat = c₁ at *
-      generalize (divExact3Step n j h _ c).1.toNat = q at *
+      generalize (divExactStep d dinv n j h _ c).2.toNat = c₁ at *
+      generalize (divExactStep d dinv n j h _ c).1.toNat = q at *
       generalize arr.valAt _ k = R₀ at *
       generalize (arr.uget (rs + j) _).toNat = x at *
       generalize 2 ^ (64 * k) = P at *
+      generalize d.toNat = D at *
       grind
   | case2 arr hr j c h =>
     rw [foldUInPlace_ge _ _ _ _ _ _ _ h]
@@ -373,53 +383,270 @@ private theorem divExact3_spec (n : USize) (arr : UInt64Array) (rs : USize)
     simp [this]
 
 /--
-Divides the limbs of `r` by `3` in place, like GMP's `mpn_divexact_by3`: exactly when `3` divides
-their value, and then the borrow out is `0`.
+Divides the limbs of `r` by `d` in place, with `dinv` the inverse of `d` modulo `2⁶⁴`, like GMP's
+`mpn_divexact_1` for odd divisors: exactly when `d` divides their value and `2⁶⁴ ≡ 1` modulo
+`d`, and then the borrow out is `0`.
 -/
-public def divExact3Into (r : USlice) : UInt64Array × UInt64 :=
-  foldUInPlaceThen r.size (divExact3Step r.size) r.array r.start
+public def divExactInto (r : USlice) (d dinv : UInt64) : UInt64Array × UInt64 :=
+  foldUInPlaceThen r.size (divExactStep d dinv r.size) r.array r.start
     (r.loopBound (USize.le_iff_toNat_le.2 (Nat.le_refl _))) 0 0 fun arr _ c => (arr, c)
 
-@[simp] public theorem size_divExact3Into (r : USlice) :
-    (divExact3Into r).1.size = r.array.size := by
-  rw [divExact3Into, foldUInPlaceThen_eq]
-  exact (divExact3_spec _ _ _ _ 0 0).1
+@[simp] public theorem size_divExactInto (r : USlice) (d dinv : UInt64) :
+    (divExactInto r d dinv).1.size = r.array.size := by
+  rw [divExactInto, foldUInPlaceThen_eq]
+  exact size_foldUInPlace ..
 
-/-- `divExact3Into` leaves the limbs of `r` outside the slice unchanged. -/
-public theorem getElem!_divExact3Into (r : USlice) (i : Nat)
+/-- `divExactInto` leaves the limbs of `r` outside the slice unchanged. -/
+public theorem getElem!_divExactInto (r : USlice) (d dinv : UInt64)
+    (hd : d.toNat * dinv.toNat % 2 ^ 64 = 1) (i : Nat)
     (hi : i < r.start.toNat ∨ r.start.toNat + r.size.toNat ≤ i) :
-    (divExact3Into r).1[i]! = r.array[i]! := by
-  rw [divExact3Into, foldUInPlaceThen_eq]
-  exact (divExact3_spec _ _ _ _ 0 0).2.1 i (by rw [USize.toNat_zero]; lia)
+    (divExactInto r d dinv).1[i]! = r.array[i]! := by
+  rw [divExactInto, foldUInPlaceThen_eq]
+  exact (divExact_spec d dinv hd _ _ _ _ 0 0).2.1 i (by rw [USize.toNat_zero]; lia)
 
-public theorem valAt_divExact3Into (r : USlice)
-    (h : r.array.valAt r.start.toNat r.size.toNat % 3 = 0) :
-    (divExact3Into r).1.valAt r.start.toNat r.size.toNat =
-      r.array.valAt r.start.toNat r.size.toNat / 3 := by
-  have hs := (divExact3_spec r.size r.array r.start
+public theorem valAt_divExactInto (r : USlice) (d dinv : UInt64)
+    (hd : d.toNat * dinv.toNat % 2 ^ 64 = 1) (hd₁ : 2 ^ 64 % d.toNat = 1) (hd₃ : 2 ≤ d.toNat)
+    (h : r.array.valAt r.start.toNat r.size.toNat % d.toNat = 0) :
+    (divExactInto r d dinv).1.valAt r.start.toNat r.size.toNat =
+      r.array.valAt r.start.toNat r.size.toNat / d.toNat := by
+  have hs := (divExact_spec d dinv hd r.size r.array r.start
     (r.loopBound (USize.le_iff_toNat_le.2 (Nat.le_refl _))) 0 0).2.2
   simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, UInt64.toNat_zero] at hs
-  rw [divExact3Into, foldUInPlaceThen_eq]
-  have hQ := valAt_lt (foldUInPlace r.size (divExact3Step r.size) r.array r.start
+  rw [divExactInto, foldUInPlaceThen_eq]
+  have hQ := valAt_lt (foldUInPlace r.size (divExactStep d dinv r.size) r.array r.start
     (r.loopBound (USize.le_iff_toNat_le.2 (Nat.le_refl _))) 0 0).1 r.start.toNat r.size.toNat
-  -- `2^(64 n) ≡ 1` modulo `3`, so the borrow out is a multiple of `3`, and below `3`.
-  have hB : 2 ^ (64 * r.size.toNat) % 3 = 1 := by
-    rw [Nat.pow_mul, Nat.pow_mod]; simp
+  -- `2^(64 n) ≡ 1` modulo `d`, so the borrow out is a multiple of `d`, and below `d`.
+  have hB : 2 ^ (64 * r.size.toNat) % d.toNat = 1 % d.toNat := by
+    rw [Nat.pow_mul, Nat.pow_mod, hd₁, Nat.one_pow]
+  have hc_lt : (foldUInPlace r.size (divExactStep d dinv r.size) r.array r.start
+      (r.loopBound (USize.le_iff_toNat_le.2 (Nat.le_refl _))) 0 0).2.toNat < d.toNat := by
+    have hX := valAt_lt r.array r.start.toNat r.size.toNat
+    rcases Nat.lt_or_ge (foldUInPlace r.size (divExactStep d dinv r.size) r.array r.start
+      (r.loopBound (USize.le_iff_toNat_le.2 (Nat.le_refl _))) 0 0).2.toNat d.toNat with e | e
+    · exact e
+    · exfalso
+      have h₁ := Nat.mul_le_mul_left (2 ^ (64 * r.size.toNat)) e
+      have h₂ := Nat.mul_lt_mul_of_pos_left hQ (show 0 < d.toNat by lia)
+      generalize (foldUInPlace (β := UInt64) _ _ _ _ _ 0 0).1.valAt _ _ = Q at *
+      generalize (foldUInPlace (β := UInt64) _ _ _ _ _ 0 0).2.toNat = c at *
+      generalize r.array.valAt r.start.toNat r.size.toNat = X at *
+      generalize 2 ^ (64 * r.size.toNat) = P at *
+      rw [Nat.mul_comm] at h₁
+      have : X + P * c ≥ X + P * d.toNat := Nat.add_le_add_left (Nat.mul_le_mul_left P e) X
+      have : P * d.toNat > d.toNat * Q := by rw [Nat.mul_comm P]; exact h₂
+      lia
   generalize (foldUInPlace (β := UInt64) _ _ _ _ _ 0 0).1.valAt _ _ = Q at *
   generalize (foldUInPlace (β := UInt64) _ _ _ _ _ 0 0).2.toNat = c at *
   generalize r.array.valAt r.start.toNat r.size.toNat = X at *
   generalize 2 ^ (64 * r.size.toNat) = P at *
-  have hc3 : c % 3 = 0 := by
-    have : (X + P * c) % 3 = 0 := by rw [← hs]; lia
-    rw [Nat.add_mod, h, Nat.zero_add, Nat.mul_mod, hB, Nat.one_mul, Nat.mod_mod] at this
-    simpa using this
+  generalize d.toNat = D at *
+  have hcD : c % D = 0 := by
+    have : (X + P * c) % D = 0 := by rw [← hs]; simp [Nat.mul_mod_right]
+    rw [Nat.add_mod, h, Nat.zero_add, Nat.mul_mod, hB, Nat.mod_eq_of_lt (show 1 < D by lia),
+      Nat.one_mul, Nat.mod_mod, Nat.mod_mod] at this
+    exact this
   have hc : c = 0 := by
-    rcases Nat.lt_or_ge c 3 with h3 | h3
-    · lia
-    · have := Nat.mul_le_mul_left P h3
-      lia
+    rcases Nat.eq_zero_or_pos c with e | e
+    · exact e
+    · exact absurd (Nat.le_of_dvd e (Nat.dvd_of_mod_eq_zero hcD)) (by lia)
   subst hc
+  rw [Nat.mul_zero, Nat.add_zero] at hs
+  rw [← hs, Nat.mul_div_cancel_left _ (by lia)]
+
+/-- Divides the limbs of `r` by `3` in place, like GMP's `mpn_divexact_by3`. -/
+public def divExact3Into (r : USlice) : UInt64Array × UInt64 :=
+  divExactInto r 3 0xAAAAAAAAAAAAAAAB
+
+@[simp] public theorem size_divExact3Into (r : USlice) :
+    (divExact3Into r).1.size = r.array.size := size_divExactInto ..
+
+/-- `divExact3Into` leaves the limbs of `r` outside the slice unchanged. -/
+public theorem getElem!_divExact3Into (r : USlice) (i : Nat)
+    (hi : i < r.start.toNat ∨ r.start.toNat + r.size.toNat ≤ i) :
+    (divExact3Into r).1[i]! = r.array[i]! := getElem!_divExactInto _ _ _ (by decide) i hi
+
+public theorem valAt_divExact3Into (r : USlice)
+    (h : r.array.valAt r.start.toNat r.size.toNat % 3 = 0) :
+    (divExact3Into r).1.valAt r.start.toNat r.size.toNat =
+      r.array.valAt r.start.toNat r.size.toNat / 3 :=
+  valAt_divExactInto _ _ _ (by decide) (by decide) (by decide) h
+
+/-- Divides the limbs of `r` by `5` in place. -/
+public def divExact5Into (r : USlice) : UInt64Array × UInt64 :=
+  divExactInto r 5 0xCCCCCCCCCCCCCCCD
+
+@[simp] public theorem size_divExact5Into (r : USlice) :
+    (divExact5Into r).1.size = r.array.size := size_divExactInto ..
+
+/-- `divExact5Into` leaves the limbs of `r` outside the slice unchanged. -/
+public theorem getElem!_divExact5Into (r : USlice) (i : Nat)
+    (hi : i < r.start.toNat ∨ r.start.toNat + r.size.toNat ≤ i) :
+    (divExact5Into r).1[i]! = r.array[i]! := getElem!_divExactInto _ _ _ (by decide) i hi
+
+public theorem valAt_divExact5Into (r : USlice)
+    (h : r.array.valAt r.start.toNat r.size.toNat % 5 = 0) :
+    (divExact5Into r).1.valAt r.start.toNat r.size.toNat =
+      r.array.valAt r.start.toNat r.size.toNat / 5 :=
+  valAt_divExactInto _ _ _ (by decide) (by decide) (by decide) h
+
+/-! ## Right shifts -/
+
+/-- One limb of `rshiftInto`: `x >> s` with the low `s` bits `c` of the limb above. -/
+private theorem rshift_step (x c s m : UInt64) (hs₀ : 0 < s.toNat) (hs : s.toNat < 64)
+    (hm : m.toNat = 2 ^ s.toNat - 1) (hc : c.toNat < 2 ^ s.toNat) :
+    2 ^ s.toNat * ((x >>> s) + (c <<< (64 - s))).toNat + (x &&& m).toNat =
+      x.toNat + 2 ^ 64 * c.toNat ∧ (x &&& m).toNat < 2 ^ s.toNat := by
+  have h64s : (64 - s).toNat = 64 - s.toNat := by
+    rw [UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.2 (by simp; lia))]; rfl
+  have hx := x.toNat_lt
+  have hP : 2 ^ s.toNat * 2 ^ (64 - s.toNat) = 2 ^ 64 := by rw [← Nat.pow_add]; congr 1; lia
+  have hand : (x &&& m).toNat = x.toNat % 2 ^ s.toNat := by
+    rw [UInt64.toNat_and, hm, Nat.and_two_pow_sub_one_eq_mod]
+  rw [hand]
+  refine ⟨?_, Nat.mod_lt _ (Nat.two_pow_pos _)⟩
+  rw [UInt64.toNat_add, UInt64.toNat_shiftRight, UInt64.toNat_shiftLeft, h64s,
+    Nat.mod_eq_of_lt (show s.toNat < 64 from hs), Nat.mod_eq_of_lt (show 64 - s.toNat < 64 by lia),
+    Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq]
+  have hdm := Nat.div_add_mod x.toNat (2 ^ s.toNat)
+  have hq : x.toNat / 2 ^ s.toNat < 2 ^ (64 - s.toNat) := by
+    rw [Nat.div_lt_iff_lt_mul (Nat.two_pow_pos _), Nat.mul_comm, hP]; exact hx
+  have hcP : c.toNat * 2 ^ (64 - s.toNat) + 2 ^ (64 - s.toNat) ≤ 2 ^ 64 := by
+    have := Nat.mul_le_mul_right (2 ^ (64 - s.toNat)) hc
+    rw [Nat.succ_mul, hP] at this; exact this
+  rw [Nat.mod_eq_of_lt (show c.toNat * 2 ^ (64 - s.toNat) < 2 ^ 64 by lia),
+    Nat.mod_eq_of_lt (show x.toNat / 2 ^ s.toNat + c.toNat * 2 ^ (64 - s.toNat) < 2 ^ 64 by lia)]
+  generalize x.toNat / 2 ^ s.toNat = q at *
+  generalize x.toNat % 2 ^ s.toNat = r at *
+  generalize 2 ^ (64 - s.toNat) = Q at *
+  generalize 2 ^ s.toNat = P at *
+  generalize x.toNat = X at *
+  subst hdm
+  rw [← hP]
+  grind
+
+/--
+Shifts limbs `rs` to `rs + j - 1` of `arr` right by `s` bits, from the top down, with `c` the low
+bits of the limb above them, and returns the bits shifted out of the bottom.
+-/
+public def rshiftLoop (arr : UInt64Array) (rs : USize) (s m : UInt64) (j : USize)
+    (h : LoopBound arr rs j) (c : UInt64) : UInt64Array × UInt64 :=
+  if hj : j = 0 then (arr, c)
+  else
+    have hj₀ : j.toNat ≠ 0 := fun e => hj (USize.toNat_inj.1 (by rw [e]; rfl))
+    have hj' : (j - 1).toNat = j.toNat - 1 :=
+      (USize.toNat_sub_of_le j 1 (USize.le_iff_toNat_le.2 (by rw [USize.toNat_one]; lia))).trans
+        (by rw [USize.toNat_one])
+    have hi : (rs + (j - 1)).toNat < arr.size := by
+      rw [USize.toNat_add_of_lt (by rw [hj']; lia), hj']; lia
+    let x := arr.uget (rs + (j - 1)) hi
+    rshiftLoop (arr.uset (rs + (j - 1)) ((x >>> s) + (c <<< (64 - s))) hi) rs s m (j - 1)
+      ⟨by rw [size_uset, hj']; lia, by rw [hj']; lia⟩ (x &&& m)
+termination_by j.toNat
+decreasing_by
+  have : j.toNat ≠ 0 := fun e => hj (USize.toNat_inj.1 (by rw [e]; rfl))
+  have : (j - 1).toNat = j.toNat - 1 :=
+    (USize.toNat_sub_of_le j 1 (USize.le_iff_toNat_le.2 (by rw [USize.toNat_one]; lia))).trans
+      (by rw [USize.toNat_one])
   lia
+
+private theorem rshiftLoop_spec (s m : UInt64) (hs₀ : 0 < s.toNat) (hs : s.toNat < 64)
+    (hm : m.toNat = 2 ^ s.toNat - 1) (arr : UInt64Array) (rs j : USize) (h : LoopBound arr rs j)
+    (c : UInt64) (hc : c.toNat < 2 ^ s.toNat) :
+    (rshiftLoop arr rs s m j h c).1.size = arr.size ∧
+      (∀ i, (i < rs.toNat ∨ rs.toNat + j.toNat ≤ i) → (rshiftLoop arr rs s m j h c).1[i]! = arr[i]!)
+          ∧
+      2 ^ s.toNat * (rshiftLoop arr rs s m j h c).1.valAt rs.toNat j.toNat +
+          (rshiftLoop arr rs s m j h c).2.toNat =
+        arr.valAt rs.toNat j.toNat + 2 ^ (64 * j.toNat) * c.toNat ∧
+      (rshiftLoop arr rs s m j h c).2.toNat < 2 ^ s.toNat := by
+  induction arr, j, h, c using rshiftLoop.induct rs s m with
+  | case1 arr h c =>
+    rw [rshiftLoop]
+    simp [hc]
+  | case2 arr j h c hj hj₀ hj' hi x ih =>
+    rw [rshiftLoop, dite_eq_right hj]
+    dsimp only
+    obtain ⟨st, hst⟩ := rshift_step x c s m hs₀ hs hm hc
+    obtain ⟨i₁, i₂, i₃, i₄⟩ := ih hst
+    have hidx : (rs + (j - 1)).toNat = rs.toNat + (j.toNat - 1) := by
+      rw [USize.toNat_add_of_lt (by rw [hj']; lia), hj']
+    rw [hj'] at i₂ i₃
+    simp only [size_uset] at i₁
+    have hx : x = arr[rs.toNat + (j.toNat - 1)]! := by
+      show arr.uget _ _ = _
+      rw [uget_eq_getElem!, hidx]
+    have hout := i₂ (rs.toNat + (j.toNat - 1)) (.inr (Nat.le_refl _))
+    rw [getElem!_uset, hidx] at hout
+    simp only [↓reduceIte] at hout
+    have hlo : (arr.uset (rs + (j - 1)) ((x >>> s) + (c <<< (64 - s))) hi).valAt rs.toNat
+        (j.toNat - 1) = arr.valAt rs.toNat (j.toNat - 1) :=
+      valAt_uset_of _ _ _ _ _ _ (by rw [hidx]; lia)
+    rw [hlo] at i₃
+    refine ⟨i₁, fun i hi' => ?_, ?_, i₄⟩
+    · rw [i₂ i (by lia), getElem!_uset]
+      simp only [hidx]
+      split <;> lia
+    · have e : j.toNat = (j.toNat - 1) + 1 := by lia
+      rw [e, UInt64Array.valAt_add, UInt64Array.valAt_add, UInt64Array.valAt_one,
+        UInt64Array.valAt_one, hout, ← hx, show 64 * (j.toNat - 1 + 1) = 64 * (j.toNat - 1) + 64 by
+          lia, Nat.pow_add]
+      generalize (rshiftLoop _ _ _ _ _ _ _).1.valAt _ _ = V at *
+      generalize (rshiftLoop _ _ _ _ _ _ _).2.toNat = co at *
+      generalize ((x >>> s) + (c <<< (64 - s))).toNat = out at *
+      generalize (x &&& m).toNat = c' at *
+      generalize arr.valAt rs.toNat (j.toNat - 1) = L at *
+      generalize 2 ^ (64 * (j.toNat - 1)) = P at *
+      generalize 2 ^ s.toNat = S at *
+      grind
+
+/-- Shifts the limbs of `r` right by `s` bits in place, `0 < s < 64`, like GMP's `mpn_rshift`. -/
+public def rshiftInto (r : USlice) (s : UInt64) : UInt64Array :=
+  (rshiftLoop r.array r.start s ((1 <<< s) - 1) r.size
+    (r.loopBound (USize.le_iff_toNat_le.2 (Nat.le_refl _))) 0).1
+
+private theorem rshiftInto_spec (r : USlice) (s : UInt64) (hs₀ : 0 < s.toNat) (hs : s.toNat < 64) :
+    (rshiftInto r s).size = r.array.size ∧
+      (∀ i, (i < r.start.toNat ∨ r.start.toNat + r.size.toNat ≤ i) →
+        (rshiftInto r s)[i]! = r.array[i]!) ∧
+      (rshiftInto r s).valAt r.start.toNat r.size.toNat =
+        r.array.valAt r.start.toNat r.size.toNat / 2 ^ s.toNat := by
+  have hm : ((1 : UInt64) <<< s - 1).toNat = 2 ^ s.toNat - 1 := by
+    have h₁ : ((1 : UInt64) <<< s).toNat = 2 ^ s.toNat := by
+      rw [UInt64.toNat_shiftLeft, Nat.mod_eq_of_lt hs, Nat.shiftLeft_eq, UInt64.toNat_one,
+        Nat.one_mul, Nat.mod_eq_of_lt (Nat.pow_lt_pow_right (by decide) hs)]
+    rw [UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.2 (by
+      rw [h₁, UInt64.toNat_one]; exact Nat.one_le_two_pow)), h₁, UInt64.toNat_one]
+  obtain ⟨i₁, i₂, i₃, i₄⟩ := rshiftLoop_spec s _ hs₀ hs hm r.array r.start r.size
+    (r.loopBound (USize.le_iff_toNat_le.2 (Nat.le_refl _))) 0
+    (by rw [UInt64.toNat_zero]; exact Nat.two_pow_pos _)
+  rw [UInt64.toNat_zero, Nat.mul_zero, Nat.add_zero] at i₃
+  refine ⟨i₁, i₂, ?_⟩
+  rw [rshiftInto, ← i₃]
+  generalize (rshiftLoop _ _ _ _ _ _ _).1.valAt _ _ = V at *
+  generalize (rshiftLoop _ _ _ _ _ _ _).2.toNat = co at *
+  rw [Nat.add_comm, Nat.mul_comm, Nat.add_mul_div_right _ _ (Nat.two_pow_pos _),
+    Nat.div_eq_of_lt i₄, Nat.zero_add]
+
+private theorem size_rshiftLoop (s m : UInt64) (arr : UInt64Array) (rs j : USize)
+    (h : LoopBound arr rs j) (c : UInt64) : (rshiftLoop arr rs s m j h c).1.size = arr.size := by
+  induction arr, j, h, c using rshiftLoop.induct rs s m with
+  | case1 arr h c => rw [rshiftLoop]; simp
+  | case2 arr j h c hj hj₀ hj' hi x ih =>
+    rw [rshiftLoop, dite_eq_right hj]
+    exact ih.trans (size_uset ..)
+
+@[simp] public theorem size_rshiftInto (r : USlice) (s : UInt64) :
+    (rshiftInto r s).size = r.array.size := size_rshiftLoop ..
+
+/-- `rshiftInto` leaves the limbs of `r` outside the slice unchanged. -/
+public theorem getElem!_rshiftInto (r : USlice) (s : UInt64) (hs₀ : 0 < s.toNat)
+    (hs : s.toNat < 64) (i : Nat) (hi : i < r.start.toNat ∨ r.start.toNat + r.size.toNat ≤ i) :
+    (rshiftInto r s)[i]! = r.array[i]! := (rshiftInto_spec r s hs₀ hs).2.1 i hi
+
+public theorem valAt_rshiftInto (r : USlice) (s : UInt64) (hs₀ : 0 < s.toNat)
+    (hs : s.toNat < 64) :
+    (rshiftInto r s).valAt r.start.toNat r.size.toNat =
+      r.array.valAt r.start.toNat r.size.toNat / 2 ^ s.toNat := (rshiftInto_spec r s hs₀ hs).2.2
 
 /-! ## Exact passes
 

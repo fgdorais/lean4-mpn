@@ -1310,8 +1310,12 @@ namespace MPN
 
 open FFT
 
-/-- The total size, in limbs, from which `mul` uses the FFT, measured on Zen 3 (2026-10-23). -/
-public def fftThreshold : Nat := 5120
+/--
+The size of the larger operand, in limbs, from which `mul` uses the FFT. With Toom-4, the FFT ties
+`mulToom` at 3072 limbs by 3072 and wins from 2816 by 1408 (Zen 3, 2026-10-23): a bound on the
+larger operand fits both shapes better than one on the total.
+-/
+public def fftThreshold : Nat := 3072
 
 /--
 The size of the smaller operand below which `mul` does not use the FFT: there `mulToom` is the
@@ -1323,12 +1327,12 @@ public def fftMinSmall : Nat := 320
 
 /--
 Writes the `a.size + b.size` limbs of `a b` into `r`: by `fftMul` from `fftThreshold` limbs in
-all when the smaller operand has `fftMinSmall` limbs, by `mulToom` otherwise, which uses Toom-3,
-Toom-3 by 2, Toom-4 by 2, Karatsuba and the schoolbook method by the sizes. It requires
+the larger operand when the smaller one has `fftMinSmall` limbs, by `mulToom` otherwise, which
+uses the Toom methods, Karatsuba and the schoolbook method by the sizes. It requires
 `0 < a.size`, `0 < b.size` and `a.size + b.size ≤ r.size`.
 -/
 public def mul (r a b : USlice) : UInt64Array :=
-  if fftThreshold ≤ a.size.toNat + b.size.toNat ∧ fftMinSmall ≤ min a.size.toNat b.size.toNat then
+  if fftThreshold ≤ max a.size.toNat b.size.toNat ∧ fftMinSmall ≤ min a.size.toNat b.size.toNat then
     fftMul r a b (fftK (a.size.toNat + b.size.toNat))
   else mulToom r a b
 

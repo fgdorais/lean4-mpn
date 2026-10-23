@@ -36,6 +36,9 @@ namespace MPN
 /-- The size of the smaller operand from which `mulToom` uses the Toom methods. -/
 public def toom3Threshold : USize := 384
 
+/-- The size of the smaller operand from which `mulToom` uses Toom-4 and Toom-4 by 3. -/
+public def toom4Threshold : Nat := 600
+
 /-! ## Building blocks -/
 
 /-- The step of `zeroInto`. -/
@@ -313,6 +316,81 @@ private theorem div3_whole (w : UInt64Array) (hw : w.size = L) (h3 : w.valAt 0 L
   rw [h₁, h₂, h₃] at this
   exact ⟨by rw [size_divExact3Into, h₃, hw], this⟩
 
+/-- Dividing all of `w` by `5`. -/
+private theorem div5_whole (w : UInt64Array) (hw : w.size = L) (h5 : w.valAt 0 L % 5 = 0) :
+    (divExact5Into w.toUSlice).1.size = L ∧
+      (divExact5Into w.toUSlice).1.valAt 0 L = w.valAt 0 L / 5 := by
+  obtain ⟨h₁, h₂, h₃⟩ := whole hL w hw
+  have := valAt_divExact5Into w.toUSlice (by rw [h₁, h₂, h₃]; exact h5)
+  rw [h₁, h₂, h₃] at this
+  exact ⟨by rw [size_divExact5Into, h₃, hw], this⟩
+
+/-- Shifting all of `w` right by `s` bits, `0 < s < 64`. -/
+private theorem shr_whole (w : UInt64Array) (hw : w.size = L) (s : UInt64) (hs₀ : 0 < s.toNat)
+    (hs : s.toNat < 64) :
+    (rshiftInto w.toUSlice s).size = L ∧
+      (rshiftInto w.toUSlice s).valAt 0 L = w.valAt 0 L / 2 ^ s.toNat := by
+  obtain ⟨h₁, h₂, h₃⟩ := whole hL w hw
+  have := valAt_rshiftInto w.toUSlice s hs₀ hs
+  rw [h₁, h₂, h₃] at this
+  exact ⟨by rw [size_rshiftInto, h₃, hw], this⟩
+
+/-! #### By values
+
+The interpolation steps of Toom-4 as equations on values: each takes the value `W` of `w` and gives
+the value `R` of the result from an equation `W = … + R`, so that a chain of them needs no
+subtraction or division on `Nat`.
+-/
+
+private theorem subSl (w : UInt64Array) (hw : w.size = L) (b : USlice) (hb : b.size.toNat ≤ L)
+    {W B R : Nat} (hW : w.valAt 0 L = W) (hB : b.toNat = B) (h : W = B + R) :
+    (subInto w.toUSlice b).1.size = L ∧ (subInto w.toUSlice b).1.valAt 0 L = R := by
+  obtain ⟨s₁, s₂⟩ := sub_whole hL w hw b hb (by lia)
+  exact ⟨s₁, by rw [s₂]; lia⟩
+
+private theorem subMulSl (w : UInt64Array) (hw : w.size = L) (b : USlice) (hb : b.size.toNat ≤ L)
+    (x : UInt64) {W B X R : Nat} (hW : w.valAt 0 L = W) (hB : b.toNat = B) (hx : x.toNat = X)
+    (h : W = B * X + R) :
+    (subMulInto w.toUSlice b x).1.size = L ∧ (subMulInto w.toUSlice b x).1.valAt 0 L = R := by
+  obtain ⟨s₁, s₂⟩ := subMul_whole hL w hw b x hb (by rw [hB, hx]; lia)
+  exact ⟨s₁, by rw [s₂, hB, hx]; lia⟩
+
+private theorem subW (w b : UInt64Array) (hw : w.size = L) (hb : b.size = L) {W B R : Nat}
+    (hW : w.valAt 0 L = W) (hB : b.valAt 0 L = B) (h : W = B + R) :
+    (subInto w.toUSlice b.toUSlice).1.size = L ∧
+      (subInto w.toUSlice b.toUSlice).1.valAt 0 L = R := by
+  obtain ⟨b₁, b₂, b₃⟩ := whole hL b hb
+  refine subSl hL w hw b.toUSlice (by rw [b₂]; exact Nat.le_refl _) hW ?_ h
+  rw [USlice.toNat_eq_valAt, b₁, b₂, b₃, hB]
+
+private theorem subMulW (w b : UInt64Array) (hw : w.size = L) (hb : b.size = L) (x : UInt64)
+    {W B X R : Nat} (hW : w.valAt 0 L = W) (hB : b.valAt 0 L = B) (hx : x.toNat = X)
+    (h : W = B * X + R) :
+    (subMulInto w.toUSlice b.toUSlice x).1.size = L ∧
+      (subMulInto w.toUSlice b.toUSlice x).1.valAt 0 L = R := by
+  obtain ⟨b₁, b₂, b₃⟩ := whole hL b hb
+  refine subMulSl hL w hw b.toUSlice (by rw [b₂]; exact Nat.le_refl _) x hW ?_ hx h
+  rw [USlice.toNat_eq_valAt, b₁, b₂, b₃, hB]
+
+private theorem shrW (w : UInt64Array) (hw : w.size = L) (s : UInt64) (hs₀ : 0 < s.toNat)
+    (hs : s.toNat < 64) {S W R : Nat} (hS : s.toNat = S) (hW : w.valAt 0 L = W)
+    (h : W = 2 ^ S * R) :
+    (rshiftInto w.toUSlice s).size = L ∧ (rshiftInto w.toUSlice s).valAt 0 L = R := by
+  obtain ⟨s₁, s₂⟩ := shr_whole hL w hw s hs₀ hs
+  exact ⟨s₁, by rw [s₂, hW, h, hS, Nat.mul_div_cancel_left _ (Nat.two_pow_pos _)]⟩
+
+private theorem div3W (w : UInt64Array) (hw : w.size = L) {W R : Nat} (hW : w.valAt 0 L = W)
+    (h : W = 3 * R) :
+    (divExact3Into w.toUSlice).1.size = L ∧ (divExact3Into w.toUSlice).1.valAt 0 L = R := by
+  obtain ⟨s₁, s₂⟩ := div3_whole hL w hw (by rw [hW, h]; simp)
+  exact ⟨s₁, by rw [s₂, hW, h]; lia⟩
+
+private theorem div5W (w : UInt64Array) (hw : w.size = L) {W R : Nat} (hW : w.valAt 0 L = W)
+    (h : W = 5 * R) :
+    (divExact5Into w.toUSlice).1.size = L ∧ (divExact5Into w.toUSlice).1.valAt 0 L = R := by
+  obtain ⟨s₁, s₂⟩ := div5_whole hL w hw (by rw [hW, h]; simp)
+  exact ⟨s₁, by rw [s₂, hW, h]; lia⟩
+
 end Steps
 
 /-! ### The recombination -/
@@ -491,6 +569,41 @@ private theorem coeff_slice {L : Nat} (hL : L < USize.size) (w : UInt64Array) (h
   refine ⟨h₃, ?_⟩
   rw [h₄, UInt64Array.valAt_mod _ _ (show min j.toNat L - lo.toNat ≤ L - lo.toNat by lia), hc]
   exact Nat.mod_eq_of_lt hlt
+
+/--
+Adding a coefficient `c`, all of `w`, to limbs `off` to `n - 1` of `r` in `arr`: only the limbs of
+`w` that fit, which hold all of `c` when the sum fits.
+-/
+private theorem rec_step (A : UInt64Array) (r : USlice) (hA : A.size = r.array.size) (n off : USize)
+    (hn : n.toNat ≤ r.size.toNat) (hoff : off.toNat ≤ n.toNat) {L : Nat} (hL : L < USize.size)
+    (w : UInt64Array) (hw : w.size = L) (c : Nat) (hc : w.valAt 0 L = c)
+    (hlt : A.valAt r.start.toNat n.toNat + 2 ^ (64 * off.toNat) * c < 2 ^ (64 * n.toNat)) :
+    (addInto ((A.uslice r.start r.stop).slice off n)
+        (w.toUSlice.slice 0 (min (n - off) w.usize))).1.size = r.array.size ∧
+      (∀ i, (i < r.start.toNat + off.toNat ∨ r.start.toNat + n.toNat ≤ i) →
+        (addInto ((A.uslice r.start r.stop).slice off n)
+          (w.toUSlice.slice 0 (min (n - off) w.usize))).1[i]! = A[i]!) ∧
+      (addInto ((A.uslice r.start r.stop).slice off n)
+          (w.toUSlice.slice 0 (min (n - off) w.usize))).1.valAt r.start.toNat n.toNat =
+        A.valAt r.start.toNat n.toNat + 2 ^ (64 * off.toNat) * c := by
+  have hno : (n - off).toNat = n.toNat - off.toNat :=
+    USize.toNat_sub_of_le _ _ (USize.le_iff_toNat_le.2 hoff)
+  have hP : 2 ^ (64 * n.toNat) = 2 ^ (64 * off.toNat) * 2 ^ (64 * (n.toNat - off.toNat)) := by
+    rw [← Nat.pow_add]; congr 1; lia
+  have hcl : c < 2 ^ (64 * (n.toNat - off.toNat)) :=
+    coeff_lt (x := A.valAt r.start.toNat n.toNat + 2 ^ (64 * off.toNat) * c) (Nat.two_pow_pos _)
+      (Nat.le_add_left _ _) (by rw [← hP]; exact hlt)
+  obtain ⟨C₁, C₂⟩ := coeff_slice hL w hw 0 (by simp) (j := n - off) c (by simp)
+    (by rw [USize.toNat_zero, Nat.sub_zero]; exact hc) (by
+      rw [hno, USize.toNat_zero, Nat.sub_zero]
+      rcases Nat.le_total (n.toNat - off.toNat) L with hle | hle
+      · rw [Nat.min_eq_left hle]; exact hcl
+      · rw [Nat.min_eq_right hle, ← hc]; exact valAt_lt ..)
+  rw [hno, USize.toNat_zero, Nat.sub_zero] at C₁
+  obtain ⟨a₁, a₂, a₃⟩ := add_at A r hA n off hn hoff (w.toUSlice.slice 0 (min (n - off) w.usize))
+    (by rw [C₁]; lia) (by rw [C₂]; exact hlt)
+  rw [C₂] at a₃
+  exact ⟨a₁, a₂, a₃⟩
 
 private theorem interp4_spec (arr : UInt64Array) (r : USlice) (n k : USize)
     (w₁ w₂ w₃ : UInt64Array) (L c₀ c₁ c₂ c₃ c₄ : Nat)
@@ -860,6 +973,497 @@ private theorem interp3_spec (arr : UInt64Array) (r : USlice) (n k : USize)
   · rw [b₃]
     lia
 
+/-! ### The interpolations of Toom-4 and Toom-4 by 3 -/
+
+/--
+The interpolation of degree 6 at `0, 1, …, 5, ∞`: from `c₀` in limbs `[r.start, r.start + 2 k)`
+and `c_6` from limb `r.start + 6 k` to `r.start + n`, with `w₁, …, w_5` the values at `1, …, 5`,
+writes `c₀ + c₁ x + ⋯ + c_6 x^6` into the `n` limbs from `r.start`, `x = 2^(64 k)`. The values
+`(w_j - c₀ - j^6 c_6) / j`, their divided differences and Horner's rule are all in place on the `w`.
+-/
+public def interp6 (arr : UInt64Array) (r : USlice) (n k : USize) (w₁ w₂ w₃ w₄ w₅ : UInt64Array) :
+    UInt64Array :=
+  let R := arr.uslice r.start r.stop
+  let X₀ := R.slice 0 (k + k)
+  let Xd := R.slice (6 * k) n
+  let w₁ := (subInto w₁.toUSlice X₀).1
+  let w₁ := (subInto w₁.toUSlice Xd).1
+  let w₂ := (subInto w₂.toUSlice X₀).1
+  let w₂ := (subMulInto w₂.toUSlice Xd 64).1
+  let w₂ := rshiftInto w₂.toUSlice 1
+  let w₃ := (subInto w₃.toUSlice X₀).1
+  let w₃ := (subMulInto w₃.toUSlice Xd 729).1
+  let w₃ := (divExact3Into w₃.toUSlice).1
+  let w₄ := (subInto w₄.toUSlice X₀).1
+  let w₄ := (subMulInto w₄.toUSlice Xd 4096).1
+  let w₄ := rshiftInto w₄.toUSlice 2
+  let w₅ := (subInto w₅.toUSlice X₀).1
+  let w₅ := (subMulInto w₅.toUSlice Xd 15625).1
+  let w₅ := (divExact5Into w₅.toUSlice).1
+  let w₅ := (subInto w₅.toUSlice w₄.toUSlice).1
+  let w₄ := (subInto w₄.toUSlice w₃.toUSlice).1
+  let w₃ := (subInto w₃.toUSlice w₂.toUSlice).1
+  let w₂ := (subInto w₂.toUSlice w₁.toUSlice).1
+  let w₅ := (subInto w₅.toUSlice w₄.toUSlice).1
+  let w₅ := rshiftInto w₅.toUSlice 1
+  let w₄ := (subInto w₄.toUSlice w₃.toUSlice).1
+  let w₄ := rshiftInto w₄.toUSlice 1
+  let w₃ := (subInto w₃.toUSlice w₂.toUSlice).1
+  let w₃ := rshiftInto w₃.toUSlice 1
+  let w₅ := (subInto w₅.toUSlice w₄.toUSlice).1
+  let w₅ := (divExact3Into w₅.toUSlice).1
+  let w₄ := (subInto w₄.toUSlice w₃.toUSlice).1
+  let w₄ := (divExact3Into w₄.toUSlice).1
+  let w₅ := (subInto w₅.toUSlice w₄.toUSlice).1
+  let w₅ := rshiftInto w₅.toUSlice 2
+  let w₄ := (subMulInto w₄.toUSlice w₅.toUSlice 4).1
+  let w₃ := (subMulInto w₃.toUSlice w₄.toUSlice 3).1
+  let w₄ := (subMulInto w₄.toUSlice w₅.toUSlice 3).1
+  let w₂ := (subMulInto w₂.toUSlice w₃.toUSlice 2).1
+  let w₃ := (subMulInto w₃.toUSlice w₄.toUSlice 2).1
+  let w₄ := (subMulInto w₄.toUSlice w₅.toUSlice 2).1
+  let w₁ := (subInto w₁.toUSlice w₂.toUSlice).1
+  let w₂ := (subInto w₂.toUSlice w₃.toUSlice).1
+  let w₃ := (subInto w₃.toUSlice w₄.toUSlice).1
+  let w₄ := (subInto w₄.toUSlice w₅.toUSlice).1
+  -- The recombination.
+  let arr := zeroInto ((arr.uslice r.start r.stop).slice (k + k) (6 * k))
+  let arr := (addInto ((arr.uslice r.start r.stop).slice k n)
+    (w₁.toUSlice.slice 0 (min (n - k) w₁.usize))).1
+  let arr := (addInto ((arr.uslice r.start r.stop).slice (k + k) n)
+    (w₂.toUSlice.slice 0 (min (n - (k + k)) w₂.usize))).1
+  let arr := (addInto ((arr.uslice r.start r.stop).slice (3 * k) n)
+    (w₃.toUSlice.slice 0 (min (n - (3 * k)) w₃.usize))).1
+  let arr := (addInto ((arr.uslice r.start r.stop).slice (4 * k) n)
+    (w₄.toUSlice.slice 0 (min (n - (4 * k)) w₄.usize))).1
+  (addInto ((arr.uslice r.start r.stop).slice (5 * k) n)
+    (w₅.toUSlice.slice 0 (min (n - (5 * k)) w₅.usize))).1
+
+set_option maxHeartbeats 1000000 in
+private theorem interp6_spec (arr : UInt64Array) (r : USlice) (n k : USize)
+    (w₁ w₂ w₃ w₄ w₅ : UInt64Array) (L c₀ c₁ c₂ c₃ c₄ c₅ c₆ : Nat)
+    (h : arr.size = r.array.size) (hn : n.toNat ≤ r.size.toNat) (hk : 6 * k.toNat ≤ n.toNat)
+    (hk₁ : 1 ≤ k.toNat) (hL : L < USize.size) (hw₁ : w₁.size = L) (hw₂ : w₂.size = L)
+        (hw₃ : w₃.size = L) (hw₄ : w₄.size = L) (hw₅ : w₅.size = L)
+    (hX₀ : 2 * k.toNat ≤ L) (hXd : n.toNat - 6 * k.toNat ≤ L)
+    (hc₀ : arr.valAt r.start.toNat (2 * k.toNat) = c₀)
+    (hc₆ : arr.valAt (r.start.toNat + 6 * k.toNat) (n.toNat - 6 * k.toNat) = c₆)
+    (hv₁ : w₁.valAt 0 L = c₀ + c₁ + c₂ + c₃ + c₄ + c₅ + c₆)
+    (hv₂ : w₂.valAt 0 L = c₀ + 2 * c₁ + 4 * c₂ + 8 * c₃ + 16 * c₄ + 32 * c₅ + 64 * c₆)
+    (hv₃ : w₃.valAt 0 L = c₀ + 3 * c₁ + 9 * c₂ + 27 * c₃ + 81 * c₄ + 243 * c₅ + 729 * c₆)
+    (hv₄ : w₄.valAt 0 L = c₀ + 4 * c₁ + 16 * c₂ + 64 * c₃ + 256 * c₄ + 1024 * c₅ + 4096 * c₆)
+    (hv₅ : w₅.valAt 0 L = c₀ + 5 * c₁ + 25 * c₂ + 125 * c₃ + 625 * c₄ + 3125 * c₅ + 15625 * c₆)
+    (htot : c₀ + 2 ^ (64 * k.toNat) * c₁ + 2 ^ (64 * (2 * k.toNat)) * c₂ + 2 ^
+        (64 * (3 * k.toNat)) * c₃ + 2 ^ (64 * (4 * k.toNat)) * c₄ + 2 ^ (64 * (5 * k.toNat)) * c₅ +
+        2 ^ (64 * (6 * k.toNat)) * c₆ < 2 ^ (64 * n.toNat)) :
+    (interp6 arr r n k w₁ w₂ w₃ w₄ w₅).size = r.array.size ∧
+      (∀ i, (i < r.start.toNat ∨ r.start.toNat + n.toNat ≤ i) →
+        (interp6 arr r n k w₁ w₂ w₃ w₄ w₅)[i]! = arr[i]!) ∧
+      (interp6 arr r n k w₁ w₂ w₃ w₄ w₅).valAt r.start.toNat n.toNat =
+        c₀ + 2 ^ (64 * k.toNat) * c₁ + 2 ^ (64 * (2 * k.toNat)) * c₂ + 2 ^ (64 * (3 * k.toNat)) *
+            c₃ + 2 ^ (64 * (4 * k.toNat)) * c₄ + 2 ^ (64 * (5 * k.toNat)) * c₅ + 2 ^
+            (64 * (6 * k.toNat)) * c₆ := by
+  dsimp only [interp6]
+  have hnS := n.toNat_lt_size
+  have hkk : (k + k).toNat = 2 * k.toNat := by rw [USize.toNat_add_of_lt (by lia)]; lia
+  have h3k : (3 * k).toNat = 3 * k.toNat := toNat_mul_k k 3 (by decide) n (by lia)
+  have h4k : (4 * k).toNat = 4 * k.toNat := toNat_mul_k k 4 (by decide) n (by lia)
+  have h5k : (5 * k).toNat = 5 * k.toNat := toNat_mul_k k 5 (by decide) n (by lia)
+  have h6k : (6 * k).toNat = 6 * k.toNat := toNat_mul_k k 6 (by decide) n (by lia)
+  -- `c₀` and `c_6` in `arr`.
+  obtain ⟨x₀₁, x₀₂, x₀₃, x₀₄⟩ := window arr r h (i := 0) (j := k + k) (by simp) (by rw [hkk]; lia)
+  obtain ⟨xd₁, xd₂, xd₃, xd₄⟩ := window arr r h (i := 6 * k) (j := n) (by rw [h6k]; lia) hn
+  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, hkk, hc₀] at x₀₃ x₀₄
+  rw [h6k, hc₆] at xd₄
+  rw [h6k] at xd₃
+  generalize (arr.uslice r.start r.stop).slice 0 (k + k) = X₀ at *
+  generalize (arr.uslice r.start r.stop).slice (6 * k) n = Xd at *
+  obtain ⟨s₁, e₁⟩ := subSl hL w₁ hw₁ X₀ (by rw [x₀₃]; exact hX₀) (R := c₁ + c₂ + c₃ + c₄ + c₅ + c₆)
+      hv₁ x₀₄ (by lia)
+  generalize (subInto w₁.toUSlice X₀ 0).1 = q₁ at *
+  obtain ⟨s₂, e₂⟩ := subSl hL q₁ s₁ Xd (by rw [xd₃]; exact hXd) (R := c₁ + c₂ + c₃ + c₄ + c₅) e₁ xd₄
+      (by lia)
+  generalize (subInto q₁.toUSlice Xd 0).1 = q₂ at *
+  obtain ⟨s₃, e₃⟩ := subSl hL w₂ hw₂ X₀ (by rw [x₀₃]; exact hX₀)
+      (R := 2 * c₁ + 4 * c₂ + 8 * c₃ + 16 * c₄ + 32 * c₅ + 64 * c₆) hv₂ x₀₄ (by lia)
+  generalize (subInto w₂.toUSlice X₀ 0).1 = q₃ at *
+  obtain ⟨s₄, e₄⟩ := subMulSl hL q₃ s₃ Xd (by rw [xd₃]; exact hXd) 64
+      (R := 2 * c₁ + 4 * c₂ + 8 * c₃ + 16 * c₄ + 32 * c₅) e₃ xd₄ rfl (by lia)
+  generalize (subMulInto q₃.toUSlice Xd 64).1 = q₄ at *
+  obtain ⟨s₅, e₅⟩ := shrW hL q₄ s₄ 1 (by decide) (by decide)
+      (R := c₁ + 2 * c₂ + 4 * c₃ + 8 * c₄ + 16 * c₅) rfl e₄ (by lia)
+  generalize rshiftInto q₄.toUSlice 1 = q₅ at *
+  obtain ⟨s₆, e₆⟩ := subSl hL w₃ hw₃ X₀ (by rw [x₀₃]; exact hX₀)
+      (R := 3 * c₁ + 9 * c₂ + 27 * c₃ + 81 * c₄ + 243 * c₅ + 729 * c₆) hv₃ x₀₄ (by lia)
+  generalize (subInto w₃.toUSlice X₀ 0).1 = q₆ at *
+  obtain ⟨s₇, e₇⟩ := subMulSl hL q₆ s₆ Xd (by rw [xd₃]; exact hXd) 729
+      (R := 3 * c₁ + 9 * c₂ + 27 * c₃ + 81 * c₄ + 243 * c₅) e₆ xd₄ rfl (by lia)
+  generalize (subMulInto q₆.toUSlice Xd 729).1 = q₇ at *
+  obtain ⟨s₈, e₈⟩ := div3W hL q₇ s₇ (R := c₁ + 3 * c₂ + 9 * c₃ + 27 * c₄ + 81 * c₅) e₇ (by lia)
+  generalize (divExact3Into q₇.toUSlice).1 = q₈ at *
+  obtain ⟨s₉, e₉⟩ := subSl hL w₄ hw₄ X₀ (by rw [x₀₃]; exact hX₀)
+      (R := 4 * c₁ + 16 * c₂ + 64 * c₃ + 256 * c₄ + 1024 * c₅ + 4096 * c₆) hv₄ x₀₄ (by lia)
+  generalize (subInto w₄.toUSlice X₀ 0).1 = q₉ at *
+  obtain ⟨s₁₀, e₁₀⟩ := subMulSl hL q₉ s₉ Xd (by rw [xd₃]; exact hXd) 4096
+      (R := 4 * c₁ + 16 * c₂ + 64 * c₃ + 256 * c₄ + 1024 * c₅) e₉ xd₄ rfl (by lia)
+  generalize (subMulInto q₉.toUSlice Xd 4096).1 = q₁₀ at *
+  obtain ⟨s₁₁, e₁₁⟩ := shrW hL q₁₀ s₁₀ 2 (by decide) (by decide)
+      (R := c₁ + 4 * c₂ + 16 * c₃ + 64 * c₄ + 256 * c₅) rfl e₁₀ (by lia)
+  generalize rshiftInto q₁₀.toUSlice 2 = q₁₁ at *
+  obtain ⟨s₁₂, e₁₂⟩ := subSl hL w₅ hw₅ X₀ (by rw [x₀₃]; exact hX₀)
+      (R := 5 * c₁ + 25 * c₂ + 125 * c₃ + 625 * c₄ + 3125 * c₅ + 15625 * c₆) hv₅ x₀₄ (by lia)
+  generalize (subInto w₅.toUSlice X₀ 0).1 = q₁₂ at *
+  obtain ⟨s₁₃, e₁₃⟩ := subMulSl hL q₁₂ s₁₂ Xd (by rw [xd₃]; exact hXd) 15625
+      (R := 5 * c₁ + 25 * c₂ + 125 * c₃ + 625 * c₄ + 3125 * c₅) e₁₂ xd₄ rfl (by lia)
+  generalize (subMulInto q₁₂.toUSlice Xd 15625).1 = q₁₃ at *
+  obtain ⟨s₁₄, e₁₄⟩ := div5W hL q₁₃ s₁₃ (R := c₁ + 5 * c₂ + 25 * c₃ + 125 * c₄ + 625 * c₅) e₁₃
+      (by lia)
+  generalize (divExact5Into q₁₃.toUSlice).1 = q₁₄ at *
+  obtain ⟨s₁₅, e₁₅⟩ := subW hL q₁₄ q₁₁ s₁₄ s₁₁ (R := c₂ + 9 * c₃ + 61 * c₄ + 369 * c₅) e₁₄ e₁₁
+      (by lia)
+  generalize (subInto q₁₄.toUSlice q₁₁.toUSlice 0).1 = q₁₅ at *
+  obtain ⟨s₁₆, e₁₆⟩ := subW hL q₁₁ q₈ s₁₁ s₈ (R := c₂ + 7 * c₃ + 37 * c₄ + 175 * c₅) e₁₁ e₈ (by lia)
+  generalize (subInto q₁₁.toUSlice q₈.toUSlice 0).1 = q₁₆ at *
+  obtain ⟨s₁₇, e₁₇⟩ := subW hL q₈ q₅ s₈ s₅ (R := c₂ + 5 * c₃ + 19 * c₄ + 65 * c₅) e₈ e₅ (by lia)
+  generalize (subInto q₈.toUSlice q₅.toUSlice 0).1 = q₁₇ at *
+  obtain ⟨s₁₈, e₁₈⟩ := subW hL q₅ q₂ s₅ s₂ (R := c₂ + 3 * c₃ + 7 * c₄ + 15 * c₅) e₅ e₂ (by lia)
+  generalize (subInto q₅.toUSlice q₂.toUSlice 0).1 = q₁₈ at *
+  obtain ⟨s₁₉, e₁₉⟩ := subW hL q₁₅ q₁₆ s₁₅ s₁₆ (R := 2 * c₃ + 24 * c₄ + 194 * c₅) e₁₅ e₁₆ (by lia)
+  generalize (subInto q₁₅.toUSlice q₁₆.toUSlice 0).1 = q₁₉ at *
+  obtain ⟨s₂₀, e₂₀⟩ := shrW hL q₁₉ s₁₉ 1 (by decide) (by decide) (R := c₃ + 12 * c₄ + 97 * c₅) rfl
+      e₁₉ (by lia)
+  generalize rshiftInto q₁₉.toUSlice 1 = q₂₀ at *
+  obtain ⟨s₂₁, e₂₁⟩ := subW hL q₁₆ q₁₇ s₁₆ s₁₇ (R := 2 * c₃ + 18 * c₄ + 110 * c₅) e₁₆ e₁₇ (by lia)
+  generalize (subInto q₁₆.toUSlice q₁₇.toUSlice 0).1 = q₂₁ at *
+  obtain ⟨s₂₂, e₂₂⟩ := shrW hL q₂₁ s₂₁ 1 (by decide) (by decide) (R := c₃ + 9 * c₄ + 55 * c₅) rfl
+      e₂₁ (by lia)
+  generalize rshiftInto q₂₁.toUSlice 1 = q₂₂ at *
+  obtain ⟨s₂₃, e₂₃⟩ := subW hL q₁₇ q₁₈ s₁₇ s₁₈ (R := 2 * c₃ + 12 * c₄ + 50 * c₅) e₁₇ e₁₈ (by lia)
+  generalize (subInto q₁₇.toUSlice q₁₈.toUSlice 0).1 = q₂₃ at *
+  obtain ⟨s₂₄, e₂₄⟩ := shrW hL q₂₃ s₂₃ 1 (by decide) (by decide) (R := c₃ + 6 * c₄ + 25 * c₅) rfl
+      e₂₃ (by lia)
+  generalize rshiftInto q₂₃.toUSlice 1 = q₂₄ at *
+  obtain ⟨s₂₅, e₂₅⟩ := subW hL q₂₀ q₂₂ s₂₀ s₂₂ (R := 3 * c₄ + 42 * c₅) e₂₀ e₂₂ (by lia)
+  generalize (subInto q₂₀.toUSlice q₂₂.toUSlice 0).1 = q₂₅ at *
+  obtain ⟨s₂₆, e₂₆⟩ := div3W hL q₂₅ s₂₅ (R := c₄ + 14 * c₅) e₂₅ (by lia)
+  generalize (divExact3Into q₂₅.toUSlice).1 = q₂₆ at *
+  obtain ⟨s₂₇, e₂₇⟩ := subW hL q₂₂ q₂₄ s₂₂ s₂₄ (R := 3 * c₄ + 30 * c₅) e₂₂ e₂₄ (by lia)
+  generalize (subInto q₂₂.toUSlice q₂₄.toUSlice 0).1 = q₂₇ at *
+  obtain ⟨s₂₈, e₂₈⟩ := div3W hL q₂₇ s₂₇ (R := c₄ + 10 * c₅) e₂₇ (by lia)
+  generalize (divExact3Into q₂₇.toUSlice).1 = q₂₈ at *
+  obtain ⟨s₂₉, e₂₉⟩ := subW hL q₂₆ q₂₈ s₂₆ s₂₈ (R := 4 * c₅) e₂₆ e₂₈ (by lia)
+  generalize (subInto q₂₆.toUSlice q₂₈.toUSlice 0).1 = q₂₉ at *
+  obtain ⟨s₃₀, e₃₀⟩ := shrW hL q₂₉ s₂₉ 2 (by decide) (by decide) (R := c₅) rfl e₂₉ (by lia)
+  generalize rshiftInto q₂₉.toUSlice 2 = q₃₀ at *
+  obtain ⟨s₃₁, e₃₁⟩ := subMulW hL q₂₈ q₃₀ s₂₈ s₃₀ 4 (R := c₄ + 6 * c₅) e₂₈ e₃₀ rfl (by lia)
+  generalize (subMulInto q₂₈.toUSlice q₃₀.toUSlice 4).1 = q₃₁ at *
+  obtain ⟨s₃₂, e₃₂⟩ := subMulW hL q₂₄ q₃₁ s₂₄ s₃₁ 3 (R := c₃ + 3 * c₄ + 7 * c₅) e₂₄ e₃₁ rfl (by lia)
+  generalize (subMulInto q₂₄.toUSlice q₃₁.toUSlice 3).1 = q₃₂ at *
+  obtain ⟨s₃₃, e₃₃⟩ := subMulW hL q₃₁ q₃₀ s₃₁ s₃₀ 3 (R := c₄ + 3 * c₅) e₃₁ e₃₀ rfl (by lia)
+  generalize (subMulInto q₃₁.toUSlice q₃₀.toUSlice 3).1 = q₃₃ at *
+  obtain ⟨s₃₄, e₃₄⟩ := subMulW hL q₁₈ q₃₂ s₁₈ s₃₂ 2 (R := c₂ + c₃ + c₄ + c₅) e₁₈ e₃₂ rfl (by lia)
+  generalize (subMulInto q₁₈.toUSlice q₃₂.toUSlice 2).1 = q₃₄ at *
+  obtain ⟨s₃₅, e₃₅⟩ := subMulW hL q₃₂ q₃₃ s₃₂ s₃₃ 2 (R := c₃ + c₄ + c₅) e₃₂ e₃₃ rfl (by lia)
+  generalize (subMulInto q₃₂.toUSlice q₃₃.toUSlice 2).1 = q₃₅ at *
+  obtain ⟨s₃₆, e₃₆⟩ := subMulW hL q₃₃ q₃₀ s₃₃ s₃₀ 2 (R := c₄ + c₅) e₃₃ e₃₀ rfl (by lia)
+  generalize (subMulInto q₃₃.toUSlice q₃₀.toUSlice 2).1 = q₃₆ at *
+  obtain ⟨s₃₇, e₃₇⟩ := subW hL q₂ q₃₄ s₂ s₃₄ (R := c₁) e₂ e₃₄ (by lia)
+  generalize (subInto q₂.toUSlice q₃₄.toUSlice 0).1 = q₃₇ at *
+  obtain ⟨s₃₈, e₃₈⟩ := subW hL q₃₄ q₃₅ s₃₄ s₃₅ (R := c₂) e₃₄ e₃₅ (by lia)
+  generalize (subInto q₃₄.toUSlice q₃₅.toUSlice 0).1 = q₃₈ at *
+  obtain ⟨s₃₉, e₃₉⟩ := subW hL q₃₅ q₃₆ s₃₅ s₃₆ (R := c₃) e₃₅ e₃₆ (by lia)
+  generalize (subInto q₃₅.toUSlice q₃₆.toUSlice 0).1 = q₃₉ at *
+  obtain ⟨s₄₀, e₄₀⟩ := subW hL q₃₆ q₃₀ s₃₆ s₃₀ (R := c₄) e₃₆ e₃₀ (by lia)
+  generalize (subInto q₃₆.toUSlice q₃₀.toUSlice 0).1 = q₄₀ at *
+  -- The recombination: clear the middle, then add `c₁`, …, `c_5`.
+  obtain ⟨z₁, z₂, z₃⟩ := zero_at arr r h n (k + k) (6 * k) hn (by rw [hkk, h6k]; lia)
+    (by rw [h6k]; lia)
+  rw [hkk, h6k, hc₀, hc₆] at z₃
+  rw [hkk, h6k] at z₂
+  generalize zeroInto ((arr.uslice r.start r.stop).slice (k + k) (6 * k)) = A₀ at *
+  obtain ⟨a₁₁, a₁₂, a₁₃⟩ := rec_step A₀ r z₁ n k hn (by lia) hL q₃₇ s₃₇ c₁ e₃₇
+    (by
+      rw [z₃]
+      generalize 2 ^ (64 * k.toNat) * c₁ = T₁ at *
+      generalize 2 ^ (64 * (2 * k.toNat)) * c₂ = T₂ at *
+      generalize 2 ^ (64 * (3 * k.toNat)) * c₃ = T₃ at *
+      generalize 2 ^ (64 * (4 * k.toNat)) * c₄ = T₄ at *
+      generalize 2 ^ (64 * (5 * k.toNat)) * c₅ = T₅ at *
+      generalize 2 ^ (64 * (6 * k.toNat)) * c₆ = T₆ at *
+      lia)
+  rw [z₃] at a₁₃
+  generalize (addInto ((A₀.uslice r.start r.stop).slice k n)
+    (q₃₇.toUSlice.slice 0 (min (n - k) q₃₇.usize)) 0).1 = A₁ at *
+  obtain ⟨a₂₁, a₂₂, a₂₃⟩ := rec_step A₁ r a₁₁ n (k + k) hn (by rw [hkk]; lia) hL q₃₈ s₃₈ c₂ e₃₈
+    (by
+      rw [hkk, a₁₃]
+      generalize 2 ^ (64 * k.toNat) * c₁ = T₁ at *
+      generalize 2 ^ (64 * (2 * k.toNat)) * c₂ = T₂ at *
+      generalize 2 ^ (64 * (3 * k.toNat)) * c₃ = T₃ at *
+      generalize 2 ^ (64 * (4 * k.toNat)) * c₄ = T₄ at *
+      generalize 2 ^ (64 * (5 * k.toNat)) * c₅ = T₅ at *
+      generalize 2 ^ (64 * (6 * k.toNat)) * c₆ = T₆ at *
+      lia)
+  rw [hkk, a₁₃] at a₂₃
+  rw [hkk] at a₂₂
+  generalize (addInto ((A₁.uslice r.start r.stop).slice (k + k) n)
+    (q₃₈.toUSlice.slice 0 (min (n - (k + k)) q₃₈.usize)) 0).1 = A₂ at *
+  obtain ⟨a₃₁, a₃₂, a₃₃⟩ := rec_step A₂ r a₂₁ n (3 * k) hn (by rw [h3k]; lia) hL q₃₉ s₃₉ c₃ e₃₉
+    (by
+      rw [h3k, a₂₃]
+      generalize 2 ^ (64 * k.toNat) * c₁ = T₁ at *
+      generalize 2 ^ (64 * (2 * k.toNat)) * c₂ = T₂ at *
+      generalize 2 ^ (64 * (3 * k.toNat)) * c₃ = T₃ at *
+      generalize 2 ^ (64 * (4 * k.toNat)) * c₄ = T₄ at *
+      generalize 2 ^ (64 * (5 * k.toNat)) * c₅ = T₅ at *
+      generalize 2 ^ (64 * (6 * k.toNat)) * c₆ = T₆ at *
+      lia)
+  rw [h3k, a₂₃] at a₃₃
+  rw [h3k] at a₃₂
+  generalize (addInto ((A₂.uslice r.start r.stop).slice (3 * k) n)
+    (q₃₉.toUSlice.slice 0 (min (n - (3 * k)) q₃₉.usize)) 0).1 = A₃ at *
+  obtain ⟨a₄₁, a₄₂, a₄₃⟩ := rec_step A₃ r a₃₁ n (4 * k) hn (by rw [h4k]; lia) hL q₄₀ s₄₀ c₄ e₄₀
+    (by
+      rw [h4k, a₃₃]
+      generalize 2 ^ (64 * k.toNat) * c₁ = T₁ at *
+      generalize 2 ^ (64 * (2 * k.toNat)) * c₂ = T₂ at *
+      generalize 2 ^ (64 * (3 * k.toNat)) * c₃ = T₃ at *
+      generalize 2 ^ (64 * (4 * k.toNat)) * c₄ = T₄ at *
+      generalize 2 ^ (64 * (5 * k.toNat)) * c₅ = T₅ at *
+      generalize 2 ^ (64 * (6 * k.toNat)) * c₆ = T₆ at *
+      lia)
+  rw [h4k, a₃₃] at a₄₃
+  rw [h4k] at a₄₂
+  generalize (addInto ((A₃.uslice r.start r.stop).slice (4 * k) n)
+    (q₄₀.toUSlice.slice 0 (min (n - (4 * k)) q₄₀.usize)) 0).1 = A₄ at *
+  obtain ⟨a₅₁, a₅₂, a₅₃⟩ := rec_step A₄ r a₄₁ n (5 * k) hn (by rw [h5k]; lia) hL q₃₀ s₃₀ c₅ e₃₀
+    (by
+      rw [h5k, a₄₃]
+      generalize 2 ^ (64 * k.toNat) * c₁ = T₁ at *
+      generalize 2 ^ (64 * (2 * k.toNat)) * c₂ = T₂ at *
+      generalize 2 ^ (64 * (3 * k.toNat)) * c₃ = T₃ at *
+      generalize 2 ^ (64 * (4 * k.toNat)) * c₄ = T₄ at *
+      generalize 2 ^ (64 * (5 * k.toNat)) * c₅ = T₅ at *
+      generalize 2 ^ (64 * (6 * k.toNat)) * c₆ = T₆ at *
+      lia)
+  rw [h5k, a₄₃] at a₅₃
+  rw [h5k] at a₅₂
+  generalize (addInto ((A₄.uslice r.start r.stop).slice (5 * k) n)
+    (q₃₀.toUSlice.slice 0 (min (n - (5 * k)) q₃₀.usize)) 0).1 = A₅ at *
+  refine ⟨a₅₁, fun i hi => ?_, ?_⟩
+  · rw [a₅₂ i (by lia), a₄₂ i (by lia), a₃₂ i (by lia), a₂₂ i (by lia), a₁₂ i (by lia),
+      z₂ i (by lia)]
+  · rw [a₅₃]
+    lia
+
+/--
+The interpolation of degree 5 at `0, 1, …, 4, ∞`: from `c₀` in limbs `[r.start, r.start + 2 k)`
+and `c_5` from limb `r.start + 5 k` to `r.start + n`, with `w₁, …, w_4` the values at `1, …, 4`,
+writes `c₀ + c₁ x + ⋯ + c_5 x^5` into the `n` limbs from `r.start`, `x = 2^(64 k)`. The values
+`(w_j - c₀ - j^5 c_5) / j`, their divided differences and Horner's rule are all in place on the `w`.
+-/
+public def interp5 (arr : UInt64Array) (r : USlice) (n k : USize) (w₁ w₂ w₃ w₄ : UInt64Array) :
+    UInt64Array :=
+  let R := arr.uslice r.start r.stop
+  let X₀ := R.slice 0 (k + k)
+  let Xd := R.slice (5 * k) n
+  let w₁ := (subInto w₁.toUSlice X₀).1
+  let w₁ := (subInto w₁.toUSlice Xd).1
+  let w₂ := (subInto w₂.toUSlice X₀).1
+  let w₂ := (subMulInto w₂.toUSlice Xd 32).1
+  let w₂ := rshiftInto w₂.toUSlice 1
+  let w₃ := (subInto w₃.toUSlice X₀).1
+  let w₃ := (subMulInto w₃.toUSlice Xd 243).1
+  let w₃ := (divExact3Into w₃.toUSlice).1
+  let w₄ := (subInto w₄.toUSlice X₀).1
+  let w₄ := (subMulInto w₄.toUSlice Xd 1024).1
+  let w₄ := rshiftInto w₄.toUSlice 2
+  let w₄ := (subInto w₄.toUSlice w₃.toUSlice).1
+  let w₃ := (subInto w₃.toUSlice w₂.toUSlice).1
+  let w₂ := (subInto w₂.toUSlice w₁.toUSlice).1
+  let w₄ := (subInto w₄.toUSlice w₃.toUSlice).1
+  let w₄ := rshiftInto w₄.toUSlice 1
+  let w₃ := (subInto w₃.toUSlice w₂.toUSlice).1
+  let w₃ := rshiftInto w₃.toUSlice 1
+  let w₄ := (subInto w₄.toUSlice w₃.toUSlice).1
+  let w₄ := (divExact3Into w₄.toUSlice).1
+  let w₃ := (subMulInto w₃.toUSlice w₄.toUSlice 3).1
+  let w₂ := (subMulInto w₂.toUSlice w₃.toUSlice 2).1
+  let w₃ := (subMulInto w₃.toUSlice w₄.toUSlice 2).1
+  let w₁ := (subInto w₁.toUSlice w₂.toUSlice).1
+  let w₂ := (subInto w₂.toUSlice w₃.toUSlice).1
+  let w₃ := (subInto w₃.toUSlice w₄.toUSlice).1
+  -- The recombination.
+  let arr := zeroInto ((arr.uslice r.start r.stop).slice (k + k) (5 * k))
+  let arr := (addInto ((arr.uslice r.start r.stop).slice k n)
+    (w₁.toUSlice.slice 0 (min (n - k) w₁.usize))).1
+  let arr := (addInto ((arr.uslice r.start r.stop).slice (k + k) n)
+    (w₂.toUSlice.slice 0 (min (n - (k + k)) w₂.usize))).1
+  let arr := (addInto ((arr.uslice r.start r.stop).slice (3 * k) n)
+    (w₃.toUSlice.slice 0 (min (n - (3 * k)) w₃.usize))).1
+  (addInto ((arr.uslice r.start r.stop).slice (4 * k) n)
+    (w₄.toUSlice.slice 0 (min (n - (4 * k)) w₄.usize))).1
+
+set_option maxHeartbeats 1000000 in
+private theorem interp5_spec (arr : UInt64Array) (r : USlice) (n k : USize)
+    (w₁ w₂ w₃ w₄ : UInt64Array) (L c₀ c₁ c₂ c₃ c₄ c₅ : Nat)
+    (h : arr.size = r.array.size) (hn : n.toNat ≤ r.size.toNat) (hk : 5 * k.toNat ≤ n.toNat)
+    (hk₁ : 1 ≤ k.toNat) (hL : L < USize.size) (hw₁ : w₁.size = L) (hw₂ : w₂.size = L)
+        (hw₃ : w₃.size = L) (hw₄ : w₄.size = L)
+    (hX₀ : 2 * k.toNat ≤ L) (hXd : n.toNat - 5 * k.toNat ≤ L)
+    (hc₀ : arr.valAt r.start.toNat (2 * k.toNat) = c₀)
+    (hc₅ : arr.valAt (r.start.toNat + 5 * k.toNat) (n.toNat - 5 * k.toNat) = c₅)
+    (hv₁ : w₁.valAt 0 L = c₀ + c₁ + c₂ + c₃ + c₄ + c₅)
+    (hv₂ : w₂.valAt 0 L = c₀ + 2 * c₁ + 4 * c₂ + 8 * c₃ + 16 * c₄ + 32 * c₅)
+    (hv₃ : w₃.valAt 0 L = c₀ + 3 * c₁ + 9 * c₂ + 27 * c₃ + 81 * c₄ + 243 * c₅)
+    (hv₄ : w₄.valAt 0 L = c₀ + 4 * c₁ + 16 * c₂ + 64 * c₃ + 256 * c₄ + 1024 * c₅)
+    (htot : c₀ + 2 ^ (64 * k.toNat) * c₁ + 2 ^ (64 * (2 * k.toNat)) * c₂ + 2 ^
+        (64 * (3 * k.toNat)) * c₃ + 2 ^ (64 * (4 * k.toNat)) * c₄ + 2 ^ (64 * (5 * k.toNat)) * c₅ <
+        2 ^ (64 * n.toNat)) :
+    (interp5 arr r n k w₁ w₂ w₃ w₄).size = r.array.size ∧
+      (∀ i, (i < r.start.toNat ∨ r.start.toNat + n.toNat ≤ i) →
+        (interp5 arr r n k w₁ w₂ w₃ w₄)[i]! = arr[i]!) ∧
+      (interp5 arr r n k w₁ w₂ w₃ w₄).valAt r.start.toNat n.toNat =
+        c₀ + 2 ^ (64 * k.toNat) * c₁ + 2 ^ (64 * (2 * k.toNat)) * c₂ + 2 ^ (64 * (3 * k.toNat)) *
+            c₃ + 2 ^ (64 * (4 * k.toNat)) * c₄ + 2 ^ (64 * (5 * k.toNat)) * c₅ := by
+  dsimp only [interp5]
+  have hnS := n.toNat_lt_size
+  have hkk : (k + k).toNat = 2 * k.toNat := by rw [USize.toNat_add_of_lt (by lia)]; lia
+  have h3k : (3 * k).toNat = 3 * k.toNat := toNat_mul_k k 3 (by decide) n (by lia)
+  have h4k : (4 * k).toNat = 4 * k.toNat := toNat_mul_k k 4 (by decide) n (by lia)
+  have h5k : (5 * k).toNat = 5 * k.toNat := toNat_mul_k k 5 (by decide) n (by lia)
+  -- `c₀` and `c_5` in `arr`.
+  obtain ⟨x₀₁, x₀₂, x₀₃, x₀₄⟩ := window arr r h (i := 0) (j := k + k) (by simp) (by rw [hkk]; lia)
+  obtain ⟨xd₁, xd₂, xd₃, xd₄⟩ := window arr r h (i := 5 * k) (j := n) (by rw [h5k]; lia) hn
+  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, hkk, hc₀] at x₀₃ x₀₄
+  rw [h5k, hc₅] at xd₄
+  rw [h5k] at xd₃
+  generalize (arr.uslice r.start r.stop).slice 0 (k + k) = X₀ at *
+  generalize (arr.uslice r.start r.stop).slice (5 * k) n = Xd at *
+  obtain ⟨s₁, e₁⟩ := subSl hL w₁ hw₁ X₀ (by rw [x₀₃]; exact hX₀) (R := c₁ + c₂ + c₃ + c₄ + c₅) hv₁
+      x₀₄ (by lia)
+  generalize (subInto w₁.toUSlice X₀ 0).1 = q₁ at *
+  obtain ⟨s₂, e₂⟩ := subSl hL q₁ s₁ Xd (by rw [xd₃]; exact hXd) (R := c₁ + c₂ + c₃ + c₄) e₁ xd₄
+      (by lia)
+  generalize (subInto q₁.toUSlice Xd 0).1 = q₂ at *
+  obtain ⟨s₃, e₃⟩ := subSl hL w₂ hw₂ X₀ (by rw [x₀₃]; exact hX₀)
+      (R := 2 * c₁ + 4 * c₂ + 8 * c₃ + 16 * c₄ + 32 * c₅) hv₂ x₀₄ (by lia)
+  generalize (subInto w₂.toUSlice X₀ 0).1 = q₃ at *
+  obtain ⟨s₄, e₄⟩ := subMulSl hL q₃ s₃ Xd (by rw [xd₃]; exact hXd) 32
+      (R := 2 * c₁ + 4 * c₂ + 8 * c₃ + 16 * c₄) e₃ xd₄ rfl (by lia)
+  generalize (subMulInto q₃.toUSlice Xd 32).1 = q₄ at *
+  obtain ⟨s₅, e₅⟩ := shrW hL q₄ s₄ 1 (by decide) (by decide) (R := c₁ + 2 * c₂ + 4 * c₃ + 8 * c₄)
+      rfl e₄ (by lia)
+  generalize rshiftInto q₄.toUSlice 1 = q₅ at *
+  obtain ⟨s₆, e₆⟩ := subSl hL w₃ hw₃ X₀ (by rw [x₀₃]; exact hX₀)
+      (R := 3 * c₁ + 9 * c₂ + 27 * c₃ + 81 * c₄ + 243 * c₅) hv₃ x₀₄ (by lia)
+  generalize (subInto w₃.toUSlice X₀ 0).1 = q₆ at *
+  obtain ⟨s₇, e₇⟩ := subMulSl hL q₆ s₆ Xd (by rw [xd₃]; exact hXd) 243
+      (R := 3 * c₁ + 9 * c₂ + 27 * c₃ + 81 * c₄) e₆ xd₄ rfl (by lia)
+  generalize (subMulInto q₆.toUSlice Xd 243).1 = q₇ at *
+  obtain ⟨s₈, e₈⟩ := div3W hL q₇ s₇ (R := c₁ + 3 * c₂ + 9 * c₃ + 27 * c₄) e₇ (by lia)
+  generalize (divExact3Into q₇.toUSlice).1 = q₈ at *
+  obtain ⟨s₉, e₉⟩ := subSl hL w₄ hw₄ X₀ (by rw [x₀₃]; exact hX₀)
+      (R := 4 * c₁ + 16 * c₂ + 64 * c₃ + 256 * c₄ + 1024 * c₅) hv₄ x₀₄ (by lia)
+  generalize (subInto w₄.toUSlice X₀ 0).1 = q₉ at *
+  obtain ⟨s₁₀, e₁₀⟩ := subMulSl hL q₉ s₉ Xd (by rw [xd₃]; exact hXd) 1024
+      (R := 4 * c₁ + 16 * c₂ + 64 * c₃ + 256 * c₄) e₉ xd₄ rfl (by lia)
+  generalize (subMulInto q₉.toUSlice Xd 1024).1 = q₁₀ at *
+  obtain ⟨s₁₁, e₁₁⟩ := shrW hL q₁₀ s₁₀ 2 (by decide) (by decide)
+      (R := c₁ + 4 * c₂ + 16 * c₃ + 64 * c₄) rfl e₁₀ (by lia)
+  generalize rshiftInto q₁₀.toUSlice 2 = q₁₁ at *
+  obtain ⟨s₁₂, e₁₂⟩ := subW hL q₁₁ q₈ s₁₁ s₈ (R := c₂ + 7 * c₃ + 37 * c₄) e₁₁ e₈ (by lia)
+  generalize (subInto q₁₁.toUSlice q₈.toUSlice 0).1 = q₁₂ at *
+  obtain ⟨s₁₃, e₁₃⟩ := subW hL q₈ q₅ s₈ s₅ (R := c₂ + 5 * c₃ + 19 * c₄) e₈ e₅ (by lia)
+  generalize (subInto q₈.toUSlice q₅.toUSlice 0).1 = q₁₃ at *
+  obtain ⟨s₁₄, e₁₄⟩ := subW hL q₅ q₂ s₅ s₂ (R := c₂ + 3 * c₃ + 7 * c₄) e₅ e₂ (by lia)
+  generalize (subInto q₅.toUSlice q₂.toUSlice 0).1 = q₁₄ at *
+  obtain ⟨s₁₅, e₁₅⟩ := subW hL q₁₂ q₁₃ s₁₂ s₁₃ (R := 2 * c₃ + 18 * c₄) e₁₂ e₁₃ (by lia)
+  generalize (subInto q₁₂.toUSlice q₁₃.toUSlice 0).1 = q₁₅ at *
+  obtain ⟨s₁₆, e₁₆⟩ := shrW hL q₁₅ s₁₅ 1 (by decide) (by decide) (R := c₃ + 9 * c₄) rfl e₁₅ (by lia)
+  generalize rshiftInto q₁₅.toUSlice 1 = q₁₆ at *
+  obtain ⟨s₁₇, e₁₇⟩ := subW hL q₁₃ q₁₄ s₁₃ s₁₄ (R := 2 * c₃ + 12 * c₄) e₁₃ e₁₄ (by lia)
+  generalize (subInto q₁₃.toUSlice q₁₄.toUSlice 0).1 = q₁₇ at *
+  obtain ⟨s₁₈, e₁₈⟩ := shrW hL q₁₇ s₁₇ 1 (by decide) (by decide) (R := c₃ + 6 * c₄) rfl e₁₇ (by lia)
+  generalize rshiftInto q₁₇.toUSlice 1 = q₁₈ at *
+  obtain ⟨s₁₉, e₁₉⟩ := subW hL q₁₆ q₁₈ s₁₆ s₁₈ (R := 3 * c₄) e₁₆ e₁₈ (by lia)
+  generalize (subInto q₁₆.toUSlice q₁₈.toUSlice 0).1 = q₁₉ at *
+  obtain ⟨s₂₀, e₂₀⟩ := div3W hL q₁₉ s₁₉ (R := c₄) e₁₉ (by lia)
+  generalize (divExact3Into q₁₉.toUSlice).1 = q₂₀ at *
+  obtain ⟨s₂₁, e₂₁⟩ := subMulW hL q₁₈ q₂₀ s₁₈ s₂₀ 3 (R := c₃ + 3 * c₄) e₁₈ e₂₀ rfl (by lia)
+  generalize (subMulInto q₁₈.toUSlice q₂₀.toUSlice 3).1 = q₂₁ at *
+  obtain ⟨s₂₂, e₂₂⟩ := subMulW hL q₁₄ q₂₁ s₁₄ s₂₁ 2 (R := c₂ + c₃ + c₄) e₁₄ e₂₁ rfl (by lia)
+  generalize (subMulInto q₁₄.toUSlice q₂₁.toUSlice 2).1 = q₂₂ at *
+  obtain ⟨s₂₃, e₂₃⟩ := subMulW hL q₂₁ q₂₀ s₂₁ s₂₀ 2 (R := c₃ + c₄) e₂₁ e₂₀ rfl (by lia)
+  generalize (subMulInto q₂₁.toUSlice q₂₀.toUSlice 2).1 = q₂₃ at *
+  obtain ⟨s₂₄, e₂₄⟩ := subW hL q₂ q₂₂ s₂ s₂₂ (R := c₁) e₂ e₂₂ (by lia)
+  generalize (subInto q₂.toUSlice q₂₂.toUSlice 0).1 = q₂₄ at *
+  obtain ⟨s₂₅, e₂₅⟩ := subW hL q₂₂ q₂₃ s₂₂ s₂₃ (R := c₂) e₂₂ e₂₃ (by lia)
+  generalize (subInto q₂₂.toUSlice q₂₃.toUSlice 0).1 = q₂₅ at *
+  obtain ⟨s₂₆, e₂₆⟩ := subW hL q₂₃ q₂₀ s₂₃ s₂₀ (R := c₃) e₂₃ e₂₀ (by lia)
+  generalize (subInto q₂₃.toUSlice q₂₀.toUSlice 0).1 = q₂₆ at *
+  -- The recombination: clear the middle, then add `c₁`, …, `c_4`.
+  obtain ⟨z₁, z₂, z₃⟩ := zero_at arr r h n (k + k) (5 * k) hn (by rw [hkk, h5k]; lia)
+    (by rw [h5k]; lia)
+  rw [hkk, h5k, hc₀, hc₅] at z₃
+  rw [hkk, h5k] at z₂
+  generalize zeroInto ((arr.uslice r.start r.stop).slice (k + k) (5 * k)) = A₀ at *
+  obtain ⟨a₁₁, a₁₂, a₁₃⟩ := rec_step A₀ r z₁ n k hn (by lia) hL q₂₄ s₂₄ c₁ e₂₄
+    (by
+      rw [z₃]
+      generalize 2 ^ (64 * k.toNat) * c₁ = T₁ at *
+      generalize 2 ^ (64 * (2 * k.toNat)) * c₂ = T₂ at *
+      generalize 2 ^ (64 * (3 * k.toNat)) * c₃ = T₃ at *
+      generalize 2 ^ (64 * (4 * k.toNat)) * c₄ = T₄ at *
+      generalize 2 ^ (64 * (5 * k.toNat)) * c₅ = T₅ at *
+      lia)
+  rw [z₃] at a₁₃
+  generalize (addInto ((A₀.uslice r.start r.stop).slice k n)
+    (q₂₄.toUSlice.slice 0 (min (n - k) q₂₄.usize)) 0).1 = A₁ at *
+  obtain ⟨a₂₁, a₂₂, a₂₃⟩ := rec_step A₁ r a₁₁ n (k + k) hn (by rw [hkk]; lia) hL q₂₅ s₂₅ c₂ e₂₅
+    (by
+      rw [hkk, a₁₃]
+      generalize 2 ^ (64 * k.toNat) * c₁ = T₁ at *
+      generalize 2 ^ (64 * (2 * k.toNat)) * c₂ = T₂ at *
+      generalize 2 ^ (64 * (3 * k.toNat)) * c₃ = T₃ at *
+      generalize 2 ^ (64 * (4 * k.toNat)) * c₄ = T₄ at *
+      generalize 2 ^ (64 * (5 * k.toNat)) * c₅ = T₅ at *
+      lia)
+  rw [hkk, a₁₃] at a₂₃
+  rw [hkk] at a₂₂
+  generalize (addInto ((A₁.uslice r.start r.stop).slice (k + k) n)
+    (q₂₅.toUSlice.slice 0 (min (n - (k + k)) q₂₅.usize)) 0).1 = A₂ at *
+  obtain ⟨a₃₁, a₃₂, a₃₃⟩ := rec_step A₂ r a₂₁ n (3 * k) hn (by rw [h3k]; lia) hL q₂₆ s₂₆ c₃ e₂₆
+    (by
+      rw [h3k, a₂₃]
+      generalize 2 ^ (64 * k.toNat) * c₁ = T₁ at *
+      generalize 2 ^ (64 * (2 * k.toNat)) * c₂ = T₂ at *
+      generalize 2 ^ (64 * (3 * k.toNat)) * c₃ = T₃ at *
+      generalize 2 ^ (64 * (4 * k.toNat)) * c₄ = T₄ at *
+      generalize 2 ^ (64 * (5 * k.toNat)) * c₅ = T₅ at *
+      lia)
+  rw [h3k, a₂₃] at a₃₃
+  rw [h3k] at a₃₂
+  generalize (addInto ((A₂.uslice r.start r.stop).slice (3 * k) n)
+    (q₂₆.toUSlice.slice 0 (min (n - (3 * k)) q₂₆.usize)) 0).1 = A₃ at *
+  obtain ⟨a₄₁, a₄₂, a₄₃⟩ := rec_step A₃ r a₃₁ n (4 * k) hn (by rw [h4k]; lia) hL q₂₀ s₂₀ c₄ e₂₀
+    (by
+      rw [h4k, a₃₃]
+      generalize 2 ^ (64 * k.toNat) * c₁ = T₁ at *
+      generalize 2 ^ (64 * (2 * k.toNat)) * c₂ = T₂ at *
+      generalize 2 ^ (64 * (3 * k.toNat)) * c₃ = T₃ at *
+      generalize 2 ^ (64 * (4 * k.toNat)) * c₄ = T₄ at *
+      generalize 2 ^ (64 * (5 * k.toNat)) * c₅ = T₅ at *
+      lia)
+  rw [h4k, a₃₃] at a₄₃
+  rw [h4k] at a₄₂
+  generalize (addInto ((A₃.uslice r.start r.stop).slice (4 * k) n)
+    (q₂₀.toUSlice.slice 0 (min (n - (4 * k)) q₂₀.usize)) 0).1 = A₄ at *
+  refine ⟨a₄₁, fun i hi => ?_, ?_⟩
+  · rw [a₄₂ i (by lia), a₃₂ i (by lia), a₂₂ i (by lia), a₁₂ i (by lia), z₂ i (by lia)]
+  · rw [a₄₃]
+    lia
+
 /-! ## The three methods -/
 
 /-- A multiplier for products whose sizes add up to less than `N`. -/
@@ -982,6 +1586,68 @@ public def toom32 (r a b : USlice) (k : USize) (hk : Shape32 r a b k)
       rw [eval_toUSlice_size (size_eval3 ..), eval_toUSlice_size (size_eval2 ..), hs.2.1]; lia)
   interp3 arr r n k (w 1) (w 2)
 
+/-- The shape of Toom-4: four pieces of `a` and of `b`, the top ones nonempty. -/
+public abbrev Shape44 (r a b : USlice) (k : USize) : Prop :=
+  1 ≤ k.toNat ∧ 3 * k.toNat < a.size.toNat ∧ a.size.toNat ≤ 4 * k.toNat ∧
+    3 * k.toNat < b.size.toNat ∧ b.size.toNat ≤ a.size.toNat ∧
+    a.size.toNat + b.size.toNat ≤ r.size.toNat
+
+/-- The shape of Toom-4 by 3: four pieces of `a` and three of `b`, the top ones nonempty. -/
+public abbrev Shape43 (r a b : USlice) (k : USize) : Prop :=
+  1 ≤ k.toNat ∧ 3 * k.toNat < a.size.toNat ∧ a.size.toNat ≤ 4 * k.toNat ∧
+    2 * k.toNat < b.size.toNat ∧ b.size.toNat ≤ 3 * k.toNat ∧
+    a.size.toNat + b.size.toNat ≤ r.size.toNat
+
+/-- Toom-4: `a` and `b` in four pieces of `k` limbs, at most, the top pieces nonempty. -/
+public def toom44 (r a b : USlice) (k : USize) (hk : Shape44 r a b k)
+    (mul : Mul (a.size.toNat + b.size.toNat)) : UInt64Array :=
+  have hs := toom_sizes (r := r) (k := k) hk.2.2.2.2.2 (by lia)
+  have h3k : (3 * k).toNat = 3 * k.toNat := toNat_mul_k k 3 (by decide) a.size (by lia)
+  have h6k : (6 * k).toNat = 6 * k.toNat := toNat_mul_k k 6 (by decide) r.size (by lia)
+  let n := a.size + b.size
+  let a₀ := a.slice 0 k
+  let a₁ := a.slice k (k + k)
+  let a₂ := a.slice (k + k) (3 * k)
+  let a₃ := a.slice (3 * k) a.size
+  let b₀ := b.slice 0 k
+  let b₁ := b.slice k (k + k)
+  let b₂ := b.slice (k + k) (3 * k)
+  let b₃ := b.slice (3 * k) b.size
+  let arr := mul (r.slice 0 (k + k)) a₀ b₀ (by
+    rw [USlice.size_slice _ (by simp) (by lia), USlice.size_slice _ (by simp) (by lia),
+      USize.toNat_zero]; lia)
+  let arr := mul ((arr.uslice r.start r.stop).slice (6 * k) n) a₃ b₃ (by
+    rw [USlice.size_slice _ (by rw [h3k]; lia) (Nat.le_refl _),
+      USlice.size_slice _ (by rw [h3k]; lia) (Nat.le_refl _), h3k]; lia)
+  let w (j : UInt64) := mul (UInt64Array.replicate (k + k + 2).toNat 0).toUSlice
+    (eval4 a₀ a₁ a₂ a₃ (k + 1) j).toUSlice (eval4 b₀ b₁ b₂ b₃ (k + 1) j).toUSlice (by
+      rw [eval_toUSlice_size (size_eval4 ..), eval_toUSlice_size (size_eval4 ..), hs.2.1]; lia)
+  interp6 arr r n k (w 1) (w 2) (w 3) (w 4) (w 5)
+
+/-- Toom-4 by 3: `a` in four pieces of `k` limbs and `b` in three, the top pieces nonempty. -/
+public def toom43 (r a b : USlice) (k : USize) (hk : Shape43 r a b k)
+    (mul : Mul (a.size.toNat + b.size.toNat)) : UInt64Array :=
+  have hs := toom_sizes (r := r) (k := k) hk.2.2.2.2.2 (by lia)
+  have h3k : (3 * k).toNat = 3 * k.toNat := toNat_mul_k k 3 (by decide) a.size (by lia)
+  let n := a.size + b.size
+  let a₀ := a.slice 0 k
+  let a₁ := a.slice k (k + k)
+  let a₂ := a.slice (k + k) (3 * k)
+  let a₃ := a.slice (3 * k) a.size
+  let b₀ := b.slice 0 k
+  let b₁ := b.slice k (k + k)
+  let b₂ := b.slice (k + k) b.size
+  let arr := mul (r.slice 0 (k + k)) a₀ b₀ (by
+    rw [USlice.size_slice _ (by simp) (by lia), USlice.size_slice _ (by simp) (by lia),
+      USize.toNat_zero]; lia)
+  let arr := mul ((arr.uslice r.start r.stop).slice (5 * k) n) a₃ b₂ (by
+    rw [USlice.size_slice _ (by rw [h3k]; lia) (Nat.le_refl _),
+      USlice.size_slice _ (by rw [hs.1]; lia) (Nat.le_refl _), h3k, hs.1]; lia)
+  let w (j : UInt64) := mul (UInt64Array.replicate (k + k + 2).toNat 0).toUSlice
+    (eval4 a₀ a₁ a₂ a₃ (k + 1) j).toUSlice (eval3 b₀ b₁ b₂ (k + 1) j).toUSlice (by
+      rw [eval_toUSlice_size (size_eval4 ..), eval_toUSlice_size (size_eval3 ..), hs.2.1]; lia)
+  interp5 arr r n k (w 1) (w 2) (w 3) (w 4)
+
 /-! ### Correctness of the methods -/
 
 /-- What a multiplication of `a` by `b` into `r` guarantees: the result `R`. -/
@@ -1008,10 +1674,10 @@ private theorem slice_lt (x : USlice) {K : Nat} (h : x.size.toNat ≤ K) :
 private theorem pow_succ_k (K : Nat) : 2 ^ (64 * (K + 1)) = 2 ^ (64 * K) * 2 ^ 64 := by
   rw [Nat.mul_succ, Nat.pow_add]
 
-/-- The evaluation of three pieces of at most `k` limbs at `j ≤ 3`. -/
+/-- The evaluation of three pieces of at most `k` limbs at `j ≤ 5`. -/
 private theorem eval3_at (x₀ x₁ x₂ : USlice) (k : USize) (j : UInt64)
     (hk : (k + 1).toNat = k.toNat + 1) (h₀ : x₀.size.toNat ≤ k.toNat)
-    (h₁ : x₁.size.toNat ≤ k.toNat) (h₂ : x₂.size.toNat ≤ k.toNat) (hj : j.toNat ≤ 3) :
+    (h₁ : x₁.size.toNat ≤ k.toNat) (h₂ : x₂.size.toNat ≤ k.toNat) (hj : j.toNat ≤ 5) :
     (eval3 x₀ x₁ x₂ (k + 1) j).valAt 0 (k.toNat + 1) =
       x₀.toNat + x₁.toNat * j.toNat + x₂.toNat * (j.toNat * j.toNat) := by
   have l₀ := slice_lt x₀ h₀
@@ -1024,11 +1690,11 @@ private theorem eval3_at (x₀ x₁ x₂ : USlice) (k : USize) (j : UInt64)
     (USize.le_iff_toNat_le.2 (by lia)) (USize.le_iff_toNat_le.2 (by lia)) (by lia) ?_).2
   rw [hk, pow_succ_k]; lia
 
-/-- The evaluation of four pieces of at most `k` limbs at `j ≤ 3`. -/
+/-- The evaluation of four pieces of at most `k` limbs at `j ≤ 5`. -/
 private theorem eval4_at (x₀ x₁ x₂ x₃ : USlice) (k : USize) (j : UInt64)
     (hk : (k + 1).toNat = k.toNat + 1) (h₀ : x₀.size.toNat ≤ k.toNat)
     (h₁ : x₁.size.toNat ≤ k.toNat) (h₂ : x₂.size.toNat ≤ k.toNat) (h₃ : x₃.size.toNat ≤ k.toNat)
-    (hj : j.toNat ≤ 3) :
+    (hj : j.toNat ≤ 5) :
     (eval4 x₀ x₁ x₂ x₃ (k + 1) j).valAt 0 (k.toNat + 1) =
       x₀.toNat + x₁.toNat * j.toNat + x₂.toNat * (j.toNat * j.toNat) +
         x₃.toNat * (j.toNat * j.toNat * j.toNat) := by
@@ -1045,10 +1711,10 @@ private theorem eval4_at (x₀ x₁ x₂ x₃ : USlice) (k : USize) (j : UInt64)
     (USize.le_iff_toNat_le.2 (by lia)) (by lia) ?_).2
   rw [hk, pow_succ_k]; lia
 
-/-- The evaluation of two pieces of at most `k` limbs at `j ≤ 3`. -/
+/-- The evaluation of two pieces of at most `k` limbs at `j ≤ 5`. -/
 private theorem eval2_at (x₀ x₁ : USlice) (k : USize) (j : UInt64)
     (hk : (k + 1).toNat = k.toNat + 1) (h₀ : x₀.size.toNat ≤ k.toNat)
-    (h₁ : x₁.size.toNat ≤ k.toNat) (hj : j.toNat ≤ 3) :
+    (h₁ : x₁.size.toNat ≤ k.toNat) (hj : j.toNat ≤ 5) :
     (eval2 x₀ x₁ (k + 1) j).valAt 0 (k.toNat + 1) = x₀.toNat + x₁.toNat * j.toNat := by
   have l₀ := slice_lt x₀ h₀
   have l₁ := slice_lt x₁ h₁
@@ -1175,11 +1841,11 @@ private theorem toom33_spec (r a b : USlice) (k : USize) (hk : Shape33 r a b k)
       ((a.size + b.size).toNat - 4 * k.toNat) = A₂ * B₂ := by
     rw [← m₂v, hn]; congr 1; lia
   -- The evaluations and their products.
-  have pA (j : UInt64) (hj : j.toNat ≤ 3) :=
+  have pA (j : UInt64) (hj : j.toNat ≤ 5) :=
     eval3_at (a.slice 0 k) (a.slice k (k + k)) (a.slice (k + k) a.size)
        k j hk1
       (by lia) (by lia) (by lia) hj
-  have pB (j : UInt64) (hj : j.toNat ≤ 3) :=
+  have pB (j : UInt64) (hj : j.toNat ≤ 5) :=
     eval3_at (b.slice 0 k) (b.slice k (k + k)) (b.slice (k + k) b.size) k j hk1
       (by lia) (by lia) (by lia) hj
   rw [eA₀, eA₁, eA₂] at pA
@@ -1321,11 +1987,11 @@ private theorem toom42_spec (r a b : USlice) (k : USize) (hk : Shape42 r a b k)
       ((a.size + b.size).toNat - 4 * k.toNat) = A₃ * B₁ := by
     rw [← m₂v, hn]; congr 1; lia
   -- The evaluations and their products.
-  have pA (j : UInt64) (hj : j.toNat ≤ 3) :=
+  have pA (j : UInt64) (hj : j.toNat ≤ 5) :=
     eval4_at (a.slice 0 k) (a.slice k (k + k)) (a.slice (k + k) (3 * k))
       (a.slice (3 * k) a.size) k j hk1
       (by lia) (by lia) (by lia) (by lia) hj
-  have pB (j : UInt64) (hj : j.toNat ≤ 3) :=
+  have pB (j : UInt64) (hj : j.toNat ≤ 5) :=
     eval2_at (b.slice 0 k) (b.slice k b.size) k j hk1
       (by lia) (by lia) hj
   rw [eA₀, eA₁, eA₂, eA₃] at pA
@@ -1465,11 +2131,11 @@ private theorem toom32_spec (r a b : USlice) (k : USize) (hk : Shape32 r a b k)
       ((a.size + b.size).toNat - 3 * k.toNat) = A₂ * B₁ := by
     rw [← m₂v, hn]; congr 1; lia
   -- The evaluations and their products.
-  have pA (j : UInt64) (hj : j.toNat ≤ 3) :=
+  have pA (j : UInt64) (hj : j.toNat ≤ 5) :=
     eval3_at (a.slice 0 k) (a.slice k (k + k)) (a.slice (k + k) a.size)
        k j hk1
       (by lia) (by lia) (by lia) hj
-  have pB (j : UInt64) (hj : j.toNat ≤ 3) :=
+  have pB (j : UInt64) (hj : j.toNat ≤ 5) :=
     eval2_at (b.slice 0 k) (b.slice k b.size) k j hk1
       (by lia) (by lia) hj
   rw [eA₀, eA₁, eA₂] at pA
@@ -1526,6 +2192,346 @@ private theorem toom32_spec (r a b : USlice) (k : USize) (hk : Shape32 r a b k)
   refine ⟨f₁, fun i hi => ?_, fun _ _ _ => f₃⟩
   rw [f₂ i (by rw [hn]; lia), m₂u i (by lia), m₁u i (by lia)]
 
+private theorem toom44_spec (r a b : USlice) (k : USize) (hk : Shape44 r a b k)
+    (mul : Mul (a.size.toNat + b.size.toNat))
+    (hmul : ∀ r' a' b' h', MulOK (mul r' a' b' h') r' a' b') :
+    MulOK (toom44 r a b k hk mul) r a b := by
+  obtain ⟨hk₁, ha₁, ha₂, hb₁, hba, hr⟩ := hk
+  obtain ⟨hkk, hk1, hkk2, hn⟩ := toom_sizes (r := r) (k := k) hr (by lia)
+  have hnS := r.size.toNat_lt_size
+  have hT : (6 * k).toNat = 6 * k.toNat := toNat_mul_k k 6 (by decide) r.size (by lia)
+  have h3k : (3 * k).toNat = 3 * k.toNat := toNat_mul_k k 3 (by decide) r.size (by lia)
+  dsimp only [toom44]
+  -- The pieces.
+  have pa₀ := (a.size_slice (i := 0) (j := k) (by simp) (by lia) :)
+  have pa₁ := (a.size_slice (i := k) (j := (k + k)) (by lia) (by lia) :)
+  have pa₂ := (a.size_slice (i := (k + k)) (j := (3 * k)) (by lia) (by lia) :)
+  have pa₃ := (a.size_slice (i := (3 * k)) (j := a.size) (by lia) (Nat.le_refl _) :)
+  simp only [USize.toNat_zero, Nat.sub_zero, hkk, h3k] at pa₀ pa₁ pa₂ pa₃
+  have hA := toNat_whole a
+  rw [toNat_split a (i := 0) (j := k) (by simp) (by lia)] at hA
+  rw [toNat_split a (i := k) (j := (k + k)) (by lia) (by lia)] at hA
+  rw [toNat_split a (i := (k + k)) (j := (3 * k)) (by lia) (by lia)] at hA
+  simp only [USize.toNat_zero, Nat.sub_zero, hkk, h3k,
+    show 2 * k.toNat - k.toNat = k.toNat by lia,
+    show 3 * k.toNat - 2 * k.toNat = k.toNat by lia] at hA
+  have hA₀ := slice_lt (a.slice 0 k) (K := k.toNat) (by lia)
+  have hA₁ := slice_lt (a.slice k (k + k)) (K := k.toNat) (by lia)
+  have hA₂ := slice_lt (a.slice (k + k) (3 * k)) (K := k.toNat) (by lia)
+  have hA₃ := slice_lt (a.slice (3 * k) a.size) (K := k.toNat) (by lia)
+  generalize eA₀ : (a.slice 0 k).toNat = A₀ at *
+  generalize eA₁ : (a.slice k (k + k)).toNat = A₁ at *
+  generalize eA₂ : (a.slice (k + k) (3 * k)).toNat = A₂ at *
+  generalize eA₃ : (a.slice (3 * k) a.size).toNat = A₃ at *
+  have pb₀ := (b.size_slice (i := 0) (j := k) (by simp) (by lia) :)
+  have pb₁ := (b.size_slice (i := k) (j := (k + k)) (by lia) (by lia) :)
+  have pb₂ := (b.size_slice (i := (k + k)) (j := (3 * k)) (by lia) (by lia) :)
+  have pb₃ := (b.size_slice (i := (3 * k)) (j := b.size) (by lia) (Nat.le_refl _) :)
+  simp only [USize.toNat_zero, Nat.sub_zero, hkk, h3k] at pb₀ pb₁ pb₂ pb₃
+  have hB := toNat_whole b
+  rw [toNat_split b (i := 0) (j := k) (by simp) (by lia)] at hB
+  rw [toNat_split b (i := k) (j := (k + k)) (by lia) (by lia)] at hB
+  rw [toNat_split b (i := (k + k)) (j := (3 * k)) (by lia) (by lia)] at hB
+  simp only [USize.toNat_zero, Nat.sub_zero, hkk, h3k,
+    show 2 * k.toNat - k.toNat = k.toNat by lia,
+    show 3 * k.toNat - 2 * k.toNat = k.toNat by lia] at hB
+  have hB₀ := slice_lt (b.slice 0 k) (K := k.toNat) (by lia)
+  have hB₁ := slice_lt (b.slice k (k + k)) (K := k.toNat) (by lia)
+  have hB₂ := slice_lt (b.slice (k + k) (3 * k)) (K := k.toNat) (by lia)
+  have hB₃ := slice_lt (b.slice (3 * k) b.size) (K := k.toNat) (by lia)
+  generalize eB₀ : (b.slice 0 k).toNat = B₀ at *
+  generalize eB₁ : (b.slice k (k + k)).toNat = B₁ at *
+  generalize eB₂ : (b.slice (k + k) (3 * k)).toNat = B₂ at *
+  generalize eB₃ : (b.slice (3 * k) b.size).toNat = B₃ at *
+  -- `c₀ = a₀ b₀` into the low limbs of `r`.
+  have hd₁ : (a.slice 0 k).size.toNat + (b.slice 0 k).size.toNat <
+      a.size.toNat + b.size.toNat := by lia
+  obtain ⟨m₁s, m₁u, m₁v⟩ := hmul (r.slice 0 (k + k)) (a.slice 0 k) (b.slice 0 k) hd₁
+  have hW₀s := r.start_slice (i := 0) (j := k + k) (by simp) (by lia)
+  have hW₀z := r.size_slice (i := 0) (j := k + k) (by simp) (by lia)
+  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, hkk] at hW₀s hW₀z
+  simp only [USlice.array_slice] at m₁s m₁u m₁v
+  rw [hW₀s, pa₀, pb₀] at m₁u m₁v
+  rw [hW₀z, eA₀, eB₀] at m₁v
+  replace m₁v := m₁v (USize.lt_iff_toNat_lt.2 (by rw [pa₀, USize.toNat_zero]; lia))
+    (USize.lt_iff_toNat_lt.2 (by rw [pb₀, USize.toNat_zero]; lia)) (by lia)
+  generalize mul (r.slice 0 (k + k)) (a.slice 0 k) (b.slice 0 k) hd₁ = R₁ at *
+  -- The top coefficient into the top limbs.
+  obtain ⟨x₁, x₂, x₃, -⟩ := window R₁ r m₁s (i := 6 * k) (j := a.size + b.size)
+    (by rw [hT, hn]; lia) (by rw [hn]; lia)
+  rw [hT] at x₂ x₃
+  rw [hn] at x₃
+  have hd₂ : (a.slice (3 * k) a.size).size.toNat + (b.slice (3 * k) b.size).size.toNat <
+      a.size.toNat + b.size.toNat := by lia
+  obtain ⟨m₂s, m₂u, m₂v⟩ := hmul ((R₁.uslice r.start r.stop).slice (6 * k) (a.size + b.size))
+    (a.slice (3 * k) a.size) (b.slice (3 * k) b.size) hd₂
+  rw [x₁, m₁s] at m₂s
+  rw [x₁, x₂, pa₃, pb₃] at m₂u
+  rw [x₂, x₃, pa₃, pb₃, eA₃, eB₃] at m₂v
+  replace m₂v := m₂v (USize.lt_iff_toNat_lt.2 (by rw [pa₃, USize.toNat_zero]; lia))
+    (USize.lt_iff_toNat_lt.2 (by rw [pb₃, USize.toNat_zero]; lia)) (by lia)
+  generalize mul ((R₁.uslice r.start r.stop).slice (6 * k) (a.size + b.size))
+    (a.slice (3 * k) a.size) (b.slice (3 * k) b.size) hd₂ = R₂ at *
+  have hc₀ : R₂.valAt r.start.toNat (2 * k.toNat) = A₀ * B₀ := by
+    rw [← m₁v, show k.toNat + k.toNat = 2 * k.toNat by lia]
+    exact UInt64Array.valAt_congr _ fun i _ hi => m₂u i (by lia)
+  have hc₄ : R₂.valAt (r.start.toNat + 6 * k.toNat)
+      ((a.size + b.size).toNat - 6 * k.toNat) = A₃ * B₃ := by
+    rw [← m₂v, hn]; congr 1; lia
+  -- The evaluations and their products.
+  have pA (j : UInt64) (hj : j.toNat ≤ 5) :=
+    eval4_at (a.slice 0 k) (a.slice k (k + k)) (a.slice (k + k) (3 * k))
+      (a.slice (3 * k) a.size) k j hk1
+      (by lia) (by lia) (by lia) (by lia) hj
+  have pB (j : UInt64) (hj : j.toNat ≤ 5) :=
+    eval4_at (b.slice 0 k) (b.slice k (k + k)) (b.slice (k + k) (3 * k))
+      (b.slice (3 * k) b.size) k j hk1
+      (by lia) (by lia) (by lia) (by lia) hj
+  rw [eA₀, eA₁, eA₂, eA₃] at pA
+  rw [eB₀, eB₁, eB₂, eB₃] at pB
+  have hdw (EA EB : UInt64Array) (hA' : EA.size = (k + 1).toNat) (hB' : EB.size = (k + 1).toNat) :
+      EA.toUSlice.size.toNat + EB.toUSlice.size.toNat < a.size.toNat + b.size.toNat := by
+    rw [eval_toUSlice_size hA', eval_toUSlice_size hB', hk1]; lia
+  obtain ⟨w1s, w1v⟩ := prod_at mul hmul k hk1 hkk2
+    (eval4 (a.slice 0 k) (a.slice k (k + k)) (a.slice (k + k) (3 * k))
+      (a.slice (3 * k) a.size) (k + 1) 1)
+    (eval4 (b.slice 0 k) (b.slice k (k + k)) (b.slice (k + k) (3 * k))
+      (b.slice (3 * k) b.size) (k + 1) 1)
+    (size_eval4 ..) (size_eval4 ..) (hdw _ _ (size_eval4 ..) (size_eval4 ..))
+  rw [pA 1 (by decide), pB 1 (by decide)] at w1v
+  obtain ⟨w2s, w2v⟩ := prod_at mul hmul k hk1 hkk2
+    (eval4 (a.slice 0 k) (a.slice k (k + k)) (a.slice (k + k) (3 * k))
+      (a.slice (3 * k) a.size) (k + 1) 2)
+    (eval4 (b.slice 0 k) (b.slice k (k + k)) (b.slice (k + k) (3 * k))
+      (b.slice (3 * k) b.size) (k + 1) 2)
+    (size_eval4 ..) (size_eval4 ..) (hdw _ _ (size_eval4 ..) (size_eval4 ..))
+  rw [pA 2 (by decide), pB 2 (by decide)] at w2v
+  obtain ⟨w3s, w3v⟩ := prod_at mul hmul k hk1 hkk2
+    (eval4 (a.slice 0 k) (a.slice k (k + k)) (a.slice (k + k) (3 * k))
+      (a.slice (3 * k) a.size) (k + 1) 3)
+    (eval4 (b.slice 0 k) (b.slice k (k + k)) (b.slice (k + k) (3 * k))
+      (b.slice (3 * k) b.size) (k + 1) 3)
+    (size_eval4 ..) (size_eval4 ..) (hdw _ _ (size_eval4 ..) (size_eval4 ..))
+  rw [pA 3 (by decide), pB 3 (by decide)] at w3v
+  obtain ⟨w4s, w4v⟩ := prod_at mul hmul k hk1 hkk2
+    (eval4 (a.slice 0 k) (a.slice k (k + k)) (a.slice (k + k) (3 * k))
+      (a.slice (3 * k) a.size) (k + 1) 4)
+    (eval4 (b.slice 0 k) (b.slice k (k + k)) (b.slice (k + k) (3 * k))
+      (b.slice (3 * k) b.size) (k + 1) 4)
+    (size_eval4 ..) (size_eval4 ..) (hdw _ _ (size_eval4 ..) (size_eval4 ..))
+  rw [pA 4 (by decide), pB 4 (by decide)] at w4v
+  obtain ⟨w5s, w5v⟩ := prod_at mul hmul k hk1 hkk2
+    (eval4 (a.slice 0 k) (a.slice k (k + k)) (a.slice (k + k) (3 * k))
+      (a.slice (3 * k) a.size) (k + 1) 5)
+    (eval4 (b.slice 0 k) (b.slice k (k + k)) (b.slice (k + k) (3 * k))
+      (b.slice (3 * k) b.size) (k + 1) 5)
+    (size_eval4 ..) (size_eval4 ..) (hdw _ _ (size_eval4 ..) (size_eval4 ..))
+  rw [pA 5 (by decide), pB 5 (by decide)] at w5v
+  simp only [show (1 : UInt64).toNat = 1 from rfl,
+    show (2 : UInt64).toNat = 2 from rfl,
+    show (3 : UInt64).toNat = 3 from rfl,
+    show (4 : UInt64).toNat = 4 from rfl,
+    show (5 : UInt64).toNat = 5 from rfl] at w1v w2v w3v w4v w5v
+  -- The interpolation.
+  generalize hX : 2 ^ (64 * k.toNat) = X at *
+  have hXX : 2 ^ (64 * (2 * k.toNat)) = X * X := by rw [← hX, ← Nat.pow_add]; congr 1; lia
+  have hX3 : 2 ^ (64 * (3 * k.toNat)) = X * X * X := by
+    rw [← hX, ← Nat.pow_add, ← Nat.pow_add]; congr 1; lia
+  have hX4 : 2 ^ (64 * (4 * k.toNat)) = X * X * X * X := by
+    rw [← hX, ← Nat.pow_add, ← Nat.pow_add, ← Nat.pow_add]; congr 1; lia
+  have hX5 : 2 ^ (64 * (5 * k.toNat)) = X * X * X * X * X := by
+    rw [← hX, ← Nat.pow_add, ← Nat.pow_add, ← Nat.pow_add, ← Nat.pow_add]; congr 1; lia
+  have hX6 : 2 ^ (64 * (6 * k.toNat)) = X * X * X * X * X * X := by
+    rw [← hX, ← Nat.pow_add, ← Nat.pow_add, ← Nat.pow_add, ← Nat.pow_add, ← Nat.pow_add]
+    congr 1; lia
+  have hval : a.toNat * b.toNat =
+      A₀ * B₀ +
+      X * (A₀ * B₁ + A₁ * B₀) +
+      X * X * (A₀ * B₂ + A₁ * B₁ + A₂ * B₀) +
+      X * X * X * (A₀ * B₃ + A₁ * B₂ + A₂ * B₁ + A₃ * B₀) +
+      X * X * X * X * (A₁ * B₃ + A₂ * B₂ + A₃ * B₁) +
+      X * X * X * X * X * (A₂ * B₃ + A₃ * B₂) +
+      X * X * X * X * X * X * (A₃ * B₃) := by
+    rw [hA, hB]; grind
+  have hab : a.toNat * b.toNat < 2 ^ (64 * (a.size.toNat + b.size.toNat)) := by
+    rw [Nat.mul_add, Nat.pow_add]
+    exact Nat.mul_lt_mul_of_lt_of_lt (slice_lt a (Nat.le_refl _)) (slice_lt b (Nat.le_refl _))
+  obtain ⟨f₁, f₂, f₃⟩ := interp6_spec R₂ r (a.size + b.size) k _ _ _ _ _ (2 * k.toNat + 2)
+    (A₀ * B₀) (A₀ * B₁ + A₁ * B₀) (A₀ * B₂ + A₁ * B₁ + A₂ * B₀)
+        (A₀ * B₃ + A₁ * B₂ + A₂ * B₁ + A₃ * B₀) (A₁ * B₃ + A₂ * B₂ + A₃ * B₁) (A₂ * B₃ + A₃ * B₂)
+        (A₃ * B₃)
+    m₂s (by rw [hn]; lia) (by rw [hn]; lia) hk₁ (by have := (k + k + 2).toNat_lt_size; lia)
+    w1s w2s w3s w4s w5s (by lia) (by rw [hn]; lia) hc₀ hc₄
+    (by rw [w1v]; grind)
+    (by rw [w2v]; grind)
+    (by rw [w3v]; grind)
+    (by rw [w4v]; grind)
+    (by rw [w5v]; grind)
+    (by rw [hX, hXX, hX3, hX4, hX5, hX6, hn, ← hval]; exact hab)
+  rw [hn, hX, hXX, hX3, hX4, hX5, hX6, ← hval] at f₃
+  refine ⟨f₁, fun i hi => ?_, fun _ _ _ => f₃⟩
+  rw [f₂ i (by rw [hn]; lia), m₂u i (by lia), m₁u i (by lia)]
+
+private theorem toom43_spec (r a b : USlice) (k : USize) (hk : Shape43 r a b k)
+    (mul : Mul (a.size.toNat + b.size.toNat))
+    (hmul : ∀ r' a' b' h', MulOK (mul r' a' b' h') r' a' b') :
+    MulOK (toom43 r a b k hk mul) r a b := by
+  obtain ⟨hk₁, ha₁, ha₂, hb₁, hba, hr⟩ := hk
+  obtain ⟨hkk, hk1, hkk2, hn⟩ := toom_sizes (r := r) (k := k) hr (by lia)
+  have hnS := r.size.toNat_lt_size
+  have hT : (5 * k).toNat = 5 * k.toNat := toNat_mul_k k 5 (by decide) r.size (by lia)
+  have h3k : (3 * k).toNat = 3 * k.toNat := toNat_mul_k k 3 (by decide) r.size (by lia)
+  dsimp only [toom43]
+  -- The pieces.
+  have pa₀ := (a.size_slice (i := 0) (j := k) (by simp) (by lia) :)
+  have pa₁ := (a.size_slice (i := k) (j := (k + k)) (by lia) (by lia) :)
+  have pa₂ := (a.size_slice (i := (k + k)) (j := (3 * k)) (by lia) (by lia) :)
+  have pa₃ := (a.size_slice (i := (3 * k)) (j := a.size) (by lia) (Nat.le_refl _) :)
+  simp only [USize.toNat_zero, Nat.sub_zero, hkk, h3k] at pa₀ pa₁ pa₂ pa₃
+  have hA := toNat_whole a
+  rw [toNat_split a (i := 0) (j := k) (by simp) (by lia)] at hA
+  rw [toNat_split a (i := k) (j := (k + k)) (by lia) (by lia)] at hA
+  rw [toNat_split a (i := (k + k)) (j := (3 * k)) (by lia) (by lia)] at hA
+  simp only [USize.toNat_zero, Nat.sub_zero, hkk, h3k,
+    show 2 * k.toNat - k.toNat = k.toNat by lia,
+    show 3 * k.toNat - 2 * k.toNat = k.toNat by lia] at hA
+  have hA₀ := slice_lt (a.slice 0 k) (K := k.toNat) (by lia)
+  have hA₁ := slice_lt (a.slice k (k + k)) (K := k.toNat) (by lia)
+  have hA₂ := slice_lt (a.slice (k + k) (3 * k)) (K := k.toNat) (by lia)
+  have hA₃ := slice_lt (a.slice (3 * k) a.size) (K := k.toNat) (by lia)
+  generalize eA₀ : (a.slice 0 k).toNat = A₀ at *
+  generalize eA₁ : (a.slice k (k + k)).toNat = A₁ at *
+  generalize eA₂ : (a.slice (k + k) (3 * k)).toNat = A₂ at *
+  generalize eA₃ : (a.slice (3 * k) a.size).toNat = A₃ at *
+  have pb₀ := (b.size_slice (i := 0) (j := k) (by simp) (by lia) :)
+  have pb₁ := (b.size_slice (i := k) (j := (k + k)) (by lia) (by lia) :)
+  have pb₂ := (b.size_slice (i := (k + k)) (j := b.size) (by lia) (Nat.le_refl _) :)
+  simp only [USize.toNat_zero, Nat.sub_zero, hkk] at pb₀ pb₁ pb₂
+  have hB := toNat_whole b
+  rw [toNat_split b (i := 0) (j := k) (by simp) (by lia)] at hB
+  rw [toNat_split b (i := k) (j := (k + k)) (by lia) (by lia)] at hB
+  simp only [USize.toNat_zero, Nat.sub_zero, hkk,
+    show 2 * k.toNat - k.toNat = k.toNat by lia] at hB
+  have hB₀ := slice_lt (b.slice 0 k) (K := k.toNat) (by lia)
+  have hB₁ := slice_lt (b.slice k (k + k)) (K := k.toNat) (by lia)
+  have hB₂ := slice_lt (b.slice (k + k) b.size) (K := k.toNat) (by lia)
+  generalize eB₀ : (b.slice 0 k).toNat = B₀ at *
+  generalize eB₁ : (b.slice k (k + k)).toNat = B₁ at *
+  generalize eB₂ : (b.slice (k + k) b.size).toNat = B₂ at *
+  -- `c₀ = a₀ b₀` into the low limbs of `r`.
+  have hd₁ : (a.slice 0 k).size.toNat + (b.slice 0 k).size.toNat <
+      a.size.toNat + b.size.toNat := by lia
+  obtain ⟨m₁s, m₁u, m₁v⟩ := hmul (r.slice 0 (k + k)) (a.slice 0 k) (b.slice 0 k) hd₁
+  have hW₀s := r.start_slice (i := 0) (j := k + k) (by simp) (by lia)
+  have hW₀z := r.size_slice (i := 0) (j := k + k) (by simp) (by lia)
+  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, hkk] at hW₀s hW₀z
+  simp only [USlice.array_slice] at m₁s m₁u m₁v
+  rw [hW₀s, pa₀, pb₀] at m₁u m₁v
+  rw [hW₀z, eA₀, eB₀] at m₁v
+  replace m₁v := m₁v (USize.lt_iff_toNat_lt.2 (by rw [pa₀, USize.toNat_zero]; lia))
+    (USize.lt_iff_toNat_lt.2 (by rw [pb₀, USize.toNat_zero]; lia)) (by lia)
+  generalize mul (r.slice 0 (k + k)) (a.slice 0 k) (b.slice 0 k) hd₁ = R₁ at *
+  -- The top coefficient into the top limbs.
+  obtain ⟨x₁, x₂, x₃, -⟩ := window R₁ r m₁s (i := 5 * k) (j := a.size + b.size)
+    (by rw [hT, hn]; lia) (by rw [hn]; lia)
+  rw [hT] at x₂ x₃
+  rw [hn] at x₃
+  have hd₂ : (a.slice (3 * k) a.size).size.toNat + (b.slice (k + k) b.size).size.toNat <
+      a.size.toNat + b.size.toNat := by lia
+  obtain ⟨m₂s, m₂u, m₂v⟩ := hmul ((R₁.uslice r.start r.stop).slice (5 * k) (a.size + b.size))
+    (a.slice (3 * k) a.size) (b.slice (k + k) b.size) hd₂
+  rw [x₁, m₁s] at m₂s
+  rw [x₁, x₂, pa₃, pb₂] at m₂u
+  rw [x₂, x₃, pa₃, pb₂, eA₃, eB₂] at m₂v
+  replace m₂v := m₂v (USize.lt_iff_toNat_lt.2 (by rw [pa₃, USize.toNat_zero]; lia))
+    (USize.lt_iff_toNat_lt.2 (by rw [pb₂, USize.toNat_zero]; lia)) (by lia)
+  generalize mul ((R₁.uslice r.start r.stop).slice (5 * k) (a.size + b.size))
+    (a.slice (3 * k) a.size) (b.slice (k + k) b.size) hd₂ = R₂ at *
+  have hc₀ : R₂.valAt r.start.toNat (2 * k.toNat) = A₀ * B₀ := by
+    rw [← m₁v, show k.toNat + k.toNat = 2 * k.toNat by lia]
+    exact UInt64Array.valAt_congr _ fun i _ hi => m₂u i (by lia)
+  have hc₄ : R₂.valAt (r.start.toNat + 5 * k.toNat)
+      ((a.size + b.size).toNat - 5 * k.toNat) = A₃ * B₂ := by
+    rw [← m₂v, hn]; congr 1; lia
+  -- The evaluations and their products.
+  have pA (j : UInt64) (hj : j.toNat ≤ 5) :=
+    eval4_at (a.slice 0 k) (a.slice k (k + k)) (a.slice (k + k) (3 * k))
+      (a.slice (3 * k) a.size) k j hk1
+      (by lia) (by lia) (by lia) (by lia) hj
+  have pB (j : UInt64) (hj : j.toNat ≤ 5) :=
+    eval3_at (b.slice 0 k) (b.slice k (k + k)) (b.slice (k + k) b.size)
+       k j hk1
+      (by lia) (by lia) (by lia) hj
+  rw [eA₀, eA₁, eA₂, eA₃] at pA
+  rw [eB₀, eB₁, eB₂] at pB
+  have hdw (EA EB : UInt64Array) (hA' : EA.size = (k + 1).toNat) (hB' : EB.size = (k + 1).toNat) :
+      EA.toUSlice.size.toNat + EB.toUSlice.size.toNat < a.size.toNat + b.size.toNat := by
+    rw [eval_toUSlice_size hA', eval_toUSlice_size hB', hk1]; lia
+  obtain ⟨w1s, w1v⟩ := prod_at mul hmul k hk1 hkk2
+    (eval4 (a.slice 0 k) (a.slice k (k + k)) (a.slice (k + k) (3 * k))
+      (a.slice (3 * k) a.size) (k + 1) 1)
+    (eval3 (b.slice 0 k) (b.slice k (k + k)) (b.slice (k + k) b.size) (k + 1) 1)
+    (size_eval4 ..) (size_eval3 ..) (hdw _ _ (size_eval4 ..) (size_eval3 ..))
+  rw [pA 1 (by decide), pB 1 (by decide)] at w1v
+  obtain ⟨w2s, w2v⟩ := prod_at mul hmul k hk1 hkk2
+    (eval4 (a.slice 0 k) (a.slice k (k + k)) (a.slice (k + k) (3 * k))
+      (a.slice (3 * k) a.size) (k + 1) 2)
+    (eval3 (b.slice 0 k) (b.slice k (k + k)) (b.slice (k + k) b.size) (k + 1) 2)
+    (size_eval4 ..) (size_eval3 ..) (hdw _ _ (size_eval4 ..) (size_eval3 ..))
+  rw [pA 2 (by decide), pB 2 (by decide)] at w2v
+  obtain ⟨w3s, w3v⟩ := prod_at mul hmul k hk1 hkk2
+    (eval4 (a.slice 0 k) (a.slice k (k + k)) (a.slice (k + k) (3 * k))
+      (a.slice (3 * k) a.size) (k + 1) 3)
+    (eval3 (b.slice 0 k) (b.slice k (k + k)) (b.slice (k + k) b.size) (k + 1) 3)
+    (size_eval4 ..) (size_eval3 ..) (hdw _ _ (size_eval4 ..) (size_eval3 ..))
+  rw [pA 3 (by decide), pB 3 (by decide)] at w3v
+  obtain ⟨w4s, w4v⟩ := prod_at mul hmul k hk1 hkk2
+    (eval4 (a.slice 0 k) (a.slice k (k + k)) (a.slice (k + k) (3 * k))
+      (a.slice (3 * k) a.size) (k + 1) 4)
+    (eval3 (b.slice 0 k) (b.slice k (k + k)) (b.slice (k + k) b.size) (k + 1) 4)
+    (size_eval4 ..) (size_eval3 ..) (hdw _ _ (size_eval4 ..) (size_eval3 ..))
+  rw [pA 4 (by decide), pB 4 (by decide)] at w4v
+  simp only [show (1 : UInt64).toNat = 1 from rfl,
+    show (2 : UInt64).toNat = 2 from rfl,
+    show (3 : UInt64).toNat = 3 from rfl,
+    show (4 : UInt64).toNat = 4 from rfl] at w1v w2v w3v w4v
+  -- The interpolation.
+  generalize hX : 2 ^ (64 * k.toNat) = X at *
+  have hXX : 2 ^ (64 * (2 * k.toNat)) = X * X := by rw [← hX, ← Nat.pow_add]; congr 1; lia
+  have hX3 : 2 ^ (64 * (3 * k.toNat)) = X * X * X := by
+    rw [← hX, ← Nat.pow_add, ← Nat.pow_add]; congr 1; lia
+  have hX4 : 2 ^ (64 * (4 * k.toNat)) = X * X * X * X := by
+    rw [← hX, ← Nat.pow_add, ← Nat.pow_add, ← Nat.pow_add]; congr 1; lia
+  have hX5 : 2 ^ (64 * (5 * k.toNat)) = X * X * X * X * X := by
+    rw [← hX, ← Nat.pow_add, ← Nat.pow_add, ← Nat.pow_add, ← Nat.pow_add]; congr 1; lia
+  have hX6 : 2 ^ (64 * (6 * k.toNat)) = X * X * X * X * X * X := by
+    rw [← hX, ← Nat.pow_add, ← Nat.pow_add, ← Nat.pow_add, ← Nat.pow_add, ← Nat.pow_add]
+    congr 1; lia
+  have hval : a.toNat * b.toNat =
+      A₀ * B₀ +
+      X * (A₀ * B₁ + A₁ * B₀) +
+      X * X * (A₀ * B₂ + A₁ * B₁ + A₂ * B₀) +
+      X * X * X * (A₁ * B₂ + A₂ * B₁ + A₃ * B₀) +
+      X * X * X * X * (A₂ * B₂ + A₃ * B₁) +
+      X * X * X * X * X * (A₃ * B₂) := by
+    rw [hA, hB]; grind
+  have hab : a.toNat * b.toNat < 2 ^ (64 * (a.size.toNat + b.size.toNat)) := by
+    rw [Nat.mul_add, Nat.pow_add]
+    exact Nat.mul_lt_mul_of_lt_of_lt (slice_lt a (Nat.le_refl _)) (slice_lt b (Nat.le_refl _))
+  obtain ⟨f₁, f₂, f₃⟩ := interp5_spec R₂ r (a.size + b.size) k _ _ _ _ (2 * k.toNat + 2)
+    (A₀ * B₀) (A₀ * B₁ + A₁ * B₀) (A₀ * B₂ + A₁ * B₁ + A₂ * B₀) (A₁ * B₂ + A₂ * B₁ + A₃ * B₀)
+        (A₂ * B₂ + A₃ * B₁) (A₃ * B₂)
+    m₂s (by rw [hn]; lia) (by rw [hn]; lia) hk₁ (by have := (k + k + 2).toNat_lt_size; lia)
+    w1s w2s w3s w4s (by lia) (by rw [hn]; lia) hc₀ hc₄
+    (by rw [w1v]; grind)
+    (by rw [w2v]; grind)
+    (by rw [w3v]; grind)
+    (by rw [w4v]; grind)
+    (by rw [hX, hXX, hX3, hX4, hX5, hn, ← hval]; exact hab)
+  rw [hn, hX, hXX, hX3, hX4, hX5, ← hval] at f₃
+  refine ⟨f₁, fun i hi => ?_, fun _ _ _ => f₃⟩
+  rw [f₂ i (by rw [hn]; lia), m₂u i (by lia), m₁u i (by lia)]
+
 /-! ## The dispatcher -/
 
 /-- The guard of the Toom methods, and the split points as `Nat`s. -/
@@ -1562,7 +2568,12 @@ def mulToomAux (r a b : USlice) : UInt64Array :=
     if b'.size ≤ a'.size then mulToomAux r' a' b' else mulToomAux r' b' a'
   if h : toom3Threshold ≤ b.size ∧ b.size ≤ a.size ∧ a.size ≤ r.size ∧ b.size ≤ r.size - a.size then
     have hg := toom_guard h
-    if h₃₃ : (a.size + 2) / 3 + (a.size + 2) / 3 < b.size then
+    if h₄₄ : toom4Threshold ≤ b.size.toNat ∧ 3 * ((a.size.toNat + 3) / 4) < b.size.toNat then
+      toom44 r a b ((a.size + 3) / 4) (by refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> lia) mul
+    else if h₄₃ : toom4Threshold ≤ b.size.toNat ∧ 2 * ((a.size.toNat + 3) / 4) < b.size.toNat ∧
+        b.size.toNat ≤ 3 * ((a.size.toNat + 3) / 4) then
+      toom43 r a b ((a.size + 3) / 4) (by refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> lia) mul
+    else if h₃₃ : (a.size + 2) / 3 + (a.size + 2) / 3 < b.size then
       toom33 r a b ((a.size + 2) / 3) (by
         have := USize.lt_iff_toNat_lt.1 h₃₃
         rw [USize.toNat_add_of_lt (by lia)] at this
@@ -1605,19 +2616,24 @@ private theorem mulToomAux_spec (r a b : USlice) : MulOK (mulToomAux r a b) r a 
   rw [mulToomAux]
   split
   · split
-    · exact toom33_spec _ _ _ _ _ _ hmul
+    · exact toom44_spec _ _ _ _ _ _ hmul
     · split
-      · exact toom32_spec _ _ _ _ _ _ hmul
+      · exact toom43_spec _ _ _ _ _ _ hmul
       · split
-        · exact toom42_spec _ _ _ _ _ _ hmul
-        · exact mulKaratsuba_ok r a b
+        · exact toom33_spec _ _ _ _ _ _ hmul
+        · split
+          · exact toom32_spec _ _ _ _ _ _ hmul
+          · split
+            · exact toom42_spec _ _ _ _ _ _ hmul
+            · exact mulKaratsuba_ok r a b
   · exact mulKaratsuba_ok r a b
 termination_by a.size.toNat + b.size.toNat
 decreasing_by all_goals lia
 
 /--
-Writes the `a.size + b.size` limbs of `a * b` into `r`, by Toom-3, Toom-3 by 2 or Toom-4 by 2
-depending on the sizes, from `toom3Threshold` limbs in the smaller operand, and by
+Writes the `a.size + b.size` limbs of `a * b` into `r`, by Toom-4 or Toom-4 by 3 from
+`toom4Threshold` limbs in the smaller operand, and by Toom-3, Toom-3 by 2 or Toom-4 by 2,
+depending on the sizes, from `toom3Threshold` limbs, and by
 `mulKaratsuba` below. It requires `0 < a.size`, `0 < b.size` and `a.size + b.size ≤ r.size`, and
 leaves `r` unchanged otherwise.
 -/

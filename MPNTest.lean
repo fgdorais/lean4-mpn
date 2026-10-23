@@ -190,8 +190,12 @@ def checkLinear (n : Nat) : Bool :=
   && [randomLimbs (n - 1) 9, 2 ^ (64 * (n - 1)) - 1].all fun x =>
     let x2 := 2 * (x / 2)
     let x3 := 3 * (x / 3)
+    let x5 := 5 * (x / 5)
     window (MPN.shl63Into (limbs n x2).toUSlice).1 1 (n - 1) == x2 / 2 &&
-    window (MPN.divExact3Into (limbs n x3).toUSlice).1 0 n == x3 / 3
+    window (MPN.divExact3Into (limbs n x3).toUSlice).1 0 n == x3 / 3 &&
+    window (MPN.divExact5Into (limbs n x5).toUSlice).1 0 n == x5 / 5 &&
+    [1, 2, 7, 63].all fun s => window (MPN.rshiftInto (limbs n x).toUSlice s.toUInt64) 0 n == x / 2
+        ^ s
 
 #guard [2, 3, 5, 16, 33].all checkLinear
 
@@ -211,6 +215,10 @@ def checkToom (m n : Nat) : Bool :=
 -- (`1/4 < n/m ≤ 1/3`, roughly); Karatsuba for the rest; and Toom-3 recursing into itself.
 #guard [(128, 128), (300, 200), (385, 385), (500, 400), (900, 450), (700, 400), (1200, 400),
   (1600, 500), (2000, 390), (1200, 1200)].all fun (m, n) => checkToom m n
+
+-- Toom-4 (`3/4 < n/m`), Toom-4 by 3 (`1/2 < n/m ≤ 3/4`, roughly), and Toom-4 recursing into itself.
+#guard [(700, 700), (800, 610), (900, 650), (1000, 600), (2400, 2400)].all fun (m, n) => checkToom m
+    n
 
 /-! FFT residues -/
 
@@ -317,7 +325,7 @@ def checkMPNMul (m n : Nat) : Bool :=
       s[0]! == pad && s[m + n + 1]! == pad
 
 -- Below and above `fftThreshold`, and an unbalanced pair on each side of `fftMinSmall`.
-#guard [(2559, 2560), (2560, 2560), (3000, 2200), (5000, 330), (5000, 300), (4, 3)].all
+#guard [(3071, 3071), (3072, 3000), (3072, 1500), (5000, 330), (5000, 300), (4, 3)].all
   fun (m, n) => checkMPNMul m n
 
 /-- Checks `fftSqr` with `2ᵏ` pieces and `MPN.sqr` on an `n`-limb `a`. -/
