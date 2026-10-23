@@ -481,6 +481,191 @@ public theorem foldUInPlaceThen_eq {β γ : Type} (n : USize)
         (foldUInPlace n f arr rs hr j b).2 := by
   rw [foldUInPlaceThen]
 
+/-! ### In-place loops reading the same array
+
+`foldUInPlace2 n f arr rs xs ys hr hx hy j b` is `foldUInPlace` where `f` also receives limbs
+`xs + j` and `ys + j` of `arr` itself, read at the time of the step. A function on several windows
+of one array, such as the butterflies of the FFT on its flat array, can then read and write them
+without a second reference to the array, which would copy it. When each window read starts at or
+after the window written, or ends before it, the limbs read are those from before the loop
+(`foldUInPlace2_spec`).
+-/
+
+/-- Replaces limbs `rs + j` to `rs + n - 1` of `arr` with `f` of limbs `xs + j` and `ys + j`. -/
+@[expose] public def foldUInPlace2 {β : Type} (n : USize)
+    (f : (j : USize) → j < n → UInt64 → UInt64 → β → UInt64 × β)
+    (arr : UInt64Array) (rs xs ys : USize) (hr : LoopBound arr rs n) (hx : LoopBound arr xs n)
+    (hy : LoopBound arr ys n) (j : USize) (b : β) : UInt64Array × β :=
+  if h : j < n then
+    let p := f j h (arr.uget (xs + j) (hx.uset_bound h)) (arr.uget (ys + j) (hy.uset_bound h)) b
+    foldUInPlace2 n f (arr.uset (rs + j) p.1 (hr.uset_bound h)) rs xs ys (hr.of_uset ..)
+      (hx.of_uset ..) (hy.of_uset ..) (j + 1) p.2
+  else
+    (arr, b)
+termination_by n.toNat - j.toNat
+decreasing_by
+  have := USize.lt_iff_toNat_lt.1 h
+  rw [USize.toNat_add_one_of_lt h]
+  lia
+
+public theorem size_foldUInPlace2 {β : Type} (n : USize)
+    (f : (j : USize) → j < n → UInt64 → UInt64 → β → UInt64 × β) (arr : UInt64Array)
+    (rs xs ys : USize) (hr : LoopBound arr rs n) (hx : LoopBound arr xs n)
+    (hy : LoopBound arr ys n) (j : USize) (b : β) :
+    (foldUInPlace2 n f arr rs xs ys hr hx hy j b).1.size = arr.size := by
+  induction arr, hr, hx, hy, j, b using foldUInPlace2.induct n f rs xs ys with
+  | case1 arr hr hx hy j b h p ih =>
+    rw [foldUInPlace2]
+    simp only [h, ↓reduceDIte]
+    exact ih.trans (size_uset ..)
+  | case2 arr hr hx hy j b h =>
+    rw [foldUInPlace2]
+    simp only [h, ↓reduceDIte]
+
+@[specialize]
+private unsafe def foldUInPlace2ThenImpl {β γ : Type} (n : USize)
+    (f : (j : USize) → j < n → UInt64 → UInt64 → β → UInt64 × β) (arr : UInt64Array)
+    (rs xs ys : USize) (_ : LoopBound arr rs n) (_ : LoopBound arr xs n)
+    (_ : LoopBound arr ys n) (j : USize) (b : β)
+    (g : (arr' : UInt64Array) → arr'.size = arr.size → β → γ) : γ :=
+  loop (ensureExclusiveUnsafe arr) j b
+where
+  @[specialize] loop (a : UInt64Array) (j : USize) (b : β) : γ :=
+    if j < n then
+      let p := f j lcProof (a.uget (xs + j) lcProof) (a.uget (ys + j) lcProof) b
+      loop (setUnsafe a (rs + j) p.1) (j + 1) p.2
+    else
+      g a lcProof b
+
+/--
+`foldUInPlace2` followed by `g` on the new array and the last accumulator, like
+`foldUInPlaceThen`: the implementation makes `arr` exclusive once, then reads and stores without
+checks.
+-/
+@[implemented_by foldUInPlace2ThenImpl]
+public def foldUInPlace2Then {β γ : Type} (n : USize)
+    (f : (j : USize) → j < n → UInt64 → UInt64 → β → UInt64 × β) (arr : UInt64Array)
+    (rs xs ys : USize) (hr : LoopBound arr rs n) (hx : LoopBound arr xs n)
+    (hy : LoopBound arr ys n) (j : USize) (b : β)
+    (g : (arr' : UInt64Array) → arr'.size = arr.size → β → γ) : γ :=
+  g (foldUInPlace2 n f arr rs xs ys hr hx hy j b).1 (size_foldUInPlace2 ..)
+    (foldUInPlace2 n f arr rs xs ys hr hx hy j b).2
+
+public theorem foldUInPlace2Then_eq {β γ : Type} (n : USize)
+    (f : (j : USize) → j < n → UInt64 → UInt64 → β → UInt64 × β) (arr : UInt64Array)
+    (rs xs ys : USize) (hr : LoopBound arr rs n) (hx : LoopBound arr xs n)
+    (hy : LoopBound arr ys n) (j : USize) (b : β)
+    (g : (arr' : UInt64Array) → arr'.size = arr.size → β → γ) :
+    foldUInPlace2Then n f arr rs xs ys hr hx hy j b g =
+      g (foldUInPlace2 n f arr rs xs ys hr hx hy j b).1 (size_foldUInPlace2 ..)
+        (foldUInPlace2 n f arr rs xs ys hr hx hy j b).2 := by
+  rw [foldUInPlace2Then]
+
+/--
+`foldUInPlace2Then` as an intermediate result: the array and the accumulator of the loop, and the
+size proof that `g` receives, as variables. Proofs about a chain of loops go through this, so
+that the later loops mention variables, not the earlier loops.
+-/
+public theorem foldUInPlace2Then_cases {β γ : Type} {n : USize}
+    {f : (j : USize) → j < n → UInt64 → UInt64 → β → UInt64 × β} {arr : UInt64Array}
+    {rs xs ys : USize} {hr : LoopBound arr rs n} {hx : LoopBound arr xs n}
+    {hy : LoopBound arr ys n} {j : USize} {b : β}
+    {g : (arr' : UInt64Array) → arr'.size = arr.size → β → γ} {R : γ}
+    (h : foldUInPlace2Then n f arr rs xs ys hr hx hy j b g = R) :
+    ∃ a, ∃ ha : a.size = arr.size, ∃ c,
+      foldUInPlace2 n f arr rs xs ys hr hx hy j b = (a, c) ∧ g a ha c = R := by
+  rw [foldUInPlace2Then_eq] at h
+  exact ⟨_, _, _, rfl, h⟩
+
+/--
+The value of `foldUInPlace2` for a step with a linear carry law: if every step turns limbs `x`,
+`y` and the accumulator `c` into a limb `out` and an accumulator `c'` with
+`out + 2⁶⁴ P c' + ux x + uy y + Q c = vx x + vy y + 2⁶⁴ Q c' + P c` and keeps the invariant `I`
+of the accumulator, then the limbs written and the last accumulator satisfy the same law with the
+values of the windows, as long as the windows read are not overwritten before they are read. `P`
+is a carry and `Q` a borrow.
+-/
+public theorem foldUInPlace2_spec {β : Type} (n : USize)
+    (f : (j : USize) → j < n → UInt64 → UInt64 → β → UInt64 × β) (P Q : β → Nat)
+    (ux uy vx vy : Nat) (I : β → Prop) (inv : ∀ j h x y c, I c → I (f j h x y c).2)
+    (law : ∀ j h x y c, I c → (f j h x y c).1.toNat + 2 ^ 64 * P (f j h x y c).2 + ux * x.toNat +
+      uy * y.toNat + Q c = vx * x.toNat + vy * y.toNat + 2 ^ 64 * Q (f j h x y c).2 + P c)
+    (arr : UInt64Array) (rs xs ys : USize) (hr : LoopBound arr rs n) (hx : LoopBound arr xs n)
+    (hy : LoopBound arr ys n)
+    (hdx : rs.toNat ≤ xs.toNat ∨ xs.toNat + n.toNat ≤ rs.toNat)
+    (hdy : rs.toNat ≤ ys.toNat ∨ ys.toNat + n.toNat ≤ rs.toNat) (j : USize) (b : β) (hb : I b) :
+    (foldUInPlace2 n f arr rs xs ys hr hx hy j b).1.size = arr.size ∧
+      I (foldUInPlace2 n f arr rs xs ys hr hx hy j b).2 ∧
+      (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
+        (foldUInPlace2 n f arr rs xs ys hr hx hy j b).1[i]! = arr[i]!) ∧
+      (foldUInPlace2 n f arr rs xs ys hr hx hy j b).1.valAt (rs.toNat + j.toNat)
+          (n.toNat - j.toNat) +
+        2 ^ (64 * (n.toNat - j.toNat)) * P (foldUInPlace2 n f arr rs xs ys hr hx hy j b).2 +
+        ux * arr.valAt (xs.toNat + j.toNat) (n.toNat - j.toNat) +
+        uy * arr.valAt (ys.toNat + j.toNat) (n.toNat - j.toNat) + Q b =
+      vx * arr.valAt (xs.toNat + j.toNat) (n.toNat - j.toNat) +
+        vy * arr.valAt (ys.toNat + j.toNat) (n.toNat - j.toNat) +
+        2 ^ (64 * (n.toNat - j.toNat)) * Q (foldUInPlace2 n f arr rs xs ys hr hx hy j b).2 +
+        P b := by
+  induction arr, hr, hx, hy, j, b using foldUInPlace2.induct n f rs xs ys with
+  | case1 arr hr hx hy j b h p ih =>
+    rw [foldUInPlace2]
+    simp only [h, ↓reduceDIte]
+    have hI := inv j h (arr.uget (xs + j) (hx.uset_bound h)) (arr.uget (ys + j) (hy.uset_bound h))
+      b hb
+    have hj := USize.lt_iff_toNat_lt.1 h
+    have hj₁ := USize.toNat_add_one_of_lt h
+    have hri := hr.toNat_add h
+    have hxi := hx.toNat_add h
+    have hyi := hy.toNat_add h
+    obtain ⟨ih₁, ih₀, ih₂, ih₃⟩ := ih hI
+    rw [hj₁] at ih₂ ih₃
+    simp only [UInt64Array.size_uset] at ih₁
+    have hv : (foldUInPlace2 n f (arr.uset (rs + j) p.1 (hr.uset_bound h)) rs xs ys
+        (hr.of_uset ..) (hx.of_uset ..) (hy.of_uset ..) (j + 1) p.2).1[rs.toNat + j.toNat]! =
+          p.1 := by
+      rw [ih₂ _ (.inl (by lia)), getElem!_uset]
+      simp [hri]
+    have hX : (arr.uset (rs + j) p.1 (hr.uset_bound h)).valAt (xs.toNat + (j.toNat + 1))
+        (n.toNat - (j.toNat + 1)) =
+          arr.valAt (xs.toNat + (j.toNat + 1)) (n.toNat - (j.toNat + 1)) :=
+      valAt_uset_of _ _ _ _ _ _ (by rw [hri]; lia)
+    have hY : (arr.uset (rs + j) p.1 (hr.uset_bound h)).valAt (ys.toNat + (j.toNat + 1))
+        (n.toNat - (j.toNat + 1)) =
+          arr.valAt (ys.toNat + (j.toNat + 1)) (n.toNat - (j.toNat + 1)) :=
+      valAt_uset_of _ _ _ _ _ _ (by rw [hri]; lia)
+    have hx' : arr.uget (xs + j) (hx.uset_bound h) = arr[xs.toNat + j.toNat]! := by
+      rw [uget_eq_getElem!, hxi]
+    have hy' : arr.uget (ys + j) (hy.uset_bound h) = arr[ys.toNat + j.toNat]! := by
+      rw [uget_eq_getElem!, hyi]
+    refine ⟨ih₁, ih₀, fun i hi => ?_, ?_⟩
+    · rw [ih₂ i (by lia), getElem!_uset]
+      simp only [hri]
+      split <;> lia
+    · rw [hX, hY] at ih₃
+      obtain ⟨k, hk⟩ : ∃ k, n.toNat - j.toNat = k + 1 := ⟨n.toNat - j.toNat - 1, by lia⟩
+      rw [show n.toNat - (j.toNat + 1) = k by lia, ← Nat.add_assoc, ← Nat.add_assoc,
+        ← Nat.add_assoc] at ih₃
+      have hl := law j h (arr.uget (xs + j) (hx.uset_bound h)) (arr.uget (ys + j) (hy.uset_bound h))
+        b hb
+      rw [hx', hy'] at hl
+      rw [hk, valAt_succ, valAt_succ, valAt_succ, hv, Nat.mul_succ, Nat.pow_add]
+      show _ + _ * P (foldUInPlace2 n f (arr.uset (rs + j) p.1 (hr.uset_bound h)) rs xs ys
+        (hr.of_uset ..) (hx.of_uset ..) (hy.of_uset ..) (j + 1) p.2).2 + _ + _ + _ = _
+      generalize (foldUInPlace2 n f (arr.uset (rs + j) p.1 (hr.uset_bound h)) rs xs ys
+        (hr.of_uset ..) (hx.of_uset ..) (hy.of_uset ..) (j + 1) p.2) = q at *
+      simp only [p] at *
+      generalize f j h arr[xs.toNat + j.toNat]! arr[ys.toNat + j.toNat]! b = p' at *
+      generalize q.1.valAt _ _ = R at *
+      generalize arr.valAt (xs.toNat + j.toNat + 1) k = X at *
+      generalize arr.valAt (ys.toNat + j.toNat + 1) k = Y at *
+      generalize 2 ^ (64 * k) = B at *
+      grind
+  | case2 arr hr hx hy j b h =>
+    rw [foldUInPlace2]
+    have : n.toNat - j.toNat = 0 := by have := USize.lt_iff_toNat_lt (a := j) (b := n); lia
+    simp [h, this, Nat.add_comm, hb]
+
 /-- A sub-slice of a whole array, `toUSlice`. -/
 public theorem toUSlice_slice (a : UInt64Array) {i j : USize} (hij : i.toNat ≤ j.toNat)
     (hj : j.toNat ≤ a.size) (ha : a.size < USize.size) :

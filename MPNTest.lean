@@ -211,3 +211,50 @@ def checkToom (m n : Nat) : Bool :=
 -- (`1/4 < n/m ≤ 1/3`, roughly); Karatsuba for the rest; and Toom-3 recursing into itself.
 #guard [(128, 128), (300, 200), (385, 385), (500, 400), (900, 450), (700, 400), (1200, 400),
   (1600, 500), (2000, 390), (1200, 1200)].all fun (m, n) => checkToom m n
+
+/-! FFT residues -/
+
+/--
+Checks the residue operations modulo `F = 2^(64 n) + 1` on three windows of `n + 1` limbs, at
+`1`, `n + 2` and `2 n + 3` of an array with a padding limb at each end, holding `x`, `y` and `z`:
+the window written has the right value, and the other limbs are unchanged.
+-/
+def checkFermat (n : Nat) : Bool :=
+  let F := 2 ^ (64 * n) + 1
+  let pad : UInt64Array := .replicate 1 0xAAAAAAAAAAAAAAAA
+  let vals := [0, 1, F - 1, F - 2, 2 ^ (64 * n) - 1, 2 ^ 63, randomLimbs n 3 % F,
+    2 ^ (64 * (n - 1))]
+  let (oa, ob, oc) := (1, n + 2, 2 * n + 3)
+  let others (r arr : UInt64Array) (o : Nat) : Bool :=
+    (List.range arr.size).all fun i => i ∈ List.range' o (n + 1) || r[i]! == arr[i]!
+  vals.all fun x => vals.all fun y =>
+    let arr := pad ++ limbs (n + 1) x ++ limbs (n + 1) y ++ limbs (n + 1) 12345 ++ pad
+    let ok : Bool := Id.run do
+      if h : MPN.FFT.Win arr n.toUSize oa.toUSize ∧ MPN.FFT.Win arr n.toUSize ob.toUSize ∧
+          MPN.FFT.Win arr n.toUSize oc.toUSize then
+        let s := MPN.FFT.addModAt arr n.toUSize oa.toUSize oa.toUSize ob.toUSize h.1 h.1 h.2.1
+        let d := MPN.FFT.subModAt arr n.toUSize oc.toUSize oa.toUSize ob.toUSize h.2.2 h.1 h.2.1
+        let d' := MPN.FFT.subModAt arr n.toUSize oa.toUSize oa.toUSize ob.toUSize h.1 h.1 h.2.1
+        let es := [0, 1, 63, 64, 65, 64 * (n - 1), 64 * (n - 1) + 7, 64 * n - 1].filter
+          (· < 64 * n)
+        let pw := es.all fun e =>
+          if he : e.toUSize.toNat < 64 * n.toUSize.toNat then
+            let m := MPN.FFT.mulPow2At arr n.toUSize oc.toUSize oa.toUSize e.toUSize h.2.2 h.1 he
+            window m oc (n + 1) == x * 2 ^ e % F && others m arr oc
+          else false
+        return window s oa (n + 1) == (x + y) % F && others s arr oa &&
+          window d oc (n + 1) == (x + F - y) % F && others d arr oc &&
+          window d' oa (n + 1) == (x + F - y) % F && others d' arr oa && pw
+      else return false
+    -- Reduction of any `n + 1` limbs.
+    let v := x % 2 ^ (64 * n) + 2 ^ (64 * n) * (y % 2 ^ 64)
+    let arr' := pad ++ limbs (n + 1) v ++ pad
+    let ok' : Bool :=
+      if h : MPN.FFT.Win arr' n.toUSize 1 then
+        let r := MPN.FFT.normAt arr' n.toUSize 1 h
+        window r 1 (n + 1) == v % F && others r arr' 1
+      else false
+    ok && ok'
+
+#guard [1, 2, 3, 5].all checkFermat
+

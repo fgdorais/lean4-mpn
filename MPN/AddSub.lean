@@ -31,7 +31,7 @@ namespace MPN
 /-! ## Addition -/
 
 /-- One limb of `addN`: the low word of `x + y + c` and the carry out. -/
-private theorem add_step (x y c : UInt64) :
+public theorem add_step (x y c : UInt64) :
     (x + y + c).toNat + 2 ^ 64 * (UInt64.addh (UInt64.addh 0 x y) (x + y) c).toNat =
       x.toNat + y.toNat + c.toNat := by
   have := x.toNat_lt; have := y.toNat_lt; have := c.toNat_lt
@@ -401,7 +401,7 @@ public theorem valAt_add (r a b : USlice) (c : UInt64) (hba : b.size ≤ a.size)
 /-! ## Subtraction -/
 
 /-- One limb of `subN`: the low word of `x - y - c` and the borrow out. -/
-private theorem sub_step (x y c : UInt64) :
+public theorem sub_step (x y c : UInt64) :
     (x - y - c).toNat + y.toNat + c.toNat =
       x.toNat + 2 ^ 64 * (UInt64.subh (UInt64.subh 0 x y) (x - y) c).toNat := by
   have := x.toNat_lt; have := y.toNat_lt; have := c.toNat_lt
