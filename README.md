@@ -21,11 +21,17 @@ comes with Lean.
 | `MPN.Mul.Karatsuba` | `mulKaratsuba`, from `karatsubaThreshold = 64` limbs | `mpn_kara_mul_n` |
 | `MPN.Linear` | in place: `addMulInto`, `subMulInto`, `shl63Into` (halving), `divExact3Into` | `mpn_addmul_1`, `mpn_rshift`, `mpn_divexact_by3` |
 | `MPN.Mul.Toom` | `mulToom`: Toom-3, Toom-3 by 2 and Toom-4 by 2, from `toom3Threshold = 384` limbs | `mpn_toom33_mul`, `mpn_toom32_mul`, `mpn_toom42_mul` |
+| `MPN.FFT.Fermat` | in place on windows of one array, modulo `2^(64 n) + 1`: `normAt`, `addModAt`, `subModAt`, `mulPow2At` | `mpn_fft_add_modF`, `mpn_fft_sub_modF`, `mpn_fft_mul_2exp_modF` |
+| `MPN.FFT.Transform` | `fwd`, `inv`: the transforms of length `2ᵏ`, in place | `mpn_fft_fft`, `mpn_fft_fftinv` |
+| `MPN.FFT.Mul` | `fftMul`: Schönhage–Strassen with `2ᵏ` pieces | `mpn_mul_fft` |
 | `MPN.Sqr.Basecase` | `sqrBasecase` | `mpn_sqr_basecase` |
 | `MPN.Sqr.Karatsuba` | `sqrKaratsuba`, from `sqrKaratsubaThreshold = 96` limbs | `mpn_kara_sqr_n` |
 
 `MPN.UIntArray` holds the general tooling: `valAt`, the value of a range of limbs; `USlice`, a
-region of an array with `USize` bounds; and `foldUInPlace`, the in-place loop.
+region of an array with `USize` bounds; `foldUInPlace`, the in-place loop; and `foldUInPlace2`,
+the in-place loop that reads other windows of the array it writes. `MPN.Sum`, `MPN.NatMod`,
+`MPN.Poly` and `MPN.FFT.Roots` are mathematics on `Nat`: finite sums, congruences, polynomials
+and the inversion of the transform.
 
 ## Conventions
 

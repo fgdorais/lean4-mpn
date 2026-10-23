@@ -285,3 +285,23 @@ def checkTransform (n m : Nat) : Bool :=
     g[0]! == arr[0]! && g.size == arr.size
 
 #guard [(1, 1), (1, 2), (1, 3), (2, 1), (2, 3), (2, 4), (3, 5)].all fun (n, m) => checkTransform n m
+
+/-! FFT multiplication -/
+
+/--
+Checks `fftMul` with `2ᵏ` pieces on an `m`-limb `a` and an `n`-limb `b`, in both orders, and that
+it takes the FFT path.
+-/
+def checkFFT (m n k : Nat) : Bool :=
+  let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
+  let r := UInt64Array.replicate (m + n + 2) pad
+  let p := MPN.FFT.fftParams (m + n) k
+  decide (MPN.FFT.FFTCheck (inner r (m + n)) (limbs m 1).toUSlice (limbs n 1).toUSlice k p.1 p.2) &&
+  [(randomLimbs m 1, randomLimbs n 2), (2 ^ (64 * m) - 1, 2 ^ (64 * n) - 1)].all fun (x, y) =>
+    let s := MPN.FFT.fftMul (inner r (m + n)) (limbs m x).toUSlice (limbs n y).toUSlice k
+    let t := MPN.FFT.fftMul (inner r (m + n)) (limbs n y).toUSlice (limbs m x).toUSlice k
+    window s 1 (m + n) == x * y && window t 1 (m + n) == x * y &&
+      s[0]! == pad && s[m + n + 1]! == pad
+
+#guard [(50, 40, 3), (1, 1, 1), (7, 3, 2), (100, 1, 4), (64, 64, 5), (300, 200, 6), (200, 7, 7),
+  (150, 150, 8), (1000, 900, 5)].all fun (m, n, k) => checkFFT m n k

@@ -629,7 +629,7 @@ public def mulPow2At (arr : UInt64Array) (n d t e : USize) (hd : Win arr n d) (h
   have hlt : LoopBound a₁ t (n - e / 64) := (ht.of_size h₁).lb (by rw [hnw]; lia)
   foldUInPlace2Then (n - e / 64) (decStep (n - e / 64)) a₁ (d + e / 64) t t
     ((hd.of_size h₁).lbAt (by lia) (by rw [hnw]; lia)) hlt hlt 0
-    (c₁ + arr.uget (t + n) (by rw [ht.add (Nat.le_refl _)]; lia)) fun a₂ h₂ c₂ =>
+    (c₁ + a₁.uget (t + n) (by rw [(ht.of_size h₁).add (Nat.le_refl _), h₁]; lia)) fun a₂ h₂ c₂ =>
   have hd₂ := hd.of_size (h₂.trans h₁)
   have hd₃ : Win (a₂.uset (d + n) 0 (by rw [hd₂.add (Nat.le_refl _)]; lia)) n d :=
     hd₂.of_size (size_uset ..)
@@ -711,7 +711,7 @@ public theorem mulPow2At_spec (arr : UInt64Array) (n d t e : USize) (hd : Win ar
     0 0 1 0 (fun _ => True) (fun _ _ _ _ _ _ => trivial) (decStep_law _) a₁ (d + e / 64) t t
     ((hd.of_size h₁).lbAt (by lia) (by rw [hnw]; lia)) ((ht.of_size h₁).lb (by rw [hnw]; lia))
     ((ht.of_size h₁).lb (by rw [hnw]; lia)) (by rw [hdw, hnw]; lia) (by rw [hdw, hnw]; lia) 0
-    (c₁ + arr.uget (t + n) (by rw [htn]; lia)) trivial
+    (c₁ + a₁.uget (t + n) (by rw [htn, h₁]; lia)) trivial
   rw [e₂] at P₂
   obtain ⟨-, -, p₂u, p₂v⟩ := P₂
   simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, hdw, hnw, Nat.zero_mul, Nat.one_mul,
@@ -719,8 +719,8 @@ public theorem mulPow2At_spec (arr : UInt64Array) (n d t e : USize) (hd : Win ar
   -- The values, as `Nat`s.
   have hidx : (d + n).toNat < a₂.size := by rw [h₂, h₁, hd.add (Nat.le_refl _)]; lia
   have hdn := hd.add (Nat.le_refl _)
-  have htv : (arr.uget (t + n) (by rw [htn]; lia)).toNat = arr[t.toNat + n.toNat]!.toNat := by
-    rw [uget_eq_getElem!, htn]
+  have htv : (a₁.uget (t + n) (by rw [htn, h₁]; lia)).toNat = arr[t.toNat + n.toNat]!.toNat := by
+    rw [uget_eq_getElem!, htn, p₁u _ (by lia)]
   have hTv : arr.valAt t.toNat (n.toNat + 1) = arr.valAt t.toNat (n.toNat - (e / 64).toNat) +
       2 ^ (64 * (n.toNat - (e / 64).toNat)) *
         arr.valAt (t.toNat + (n.toNat - (e / 64).toNat)) (e / 64).toNat +
@@ -779,7 +779,7 @@ public theorem mulPow2At_spec (arr : UInt64Array) (n d t e : USize) (hd : Win ar
   have hIl := valAt_lt (incrAt (a₂.uset (d + n) 0 hidx) d (n + 1) hl₃ 0 c₂).1 d.toNat
     (n.toNat + 1)
   have hc₁l := c₁.toNat_lt
-  have htnl := (arr.uget (t + n) (by rw [htn]; lia)).toNat_lt
+  have htnl := (a₁.uget (t + n) (by rw [htn, h₁]; lia)).toNat_lt
   rw [htv] at htnl
   simp only [fermat] at hT ⊢
   rw [hTv, hPn] at hT

@@ -99,7 +99,7 @@ private theorem zero_spec (n : USize) (arr : UInt64Array) (rs : USize) (hr : Loo
     have : n.toNat - j.toNat = 0 := by have := USize.lt_iff_toNat_lt (a := j) (b := n); lia
     simp [this]
 
-private theorem zeroInto_spec (r : USlice) :
+public theorem zeroInto_spec (r : USlice) :
     (zeroInto r).size = r.array.size ∧
       (∀ i, (i < r.start.toNat ∨ r.start.toNat + r.size.toNat ≤ i) →
         (zeroInto r)[i]! = r.array[i]!) ∧
@@ -110,7 +110,7 @@ private theorem zeroInto_spec (r : USlice) :
   simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero] at this
   exact this
 
-private theorem valAt_replicate_zero (n lo m : Nat) :
+public theorem valAt_replicate_zero (n lo m : Nat) :
     (UInt64Array.replicate n 0).valAt lo m = 0 := by
   induction m generalizing lo with
   | zero => simp

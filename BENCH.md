@@ -51,6 +51,7 @@ so five runs make the tables reliable. Within one run, distrust a row whose spre
 | `toom` | `MPN.mulToom` | `n` by `n` limbs | Toom-3 from 384 limbs (`toom3Threshold`), `mulKaratsuba` below |
 | `kara2` | `MPN.mulKaratsuba` | `n` by `n / 2` limbs | as `kara` |
 | `toom2` | `MPN.mulToom` | `n` by `n / 2` limbs | Toom-3 by 2 or Toom-4 by 2 from 384 limbs in the smaller operand, `mulKaratsuba` below |
+| `fft` | `MPN.FFT.fftMul` | `n` by `n` limbs | Schönhage–Strassen with `2ᵏ` pieces, `k = fftK (2 n)`, the pointwise products by `mulToom` |
 | `sqr` | `MPN.sqrBasecase` | `n` limbs | the cross products once by rows (`mul1`, `addMul1`), then doubled with the diagonal in one pass |
 | `ksqr` | `MPN.sqrKaratsuba` | `n` limbs | Karatsuba with three squares from 96 limbs (`sqrKaratsubaThreshold`), `sqrBasecase` below |
 | `comba` | `MPN.mulComba` | `n` by `n` limbs | schoolbook by columns into a three-word accumulator, `USize` indices |
@@ -106,6 +107,19 @@ one, which needs the smaller one to be longer than that half, so on `n` by `n / 
 `mulBasecase`, and its ratio grows with the size. Toom-3 by 2 and Toom-4 by 2 keep it near 4. At
 512 by 256 limbs `toom2` is still `mulKaratsuba`, so still `mulBasecase`.
 
+### FFT sizes
+
+From `bench toom fft 1024 2048 4096 8192 16384 32768`, the fastest of three runs, on 2026-10-23.
+
+| op | 1024 | 2048 | 4096 | 8192 | 16384 | 32768 |
+|---|---:|---:|---:|---:|---:|---:|
+| `toom` | 267 µs (3.53) | 778 µs (3.60) | 2.10 ms (4.06) | 5.97 ms (5.02) | 17.2 ms (6.44) | 45.4 ms (7.64) |
+| `fft` | 383 µs (5.03) | 809 µs (3.83) | 1.96 ms (4.35) | 4.09 ms (3.79) | 10.7 ms (4.80) | 21.9 ms (3.37) |
+
+`fft` passes `toom` at about 4096 limbs and is twice as fast at 32768. Its ratio to `Nat`
+oscillates with the number of pieces, `2ᵏ`, which `fftK` has not been tuned for: `k` steps at
+4096 and 16384 limbs per operand.
+
 ## History
 
 Times are the fastest of five runs, in the format of the tables above.
@@ -120,3 +134,4 @@ Times are the fastest of five runs, in the format of the tables above.
 | 2026-10-22 | `f5ee946`+ | the add/sub, `mul1` and `addMul1` loops through `foldUInPlaceThen` (`@[csimp]`): the array is made exclusive once per loop, not at every store | `add` 144 → 116 ns at 64 limbs, 368 → 274 ns at 256; `mul1`/`addmul1` −17–21% from 64; `mul` −24–31% from 4 limbs (4.85 → 3.49 µs at 64); `kara` −28–31% from 16 (135 → 94.4 µs at 512); `comba` (not converted) and `mulref` ±2% |
 | 2026-10-22 | `727ea63`+ | `sqrBasecase` and `sqrKaratsuba` (`sqrKaratsubaThreshold = 96`, from a sweep of 24–128) | `sqr` vs `mul`: 200 vs 256 ns at 16 limbs, 1.82 vs 3.45 µs at 64, 28.8 vs 56.1 µs at 256; `ksqr` 3.67 µs at 96 limbs, 19.5 µs at 256, 59.8 µs at 512 (`kara` 94.4 µs) |
 | 2026-10-23 | `bfe1b4c`+ | `mulToom`: Toom-3, Toom-3 by 2 and Toom-4 by 2 with the points `0, 1, 2, 3, ∞`, `toom3Threshold = 384`; new rows `toom`, `kara2`, `toom2` (large sizes above) | `toom` vs `kara`: 90.4 vs 94.8 µs at 512 limbs, 269 vs 292 µs at 1024, 775 vs 882 µs at 2048, 2.10 vs 2.66 ms at 4096; `toom2` vs `kara2` (`n` by `n / 2`): 210 vs 449 µs at 1024, 660 µs vs 1.79 ms at 2048, 1.56 vs 7.10 ms at 4096 |
+| 2026-10-23 | `0b52bb2`+ | `MPN.FFT.fftMul`: Schönhage–Strassen on one flat array, in-place residues modulo `2^(64 n) + 1`, the forward and inverse transforms without a bit-reversal permutation; three copies of the whole array found with `gdb` on `lean_copy_sarray` and removed (a continuation reading the array before its loop, a pair kept alive past a write, and a parameter the compiler inferred as borrowed) | `fft` 71.9 → 10.7 ms at 16384 limbs before and after removing the copies; vs `toom`: 1.96 vs 2.10 ms at 4096, 4.09 vs 5.97 ms at 8192, 21.9 vs 45.4 ms at 32768 |

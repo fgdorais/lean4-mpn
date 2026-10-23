@@ -152,8 +152,8 @@ def row (noNat : Bool) (name : String) (n : Nat) (mpn : IO Timing) (nat : IO Tim
 def toNat (a : UInt64Array) : Nat := a.foldr (fun d n => n * 2 ^ 64 + d.toNat) 0
 
 def ops : List String :=
-  ["add", "sub", "mul1", "addmul1", "mul", "sqr", "comba", "kara", "toom", "kara2", "toom2", "ksqr",
-    "mulref"]
+  ["add", "sub", "mul1", "addmul1", "mul", "sqr", "comba", "kara", "toom", "kara2", "toom2", "fft",
+    "ksqr", "mulref"]
 
 def main (args : List String) : IO Unit := do
   let noNat := args.contains "--no-nat"
@@ -241,6 +241,12 @@ def main (args : List String) : IO Unit := do
             MPN.mulToom (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
               y.toUSlice) checkArr a h)
           (time (· * ·) checkNat na (toNat h))
+      | "fft" =>
+        row noNat op n
+          (time (fun (x y : UInt64Array) =>
+            MPN.FFT.fftMul (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
+              y.toUSlice (MPN.FFT.fftK (x.size + y.size))) checkArr a b)
+          (time (· * ·) checkNat na nb)
       | "mulref" =>
         row noNat op n (time refMul checkArr a b) (time (· * ·) checkNat na nb)
       | _ => throw <| .userError s!"unknown operation {op}"

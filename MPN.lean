@@ -17,6 +17,7 @@ public import MPN.Sqr.Karatsuba
 public import MPN.FFT.Roots
 public import MPN.FFT.Fermat
 public import MPN.FFT.Transform
+public import MPN.FFT.Mul
 
 /-!
 # MPN
@@ -29,7 +30,8 @@ Verified multi-precision arithmetic on `UInt64` limbs, in the style of GMP's `mp
 * `MPN.Linear`: in-place passes for the Toom methods: `± b x`, halving, exact division by 3;
 * `MPN.Mul.Basecase`, `MPN.Mul.Comba`, `MPN.Mul.Karatsuba`, `MPN.Mul.Toom`: multiplication;
 * `MPN.Sqr.Basecase`, `MPN.Sqr.Karatsuba`: squaring;
-* `MPN.FFT.Roots`, `MPN.FFT.Fermat`, `MPN.FFT.Transform`: for the FFT, the inversion of the
-  transform modulo `2^N + 1`, in-place residues modulo `2^(64 n) + 1` in the windows of one
-  array, and the forward and inverse transforms on blocks of those windows.
+* `MPN.FFT.Roots`, `MPN.FFT.Fermat`, `MPN.FFT.Transform`, `MPN.FFT.Mul`: FFT multiplication,
+  from the inversion of the transform modulo `2^N + 1`, in-place residues modulo `2^(64 n) + 1`
+  in the windows of one array, and the forward and inverse transforms on blocks of those
+  windows.
 -/

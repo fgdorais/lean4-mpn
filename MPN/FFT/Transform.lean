@@ -438,20 +438,20 @@ public theorem invBfly_spec (arr : UInt64Array) (n x y t e : Nat) (first : Bool)
 /-- The value of window `p` of the block at `o`, the windows of `n + 1` limbs one after another. -/
 public abbrev coef (arr : UInt64Array) (n o p : Nat) : Nat := win arr n (o + p * (n + 1))
 
-private theorem step_le {p q w : Nat} (h : p + 1 ≤ q) : p * w + w ≤ q * w := by
+public theorem step_le {p q w : Nat} (h : p + 1 ≤ q) : p * w + w ≤ q * w := by
   have := Nat.mul_le_mul_right w h
   rw [Nat.add_mul, Nat.one_mul] at this
   exact this
 
 /-- Distinct windows of a block are disjoint. -/
-private theorem win_disj (o n p q : Nat) (h : p ≠ q) :
+public theorem win_disj (o n p q : Nat) (h : p ≠ q) :
     o + p * (n + 1) + n + 1 ≤ o + q * (n + 1) ∨ o + q * (n + 1) + n + 1 ≤ o + p * (n + 1) := by
   rcases Nat.lt_or_gt_of_ne h with h | h
   · have := step_le (w := n + 1) h; lia
   · have := step_le (w := n + 1) h; lia
 
 /-- A window of a block of `L` windows is within it. -/
-private theorem win_in (o n p L : Nat) (h : p < L) : o + p * (n + 1) + n + 1 ≤ o + L * (n + 1) := by
+public theorem win_in (o n p L : Nat) (h : p < L) : o + p * (n + 1) + n + 1 ≤ o + L * (n + 1) := by
   have := step_le (w := n + 1) h; lia
 
 /-- The butterflies of the forward transform, from `j` on, `cnt` of them. -/
@@ -756,7 +756,9 @@ The inverse transform of the block of `2ᵐ` windows at `o`, with the root `2^(2
 transforms of each half, then the butterflies.
 -/
 public def inv (n t : Nat) : Nat → UInt64Array → Nat → Nat → UInt64Array
-  | 0, arr, _, _ => arr
+  -- Through `invLoop`, which owns the array: returning it directly makes the compiler borrow it,
+  -- so that the butterflies after the recursive calls would copy it.
+  | 0, arr, o, σ => invLoop n o 0 σ t arr 0 0
   | m + 1, arr, o, σ =>
     let a := inv n t m arr o (2 * σ)
     let a := inv n t m a (o + 2 ^ m * (n + 1)) (2 * σ)
@@ -779,7 +781,7 @@ public theorem inv_spec (n t : Nat) (hn : 1 ≤ n) (h64 : 64 * n < USize.size) (
     simp only [Nat.pow_zero] at hp
     have : p = 0 := by lia
     subst this
-    simp only [inv, sumRange, Nat.mul_zero, Nat.pow_zero, Nat.mul_one, Nat.zero_add]
+    simp only [inv, invLoop, sumRange, Nat.mul_zero, Nat.pow_zero, Nat.mul_one, Nat.zero_add]
     exact (Nat.mod_eq_of_lt (hv 0 (by simp))).symm
   | succ m ih =>
     intro arr o σ hσ hb hv
@@ -839,7 +841,8 @@ public theorem inv_spec (n t : Nat) (hn : 1 ≤ n) (h64 : 64 * n < USize.size) (
     have hτ : 2 * (64 * n) - σ + σ = 2 * (64 * n) := by lia
     have hτ' : 2 * (64 * n) - 2 * σ + 2 * σ = 2 * (64 * n) := by lia
     have hsplit : ∀ l', sumRange (fun p => coef arr n o p *
-        2 ^ ((2 * (64 * n) - σ) * rev (m + 1) p * l')) (2 ^ m + 2 ^ m) = sumRange (fun p => coef arr n o p * 2 ^ ((2 * (64 * n) - σ) *
+        2 ^ ((2 * (64 * n) - σ) * rev (m + 1) p * l')) (2 ^ m + 2 ^ m) =
+          sumRange (fun p => coef arr n o p * 2 ^ ((2 * (64 * n) - σ) *
           (2 * rev m p) * l')) (2 ^ m) + sumRange (fun p => coef arr n o (2 ^ m + p) *
           2 ^ ((2 * (64 * n) - σ) * (2 * rev m p + 1) * l')) (2 ^ m) := by
       intro l'
