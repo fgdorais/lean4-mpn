@@ -1552,19 +1552,19 @@ public theorem valAt_mul (r a b : USlice) (ha : 0 < a.size) (hb : 0 < b.size)
   · rw [Nat.add_comm, Nat.mul_comm]; exact (mulU_spec r b a).2.2 hb ha (by lia)
 
 /--
-The size, in limbs, from which `sqr` uses the FFT, where it ties `sqrKaratsuba` (Zen 3,
+The size, in limbs, from which `sqr` uses the FFT, where it passes the Toom squares (Zen 3,
 2026-10-23).
 -/
-public def sqrFFTThreshold : Nat := 2048
+public def sqrFFTThreshold : Nat := 2816
 
 /--
 Writes the `2 a.size` limbs of `a²` into `r`: by `fftSqr` from `sqrFFTThreshold` limbs, by
-`sqrKaratsuba` below, which beats `mulToom` on squares at every size it is used. It requires
+`sqrToom` below. It requires
 `0 < a.size` and `2 a.size ≤ r.size`.
 -/
 public def sqr (r a : USlice) : UInt64Array :=
   if sqrFFTThreshold ≤ a.size.toNat then fftSqr r a (fftK (2 * a.size.toNat))
-  else sqrKaratsuba r a
+  else sqrToom r a
 
 @[simp] public theorem size_sqr (r a : USlice) : (sqr r a).size = r.array.size := by
   rw [sqr]; split <;> simp
@@ -1575,12 +1575,12 @@ public theorem getElem!_sqr (r a : USlice) (i : Nat)
     (sqr r a)[i]! = r.array[i]! := by
   rw [sqr]; split
   · exact getElem!_fftSqr r a _ i hi
-  · exact getElem!_sqrKaratsuba r a i hi
+  · exact getElem!_sqrToom r a i hi
 
 public theorem valAt_sqr (r a : USlice) (ha : 0 < a.size) (hr : 2 * a.size.toNat ≤ r.size.toNat) :
     (sqr r a).valAt r.start.toNat (2 * a.size.toNat) = a.toNat * a.toNat := by
   rw [sqr]; split
   · exact valAt_fftSqr r a _ ha hr
-  · exact valAt_sqrKaratsuba r a ha hr
+  · exact valAt_sqrToom r a ha hr
 
 end MPN

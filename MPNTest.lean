@@ -348,5 +348,17 @@ def checkMPNSqr (n k : Nat) : Bool :=
       s[0]! == pad && s[2 * n + 1]! == pad && t[0]! == pad && t[2 * n + 1]! == pad
 
 -- `MPN.sqr` on each side of `sqrFFTThreshold`.
-#guard [(1, 1), (7, 2), (100, 4), (300, 6), (2047, 8), (2048, 8), (2500, 8)].all
+#guard [(1, 1), (7, 2), (100, 4), (300, 6), (2047, 8), (2815, 8), (2816, 8)].all
   fun (n, k) => checkMPNSqr n k
+
+/-- Checks `MPN.sqrToom` on an `n`-limb `a`. -/
+def checkSqrToom (n : Nat) : Bool :=
+  let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
+  let r := UInt64Array.replicate (2 * n + 2) pad
+  [randomLimbs n 1, 2 ^ (64 * n) - 1].all fun x =>
+    let s := MPN.sqrToom (inner r (2 * n)) (limbs n x).toUSlice
+    window s 1 (2 * n) == x * x && s[0]! == pad && s[2 * n + 1]! == pad
+
+-- Below and above `toom3SqrThreshold` and `toom4SqrThreshold`, and the Toom-4 square recursing.
+#guard [399, 400, 401, 899, 900, 1001, 2800].all checkSqrToom
+

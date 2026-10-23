@@ -256,7 +256,7 @@ def main (args : List String) : IO Unit := do
       | "toomsqr" =>
         row noNat op n
           (time (fun (x _ : UInt64Array) =>
-            MPN.mulToom (UInt64Array.replicate (2 * x.size) 0).toUSlice x.toUSlice x.toUSlice)
+            MPN.sqrToom (UInt64Array.replicate (2 * x.size) 0).toUSlice x.toUSlice)
             checkArr a a)
           (time (fun x _ => x * x) checkNat na na)
       | "autosqr" =>
