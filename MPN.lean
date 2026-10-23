@@ -10,3 +10,5 @@ public import MPN.AddSub
 public import MPN.Mul.Basecase
 public import MPN.Mul.Comba
 public import MPN.Mul.Karatsuba
+public import MPN.Sqr.Basecase
+public import MPN.Sqr.Karatsuba

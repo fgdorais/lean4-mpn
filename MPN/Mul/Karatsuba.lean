@@ -34,23 +34,23 @@ public def karatsubaThreshold : USize := 64
 /-! ## Sums of halves -/
 
 /-- `a + b` in a new array of `a.size + 1` limbs, for `b.size ≤ a.size`. -/
-def sumLimbs (a b : USlice) : UInt64Array :=
+public def sumLimbs (a b : USlice) : UInt64Array :=
   let r := UInt64Array.replicate (a.size.toNat + 1) 0
   let p := add (r.uslice 0 a.size) a b
   p.1.set! a.size.toNat p.2
 
-private theorem size_sumLimbs (a b : USlice) : (sumLimbs a b).size = a.size.toNat + 1 := by
+public theorem size_sumLimbs (a b : USlice) : (sumLimbs a b).size = a.size.toNat + 1 := by
   simp [sumLimbs, uslice]
 
 /-- The window `[r.start, r.stop)` of an array of the same size as `r`'s, such as a result. -/
-private theorem uslice_same (r : USlice) (arr : UInt64Array) (h : arr.size = r.array.size) :
+public theorem uslice_same (r : USlice) (arr : UInt64Array) (h : arr.size = r.array.size) :
     (arr.uslice r.start r.stop).start = r.start ∧ (arr.uslice r.start r.stop).size = r.size ∧
       (arr.uslice r.start r.stop).array = arr := by
   have h₁ := uslice_start arr r.start r.stop r.start_le_stop (h ▸ r.stop_le_size)
   have h₂ := uslice_stop arr r.start r.stop (h ▸ r.stop_le_size)
   exact ⟨h₁, by rw [USlice.size, USlice.size, h₁, h₂], rfl⟩
 
-private theorem valAt_sumLimbs (a b : USlice) (hb : b.size ≤ a.size) :
+public theorem valAt_sumLimbs (a b : USlice) (hb : b.size ≤ a.size) :
     (sumLimbs a b).valAt 0 (a.size.toNat + 1) = a.toNat + b.toNat := by
   have hm := a.size.toNat_lt_size
   let R := UInt64Array.replicate (a.size.toNat + 1) 0
@@ -135,7 +135,7 @@ decreasing_by
 /-! ## Correctness -/
 
 /-- `a` split into its low `k` limbs and the limbs above them. -/
-private theorem toNat_split_slices (a : USlice) {k : USize} (hk : k.toNat ≤ a.size.toNat) :
+public theorem toNat_split_slices (a : USlice) {k : USize} (hk : k.toNat ≤ a.size.toNat) :
     (a.slice 0 k).size.toNat = k.toNat ∧ (a.slice k a.size).size.toNat = a.size.toNat - k.toNat ∧
       a.toNat = (a.slice 0 k).toNat + 2 ^ (64 * k.toNat) * (a.slice k a.size).toNat := by
   have h0 : (0 : USize).toNat = 0 := USize.toNat_zero
@@ -146,7 +146,7 @@ private theorem toNat_split_slices (a : USlice) {k : USize} (hk : k.toNat ≤ a.
   rw [UInt64Array.valAt_add]
 
 /-- Subtracting `z₀` and `z₂` from the product of the sums leaves `z₁`, with no borrow. -/
-private theorem karatsuba_borrows {X Y Z Q V₂ V₃ c₂ c₃ : Nat}
+public theorem karatsuba_borrows {X Y Z Q V₂ V₃ c₂ c₃ : Nat}
     (h₂ : V₂ + X = X + Y + Z + Q * c₂) (h₃ : V₃ + Y = V₂ + Q * c₃) (hV₂ : V₂ < Q) (hV₃ : V₃ < Q) :
     V₃ = Z := by
   have hc₂ : c₂ = 0 := by
@@ -167,7 +167,7 @@ private theorem karatsuba_borrows {X Y Z Q V₂ V₃ c₂ c₃ : Nat}
   lia
 
 /-- The limbs below `k`, those from `k` on, and no carry, since the product fits. -/
-private theorem karatsuba_combine {X Y Z P R L₀ H₀ V c : Nat} (h₀ : L₀ + P * H₀ = X)
+public theorem karatsuba_combine {X Y Z P R L₀ H₀ V c : Nat} (h₀ : L₀ + P * H₀ = X)
     (h₄ : V + R * c = H₀ + P * Y + Z) (hAB : X + P * Z + P * P * Y < P * R) :
     L₀ + P * V = X + P * Z + P * P * Y := by
   have key : L₀ + P * V + P * R * c = X + P * Z + P * P * Y := by

@@ -281,6 +281,14 @@ public theorem uget_eq_getElem! (a : UInt64Array) (i : USize) (h : i.toNat < a.s
   show a[i] = _
   rw [getElem_usize, getElem!_eq_getElem]
 
+/-- `valAt` does not see a `uset` outside the limbs it reads. -/
+public theorem valAt_uset_of (a : UInt64Array) (i : USize) (v : UInt64) (h : i.toNat < a.size)
+    (lo n : Nat) (hi : i.toNat < lo ∨ lo + n ≤ i.toNat) :
+    (a.uset i v h).valAt lo n = a.valAt lo n :=
+  valAt_congr _ fun k h₁ h₂ => by
+    rw [getElem!_uset]
+    simp only [show ¬(i.toNat = k) by lia, ↓reduceIte]
+
 /-- The first `n` limbs of `r`, for `n ≤ r.size`, as a loop bound. -/
 public theorem USlice.loopBound (r : USlice) {n : USize} (hn : n ≤ r.size) :
     LoopBound r.array r.start n := by
@@ -395,7 +403,8 @@ stores without checks. That is safe because `f` only sees the limbs, never the a
 -/
 
 /-- Replaces limbs `rs + j` to `rs + n - 1` of `arr` with `f`, threading an accumulator. -/
-public def foldUInPlace {β : Type} (n : USize) (f : (j : USize) → j < n → UInt64 → β → UInt64 × β)
+@[expose] public def foldUInPlace {β : Type} (n : USize)
+    (f : (j : USize) → j < n → UInt64 → β → UInt64 × β)
     (arr : UInt64Array) (rs : USize) (hr : LoopBound arr rs n) (j : USize) (b : β) :
     UInt64Array × β :=
   if h : j < n then

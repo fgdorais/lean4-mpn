@@ -142,3 +142,33 @@ def checkKaratsuba (m n : Nat) : Bool :=
 -- operands below and above the split point, and below the threshold.
 #guard [(64, 64), (65, 64), (100, 77), (127, 65), (130, 130), (130, 60), (257, 256), (63, 63),
   (50, 10)].all fun (m, n) => checkKaratsuba m n
+
+/-! Squaring -/
+
+/-- Checks `sqrBasecase` on an `n`-limb `a`, on random, all-ones and edge limbs. -/
+def checkSqr (n : Nat) : Bool :=
+  let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
+  let r := UInt64Array.replicate (2 * n + 2) pad
+  ([randomLimbs n 1, randomLimbs n 7, 2 ^ (64 * n) - 1] ++ (edges n).map (· % 2 ^ (64 * n))).all
+    fun x =>
+      let s := MPN.sqrBasecase (inner r (2 * n)) (limbs n x).toUSlice
+      window s 1 (2 * n) == x * x && s[0]! == pad && s[2 * n + 1]! == pad
+
+#guard [1, 2, 3, 4, 5, 8, 13, 32, 64].all checkSqr
+
+/-- Checks `sqrKaratsuba` on an `n`-limb `a`. -/
+def checkSqrKaratsuba (n : Nat) : Bool :=
+  let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
+  let r := UInt64Array.replicate (2 * n + 2) pad
+  [randomLimbs n 1, randomLimbs n 7, 2 ^ (64 * n) - 1, 2 ^ (64 * n - 1)].all fun x =>
+    let s := MPN.sqrKaratsuba (inner r (2 * n)) (limbs n x).toUSlice
+    window s 1 (2 * n) == x * x && s[0]! == pad && s[2 * n + 1]! == pad
+
+-- Around `sqrKaratsubaThreshold = 96`: below, one level, two levels, odd sizes.
+#guard [64, 95, 96, 97, 127, 192, 193, 257, 400].all checkSqrKaratsuba
+
+-- A window too short for the square: both leave it unchanged.
+#guard
+  let r := UInt64Array.replicate 5 7
+  let a := (limbs 2 (2 ^ 100)).toUSlice
+  MPN.sqrBasecase (inner r 3) a == r && MPN.sqrKaratsuba (inner r 3) a == r

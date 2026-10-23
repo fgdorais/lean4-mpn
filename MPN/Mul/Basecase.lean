@@ -87,7 +87,7 @@ public def mul1LoopFast (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize
   funext arr rs a n hn hr x j c
   rw [mul1LoopFast, foldUInPlaceThen_eq, mul1Loop_eq_fold]
 
-private theorem mul1Loop_spec (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize)
+public theorem mul1Loop_spec (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize)
     (hn : n ≤ a.size) (hr : LoopBound arr rs n) (x : UInt64) (j : USize) (c : UInt64) :
     (mul1Loop arr rs a n hn hr x j c).1.size = arr.size ∧
       (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
@@ -230,7 +230,7 @@ public def addMul1LoopFast (arr : UInt64Array) (rs : USize) (a : USlice) (n : US
   funext arr rs a n hn hr x j c
   rw [addMul1LoopFast, foldUInPlaceThen_eq, addMul1Loop_eq_fold]
 
-private theorem addMul1Loop_spec (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize)
+public theorem addMul1Loop_spec (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize)
     (hn : n ≤ a.size) (hr : LoopBound arr rs n) (x : UInt64) (j : USize) (c : UInt64) :
     (addMul1Loop arr rs a n hn hr x j c).1.size = arr.size ∧
       (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
@@ -317,7 +317,7 @@ public theorem valAt_addMul1 (r a : USlice) (x c : UInt64) (har : a.size ≤ r.s
 /-! ## Schoolbook multiplication -/
 
 /-- The bounds of `mulBasecaseLoop`: limbs `rs` to `rs + m + n - 1` of `arr`, without overflow. -/
-abbrev MulBound (arr : UInt64Array) (rs : USize) (m n : Nat) : Prop :=
+public abbrev MulBound (arr : UInt64Array) (rs : USize) (m n : Nat) : Prop :=
   rs.toNat + m + n ≤ arr.size ∧ rs.toNat + m + n < USize.size
 
 private theorem MulBound.toNat_row {arr : UInt64Array} {rs : USize} {a b : USlice}
@@ -339,12 +339,12 @@ private theorem MulBound.row {arr : UInt64Array} {rs : USize} {a b : USlice}
   rw [LoopBound, hr.toNat_row h]
   constructor <;> lia
 
-private theorem size_addMul1Loop (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize)
+public theorem size_addMul1Loop (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize)
     (hn : n ≤ a.size) (hr : LoopBound arr rs n) (x : UInt64) (j : USize) (c : UInt64) :
     (addMul1Loop arr rs a n hn hr x j c).1.size = arr.size :=
   (addMul1Loop_spec ..).1
 
-private theorem size_mul1Loop (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize)
+public theorem size_mul1Loop (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize)
     (hn : n ≤ a.size) (hr : LoopBound arr rs n) (x : UInt64) (j : USize) (c : UInt64) :
     (mul1Loop arr rs a n hn hr x j c).1.size = arr.size :=
   (mul1Loop_spec ..).1
@@ -377,12 +377,13 @@ through `foldUInPlaceThen`: the compiler specializes the loop to each `k`, so th
 unboxed and nothing is allocated, and the array is made exclusive once. `k` receives a proof that
 the array still has its size `S`.
 -/
-@[inline] def addMul1LoopK {β : Type} (S : Nat) (arr : UInt64Array) (hS : arr.size = S)
+@[inline, expose] public def addMul1LoopK {β : Type} (S : Nat) (arr : UInt64Array)
+    (hS : arr.size = S)
     (rs : USize) (a : USlice) (n : USize) (hn : n ≤ a.size) (hr : LoopBound arr rs n) (x : UInt64)
     (j : USize) (c : UInt64) (k : (arr' : UInt64Array) → arr'.size = S → UInt64 → β) : β :=
   foldUInPlaceThen n (addMul1Step a n hn x) arr rs hr j c fun arr' h' c => k arr' (h'.trans hS) c
 
-private theorem addMul1LoopK_eq {β : Type} (S : Nat) (arr : UInt64Array) (rs : USize) (a : USlice)
+public theorem addMul1LoopK_eq {β : Type} (S : Nat) (arr : UInt64Array) (rs : USize) (a : USlice)
     (n : USize) (hn : n ≤ a.size) (hr : LoopBound arr rs n) (x : UInt64) (j : USize) (c : UInt64)
     (k : (arr' : UInt64Array) → arr'.size = S → UInt64 → β) (hS : arr.size = S)
     (hk : (addMul1Loop arr rs a n hn hr x j c).1.size = S) :

@@ -151,7 +151,8 @@ def row (noNat : Bool) (name : String) (n : Nat) (mpn : IO Timing) (nat : IO Tim
 /-- The value of an array of limbs. -/
 def toNat (a : UInt64Array) : Nat := a.foldr (fun d n => n * 2 ^ 64 + d.toNat) 0
 
-def ops : List String := ["add", "sub", "mul1", "addmul1", "mul", "comba", "kara", "mulref"]
+def ops : List String :=
+  ["add", "sub", "mul1", "addmul1", "mul", "sqr", "comba", "kara", "ksqr", "mulref"]
 
 def main (args : List String) : IO Unit := do
   let noNat := args.contains "--no-nat"
@@ -206,6 +207,18 @@ def main (args : List String) : IO Unit := do
             MPN.mulKaratsuba (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
               y.toUSlice) checkArr a b)
           (time (· * ·) checkNat na nb)
+      | "sqr" =>
+        row noNat op n
+          (time (fun (x _ : UInt64Array) =>
+            MPN.sqrBasecase (UInt64Array.replicate (2 * x.size) 0).toUSlice x.toUSlice)
+            checkArr a a)
+          (time (fun x _ => x * x) checkNat na na)
+      | "ksqr" =>
+        row noNat op n
+          (time (fun (x _ : UInt64Array) =>
+            MPN.sqrKaratsuba (UInt64Array.replicate (2 * x.size) 0).toUSlice x.toUSlice)
+            checkArr a a)
+          (time (fun x _ => x * x) checkNat na na)
       | "mulref" =>
         row noNat op n (time refMul checkArr a b) (time (· * ·) checkNat na nb)
       | _ => throw <| .userError s!"unknown operation {op}"
