@@ -11,6 +11,7 @@ public import MPN.Linear
 public import MPN.Mul.Basecase
 public import MPN.Mul.Comba
 public import MPN.Mul.Karatsuba
+public import MPN.Mul.Toom
 public import MPN.Sqr.Basecase
 public import MPN.Sqr.Karatsuba
 
@@ -23,6 +24,6 @@ Verified multi-precision arithmetic on `UInt64` limbs, in the style of GMP's `mp
 * `MPN.UIntArray`: `valAt`, `USlice` and the in-place loop `foldUInPlace`;
 * `MPN.AddSub`: addition and subtraction;
 * `MPN.Linear`: in-place passes for the Toom methods: `± b x`, halving, exact division by 3;
-* `MPN.Mul.Basecase`, `MPN.Mul.Comba`, `MPN.Mul.Karatsuba`: multiplication;
+* `MPN.Mul.Basecase`, `MPN.Mul.Comba`, `MPN.Mul.Karatsuba`, `MPN.Mul.Toom`: multiplication;
 * `MPN.Sqr.Basecase`, `MPN.Sqr.Karatsuba`: squaring.
 -/

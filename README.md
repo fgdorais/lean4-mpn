@@ -19,6 +19,8 @@ comes with Lean.
 | `MPN.Mul.Basecase` | `mul1`, `addMul1`, `mulBasecase` | `mpn_mul_1`, `mpn_addmul_1`, `mpn_mul_basecase` |
 | `MPN.Mul.Comba` | `mulComba`: schoolbook by columns | |
 | `MPN.Mul.Karatsuba` | `mulKaratsuba`, from `karatsubaThreshold = 64` limbs | `mpn_kara_mul_n` |
+| `MPN.Linear` | in place: `addMulInto`, `subMulInto`, `shl63Into` (halving), `divExact3Into` | `mpn_addmul_1`, `mpn_rshift`, `mpn_divexact_by3` |
+| `MPN.Mul.Toom` | `mulToom`: Toom-3, Toom-3 by 2 and Toom-4 by 2, from `toom3Threshold = 384` limbs | `mpn_toom33_mul`, `mpn_toom32_mul`, `mpn_toom42_mul` |
 | `MPN.Sqr.Basecase` | `sqrBasecase` | `mpn_sqr_basecase` |
 | `MPN.Sqr.Karatsuba` | `sqrKaratsuba`, from `sqrKaratsubaThreshold = 96` limbs | `mpn_kara_sqr_n` |
 

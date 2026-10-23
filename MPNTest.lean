@@ -194,3 +194,20 @@ def checkLinear (n : Nat) : Bool :=
     window (MPN.divExact3Into (limbs n x3).toUSlice).1 0 n == x3 / 3
 
 #guard [2, 3, 5, 16, 33].all checkLinear
+
+/-! Toom multiplication -/
+
+/-- Checks `mulToom` on an `m`-limb `a` and an `n`-limb `b`, in both orders. -/
+def checkToom (m n : Nat) : Bool :=
+  let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
+  let r := UInt64Array.replicate (m + n + 2) pad
+  [(randomLimbs m 1, randomLimbs n 2), (2 ^ (64 * m) - 1, 2 ^ (64 * n) - 1)].all fun (x, y) =>
+    let s := MPN.mulToom (inner r (m + n)) (limbs m x).toUSlice (limbs n y).toUSlice
+    let t := MPN.mulToom (inner r (m + n)) (limbs n y).toUSlice (limbs m x).toUSlice
+    window s 1 (m + n) == x * y && window t 1 (m + n) == x * y &&
+      s[0]! == pad && s[m + n + 1]! == pad
+
+-- Below the threshold; Toom-3 (`2/3 < n/m`); Toom-3 by 2 (`1/3 < n/m ≤ 2/3`); Toom-4 by 2
+-- (`1/4 < n/m ≤ 1/3`, roughly); Karatsuba for the rest; and Toom-3 recursing into itself.
+#guard [(128, 128), (300, 200), (385, 385), (500, 400), (900, 450), (700, 400), (1200, 400),
+  (1600, 500), (2000, 390), (1200, 1200)].all fun (m, n) => checkToom m n

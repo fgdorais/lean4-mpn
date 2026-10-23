@@ -481,4 +481,19 @@ public theorem foldUInPlaceThen_eq {β γ : Type} (n : USize)
         (foldUInPlace n f arr rs hr j b).2 := by
   rw [foldUInPlaceThen]
 
+/-- A sub-slice of a whole array, `toUSlice`. -/
+public theorem toUSlice_slice (a : UInt64Array) {i j : USize} (hij : i.toNat ≤ j.toNat)
+    (hj : j.toNat ≤ a.size) (ha : a.size < USize.size) :
+    (a.toUSlice.slice i j).array = a ∧ (a.toUSlice.slice i j).start.toNat = i.toNat ∧
+      (a.toUSlice.slice i j).size.toNat = j.toNat - i.toNat ∧
+      (a.toUSlice.slice i j).toNat = a.valAt i.toNat (j.toNat - i.toNat) := by
+  have hs := size_toUSlice a ha
+  refine ⟨rfl, ?_, a.toUSlice.size_slice hij (by rw [hs]; exact hj), ?_⟩
+  · rw [a.toUSlice.start_slice hij (by rw [hs]; exact hj)]; simp
+  · rw [a.toUSlice.toNat_slice hij (by rw [hs]; exact hj)]; simp
+
+public theorem toNat_usize (a : UInt64Array) (ha : a.size < USize.size) :
+    a.usize.toNat = a.size := by
+  simp [usize, Nat.mod_eq_of_lt ha]
+
 end ScalarArray.UInt64Array

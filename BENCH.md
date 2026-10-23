@@ -48,6 +48,9 @@ so five runs make the tables reliable. Within one run, distrust a row whose spre
 | `addmul1` | `MPN.addMul1` | `n` limbs times a limb, added to `n` limbs | one pass, `USize` indices |
 | `mul` | `MPN.mulBasecase` | `n` by `n` limbs | schoolbook by rows: `mul1`, then `addMul1` with a continuation, `USize` indices |
 | `kara` | `MPN.mulKaratsuba` | `n` by `n` limbs | Karatsuba from 64 limbs (`karatsubaThreshold`), `mulBasecase` below |
+| `toom` | `MPN.mulToom` | `n` by `n` limbs | Toom-3 from 384 limbs (`toom3Threshold`), `mulKaratsuba` below |
+| `kara2` | `MPN.mulKaratsuba` | `n` by `n / 2` limbs | as `kara` |
+| `toom2` | `MPN.mulToom` | `n` by `n / 2` limbs | Toom-3 by 2 or Toom-4 by 2 from 384 limbs in the smaller operand, `mulKaratsuba` below |
 | `sqr` | `MPN.sqrBasecase` | `n` limbs | the cross products once by rows (`mul1`, `addMul1`), then doubled with the diagonal in one pass |
 | `ksqr` | `MPN.sqrKaratsuba` | `n` limbs | Karatsuba with three squares from 96 limbs (`sqrKaratsubaThreshold`), `sqrBasecase` below |
 | `comba` | `MPN.mulComba` | `n` by `n` limbs | schoolbook by columns into a three-word accumulator, `USize` indices |
@@ -85,6 +88,24 @@ Time of MPN:
 | `ksqr` | 63.2 ns | 66.7 ns | 71.9 ns | 77.1 ns | 89.5 ns | 108 ns | 147 ns | 200 ns | 333 ns | 523 ns | 1.08 µs | 1.8 µs | 3.63 µs | 6.05 µs | 11.7 µs | 19 µs | 59.2 µs |
 | `mulref` | 32.4 ns | 44.6 ns | 64.7 ns | 89.3 ns | 168 ns | 262 ns | 524 ns | 885 ns | 1.9 µs | 3.52 µs | 7.62 µs | 13.3 µs | 29.4 µs | 51.8 µs | 115 µs | 204 µs | 811 µs |
 
+### Large sizes
+
+The tables above stop at 512 limbs, below the reach of `mulToom`. These are from
+`bench kara toom kara2 toom2 512 768 1024 1536 2048 4096`, the fastest of three runs, on
+2026-10-23. The sizes are those of the larger operand.
+
+| op | 512 | 768 | 1024 | 1536 | 2048 | 4096 |
+|---|---:|---:|---:|---:|---:|---:|
+| `kara` | 94.8 µs (3.16) | 186 µs (3.54) | 292 µs (3.84) | 564 µs (4.00) | 882 µs (4.12) | 2.66 ms (5.14) |
+| `toom` | 90.4 µs (3.01) | 172 µs (3.28) | 269 µs (3.54) | 482 µs (3.42) | 775 µs (3.59) | 2.10 ms (4.09) |
+| `kara2` | 113 µs (5.51) | 253 µs (7.07) | 449 µs (8.03) | 1.01 ms (9.90) | 1.79 ms (11.78) | 7.10 ms (18.78) |
+| `toom2` | 111 µs (5.41) | 131 µs (3.66) | 210 µs (3.76) | 398 µs (3.90) | 660 µs (4.34) | 1.56 ms (4.00) |
+
+The ratio to `Nat` is in parentheses. `mulKaratsuba` splits both operands at half the larger
+one, which needs the smaller one to be longer than that half, so on `n` by `n / 2` limbs it is
+`mulBasecase`, and its ratio grows with the size. Toom-3 by 2 and Toom-4 by 2 keep it near 4. At
+512 by 256 limbs `toom2` is still `mulKaratsuba`, so still `mulBasecase`.
+
 ## History
 
 Times are the fastest of five runs, in the format of the tables above.
@@ -98,3 +119,4 @@ Times are the fastest of five runs, in the format of the tables above.
 | 2026-10-22 | `f5ee946`+ | `mulBasecase` rows with `addMul1LoopK`, a specialized continuation instead of a pair and a boxed carry per row | `mul` 116 → 93.8 ns at 4 limbs, 238 → 154 ns at 8, 557 → 382 ns at 16, 5.69 → 4.91 µs at 64; `kara` −19–20% from 64 limbs (17.5 → 14.1 µs at 128, 167 → 136 µs at 512) |
 | 2026-10-22 | `f5ee946`+ | the add/sub, `mul1` and `addMul1` loops through `foldUInPlaceThen` (`@[csimp]`): the array is made exclusive once per loop, not at every store | `add` 144 → 116 ns at 64 limbs, 368 → 274 ns at 256; `mul1`/`addmul1` −17–21% from 64; `mul` −24–31% from 4 limbs (4.85 → 3.49 µs at 64); `kara` −28–31% from 16 (135 → 94.4 µs at 512); `comba` (not converted) and `mulref` ±2% |
 | 2026-10-22 | `727ea63`+ | `sqrBasecase` and `sqrKaratsuba` (`sqrKaratsubaThreshold = 96`, from a sweep of 24–128) | `sqr` vs `mul`: 200 vs 256 ns at 16 limbs, 1.82 vs 3.45 µs at 64, 28.8 vs 56.1 µs at 256; `ksqr` 3.67 µs at 96 limbs, 19.5 µs at 256, 59.8 µs at 512 (`kara` 94.4 µs) |
+| 2026-10-23 | `bfe1b4c`+ | `mulToom`: Toom-3, Toom-3 by 2 and Toom-4 by 2 with the points `0, 1, 2, 3, ∞`, `toom3Threshold = 384`; new rows `toom`, `kara2`, `toom2` (large sizes above) | `toom` vs `kara`: 90.4 vs 94.8 µs at 512 limbs, 269 vs 292 µs at 1024, 775 vs 882 µs at 2048, 2.10 vs 2.66 ms at 4096; `toom2` vs `kara2` (`n` by `n / 2`): 210 vs 449 µs at 1024, 660 µs vs 1.79 ms at 2048, 1.56 vs 7.10 ms at 4096 |
