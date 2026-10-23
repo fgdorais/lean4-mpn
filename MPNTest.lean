@@ -172,3 +172,25 @@ def checkSqrKaratsuba (n : Nat) : Bool :=
   let r := UInt64Array.replicate 5 7
   let a := (limbs 2 (2 ^ 100)).toUSlice
   MPN.sqrBasecase (inner r 3) a == r && MPN.sqrKaratsuba (inner r 3) a == r
+
+/-! Linear passes for the Toom methods -/
+
+/-- Checks `subMul1`, `addMulInto`, `subMulInto`, halving and exact division by 3 on `n` limbs. -/
+def checkLinear (n : Nat) : Bool :=
+  [randomLimbs n 3, 2 ^ (64 * n) - 1, 2 ^ (64 * n - 1)].all fun x =>
+    let y := randomLimbs (n / 2 + 1) 5 % 2 ^ (64 * n)
+    let r := limbs n x
+    [1, 3, 16, 81, 2 ^ 64 - 1].all fun m =>
+      let (p, cp) := MPN.subMul1 r.toUSlice (limbs n y).toUSlice m.toUInt64
+      let (q, cq) := MPN.addMulInto r.toUSlice (limbs (n / 2 + 1) y).toUSlice m.toUInt64
+      let (s, cs) := MPN.subMulInto r.toUSlice (limbs (n / 2 + 1) y).toUSlice m.toUInt64
+      window p 0 n + y * m == x + 2 ^ (64 * n) * cp.toNat &&
+      window q 0 n + 2 ^ (64 * n) * cq.toNat == x + y * m &&
+      window s 0 n + y * m == x + 2 ^ (64 * n) * cs.toNat
+  && [randomLimbs (n - 1) 9, 2 ^ (64 * (n - 1)) - 1].all fun x =>
+    let x2 := 2 * (x / 2)
+    let x3 := 3 * (x / 3)
+    window (MPN.shl63Into (limbs n x2).toUSlice).1 1 (n - 1) == x2 / 2 &&
+    window (MPN.divExact3Into (limbs n x3).toUSlice).1 0 n == x3 / 3
+
+#guard [2, 3, 5, 16, 33].all checkLinear

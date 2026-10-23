@@ -894,7 +894,7 @@ public def add1IntoLoopFast (arr : UInt64Array) (rs : USize) (n : USize) (hr : L
   funext arr rs n hr j c
   rw [add1IntoLoopFast, foldUInPlaceThen_eq, add1IntoLoop_eq_fold]
 
-private theorem add1IntoLoop_spec (arr : UInt64Array) (rs : USize) (n : USize)
+public theorem add1IntoLoop_spec (arr : UInt64Array) (rs : USize) (n : USize)
     (hr : LoopBound arr rs n) (j : USize) (c : UInt64) :
     (add1IntoLoop arr rs n hr j c).1.size = arr.size ∧
       (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
@@ -1154,7 +1154,7 @@ public def sub1IntoLoopFast (arr : UInt64Array) (rs : USize) (n : USize) (hr : L
   funext arr rs n hr j c
   rw [sub1IntoLoopFast, foldUInPlaceThen_eq, sub1IntoLoop_eq_fold]
 
-private theorem sub1IntoLoop_spec (arr : UInt64Array) (rs : USize) (n : USize)
+public theorem sub1IntoLoop_spec (arr : UInt64Array) (rs : USize) (n : USize)
     (hr : LoopBound arr rs n) (j : USize) (c : UInt64) :
     (sub1IntoLoop arr rs n hr j c).1.size = arr.size ∧
       (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
