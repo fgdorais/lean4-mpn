@@ -35,6 +35,7 @@ namespace NatOps
 variable {α : Type} (o : NatOps α)
 
 /-- `0`. -/
+@[specialize o]
 public def zero : α := o.sub o.one o.one
 
 public theorem val_zero : o.val o.zero = 0 := by
@@ -45,24 +46,28 @@ public theorem val_zero : o.val o.zero = 0 := by
   (o.val M.m11 * o.val M.m22 : Int) - o.val M.m12 * o.val M.m21 = if M.neg then -1 else 1
 
 /-- The identity matrix. -/
+@[specialize o]
 public def matId : Mat2 α := ⟨o.one, o.zero, o.zero, o.one, false⟩
 
 public theorem unimodular_matId : o.Unimodular o.matId := by
   simp [Unimodular, matId, val_one, val_zero]
 
 /-- The matrix `[[q, 1], [1, 0]]` of a step of Euclid's algorithm, of determinant `-1`. -/
+@[specialize o]
 public def matStep (q : α) : Mat2 α := ⟨q, o.one, o.one, o.zero, true⟩
 
 public theorem unimodular_matStep (q : α) : o.Unimodular (o.matStep q) := by
   simp [Unimodular, matStep, val_one, val_zero]
 
 /-- The matrix `[[0, 1], [1, 0]]`, which swaps the two numbers. -/
+@[specialize o]
 public def matSwap : Mat2 α := ⟨o.zero, o.one, o.one, o.zero, true⟩
 
 public theorem unimodular_matSwap : o.Unimodular o.matSwap := by
   simp [Unimodular, matSwap, val_one, val_zero]
 
 /-- The product of two matrices. -/
+@[specialize o]
 public def matMul (M N : Mat2 α) : Mat2 α :=
   ⟨o.add (o.mul M.m11 N.m11) (o.mul M.m12 N.m21), o.add (o.mul M.m11 N.m12) (o.mul M.m12 N.m22),
     o.add (o.mul M.m21 N.m11) (o.mul M.m22 N.m21), o.add (o.mul M.m21 N.m12) (o.mul M.m22 N.m22),
@@ -83,6 +88,7 @@ public theorem unimodular_matMul (M N : Mat2 α) (hM : o.Unimodular M) (hN : o.U
     rcases Bool.eq_false_or_eq_true N.neg with h' | h' <;> simp [h, h']
 
 /-- `|p - q|`. -/
+@[specialize o]
 public def absDiff (p q : α) : α := if o.le q p then o.sub p q else o.sub q p
 
 public theorem val_absDiff (p q : α) :
@@ -102,6 +108,7 @@ public theorem val_absDiff (p q : α) :
 The numbers `|m₂₂ a - m₁₂ b|` and `|m₁₁ b - m₂₁ a|`: `M⁻¹ (a, b)` up to signs, which are the
 numbers `M` came from when it is the matrix of Euclid's steps on `a` and `b`.
 -/
+@[specialize o]
 public def applyInv (M : Mat2 α) (a b : α) : α × α :=
   (o.absDiff (o.mul M.m22 a) (o.mul M.m12 b), o.absDiff (o.mul M.m11 b) (o.mul M.m21 a))
 
@@ -226,6 +233,7 @@ private theorem split_neg (m₁₁ m₁₂ m₂₁ m₂₂ x₁ y₁ ah al bh bl
 `1`, the reverse for `-1`, so that `(a, b) = M (x, y)` exactly. A matrix from the top limbs of `a`
 and `b` that went one step too far fails this.
 -/
+@[specialize o]
 public def applyInvC (M : Mat2 α) (a b : α) : Option (α × α) :=
   let p₁ := o.mul M.m22 a
   let q₁ := o.mul M.m12 b
@@ -249,9 +257,9 @@ public theorem fwd_applyInvC (M : Mat2 α) (hM : o.Unimodular M) (a b : α) (p :
       simp only [Bool.and_eq_true, o.le_iff, o.val_mul] at hc
       rw [Option.some.injEq] at h
       subst h
-      have hX := o.val_sub (o.mul M.m22 a) (o.mul M.m12 b) 
+      have hX := o.val_sub (o.mul M.m22 a) (o.mul M.m12 b)
         (by rw [o.val_mul, o.val_mul]; exact hc.1)
-      have hY := o.val_sub (o.mul M.m11 b) (o.mul M.m21 a) 
+      have hY := o.val_sub (o.mul M.m11 b) (o.mul M.m21 a)
         (by rw [o.val_mul, o.val_mul]; exact hc.2)
       rw [o.val_mul, o.val_mul] at hX hY
       exact fwd_pos _ _ _ _ _ _ _ _ (hd₁ hn) (by rw [hX]; lia) (by rw [hY]; lia)
@@ -263,15 +271,16 @@ public theorem fwd_applyInvC (M : Mat2 α) (hM : o.Unimodular M) (a b : α) (p :
       simp only [Bool.and_eq_true, o.le_iff, o.val_mul] at hc
       rw [Option.some.injEq] at h
       subst h
-      have hX := o.val_sub (o.mul M.m12 b) (o.mul M.m22 a) 
+      have hX := o.val_sub (o.mul M.m12 b) (o.mul M.m22 a)
         (by rw [o.val_mul, o.val_mul]; exact hc.1)
-      have hY := o.val_sub (o.mul M.m21 a) (o.mul M.m11 b) 
+      have hY := o.val_sub (o.mul M.m21 a) (o.mul M.m11 b)
         (by rw [o.val_mul, o.val_mul]; exact hc.2)
       rw [o.val_mul, o.val_mul] at hX hY
       exact fwd_neg _ _ _ _ _ _ _ _ (hd₂ hn) (by rw [hX]; lia) (by rw [hY]; lia)
     · exact absurd h (by simp)
 
 /-- The pair `p` with the larger number first, and `M` with its columns swapped if they were not. -/
+@[specialize o]
 public def orient (M : Mat2 α) (p : α × α) : Mat2 α × α × α :=
   if o.le p.2 p.1 then (M, p.1, p.2) else (o.matMul M o.matSwap, p.2, p.1)
 
@@ -295,6 +304,7 @@ public theorem fwd_orient (M : Mat2 α) (a b : α) (p : α × α) (h : o.Fwd M a
 `y₁ Bˢ ± (m₁₁ bₗ - m₂₁ aₗ)` with the low limbs `aₗ`, `bₗ` of `a`, `b`, so that the products are
 with the `s` low limbs only; none when a number would be negative, as in `applyInvC`.
 -/
+@[specialize o]
 public def applySplit (M : Mat2 α) (x₁ y₁ a b : α) (s : Nat) : Option (α × α) :=
   let aₗ := o.lo s a
   let bₗ := o.lo s b
@@ -360,7 +370,8 @@ The base case: steps from `step`, the instance's reduction of two short numbers 
 on their leading words, for one), applied with `applyInvC` while they make the numbers smaller and
 `b ≥ Bˢ`, at most `fuel` of them, with the product of their matrices.
 -/
-public def baseLoop (step : α → α → Option (Mat2 α)) (s : Nat) (a b : α) (M : Mat2 α) :
+@[specialize o step]
+def baseLoop (step : α → α → Option (Mat2 α)) (s : Nat) (a b : α) (M : Mat2 α) :
     Nat → Mat2 α × α × α
   | 0 => (M, a, b)
   | fuel + 1 =>
@@ -534,8 +545,8 @@ then one step of Euclid's algorithm, then the same for the top limbs of what is 
 from top limbs that went too far for the full numbers is dropped. Only the determinant and the
 exact relation are proved (`hgcd_ok`): the caller checks how far the numbers came down.
 -/
-public def hgcd (base : Nat → α → α → Mat2 α × α × α) (T : Nat) (a b : α) :
-    Mat2 α × α × α :=
+@[specialize o step]
+public def hgcd (step : α → α → Option (Mat2 α)) (T : Nat) (a b : α) : Mat2 α × α × α :=
   let n := o.size a
   let s := n / 2 + 1
   if !(o.le (o.pow s) b) then (o.matId, a, b)
@@ -623,8 +634,9 @@ public theorem hgcd_ok (base : Nat → α → α → Mat2 α × α × α)
 One reduction of `a ≥ b` for the greatest common divisor: the numbers of `hgcd`, the larger first.
 It keeps the greatest common divisor (`gcd_hgcdReduce`); the caller checks that they got smaller.
 -/
-public def hgcdReduce (base : Nat → α → α → Mat2 α × α × α) (T : Nat) (a b : α) : α × α :=
-  let p := (o.hgcd base T a b).2
+@[specialize o step]
+public def hgcdReduce (step : α → α → Option (Mat2 α)) (T : Nat) (a b : α) : α × α :=
+  let p := (o.hgcd step T a b).2
   if o.le p.2 p.1 then p else (p.2, p.1)
 
 public theorem gcd_hgcdReduce (base : Nat → α → α → Mat2 α × α × α)
