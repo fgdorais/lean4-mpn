@@ -305,3 +305,17 @@ def checkFFT (m n k : Nat) : Bool :=
 
 #guard [(50, 40, 3), (1, 1, 1), (7, 3, 2), (100, 1, 4), (64, 64, 5), (300, 200, 6), (200, 7, 7),
   (150, 150, 8), (1000, 900, 5)].all fun (m, n, k) => checkFFT m n k
+
+/-- Checks `MPN.mul` on an `m`-limb `a` and an `n`-limb `b`, in both orders. -/
+def checkMPNMul (m n : Nat) : Bool :=
+  let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
+  let r := UInt64Array.replicate (m + n + 2) pad
+  [(randomLimbs m 1, randomLimbs n 2), (2 ^ (64 * m) - 1, 2 ^ (64 * n) - 1)].all fun (x, y) =>
+    let s := MPN.mul (inner r (m + n)) (limbs m x).toUSlice (limbs n y).toUSlice
+    let t := MPN.mul (inner r (m + n)) (limbs n y).toUSlice (limbs m x).toUSlice
+    window s 1 (m + n) == x * y && window t 1 (m + n) == x * y &&
+      s[0]! == pad && s[m + n + 1]! == pad
+
+-- Below and above `fftThreshold`, and an unbalanced pair on each side of `fftMinSmall`.
+#guard [(2559, 2560), (2560, 2560), (3000, 2200), (5000, 600), (5000, 300), (4, 3)].all
+  fun (m, n) => checkMPNMul m n

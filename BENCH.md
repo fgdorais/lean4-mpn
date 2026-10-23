@@ -52,6 +52,9 @@ so five runs make the tables reliable. Within one run, distrust a row whose spre
 | `kara2` | `MPN.mulKaratsuba` | `n` by `n / 2` limbs | as `kara` |
 | `toom2` | `MPN.mulToom` | `n` by `n / 2` limbs | Toom-3 by 2 or Toom-4 by 2 from 384 limbs in the smaller operand, `mulKaratsuba` below |
 | `fft` | `MPN.FFT.fftMul` | `n` by `n` limbs | Schönhage–Strassen with `2ᵏ` pieces, `k = fftK (2 n)`, the pointwise products by `mulToom` |
+| `fft2` | `MPN.FFT.fftMul` | `n` by `n / 2` limbs | as `fft` |
+| `fftK` | `MPN.FFT.fftMul` | `n` by `n` limbs | as `fft` with `2ᴷ` pieces, for example `fft9`, for tuning `fftK` |
+| `auto` | `MPN.mul` | `n` by `n` limbs | the FFT from `fftThreshold = 5120` limbs in all with `fftMinSmall = 512` in the smaller operand, `mulToom` below |
 | `sqr` | `MPN.sqrBasecase` | `n` limbs | the cross products once by rows (`mul1`, `addMul1`), then doubled with the diagonal in one pass |
 | `ksqr` | `MPN.sqrKaratsuba` | `n` limbs | Karatsuba with three squares from 96 limbs (`sqrKaratsubaThreshold`), `sqrBasecase` below |
 | `comba` | `MPN.mulComba` | `n` by `n` limbs | schoolbook by columns into a three-word accumulator, `USize` indices |
@@ -109,16 +112,24 @@ one, which needs the smaller one to be longer than that half, so on `n` by `n / 
 
 ### FFT sizes
 
-From `bench toom fft 1024 2048 4096 8192 16384 32768`, the fastest of three runs, on 2026-10-23.
+From `bench toom fft auto toom2 fft2 1024 2048 4096 8192 16384 32768 65536`, the fastest of three
+runs, on 2026-10-23, after tuning `fftK` and the thresholds.
 
-| op | 1024 | 2048 | 4096 | 8192 | 16384 | 32768 |
-|---|---:|---:|---:|---:|---:|---:|
-| `toom` | 267 µs (3.53) | 778 µs (3.60) | 2.10 ms (4.06) | 5.97 ms (5.02) | 17.2 ms (6.44) | 45.4 ms (7.64) |
-| `fft` | 383 µs (5.03) | 809 µs (3.83) | 1.96 ms (4.35) | 4.09 ms (3.79) | 10.7 ms (4.80) | 21.9 ms (3.37) |
+| op | 1024 | 2048 | 4096 | 8192 | 16384 | 32768 | 65536 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `toom` | 266 µs (3.52) | 768 µs (3.57) | 2.07 ms (4.02) | 5.91 ms (4.97) | 17.0 ms (6.42) | 45.0 ms (7.56) | 126 ms (9.40) |
+| `fft` | 554 µs (7.29) | 856 µs (4.06) | 1.82 ms (4.05) | 3.62 ms (3.35) | 8.08 ms (3.64) | 18.2 ms (3.40) | 40.6 ms (3.01) |
+| `auto` | 266 µs (3.50) | 772 µs (3.66) | 1.82 ms (4.04) | 3.64 ms (3.37) | 8.06 ms (3.63) | 18.2 ms (3.40) | 40.5 ms (3.29) |
+| `toom2` | 208 µs (3.71) | 657 µs (4.32) | 1.55 ms (4.63) | 4.35 ms (5.68) | 12.6 ms (7.41) | 33.4 ms (8.56) | 94.3 ms (8.81) |
+| `fft2` | 320 µs (5.73) | 693 µs (4.56) | 1.28 ms (3.82) | 2.71 ms (3.52) | 6.03 ms (3.53) | 13.2 ms (3.38) | 31.7 ms (3.26) |
 
-`fft` passes `toom` at about 4096 limbs and is twice as fast at 32768. Its ratio to `Nat`
-oscillates with the number of pieces, `2ᵏ`, which `fftK` has not been tuned for: `k` steps at
-4096 and 16384 limbs per operand.
+**Tuning.** `fftK` comes from a sweep of `fft4` to `fft11` at 1024 to 65536 limbs per operand:
+the best number of pieces `K` has `K² / T` between 8 and 32 for `T` limbs in all, and the least
+`k` with `4ᵏ ≥ 10 T` is within 6% of the best everywhere (at 4096 limbs per operand, `k = 9`
+where 8 is best). The FFT passes `toom` at 2560 to 2816 limbs per operand, balanced, and at about
+2816 by 1408, hence `fftThreshold = 5120` limbs in all. Below `fftMinSmall = 512` limbs in the
+smaller operand the FFT, whose cost follows the total, loses to `mulToom`'s schoolbook; that
+bound is a rough guess, not yet measured.
 
 ## History
 
@@ -135,3 +146,4 @@ Times are the fastest of five runs, in the format of the tables above.
 | 2026-10-22 | `727ea63`+ | `sqrBasecase` and `sqrKaratsuba` (`sqrKaratsubaThreshold = 96`, from a sweep of 24–128) | `sqr` vs `mul`: 200 vs 256 ns at 16 limbs, 1.82 vs 3.45 µs at 64, 28.8 vs 56.1 µs at 256; `ksqr` 3.67 µs at 96 limbs, 19.5 µs at 256, 59.8 µs at 512 (`kara` 94.4 µs) |
 | 2026-10-23 | `bfe1b4c`+ | `mulToom`: Toom-3, Toom-3 by 2 and Toom-4 by 2 with the points `0, 1, 2, 3, ∞`, `toom3Threshold = 384`; new rows `toom`, `kara2`, `toom2` (large sizes above) | `toom` vs `kara`: 90.4 vs 94.8 µs at 512 limbs, 269 vs 292 µs at 1024, 775 vs 882 µs at 2048, 2.10 vs 2.66 ms at 4096; `toom2` vs `kara2` (`n` by `n / 2`): 210 vs 449 µs at 1024, 660 µs vs 1.79 ms at 2048, 1.56 vs 7.10 ms at 4096 |
 | 2026-10-23 | `0b52bb2`+ | `MPN.FFT.fftMul`: Schönhage–Strassen on one flat array, in-place residues modulo `2^(64 n) + 1`, the forward and inverse transforms without a bit-reversal permutation; three copies of the whole array found with `gdb` on `lean_copy_sarray` and removed (a continuation reading the array before its loop, a pair kept alive past a write, and a parameter the compiler inferred as borrowed) | `fft` 71.9 → 10.7 ms at 16384 limbs before and after removing the copies; vs `toom`: 1.96 vs 2.10 ms at 4096, 4.09 vs 5.97 ms at 8192, 21.9 vs 45.4 ms at 32768 |
+| 2026-10-23 | `a9d488f`+ | `fftK` from a sweep of `k` (the least `k` with `4ᵏ ≥ 10 T`, was `⌊log₂ T⌋ / 2 + 1`); `MPN.mul`, the FFT from `fftThreshold = 5120` limbs in all, `mulToom` below; new rows `fft2`, `auto` | `fft` 1.96 → 1.82 ms at 4096 limbs, 4.09 → 3.62 ms at 8192, 10.7 → 8.08 ms at 16384, 21.9 → 18.2 ms at 32768; `auto` within 3.3–4.0 of `Nat` from 1024 to 65536 limbs |

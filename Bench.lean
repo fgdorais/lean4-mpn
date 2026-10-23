@@ -152,7 +152,7 @@ def row (noNat : Bool) (name : String) (n : Nat) (mpn : IO Timing) (nat : IO Tim
 def toNat (a : UInt64Array) : Nat := a.foldr (fun d n => n * 2 ^ 64 + d.toNat) 0
 
 def ops : List String :=
-  ["add", "sub", "mul1", "addmul1", "mul", "sqr", "comba", "kara", "toom", "kara2", "toom2", "fft",
+  ["add", "sub", "mul1", "addmul1", "mul", "sqr", "comba", "kara", "toom", "kara2", "toom2", "fft", "fft2", "auto",
     "ksqr", "mulref"]
 
 def main (args : List String) : IO Unit := do
@@ -247,9 +247,33 @@ def main (args : List String) : IO Unit := do
             MPN.FFT.fftMul (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
               y.toUSlice (MPN.FFT.fftK (x.size + y.size))) checkArr a b)
           (time (· * ·) checkNat na nb)
+      | "auto" =>
+        row noNat op n
+          (time (fun (x y : UInt64Array) =>
+            MPN.mul (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice y.toUSlice)
+            checkArr a b)
+          (time (· * ·) checkNat na nb)
+      | "fft2" =>
+        let h := sample (n / 2) 2
+        row noNat op n
+          (time (fun (x y : UInt64Array) =>
+            MPN.FFT.fftMul (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
+              y.toUSlice (MPN.FFT.fftK (x.size + y.size))) checkArr a h)
+          (time (· * ·) checkNat na (toNat h))
       | "mulref" =>
         row noNat op n (time refMul checkArr a b) (time (· * ·) checkNat na nb)
-      | _ => throw <| .userError s!"unknown operation {op}"
+      | _ =>
+        -- `fft<k>`: the FFT with `2ᵏ` pieces, for tuning `fftK`.
+        match (op.drop 3).toString.toNat? with
+        | some k =>
+          if op.startsWith "fft" then
+            row noNat op n
+              (time (fun (x y : UInt64Array) =>
+                MPN.FFT.fftMul (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
+                  y.toUSlice k) checkArr a b)
+              (time (· * ·) checkNat na nb)
+          else throw <| .userError s!"unknown operation {op}"
+        | none => throw <| .userError s!"unknown operation {op}"
 
 end Bench
 

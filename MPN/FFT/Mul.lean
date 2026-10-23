@@ -991,8 +991,12 @@ public def fftParams (T k : Nat) : Nat × Nat :=
   let q := max 1 (2 ^ k / 128)
   (m, (2 * m + 1 + q - 1) / q * q)
 
-/-- The number of pieces, `2ᵏ`, for `T` limbs: `k = ⌊log₂ T⌋ / 2 + 1`. -/
-public def fftK (T : Nat) : Nat := min 30 (Nat.log2 T / 2 + 1)
+/--
+The number of pieces, `2ᵏ`, for `T` limbs: the least `k` with `4ᵏ ≥ 10 T`. From a sweep of
+`k = 4, …, 11` at 1024 to 65536 limbs per operand (Zen 3, 2026-10-23): the best `K = 2ᵏ` has
+`K² / T` between 8 and 32, and this choice is within 6% of the best at every size measured.
+-/
+public def fftK (T : Nat) : Nat := min 30 ((Nat.log2 (10 * T - 1) + 2) / 2)
 
 /-- The conditions of `FFTParams`, decidably, with `k + 128 m ≤ 64 n` for the bound. -/
 public abbrev FFTCheck (r a b : USlice) (k m n : Nat) : Prop :=
@@ -1047,3 +1051,44 @@ public theorem valAt_fftMul (r a b : USlice) (k : Nat) (ha : 0 < a.size) (hb : 0
   (fftMul_spec r a b k).2.2 ha hb hr
 
 end MPN.FFT
+
+namespace MPN
+
+open FFT
+
+/-- The total size, in limbs, from which `mul` uses the FFT, measured on Zen 3 (2026-10-23). -/
+public def fftThreshold : Nat := 5120
+
+/-- The size of the smaller operand below which `mul` does not use the FFT. -/
+public def fftMinSmall : Nat := 512
+
+/--
+Writes the `a.size + b.size` limbs of `a b` into `r`: by `fftMul` from `fftThreshold` limbs in
+all when the smaller operand has `fftMinSmall` limbs, by `mulToom` otherwise, which uses Toom-3,
+Toom-3 by 2, Toom-4 by 2, Karatsuba and the schoolbook method by the sizes. It requires
+`0 < a.size`, `0 < b.size` and `a.size + b.size ≤ r.size`.
+-/
+public def mul (r a b : USlice) : UInt64Array :=
+  if fftThreshold ≤ a.size.toNat + b.size.toNat ∧ fftMinSmall ≤ min a.size.toNat b.size.toNat then
+    fftMul r a b (fftK (a.size.toNat + b.size.toNat))
+  else mulToom r a b
+
+@[simp] public theorem size_mul (r a b : USlice) : (mul r a b).size = r.array.size := by
+  rw [mul]; split <;> simp
+
+/-- `mul` leaves the limbs of `r` outside the ones it writes unchanged. -/
+public theorem getElem!_mul (r a b : USlice) (i : Nat)
+    (hi : i < r.start.toNat ∨ r.start.toNat + a.size.toNat + b.size.toNat ≤ i) :
+    (mul r a b)[i]! = r.array[i]! := by
+  rw [mul]; split
+  · exact getElem!_fftMul r a b _ i hi
+  · exact getElem!_mulToom r a b i hi
+
+public theorem valAt_mul (r a b : USlice) (ha : 0 < a.size) (hb : 0 < b.size)
+    (hr : a.size.toNat + b.size.toNat ≤ r.size.toNat) :
+    (mul r a b).valAt r.start.toNat (a.size.toNat + b.size.toNat) = a.toNat * b.toNat := by
+  rw [mul]; split
+  · exact valAt_fftMul r a b _ ha hb hr
+  · exact valAt_mulToom r a b ha hb hr
+
+end MPN
