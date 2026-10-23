@@ -281,6 +281,18 @@ def main (args : List String) : IO Unit := do
         row noNat op n (time refMul checkArr a b) (time (· * ·) checkNat na nb)
       | _ =>
         -- `fftb<s>`, `toomb<s>`: `n` by `s` limbs, for tuning `fftMinSmall`.
+        -- `auto2`, `auto4`, `auto8`: `MPN.mul` on `n` by `n / d` limbs; `autobS`: on `n` by `S`.
+        let sh : Option Nat := if op == "auto2" then some (n / 2) else if op == "auto4" then
+          some (n / 4) else if op == "auto8" then some (n / 8) else if op.startsWith "autob" then
+          (op.drop 5).toString.toNat? else none
+        if let some sz := sh then
+          let h := sample sz 2
+          row noNat op n
+            (time (fun (x y : UInt64Array) =>
+              MPN.mul (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice y.toUSlice)
+              checkArr a h)
+            (time (· * ·) checkNat na (toNat h))
+        else
         if op.startsWith "fsq" then
           let k := (op.drop 3).toString.toNat!
           row noNat op n
