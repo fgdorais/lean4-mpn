@@ -12,3 +12,15 @@ public import MPN.Mul.Comba
 public import MPN.Mul.Karatsuba
 public import MPN.Sqr.Basecase
 public import MPN.Sqr.Karatsuba
+
+/-!
+# MPN
+
+Verified multi-precision arithmetic on `UInt64` limbs, in the style of GMP's `mpn` functions:
+
+* `MPN.UInt`: the high words of sums, differences and products of words;
+* `MPN.UIntArray`: `valAt`, `USlice` and the in-place loop `foldUInPlace`;
+* `MPN.AddSub`: addition and subtraction;
+* `MPN.Mul.Basecase`, `MPN.Mul.Comba`, `MPN.Mul.Karatsuba`: multiplication;
+* `MPN.Sqr.Basecase`, `MPN.Sqr.Karatsuba`: squaring.
+-/
