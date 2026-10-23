@@ -258,3 +258,30 @@ def checkFermat (n : Nat) : Bool :=
 
 #guard [1, 2, 3, 5].all checkFermat
 
+
+/-! FFT transforms -/
+
+/--
+Checks the transforms of length `2ᵐ` modulo `2^(64 n) + 1`, on a block of windows at `1` with
+the scratch window after it, against their sums, and that the inverse of the forward transform
+is `2ᵐ` times the input.
+-/
+def checkTransform (n m : Nat) : Bool :=
+  let F := 2 ^ (64 * n) + 1
+  let K := 2 ^ m
+  let σ := 2 * (64 * n) / K
+  let xs := (List.range K).map fun i => (randomLimbs n (i + 5) * (i + 1)) % F
+  let xs := if K > 2 then xs.set 1 (F - 1) |>.set 2 0 else xs
+  let pad : UInt64Array := .replicate 1 0xAAAAAAAAAAAAAAAA
+  let arr := xs.foldl (fun a x => a ++ limbs (n + 1) x) pad ++ limbs (n + 1) 77 ++ pad
+  let t := 1 + K * (n + 1)
+  let co (a : UInt64Array) (p : Nat) := window a (1 + p * (n + 1)) (n + 1)
+  let f := MPN.FFT.fwd n t m arr 1 σ
+  let g := MPN.FFT.inv n t m f 1 σ
+  let fOK := (List.range K).all fun p =>
+    co f p == (List.range K).foldl (fun s i => s + xs[i]! * 2 ^ (σ * i * MPN.FFT.rev m p)) 0 % F
+  let gOK := (List.range K).all fun l => co g l == K * xs[l]! % F
+  fOK && gOK && f[0]! == arr[0]! && f[arr.size - 1]! == arr[arr.size - 1]! &&
+    g[0]! == arr[0]! && g.size == arr.size
+
+#guard [(1, 1), (1, 2), (1, 3), (2, 1), (2, 3), (2, 4), (3, 5)].all fun (n, m) => checkTransform n m
