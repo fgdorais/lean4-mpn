@@ -21,6 +21,8 @@ public import MPN.FFT.Roots
 public import MPN.FFT.Fermat
 public import MPN.FFT.Transform
 public import MPN.FFT.Mul
+public import MPN.Num
+public import MPN.Sqrt
 
 /-!
 # MPN
@@ -39,4 +41,6 @@ Verified multi-precision arithmetic on `UInt64` limbs, in the style of GMP's `mp
   from the inversion of the transform modulo `2^N + 1`, in-place residues modulo `2^(64 n) + 1`
   in the windows of one array, and the forward and inverse transforms on blocks of those
   windows.
+* `MPN.Num`: whole arrays as numbers, each operation returning a new array;
+* `MPN.Sqrt`: the square root and its remainder, by Zimmermann's Karatsuba square root.
 -/
