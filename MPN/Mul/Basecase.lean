@@ -361,7 +361,7 @@ The step of `subMul1Loop`: limb `z` minus limb `j` of `a * x` and the borrow, an
   let t := p + c
   (z - t, UInt64.subh (UInt64.addh (y.mulh x) p c) z t)
 
-private theorem subMul1Loop_eq_fold (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize)
+public theorem subMul1Loop_eq_fold (arr : UInt64Array) (rs : USize) (a : USlice) (n : USize)
     (hn : n ≤ a.size) (hr : LoopBound arr rs n) (x : UInt64) (j : USize) (c : UInt64) :
     subMul1Loop arr rs a n hn hr x j c = foldUInPlace n (subMul1Step a n hn x) arr rs hr j c := by
   induction arr, hr, j, c using subMul1Loop.induct rs a n hn x with

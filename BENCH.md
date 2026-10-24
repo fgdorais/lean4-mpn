@@ -83,8 +83,9 @@ Ratio MPN / Nat (below 1 is faster than Nat):
 | `shl` | 0.30 | 0.41 | 0.41 | 0.41 | 0.44 | 0.43 | 0.46 | 0.48 | 0.50 | 0.54 | 0.59 | 0.64 | 0.77 | 0.90 | 0.71 | 0.85 | 1.05 |
 | `shr` | 3.46 | 0.41 | 0.42 | 0.43 | 0.44 | 0.44 | 0.46 | 0.45 | 0.49 | 0.50 | 0.55 | 0.61 | 0.70 | 0.80 | 0.63 | 0.83 | 0.92 |
 | `div1` | 3.02 | 0.40 | 0.42 | 0.46 | 0.50 | 0.55 | 0.66 | 0.74 | 0.89 | 0.98 | 1.14 | 1.26 | 1.40 | 1.49 | 1.46 | 1.53 | 1.64 |
-| `div` | 0.66 | 2.93 | 3.01 | 3.23 | 3.82 | 4.42 | 4.93 | 5.16 | 5.46 | 5.70 | 5.89 | 5.33 | 4.95 | 4.92 | 4.50 | 4.55 | 5.19 |
-| `sqrt` | 5.17 | 0.41 | 1.56 | 1.36 | 2.06 | 2.22 | 3.01 | 3.17 | 3.40 | 2.65 | 2.44 | 2.19 | 1.46 | 1.26 | 0.77 | 0.56 | 0.40 |
+| `div` | 1.04 | 2.43 | 2.29 | 2.26 | 2.32 | 2.42 | 2.48 | 2.47 | 2.52 | 2.71 | 3.14 | 3.01 | 3.19 | 3.33 | 3.26 | 3.49 | 4.04 |
+| `sbdiv` | 0.67 | 1.95 | 1.90 | 1.90 | 1.97 | 2.10 | 2.23 | 2.29 | 2.40 | 2.64 | 3.08 | 2.99 | 3.15 | 3.33 | 3.28 | 3.47 | 4.28 |
+| `sqrt` | 5.05 | 0.41 | 1.60 | 1.39 | 1.99 | 2.15 | 2.78 | 2.97 | 3.07 | 2.35 | 2.10 | 1.86 | 1.21 | 1.02 | 0.62 | 0.46 | 0.33 |
 | `mul1` | 0.26 | 0.30 | 0.27 | 0.30 | 0.32 | 0.32 | 0.34 | 0.36 | 0.39 | 0.41 | 0.45 | 0.49 | 0.56 | 0.66 | 0.62 | 0.70 | 0.79 |
 | `addmul1` | 0.19 | 0.19 | 0.19 | 0.21 | 0.20 | 0.23 | 0.22 | 0.22 | 0.25 | 0.26 | 0.30 | 0.33 | 0.40 | 0.44 | 0.43 | 0.44 | 0.54 |
 | `mul` | 0.41 | 0.44 | 0.50 | 0.54 | 0.60 | 0.70 | 0.90 | 1.04 | 1.32 | 1.57 | 1.97 | 2.49 | 2.81 | 3.44 | 4.24 | 4.80 | 7.47 |
@@ -103,8 +104,9 @@ Time of MPN:
 | `shl` | 41.8 ns | 44.6 ns | 45.3 ns | 45.7 ns | 47.9 ns | 47.9 ns | 50.6 ns | 53.4 ns | 57 ns | 61.9 ns | 70.7 ns | 80.3 ns | 101 ns | 127 ns | 158 ns | 201 ns | 345 ns |
 | `shr` | 46 ns | 46.4 ns | 48.4 ns | 49.1 ns | 50.5 ns | 50.3 ns | 52.5 ns | 53.9 ns | 58 ns | 60.9 ns | 69.5 ns | 79 ns | 96 ns | 117 ns | 144 ns | 188 ns | 313 ns |
 | `div1` | 42.6 ns | 48.4 ns | 51.1 ns | 55.6 ns | 62.3 ns | 70.9 ns | 91.9 ns | 112 ns | 152 ns | 192 ns | 271 ns | 354 ns | 514 ns | 676 ns | 994 ns | 1.31 µs | 2.59 µs |
-| `div` | 79.8 ns | 372 ns | 427 ns | 501 ns | 646 ns | 783 ns | 1.11 µs | 1.46 µs | 2.26 µs | 3.24 µs | 5.45 µs | 8 µs | 14.6 µs | 23.6 µs | 45.5 µs | 75.1 µs | 263 µs |
-| `sqrt` | 475 ns | 478 ns | 1.9 µs | 1.9 µs | 3.88 µs | 4.52 µs | 6.38 µs | 7.17 µs | 8.98 µs | 9.19 µs | 12.5 µs | 13.7 µs | 17.9 µs | 21.5 µs | 30.6 µs | 39 µs | 89 µs |
+| `div` | 127 ns | 309 ns | 325 ns | 346 ns | 392 ns | 428 ns | 548 ns | 698 ns | 1.05 µs | 1.55 µs | 2.92 µs | 4.58 µs | 9.5 µs | 16.2 µs | 33.6 µs | 58.2 µs | 208 µs |
+| `sbdiv` | 82.3 ns | 251 ns | 270 ns | 290 ns | 333 ns | 376 ns | 494 ns | 649 ns | 1 µs | 1.51 µs | 2.86 µs | 4.52 µs | 9.42 µs | 16.2 µs | 33.5 µs | 58 µs | 220 µs |
+| `sqrt` | 492 ns | 492 ns | 2.03 µs | 2.03 µs | 3.83 µs | 4.53 µs | 6.09 µs | 6.87 µs | 8.3 µs | 8.33 µs | 11 µs | 11.8 µs | 15.1 µs | 17.7 µs | 24.7 µs | 32.1 µs | 74.3 µs |
 | `mul1` | 45.1 ns | 45.3 ns | 46.4 ns | 46.2 ns | 48.9 ns | 49 ns | 53.3 ns | 56.4 ns | 62.9 ns | 68.5 ns | 79.7 ns | 91.8 ns | 117 ns | 153 ns | 199 ns | 253 ns | 450 ns |
 | `addmul1` | 44.4 ns | 44.2 ns | 45.8 ns | 47.5 ns | 47.5 ns | 48.8 ns | 51.6 ns | 55.8 ns | 62.5 ns | 69.2 ns | 83.6 ns | 99.7 ns | 134 ns | 167 ns | 226 ns | 281 ns | 522 ns |
 | `mul` | 58 ns | 60 ns | 63.4 ns | 71.9 ns | 85.5 ns | 109 ns | 175 ns | 259 ns | 498 ns | 841 ns | 1.83 µs | 3.48 µs | 7.48 µs | 13.9 µs | 31.7 µs | 56.2 µs | 224 µs |
@@ -172,14 +174,15 @@ cell left above 4, 6144 by 1536, is as fast either way.
 
 ### Large sizes, division
 
-From `bench sbdiv div sqrt 512 1024 2048 4096 8192`, the fastest of three runs, on 2026-10-24. The
+From `bench sbdiv div sqrt 512 1024 2048 4096 8192`, the fastest of three runs, on 2026-10-24
+(after `ef5cd91`). The
 sizes are those of the divisor (`div`, `sbdiv`: `2 n` by `n` limbs) or of the operand (`sqrt`).
 
 | op | 512 | 1024 | 2048 | 4096 | 8192 |
 |---|---:|---:|---:|---:|---:|
-| `sbdiv` | 242 µs (4.70) | 904 µs (5.99) | 3.55 ms (8.74) | 14.3 ms (13.49) | 56.6 ms (23.98) |
-| `div` | 234 µs (4.51) | 690 µs (4.57) | 1.96 ms (5.04) | 5.49 ms (5.57) | 14.9 ms (6.29) |
-| `sqrt` | 91.8 µs (0.41) | 243 µs (0.29) | 685 µs (0.28) | 1.97 ms (0.29) | 5.34 ms (0.31) |
+| `sbdiv` | 221 µs (4.29) | 862 µs (5.67) | 3.41 ms (8.38) | 13.9 ms (13.11) | 55.6 ms (23.36) |
+| `div` | 209 µs (4.06) | 642 µs (4.22) | 1.84 ms (4.73) | 5.27 ms (5.33) | 14.5 ms (6.07) |
+| `sqrt` | 75.2 µs (0.33) | 206 µs (0.24) | 609 µs (0.24) | 1.78 ms (0.26) | 5.01 ms (0.29) |
 
 The ratio to `Nat` is in parentheses; for `sqrt` it is to Lean's `Nat.sqrt`, not to GMP. The
 divide-and-conquer division costs `O(M(n) log n)`, and its ratio grows slowly with the size, where
@@ -255,3 +258,4 @@ Times are the fastest of five runs, in the format of the tables above.
 | 2026-10-23 | `767df92`+ | `MPN.Bits`: `lshift`/`rshift` by `0 < s < 64` (one pass, `foldUInPlaceThen`), `shiftLeft`/`shiftRight` by any number of bits, `log2`; new rows `shl`, `shr` | `shl` 0.41–0.64 of `Nat` from 2 to 64 limbs, 345 ns at 512 (1.05); `shr` likewise, 313 ns at 512 (0.92); at one limb `Nat`'s `>>>` returns a scalar without allocating (3.46) |
 | 2026-10-24 | `0568ff8`+ | `MPN.divRem1`, schoolbook `MPN.divRem`, `MPN.Num` and `MPN.sqrtRem` (Zimmermann); new rows `div1`, `div`, `sqrt` | `div1` 0.40–0.98 of `Nat` up to 32 limbs, 1.64 at 512; `div` 2.9–5.9 (5.19 at 512, 9.4 at 2048 by 1024: no divide-and-conquer yet); `sqrt` 39 µs at 256 limbs, 89 µs at 512 (0.40 of Lean's `Nat.sqrt`) |
 | 2026-10-24 | `0e975af`+ | divide-and-conquer division (`MPN.Num.divNorm`, Burnikel and Ziegler, the remainder of the estimate reused as in GMP) from `dcThreshold = 512` limbs, in `Num.divMod` and so in `sqrtRem`; new row `sbdiv` (large sizes above) | `div` vs `sbdiv` at `2 n` by `n`: 690 vs 904 µs at 1024 limbs, 1.96 vs 3.55 ms at 2048, 14.9 vs 56.6 ms at 8192 (6.29 vs 23.98 times `Nat`); `sqrt` 1.04 → 0.685 ms at 2048 limbs |
+| 2026-10-24 | `ef5cd91`+ | schoolbook division in one array without allocating per step (`divStepIn`, `divLoopIn`): the quotient limb in the freed top limb of the window, the multiply-subtract fold ended by a continuation | `sbdiv` 429 → 251 ns at 2 limbs, 1.56 µs → 649 ns at 16, 7.77 → 4.52 µs at 64, 70.1 → 58.0 µs at 256 (4.20 → 3.47 times `Nat`); `div` within 3.5 of `Nat` up to 256 limbs, 4.04 at 512, 4.22 at 1024, 6.07 at 8192 |
