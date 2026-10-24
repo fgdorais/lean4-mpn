@@ -310,6 +310,46 @@ def checkSqrt (x : Nat) : Bool :=
   let y := randomLimbs ((n + 1) / 2) 32
   [x, x / 3, 2 ^ (64 * n) - 1, y * y, y * y - 1, y * y + 2 * y].all checkSqrt
 
+/-! Greatest common divisor -/
+
+/-- Checks `Num.gcd` against `Nat.gcd` on `x g` and `y g` for a common factor `g`. -/
+def checkGcd (m n k : Nat) : Bool :=
+  let g := randomLimbs k 61
+  [(randomLimbs m 62 * g, randomLimbs n 63 * g), (randomLimbs m 64, randomLimbs n 65),
+    (2 ^ (64 * m) - 1, 2 ^ (64 * n) - 1), (randomLimbs m 66 * g, g)].all fun (x, y) =>
+    let lx := Nat.log2 x / 64 + 1
+    let ly := Nat.log2 y / 64 + 1
+    (MPN.Num.gcd (limbs (lx + 1) x) (limbs ly y)).toNat == Nat.gcd x y
+
+#guard checkGcd 1 1 1 && (MPN.Num.gcd (limbs 2 0) (limbs 1 7)).toNat == 7 &&
+  (MPN.Num.gcd (limbs 2 12) (limbs 0 0)).toNat == 12
+#guard [(2, 2, 1), (5, 3, 2), (20, 20, 7), (64, 60, 16), (200, 190, 50)].all
+  fun (m, n, k) => checkGcd m n k
+-- Through half-gcd (`gcdWith` with a low threshold).
+#guard [(40, 40, 8), (100, 90, 20)].all fun (m, n, k) =>
+  let g := randomLimbs k 71
+  let x := randomLimbs m 72 * g
+  let y := randomLimbs n 73 * g
+  (MPN.gcdWith 16 (limbs (Nat.log2 x / 64 + 1) x) (limbs (Nat.log2 y / 64 + 1) y)).toNat ==
+    Nat.gcd x y
+
+/-! Decimal strings -/
+
+/-- Checks `Num.toDecimal` and `Num.ofDecimal?` on `x`, through both of their methods. -/
+def checkDec (x : Nat) : Bool :=
+  let n := Nat.log2 x / 64 + 1
+  let a := limbs (n + 1) x
+  MPN.Num.toDecimal a == Nat.repr x && MPN.toDecimalWith 2 a == Nat.repr x &&
+    (MPN.Num.ofDecimal? (Nat.repr x)).map (·.toNat) == some x &&
+    (MPN.ofDecimalWith 1 (Nat.repr x)).map (·.toNat) == some x
+
+#guard [0, 1, 9, 10, 10 ^ 19 - 1, 10 ^ 19, 10 ^ 19 + 1, 2 ^ 64 - 1, 2 ^ 64, 10 ^ 38,
+  10 ^ 38 - 1, 3 * 10 ^ 57 + 7].all checkDec
+#guard [1, 2, 3, 5, 17, 40, 100].all fun n =>
+  [randomLimbs n 81, 2 ^ (64 * n) - 1, 10 ^ (19 * n), 10 ^ (19 * n) - 1].all checkDec
+#guard (MPN.Num.ofDecimal? "1_000_000").map (·.toNat) == some 1000000 &&
+  (MPN.Num.ofDecimal? "12a").isNone && (MPN.Num.ofDecimal? "").isNone
+
 /-! Toom multiplication -/
 
 /-- Checks `mulToom` on an `m`-limb `a` and an `n`-limb `b`, in both orders. -/

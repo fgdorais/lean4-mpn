@@ -25,6 +25,12 @@ public import MPN.Num
 public import MPN.Div.DC
 public import MPN.Div.Mu
 public import MPN.Sqrt
+public import MPN.Generic.Ops
+public import MPN.Generic.HGCD
+public import MPN.Generic.Radix
+public import MPN.Generic.Ops64
+public import MPN.Gcd
+public import MPN.Decimal
 
 /-!
 # MPN
@@ -47,4 +53,9 @@ Verified multi-precision arithmetic on `UInt64` limbs, in the style of GMP's `mp
 * `MPN.Div.DC`: divide-and-conquer division on them, `Num.divMod`;
 * `MPN.Div.Mu`: products modulo `β^N - 1` by the FFT, and division by a reciprocal;
 * `MPN.Sqrt`: the square root and its remainder, by Zimmermann's Karatsuba square root.
+* `MPN.Generic.Ops`, `MPN.Generic.HGCD`, `MPN.Generic.Radix`: base-generic algorithms from `main`
+  (half-gcd, decimal strings by divide and conquer) over `NatOps`;
+* `MPN.Generic.Ops64`: the instance of `NatOps` for 64-bit limbs, on `MPN.Num`;
+* `MPN.Gcd`: the greatest common divisor, by Lehmer's algorithm and half-gcd;
+* `MPN.Decimal`: decimal strings, by chunks of nineteen digits and by divide and conquer.
 -/
