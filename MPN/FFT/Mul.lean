@@ -797,6 +797,148 @@ public theorem fft_coef (αL βL : List Nat) (k n σ X : Nat) (hk : 1 ≤ k)
   rw [← Nat.mod_eq_of_lt hZl]
   exact (Nat.mod_mod _ _).symm.trans hc
 
+/-! ## Wrapped products -/
+
+/-- The cyclic fold of a polynomial modulo `x^K - 1`: coefficient `l` is `Z_l + Z_{l+K}`. -/
+@[expose] public def cyc (Z : List Nat) (K : Nat) : List Nat :=
+  (List.range K).map fun l => Z.getD l 0 + Z.getD (l + K) 0
+
+public theorem length_cyc (Z : List Nat) (K : Nat) : (cyc Z K).length = K := by simp [cyc]
+
+public theorem getD_cyc (Z : List Nat) (K l : Nat) (hl : l < K) :
+    (cyc Z K).getD l 0 = Z.getD l 0 + Z.getD (l + K) 0 := by
+  simp [cyc, hl]
+
+/-- At a `K`-th root of unity, a polynomial of degree below `2 K` has the value of its fold. -/
+public theorem polyVal_cyc (y F K : Nat) (Z : List Nat) (hy : MEq F (y ^ K) 1)
+    (hZ : Z.length ≤ 2 * K) : MEq F (polyVal y Z) (polyVal y (cyc Z K)) := by
+  rw [polyVal_eq_sumRange _ Z (K + K) (by lia), sumRange_append,
+    polyVal_eq_sumRange _ (cyc Z K) K (by rw [length_cyc]; exact Nat.le_refl _)]
+  have e : sumRange (fun i => (cyc Z K).getD i 0 * y ^ i) K =
+      sumRange (fun i => Z.getD i 0 * y ^ i) K +
+        sumRange (fun i => Z.getD (i + K) 0 * y ^ i) K := by
+    rw [← sumRange_add]
+    exact sumRange_congr fun i hi => by rw [getD_cyc _ _ _ hi, Nat.add_mul]
+  rw [e]
+  refine MEq.add (MEq.refl _ _) (MEq.sum fun i _ => ?_)
+  rw [Nat.add_comm K i, Nat.pow_add]
+  have := MEq.mul (MEq.refl F (Z.getD (i + K) 0 * y ^ i)) hy
+  rw [Nat.mul_one] at this
+  rw [← Nat.mul_assoc]
+  exact this
+
+/--
+The coefficients from the transforms when the pieces wrap around: with `K = 2ᵏ` pieces of each
+operand, the forward transforms, their pointwise products, the inverse transform and the division
+by `2ᵏ` give the coefficients of `α β` modulo `x^K - 1`, exactly when they are less than `F`.
+-/
+public theorem fft_coef_cyc (αL βL : List Nat) (k n σ X : Nat) (hk : 1 ≤ k)
+    (hσ : σ * 2 ^ k = 2 * (64 * n)) (hβ : βL ≠ [])
+    (hαX : ∀ a ∈ αL, a < X) (hβX : ∀ b ∈ βL, b < X) (hbits : 2 * 2 ^ k * (X * X) ≤ 2 ^ (64 * n))
+    (hαK : αL.length ≤ 2 ^ k) (hβK : βL.length ≤ 2 ^ k) (l : Nat) (hl : l < 2 ^ k) :
+    (fermat n - sumRange (fun p =>
+        sumRange (fun i => αL.getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) % fermat n *
+          (sumRange (fun i => βL.getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) % fermat n) %
+            fermat n * 2 ^ ((2 * (64 * n) - σ) * rev k p * l)) (2 ^ k) % fermat n *
+        2 ^ (64 * n - k) % fermat n) % fermat n =
+      (polyMul αL βL).getD l 0 + (polyMul αL βL).getD (l + 2 ^ k) 0 := by
+  have hF : fermat n = 2 ^ (64 * n) + 1 := rfl
+  have hF₀ : 0 < fermat n := by simp [fermat]
+  have hZ2 : (polyMul αL βL).length ≤ 2 * 2 ^ k := by
+    have := length_polyMul αL βL hβ; lia
+  rw [← getD_cyc _ _ _ hl]
+  generalize hZ : cyc (polyMul αL βL) (2 ^ k) = Z
+  have hZK : Z.length ≤ 2 ^ k := by rw [← hZ, length_cyc]; exact Nat.le_refl _
+  have hk₁ : 2 ^ k = 2 * 2 ^ (k - 1) := by
+    rw [← Nat.pow_succ']; congr 1; lia
+  have hσN : σ * 2 ^ (k - 1) = 64 * n := by rw [hk₁] at hσ; lia
+  have hσle : σ ≤ 2 * (64 * n) := by
+    rw [← hσ]; exact Nat.le_mul_of_pos_right _ (Nat.two_pow_pos _)
+  -- The pointwise products are the values of the fold `Z`.
+  have hP : ∀ p, MEq (fermat n)
+      (sumRange (fun i => αL.getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) % fermat n *
+        (sumRange (fun i => βL.getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) % fermat n) % fermat n)
+      (polyVal (2 ^ (σ * rev k p)) Z) := by
+    intro p
+    rw [sum_eq_polyVal _ _ _ _ hαK, sum_eq_polyVal _ _ _ _ hβK, ← hZ]
+    refine ((MEq.mod _ _).trans (MEq.mul (MEq.mod _ _) (MEq.mod _ _))).trans ?_
+    rw [← polyVal_polyMul]
+    refine polyVal_cyc _ _ _ _ ?_ hZ2
+    rw [← Nat.pow_mul, show σ * rev k p * 2 ^ k = 2 * (64 * n) * rev k p by
+      rw [Nat.mul_right_comm, hσ], Nat.pow_mul]
+    have := MEq.mul (pow_two_N hF) (MEq.refl (fermat n) 1)
+    clear this
+    induction rev k p with
+    | zero => exact MEq.refl _ _
+    | succ j ih =>
+      rw [Nat.pow_succ]
+      have := MEq.mul ih (pow_two_N hF)
+      rw [Nat.one_mul] at this
+      exact this
+  -- The inverse transform, reindexed by `rev`.
+  have hV : MEq (fermat n) (sumRange (fun p =>
+      sumRange (fun i => αL.getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) % fermat n *
+        (sumRange (fun i => βL.getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) % fermat n) %
+          fermat n * 2 ^ ((2 * (64 * n) - σ) * rev k p * l)) (2 ^ k) % fermat n)
+      (2 ^ k * Z.getD l 0) := by
+    refine (MEq.mod _ _).trans ?_
+    refine (MEq.sum fun p _ => MEq.mul (hP p) (MEq.refl _ _)).trans ?_
+    rw [sumRange_rev (fun q => polyVal (2 ^ (σ * q)) Z * 2 ^ ((2 * (64 * n) - σ) * q * l)) k]
+    have e : sumRange (fun q => polyVal (2 ^ (σ * q)) Z * 2 ^ ((2 * (64 * n) - σ) * q * l))
+        (2 ^ k) = sumRange (fun j => sumRange (fun i => Z.getD i 0 * (2 ^ σ) ^ (i * j)) (2 ^ k) *
+          (2 ^ (2 * (64 * n) - σ)) ^ (j * l)) (2 ^ k) := by
+      refine sumRange_congr fun q _ => ?_
+      rw [polyVal_eq_sumRange _ Z _ hZK, ← Nat.pow_mul, Nat.mul_assoc]
+      congr 1
+      exact sumRange_congr fun i _ => by rw [← Nat.pow_mul, ← Nat.pow_mul]; congr 2; grind
+    rw [e]
+    refine inverse_mod (2 ^ σ) (2 ^ (2 * (64 * n) - σ)) (fermat n) k hk ?_ ?_ _ l hl
+    · rw [← Nat.pow_mul, hσN]; simp [fermat]
+    · rw [← Nat.pow_add, show σ + (2 * (64 * n) - σ) = 2 * (64 * n) by lia]
+      exact pow_two_N hF
+  -- Dividing by `2ᵏ`.
+  have hc : MEq (fermat n) ((fermat n - sumRange (fun p =>
+      sumRange (fun i => αL.getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) % fermat n *
+        (sumRange (fun i => βL.getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) % fermat n) %
+          fermat n * 2 ^ ((2 * (64 * n) - σ) * rev k p * l)) (2 ^ k) % fermat n *
+        2 ^ (64 * n - k) % fermat n) % fermat n) (Z.getD l 0) := by
+    have hk64 : k ≤ 64 * n := by
+      have : 2 ^ k ≤ 2 ^ (64 * n) := Nat.le_trans (Nat.le_mul_of_pos_right _ (by
+        have : 0 < X := by
+          rcases βL with _ | ⟨b, _⟩
+          · exact absurd rfl hβ
+          · exact Nat.lt_of_le_of_lt (Nat.zero_le _) (hβX b (by simp))
+        exact Nat.mul_pos this this)) (by rw [Nat.mul_assoc] at hbits; lia)
+      exact (Nat.pow_le_pow_iff_right (by decide)).1 this
+    refine (MEq.mod _ _).trans ?_
+    rw [show fermat n - _ = 0 + fermat n - _ by rw [Nat.zero_add]]
+    refine (neg_eq hF _ _ (Nat.le_of_lt (Nat.mod_lt _ hF₀))).trans ?_
+    rw [Nat.zero_add]
+    refine (MEq.mul ((MEq.mod _ _).trans (MEq.mul hV (MEq.refl _ _))) (MEq.refl _ _)).trans ?_
+    rw [show 2 ^ k * Z.getD l 0 * 2 ^ (64 * n - k) = Z.getD l 0 * 2 ^ (64 * n) by
+      rw [Nat.mul_comm (2 ^ k), Nat.mul_assoc, ← Nat.pow_add,
+        show k + (64 * n - k) = 64 * n by lia]]
+    exact pow_N_pow_N hF _
+  -- Both are less than `F`.
+  have hZl : Z.getD l 0 < fermat n := by
+    rw [← hZ, getD_cyc _ _ _ hl]
+    have h₁ := getD_polyMul_le αL βL (X - 1) (X - 1) (fun a h => by have := hαX a h; lia)
+      (fun b h => by have := hβX b h; lia)
+    have h₂ : (X - 1) * (X - 1) < X * X ∨ X = 0 := by
+      rcases Nat.eq_zero_or_pos X with e | e
+      · exact .inr e
+      · exact .inl (Nat.mul_lt_mul'' (by lia) (by lia))
+    have h₃ : αL.length * ((X - 1) * (X - 1)) ≤ 2 ^ k * (X * X) := by
+      rcases h₂ with h | h
+      · exact Nat.mul_le_mul hαK (Nat.le_of_lt h)
+      · subst h; simp
+    have := h₁ l
+    have := h₁ (l + 2 ^ k)
+    simp only [fermat]
+    lia
+  rw [← Nat.mod_eq_of_lt hZl]
+  exact (Nat.mod_mod _ _).symm.trans hc
+
 /-! ## The multiplication -/
 
 /--
@@ -1042,6 +1184,303 @@ public theorem fftMulAt_spec (r a b : USlice) (k m n : Nat) (hp : FFTParams r a 
   refine ⟨by rw [c₁, z₁], fun i hi => ?_, ?_⟩
   · rw [c₂ i (by lia), z₂ i (by lia)]
   · rw [c₃, z₃, Nat.zero_add, hab]
+
+/-! ## The product modulo `β^N - 1` -/
+
+/--
+`a b` modulo `2^(64 N) - 1`, for `N = m 2ᵏ`, into the first `N + n + 1` limbs of `r`, like
+`fftMulAt` but with the pieces of each operand wrapping around: `K = 2ᵏ` pieces of `m` limbs of
+each, the cyclic convolution of the transforms, and the coefficients added at `2^(64 m)`, whose
+sum is `≡ a b` modulo `2^(64 N) - 1` since `2^(64 m K) ≡ 1`. Like GMP's `mpn_mulmod_bnm1`, it
+costs about half a product of the same operands.
+-/
+public def fftMulModAt (r a b : USlice) (k m n : Nat) : UInt64Array :=
+  let K := 2 ^ k
+  let oB := K * (n + 1)
+  let t := 2 * K * (n + 1)
+  let z := t + (n + 1)
+  let σ := 2 * (64 * n) / K
+  let FA := loadLoop 0 n m a (UInt64Array.replicate (z + (n + 1)) 0) 0 K
+  let FA := loadLoop oB n m b FA 0 K
+  let FA := fwd n t k FA 0 σ
+  let FA := fwd n t k FA oB σ
+  let FA := pointLoop n 0 oB FA (UInt64Array.replicate (2 * n + 2) 0) 0 K
+  let FA := inv n t k FA 0 σ
+  let FA := scaleLoop n 0 t z k FA 0 K
+  recLoop (m * K + n + 1) m n 0 FA (zeroInto (r.slice 0 (m * K + n + 1).toUSize)) r.start.toNat 0 K
+
+/-- The parameters of `fftMulModAt` for which it computes `a b` modulo `2^(64 m 2ᵏ) - 1`. -/
+public structure FFTModParams (r a b : USlice) (k m n : Nat) : Prop where
+  hk : 1 ≤ k
+  hn : 1 ≤ n
+  hm : 1 ≤ m
+  hmn : m ≤ n
+  hdiv : 2 * (64 * n) % 2 ^ k = 0
+  ha : 0 < a.size.toNat
+  hb : 0 < b.size.toNat
+  hla : a.size.toNat ≤ m * 2 ^ k
+  hlb : b.size.toNat ≤ m * 2 ^ k
+  hbits : 2 * 2 ^ k * 2 ^ (128 * m) ≤ 2 ^ (64 * n)
+  hr : m * 2 ^ k + n + 1 ≤ r.size.toNat
+  hS : (2 * 2 ^ k + 2) * (n + 1) < USize.size
+  h64 : 64 * n < USize.size
+  haS : a.array.size < USize.size
+  hbS : b.array.size < USize.size
+  hrS : r.array.size < USize.size
+
+/-- A geometric bound: `∑_{i<K} c_i Xⁱ < (C + 1) X^K` for `c_i ≤ C` and `X ≥ 2`. -/
+private theorem sum_pow_lt (c : Nat → Nat) (C X K : Nat) (hX : 2 ≤ X) (hc : ∀ i < K, c i ≤ C) :
+    sumRange (fun i => X ^ i * c i) K < (C + 1) * X ^ K := by
+  induction K with
+  | zero => simp [sumRange]
+  | succ K ih =>
+    rw [sumRange_succ]
+    have h₁ := ih fun i hi => hc i (by lia)
+    have h₂ := Nat.mul_le_mul_left (X ^ K) (hc K (by lia))
+    have h₃ : (C + 1) * X ^ K + X ^ K * C ≤ (C + 1) * X ^ (K + 1) := by
+      rw [Nat.pow_succ]
+      have := Nat.mul_le_mul_left ((C + 1) * X ^ K) hX
+      rw [Nat.mul_comm (X ^ K) C]
+      lia
+    lia
+
+set_option maxHeartbeats 800000 in
+public theorem fftMulModAt_spec (r a b : USlice) (k m n : Nat) (hp : FFTModParams r a b k m n) :
+    (fftMulModAt r a b k m n).size = r.array.size ∧
+      (∀ i, (i < r.start.toNat ∨ r.start.toNat + (m * 2 ^ k + n + 1) ≤ i) →
+        (fftMulModAt r a b k m n)[i]! = r.array[i]!) ∧
+      (fftMulModAt r a b k m n).valAt r.start.toNat (m * 2 ^ k + n + 1) %
+          (2 ^ (64 * (m * 2 ^ k)) - 1) =
+        a.toNat * b.toNat % (2 ^ (64 * (m * 2 ^ k)) - 1) := by
+  obtain ⟨hk, hn, hm, hmn, hdiv, ha, hb, hpa, hpb, hbits, hr, hS, h64, haS, hbS, hrS⟩ := hp
+  have hF₀ : 0 < fermat n := by simp [fermat]
+  have hK1 : 2 ≤ 2 ^ k := by
+    have := Nat.pow_le_pow_right (show 0 < 2 by decide) hk; simpa using this
+  have hσ : 2 * (64 * n) / 2 ^ k * 2 ^ k = 2 * (64 * n) :=
+    Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hdiv)
+  dsimp only [fftMulModAt]
+  generalize 2 * (64 * n) / 2 ^ k = σ at *
+  -- The layout.
+  have hw := Nat.mul_le_mul_right (n + 1) (show 2 ^ k ≤ 2 * 2 ^ k by lia)
+  have hsz : (UInt64Array.replicate (2 * 2 ^ k * (n + 1) + (n + 1) + (n + 1)) 0).size =
+      2 * 2 ^ k * (n + 1) + (n + 1) + (n + 1) := by simp
+  have hSz : 2 * 2 ^ k * (n + 1) + (n + 1) + (n + 1) < USize.size := by
+    rw [show 2 * 2 ^ k * (n + 1) + (n + 1) + (n + 1) = (2 * 2 ^ k + 2) * (n + 1) by
+      rw [Nat.add_mul]; lia]
+    exact hS
+  have hBB : 2 ^ k * (n + 1) + 2 ^ k * (n + 1) = 2 * 2 ^ k * (n + 1) := by rw [Nat.mul_assoc]; lia
+  generalize hS₀ : 2 * 2 ^ k * (n + 1) + (n + 1) + (n + 1) = S at *
+  -- Loading `a`.
+  obtain ⟨l₁, l₂, l₃⟩ := loadLoop_spec 0 n m a (by lia) haS (2 ^ k)
+    (UInt64Array.replicate S 0) 0 (by rw [hsz]; exact hSz) (by rw [hsz]; lia)
+    (fun p _ _ => valAt_replicate_zero ..)
+  generalize loadLoop 0 n m a (UInt64Array.replicate S 0) 0 (2 ^ k) = A₁ at *
+  rw [hsz] at l₁
+  -- Loading `b`.
+  obtain ⟨m₁, m₂, m₃⟩ := loadLoop_spec (2 ^ k * (n + 1)) n m b (by lia) hbS (2 ^ k) A₁ 0
+    (by rw [l₁]; exact hSz) (by rw [l₁]; lia) (fun p _ hp => by
+      have := win_in (2 ^ k * (n + 1)) n p (2 ^ k) (by lia)
+      show win A₁ n _ = 0
+      rw [win_congr fun j _ _ => l₂ j (by lia)]
+      exact valAt_replicate_zero ..)
+  generalize loadLoop (2 ^ k * (n + 1)) n m b A₁ 0 (2 ^ k) = A₂ at *
+  rw [l₁] at m₁
+  have cA : ∀ p < 2 ^ k, coef A₂ n 0 p = piece a m p := by
+    intro p hp
+    have := win_in 0 n p (2 ^ k) hp
+    rw [← l₃ p (by lia) (by lia)]
+    exact win_congr fun j _ _ => m₂ j (by lia)
+  have cB : ∀ p < 2 ^ k, coef A₂ n (2 ^ k * (n + 1)) p = piece b m p :=
+    fun p hp => m₃ p (by lia) (by lia)
+  have hXF : 2 ^ (64 * m) < fermat n := by
+    simp only [fermat]
+    have : 2 ^ (64 * m) ≤ 2 ^ (64 * n) := Nat.pow_le_pow_right (by decide) (by lia)
+    lia
+  -- The forward transforms.
+  obtain ⟨f₁, f₂, f₃⟩ := fwd_spec n (2 * 2 ^ k * (n + 1)) hn h64 k A₂ 0 σ hσ
+    ⟨by rw [m₁]; exact hSz, by rw [m₁]; lia, by rw [m₁]; lia, by lia⟩
+    (fun p hp => by rw [cA p hp]; exact Nat.lt_trans (piece_lt ..) hXF)
+  generalize fwd n (2 * 2 ^ k * (n + 1)) k A₂ 0 σ = A₃ at *
+  have cB₃ : ∀ p < 2 ^ k, coef A₃ n (2 ^ k * (n + 1)) p = piece b m p := by
+    intro p hp
+    have := win_in (2 ^ k * (n + 1)) n p (2 ^ k) hp
+    rw [← cB p hp]
+    exact win_congr fun j _ _ => f₂ j (by lia) (by lia)
+  obtain ⟨g₁, g₂, g₃⟩ := fwd_spec n (2 * 2 ^ k * (n + 1)) hn h64 k A₃ (2 ^ k * (n + 1)) σ hσ
+    ⟨by rw [f₁, m₁]; exact hSz, by rw [f₁, m₁]; lia, by rw [f₁, m₁]; lia, by lia⟩
+    (fun p hp => by rw [cB₃ p hp]; exact Nat.lt_trans (piece_lt ..) hXF)
+  generalize fwd n (2 * 2 ^ k * (n + 1)) k A₃ (2 ^ k * (n + 1)) σ = A₄ at *
+  have cA₄ : ∀ p < 2 ^ k, coef A₄ n 0 p = coef A₃ n 0 p := by
+    intro p hp
+    have := win_in 0 n p (2 ^ k) hp
+    exact win_congr fun j _ _ => g₂ j (by lia) (by lia)
+  -- The pointwise products.
+  obtain ⟨p₁, p₂, p₃⟩ := pointLoop_spec n 0 (2 ^ k * (n + 1)) hn (2 ^ k) A₄
+    (UInt64Array.replicate (2 * n + 2) 0) 0 (by simp) (by simp; lia) (by rw [g₁, f₁, m₁]; exact hSz)
+    (by lia) (by rw [g₁, f₁, m₁]; lia) (fun q _ hq => by
+      rw [cA₄ q (by lia), f₃ q (by lia), g₃ q (by lia)]
+      exact ⟨Nat.mod_lt _ hF₀, Nat.mod_lt _ hF₀⟩)
+  generalize pointLoop n 0 (2 ^ k * (n + 1)) A₄ (UInt64Array.replicate (2 * n + 2) 0) 0 (2 ^ k) =
+    A₅ at *
+  -- The inverse transform.
+  obtain ⟨v₁, v₂, v₃⟩ := inv_spec n (2 * 2 ^ k * (n + 1)) hn h64 k A₅ 0 σ hσ
+    ⟨by rw [p₁, g₁, f₁, m₁]; exact hSz, by rw [p₁, g₁, f₁, m₁]; lia, by rw [p₁, g₁, f₁, m₁]; lia,
+      by lia⟩ (fun q hq => by rw [p₃ q (by lia) (by lia)]; exact Nat.mod_lt _ hF₀)
+  generalize inv n (2 * 2 ^ k * (n + 1)) k A₅ 0 σ = A₆ at *
+  -- The zero window is untouched.
+  have hz : win A₆ n (2 * 2 ^ k * (n + 1) + (n + 1)) = 0 := by
+    have : win A₆ n (2 * 2 ^ k * (n + 1) + (n + 1)) =
+        win (UInt64Array.replicate S 0) n (2 * 2 ^ k * (n + 1) + (n + 1)) :=
+      win_congr fun j _ _ => by
+        rw [v₂ j (by lia) (by lia), p₂ j (by lia), g₂ j (by lia) (by lia), f₂ j (by lia) (by lia),
+          m₂ j (by lia), l₂ j (by lia)]
+    rw [this]
+    exact valAt_replicate_zero ..
+  -- The division by `2ᵏ`.
+  have hsz₆ : A₆.size = S := by rw [v₁, p₁, g₁, f₁, m₁]
+  obtain ⟨s₁, -, s₃⟩ := scaleLoop_spec n 0 (2 * 2 ^ k * (n + 1)) (2 * 2 ^ k * (n + 1) + (n + 1)) k
+    hn hk h64 (2 ^ k) A₆ 0 (by rw [hsz₆]; exact hSz) (by rw [hsz₆]; lia) (by rw [hsz₆]; lia)
+    (by rw [hsz₆]; lia) (by lia) (by lia) (by lia) hz
+    (fun q _ hq => by rw [v₃ q (by lia)]; exact Nat.mod_lt _ hF₀)
+  generalize scaleLoop n 0 (2 * 2 ^ k * (n + 1)) (2 * 2 ^ k * (n + 1) + (n + 1)) k A₆ 0 (2 ^ k) =
+    A₇ at *
+  -- The coefficients are those of the product of the pieces.
+  have hla := cover a.size.toNat m hm
+  have hlb := cover b.size.toNat m hm
+  have hla₁ : 1 ≤ (a.size.toNat + m - 1) / m := (Nat.le_div_iff_mul_le (by lia)).2 (by lia)
+  have hlb₁ : 1 ≤ (b.size.toNat + m - 1) / m := (Nat.le_div_iff_mul_le (by lia)).2 (by lia)
+  have hlaK : (a.size.toNat + m - 1) / m ≤ 2 ^ k :=
+    (Nat.div_le_iff_le_mul_add_pred (by lia)).2 (by rw [Nat.mul_comm] at hpa; lia)
+  have hlbK : (b.size.toNat + m - 1) / m ≤ 2 ^ k :=
+    (Nat.div_le_iff_le_mul_add_pred (by lia)).2 (by rw [Nat.mul_comm] at hpb; lia)
+  generalize (a.size.toNat + m - 1) / m = la at *
+  generalize (b.size.toNat + m - 1) / m = lb at *
+  have hαL : ∀ i < 2 ^ k, coef A₂ n 0 i = (pieces a m la).getD i 0 := fun i hi => by
+    rw [cA i hi]
+    rcases coef_pieces a m la (2 ^ k) i hla with h | h
+    · rw [← h, ite_eq_left hi]
+    · lia
+  have hβL : ∀ i < 2 ^ k, coef A₂ n (2 ^ k * (n + 1)) i = (pieces b m lb).getD i 0 :=
+    fun i hi => by
+      rw [cB i hi]
+      rcases coef_pieces b m lb (2 ^ k) i hlb with h | h
+      · rw [← h, ite_eq_left hi]
+      · lia
+  have hβne : pieces b m lb ≠ [] := by
+    intro h; have := congrArg List.length h; rw [length_pieces] at this; simp at this; lia
+  have hc : ∀ l < 2 ^ k, coef A₇ n 0 l =
+      (cyc (polyMul (pieces a m la) (pieces b m lb)) (2 ^ k)).getD l 0 := by
+    intro l hl
+    rw [getD_cyc _ _ _ hl, s₃ l (by lia) (by lia), v₃ l hl]
+    rw [← fft_coef_cyc (pieces a m la) (pieces b m lb) k n σ (2 ^ (64 * m)) hk hσ hβne
+      (fun x hx => by
+        simp only [pieces, List.mem_map, List.mem_range] at hx
+        obtain ⟨i, -, rfl⟩ := hx; exact piece_lt ..)
+      (fun x hx => by
+        simp only [pieces, List.mem_map, List.mem_range] at hx
+        obtain ⟨i, -, rfl⟩ := hx; exact piece_lt ..)
+      (by rw [← Nat.pow_add, show 64 * m + 64 * m = 128 * m by lia]; exact hbits)
+      (by rw [length_pieces]; lia) (by rw [length_pieces]; lia) l hl]
+    have hα : ∀ q, sumRange (fun i => coef A₂ n 0 i * 2 ^ (σ * i * rev k q)) (2 ^ k) =
+        sumRange (fun i => (pieces a m la).getD i 0 * 2 ^ (σ * i * rev k q)) (2 ^ k) :=
+      fun q => sumRange_congr fun i hi => by rw [hαL i hi]
+    have hβ : ∀ q, sumRange (fun i => coef A₃ n (2 ^ k * (n + 1)) i * 2 ^ (σ * i * rev k q))
+        (2 ^ k) = sumRange (fun i => (pieces b m lb).getD i 0 * 2 ^ (σ * i * rev k q)) (2 ^ k) :=
+      fun q => sumRange_congr fun i hi => by rw [cB₃ i hi, ← cB i hi, hβL i hi]
+    have hsum : sumRange (fun p => coef A₅ n 0 p * 2 ^ ((2 * (64 * n) - σ) * rev k p * l))
+        (2 ^ k) = sumRange (fun p =>
+          sumRange (fun i => (pieces a m la).getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) %
+            fermat n * (sumRange (fun i => (pieces b m lb).getD i 0 * 2 ^ (σ * i * rev k p))
+              (2 ^ k) % fermat n) % fermat n * 2 ^ ((2 * (64 * n) - σ) * rev k p * l)) (2 ^ k) :=
+      sumRange_congr fun q hq => by
+        rw [p₃ q (by lia) (by lia), cA₄ q hq, f₃ q hq, g₃ q hq, hα, hβ]
+    rw [hsum]
+  have hcF : ∀ l < 2 ^ k, coef A₇ n 0 l ≤ 2 ^ (64 * n) := by
+    intro l hl
+    rw [s₃ l (by lia) (by lia)]
+    exact Nat.le_of_lt_succ (Nat.mod_lt _ hF₀)
+  -- The value of the coefficients at `X = 2^(64 m)`, modulo `X^K - 1`.
+  generalize hZ : polyMul (pieces a m la) (pieces b m lb) = Z at hc
+  have hZ2 : Z.length ≤ 2 * 2 ^ k := by
+    rw [← hZ]; have := length_polyMul (pieces a m la) (pieces b m lb) hβne
+    rw [length_pieces, length_pieces] at this; lia
+  have hval : sumRange (fun i => 2 ^ (64 * ((0 + i) * m)) * coef A₇ n 0 (0 + i)) (2 ^ k) =
+      polyVal (2 ^ (64 * m)) (cyc Z (2 ^ k)) := by
+    rw [polyVal_eq_sumRange _ _ (2 ^ k) (by rw [length_cyc]; exact Nat.le_refl _)]
+    exact sumRange_congr fun i hi => by
+      rw [Nat.zero_add, hc i hi, Nat.mul_comm, ← Nat.pow_mul]; congr 2; lia
+  have hM : MEq (2 ^ (64 * (m * 2 ^ k)) - 1) ((2 ^ (64 * m)) ^ 2 ^ k) 1 := by
+    rw [← Nat.pow_mul, show 64 * m * 2 ^ k = 64 * (m * 2 ^ k) by lia]
+    have : 1 ≤ 2 ^ (64 * (m * 2 ^ k)) := Nat.one_le_two_pow
+    show _ % _ = _ % _
+    rw [show 2 ^ (64 * (m * 2 ^ k)) = (2 ^ (64 * (m * 2 ^ k)) - 1) + 1 by lia,
+      Nat.add_sub_cancel, Nat.add_mod_left]
+  have hab : MEq (2 ^ (64 * (m * 2 ^ k)) - 1) (a.toNat * b.toNat)
+      (polyVal (2 ^ (64 * m)) (cyc Z (2 ^ k))) := by
+    rw [← polyVal_pieces a m la hla, ← polyVal_pieces b m lb hlb, ← polyVal_polyMul, hZ]
+    exact polyVal_cyc _ _ _ _ hM hZ2
+  have hlt : sumRange (fun i => 2 ^ (64 * ((0 + i) * m)) * coef A₇ n 0 (0 + i)) (2 ^ k) <
+      2 ^ (64 * (m * 2 ^ k + n + 1)) := by
+    have h₁ := sum_pow_lt (fun i => coef A₇ n 0 i) (2 ^ (64 * n)) (2 ^ (64 * m)) (2 ^ k)
+      (Nat.le_trans (by decide) (Nat.pow_le_pow_right (by decide) (by lia : 1 ≤ 64 * m))) hcF
+    have e : sumRange (fun i => 2 ^ (64 * ((0 + i) * m)) * coef A₇ n 0 (0 + i)) (2 ^ k) =
+        sumRange (fun i => (2 ^ (64 * m)) ^ i * coef A₇ n 0 i) (2 ^ k) :=
+      sumRange_congr fun i _ => by rw [Nat.zero_add, ← Nat.pow_mul]; congr 2; lia
+    rw [e]
+    refine Nat.lt_of_lt_of_le h₁ ?_
+    have : 2 ^ (64 * n) + 1 ≤ 2 ^ (64 * n + 64) := by
+      rw [Nat.pow_add]
+      have := Nat.two_pow_pos (64 * n)
+      have : 2 ≤ 2 ^ 64 := by decide
+      have := Nat.mul_le_mul_left (2 ^ (64 * n)) this
+      lia
+    calc (2 ^ (64 * n) + 1) * (2 ^ (64 * m)) ^ 2 ^ k
+        ≤ 2 ^ (64 * n + 64) * (2 ^ (64 * m)) ^ 2 ^ k := Nat.mul_le_mul_right _ this
+      _ = 2 ^ (64 * (m * 2 ^ k + n + 1)) := by
+          rw [← Nat.pow_mul, ← Nat.pow_add]; congr 1; lia
+  -- Zeroing the result, and adding the coefficients.
+  have hT : (m * 2 ^ k + n + 1).toUSize.toNat = m * 2 ^ k + n + 1 :=
+    USize.toNat_ofNat_of_lt' (by have := r.size.toNat_lt_size; lia)
+  have hrs := r.toNat_size
+  have hrst := r.stop_le_size
+  have hrle := USize.le_iff_toNat_le.1 r.start_le_stop
+  have e₁ := r.start_slice (i := 0) (j := (m * 2 ^ k + n + 1).toUSize) (by simp)
+    (by rw [hT]; exact hr)
+  have e₂ := r.size_slice (i := 0) (j := (m * 2 ^ k + n + 1).toUSize) (by simp)
+    (by rw [hT]; exact hr)
+  rw [USize.toNat_zero, Nat.add_zero] at e₁
+  rw [USize.toNat_zero, Nat.sub_zero, hT] at e₂
+  obtain ⟨z₁, z₂, z₃⟩ := zeroInto_spec (r.slice 0 (m * 2 ^ k + n + 1).toUSize)
+  simp only [USlice.array_slice, e₁, e₂, Nat.add_zero] at z₁ z₂ z₃
+  generalize zeroInto (r.slice 0 (m * 2 ^ k + n + 1).toUSize) = R₀ at *
+  have hsz₇ : A₇.size = S := by rw [s₁, hsz₆]
+  obtain ⟨c₁, c₂, c₃⟩ := recLoop_spec (m * 2 ^ k + n + 1) m n 0 A₇
+    (by rw [hsz₇]; exact hSz) (2 ^ k) R₀ r.start.toNat 0 (by rw [z₁]; exact hrS) (by rw [z₁]; lia)
+    (by rw [hsz₇]; lia) (by rw [z₃, Nat.zero_add]; exact hlt)
+  refine ⟨by rw [c₁, z₁], fun i hi => ?_, ?_⟩
+  · rw [c₂ i (by lia), z₂ i (by lia)]
+  · rw [c₃, z₃, Nat.zero_add, hval]
+    exact hab.symm
+
+/-- The conditions of `FFTModParams`, decidably, with `k + 1 + 128 m ≤ 64 n` for the bound. -/
+public abbrev FFTModCheck (r a b : USlice) (k m n : Nat) : Prop :=
+  1 ≤ k ∧ k ≤ 63 ∧ 1 ≤ n ∧ 1 ≤ m ∧ m ≤ n ∧ 2 * (64 * n) % 2 ^ k = 0 ∧ 0 < a.size.toNat ∧
+    0 < b.size.toNat ∧ a.size.toNat ≤ m * 2 ^ k ∧ b.size.toNat ≤ m * 2 ^ k ∧
+    k + 1 + 128 * m ≤ 64 * n ∧ m * 2 ^ k + n + 1 ≤ r.size.toNat ∧
+    (2 * 2 ^ k + 2) * (n + 1) < USize.size ∧ 64 * n < USize.size ∧
+    a.array.size < USize.size ∧ b.array.size < USize.size ∧ r.array.size < USize.size
+
+public theorem FFTModCheck.params {r a b : USlice} {k m n : Nat} (h : FFTModCheck r a b k m n) :
+    FFTModParams r a b k m n := by
+  obtain ⟨h₁, h₂, h₃, h₄, h₅, h₆, h₇, h₈, h₉, h₁₀, h₁₁, h₁₂, h₁₃, h₁₄, h₁₅, h₁₆, h₁₇⟩ := h
+  refine ⟨h₁, h₃, h₄, h₅, h₆, h₇, h₈, h₉, h₁₀, ?_, h₁₂, h₁₃, h₁₄, h₁₅, h₁₆, h₁₇⟩
+  rw [show 2 * 2 ^ k = 2 ^ (k + 1) by rw [Nat.pow_succ, Nat.mul_comm], ← Nat.pow_add]
+  exact Nat.pow_le_pow_right (by decide) (by lia)
+
+/-- The coefficient size `n` for `fftMulModAt` with `2ᵏ` pieces of `m` limbs. -/
+public def fftModN (k m : Nat) : Nat :=
+  let q := max 1 (2 ^ k / 128)
+  (2 * m + 1 + q - 1) / q * q
 
 /-! ## Squaring -/
 

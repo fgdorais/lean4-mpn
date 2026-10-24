@@ -35,9 +35,9 @@ public def dcThreshold : Nat := 512
 /-- The value `1`. -/
 public def one : UInt64Array := UInt64Array.replicate 1 1
 
-private theorem toNat_one : one.toNat = 1 := by simp [one, toNat_eq_valAt]
+public theorem toNat_one : one.toNat = 1 := by simp [one, toNat_eq_valAt]
 
-private theorem size_one : one.size = 1 := by simp [one]
+public theorem size_one : one.size = 1 := by simp [one]
 
 /-- `βˢ - 1`, in `s` limbs. -/
 public def allOnes (s : Nat) : UInt64Array := UInt64Array.replicate s 0xFFFFFFFFFFFFFFFF
@@ -55,11 +55,11 @@ private theorem valAt_allOnes (s lo m : Nat) (h : lo + m ≤ s) :
     rw [Nat.mul_succ, Nat.pow_add, Nat.mul_sub, Nat.mul_one]
     lia
 
-private theorem toNat_allOnes (s : Nat) : (allOnes s).toNat = 2 ^ (64 * s) - 1 := by
+public theorem toNat_allOnes (s : Nat) : (allOnes s).toNat = 2 ^ (64 * s) - 1 := by
   rw [toNat_eq_valAt, show (allOnes s).size = s by simp [allOnes]]
   exact valAt_allOnes s 0 s (by lia)
 
-private theorem size_allOnes (s : Nat) : (allOnes s).size = s := by simp [allOnes]
+public theorem size_allOnes (s : Nat) : (allOnes s).size = s := by simp [allOnes]
 
 /-! ## The correction -/
 

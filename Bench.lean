@@ -152,8 +152,9 @@ def row (noNat : Bool) (name : String) (n : Nat) (mpn : IO Timing) (nat : IO Tim
 def toNat (a : UInt64Array) : Nat := a.foldr (fun d n => n * 2 ^ 64 + d.toNat) 0
 
 def ops : List String :=
-  ["add", "sub", "shl", "shr", "div1", "sbdiv", "div", "sqrt", "mul1", "addmul1", "mul", "sqr",
-    "comba", "kara", "toom", "kara2", "toom2", "fft", "fft2", "auto", "ksqr", "fftsqr", "toomsqr", "autosqr", "mulref"]
+  ["add", "sub", "shl", "shr", "div1", "sbdiv", "div", "sqrt", "mulmod", "mul1", "addmul1", "mul",
+    "sqr", "comba", "kara", "toom", "kara2", "toom2", "fft", "fft2", "auto", "ksqr", "fftsqr",
+    "toomsqr", "autosqr", "mulref"]
 
 def main (args : List String) : IO Unit := do
   let noNat := args.contains "--no-nat"
@@ -211,6 +212,12 @@ def main (args : List String) : IO Unit := do
               (UInt64Array.replicate y.size 0).toUSlice x.toUSlice y.toUSlice)
             (fun p => checkArr p.1 + checkArr p.2) a2 b)
           (time (· / ·) checkNat (toNat a2) nb)
+      | "mulmod" =>
+        -- `n` by `n` limbs modulo `β^n - 1`, with `2ᵏ` pieces, `k = fftK n`; `Nat` multiplies.
+        let k := MPN.FFT.fftK n
+        row noNat op n
+          (time (fun (x y : UInt64Array) => MPN.Num.mulModB x y k (n / 2 ^ k)) checkArr a b)
+          (time (· * ·) checkNat na nb)
       | "sqrt" =>
         -- `Nat.sqrt` is Lean's Newton iteration on `Nat`, not GMP's `mpz_sqrt`.
         row noNat op n

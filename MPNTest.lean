@@ -282,6 +282,18 @@ def checkNumDiv (m n : Nat) : Bool :=
 #guard [(10, 3), (300, 100), (1000, 333), (1100, 512), (2000, 1000), (700, 512),
   (4000, 1100)].all fun (m, n) => checkNumDiv m n
 
+/-- Checks `Num.mulModB` (`2ᵏ` pieces of `m` limbs) and `Num.modB` against `Nat`. -/
+def checkMulMod (k m na nb : Nat) : Bool :=
+  let M := 2 ^ (64 * (m * 2 ^ k)) - 1
+  [(randomLimbs na 51, randomLimbs nb 52), (2 ^ (64 * na) - 1, 2 ^ (64 * nb) - 1)].all
+    fun (x, y) =>
+      let p := MPN.Num.mulModB (limbs na x) (limbs nb y) k m
+      p.toNat % M == x * y % M && (MPN.Num.modB p (m * 2 ^ k)).toNat == x * y % M
+
+-- Through the FFT (`FFTModCheck` holds) and through the fallback, and `modB` on long inputs.
+#guard [(2, 8, 32, 32), (3, 5, 40, 17), (4, 16, 256, 200), (6, 64, 4096, 4096), (1, 3, 6, 6),
+  (2, 4, 40, 40)].all fun (k, m, na, nb) => checkMulMod k m na nb
+
 /-! Square root -/
 
 /-- Checks `sqrtRem` on `x` against `Nat.sqrt`. -/

@@ -23,6 +23,7 @@ public import MPN.FFT.Transform
 public import MPN.FFT.Mul
 public import MPN.Num
 public import MPN.Div.DC
+public import MPN.Div.Mu
 public import MPN.Sqrt
 
 /-!
@@ -44,5 +45,6 @@ Verified multi-precision arithmetic on `UInt64` limbs, in the style of GMP's `mp
   windows.
 * `MPN.Num`: whole arrays as numbers, each operation returning a new array;
 * `MPN.Div.DC`: divide-and-conquer division on them, `Num.divMod`;
+* `MPN.Div.Mu`: products modulo `β^N - 1` by the FFT, and division by a reciprocal;
 * `MPN.Sqrt`: the square root and its remainder, by Zimmermann's Karatsuba square root.
 -/
