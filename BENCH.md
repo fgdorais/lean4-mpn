@@ -51,6 +51,9 @@ so five runs make the tables reliable. Within one run, distrust a row whose spre
 | `sbdiv` | `MPN.divRem` | `2 n` by `n` limbs | schoolbook (Algorithm D), normalized |
 | `sqrt` | `MPN.sqrtRem` | `n` limbs | Zimmermann's Karatsuba square root on `MPN.Num`; `Nat.sqrt` is Lean's Newton iteration on `Nat`, not GMP's `mpz_sqrt` |
 | `mulmod` | `MPN.Num.mulModB` | `n` by `n` limbs modulo `β^n - 1` | the FFT with the pieces wrapping around (`fftMulModAt`), `2ᵏ` pieces for `k = fftK n`; `Nat` multiplies |
+| `gcd` | `MPN.Num.gcd` | `n` and `n` limbs | Lehmer's algorithm (`mulSubMul`), half-gcd from `gcdHalf = 2048` limbs; `Nat.gcd` is GMP's |
+| `str` | `MPN.Num.toDecimal` | `n` limbs | chunks of 19 digits, divide and conquer from `strDC = 40` limbs; `Nat.repr` is Lean's, not GMP |
+| `parse` | `MPN.Num.ofDecimal?` | the digits of `n` limbs | chunks of 19 digits, divide and conquer from `19 parseDC` digits (`parseDC = 512`); `String.toNat?` is Lean's, not GMP |
 | `mul1` | `MPN.mul1` | `n` limbs times a limb | one pass, `USize` indices |
 | `addmul1` | `MPN.addMul1` | `n` limbs times a limb, added to `n` limbs | one pass, `USize` indices |
 | `mul` | `MPN.mulBasecase` | `n` by `n` limbs | schoolbook by rows: `mul1`, then `addMul1` with a continuation, `USize` indices |
@@ -88,6 +91,9 @@ Ratio MPN / Nat (below 1 is faster than Nat):
 | `div` | 1.09 | 2.41 | 2.28 | 2.27 | 2.29 | 2.40 | 2.43 | 2.46 | 2.50 | 2.72 | 3.12 | 3.01 | 3.20 | 3.34 | 3.30 | 3.47 | 4.04 |
 | `sbdiv` | 0.70 | 2.03 | 1.93 | 1.92 | 2.03 | 2.12 | 2.22 | 2.28 | 2.40 | 2.65 | 3.07 | 2.98 | 3.19 | 3.33 | 3.28 | 3.45 | 4.26 |
 | `sqrt` | 5.20 | 0.41 | 1.57 | 1.39 | 1.97 | 2.13 | 2.73 | 2.84 | 2.97 | 2.28 | 2.05 | 1.85 | 1.19 | 1.01 | 0.63 | 0.45 | 0.33 |
+| `gcd` | 0.89 | 8.83 | 6.12 | 4.87 | 5.03 | 5.60 | 5.63 | 5.35 | 5.38 | 5.41 | 5.69 | 5.69 | 5.77 | 5.78 | 5.77 | 5.64 | 4.65 |
+| `str` | 3.11 | 0.05 | 0.04 | 0.04 | 0.05 | 0.04 | 0.04 | 0.04 | 0.04 | 0.04 | 0.05 | 0.05 | 0.04 | 0.04 | 0.02 | 0.02 | 0.02 |
+| `parse` | 1.08 | 0.14 | 0.10 | 0.09 | 0.07 | 0.07 | 0.06 | 0.06 | 0.06 | 0.06 | 0.05 | 0.05 | 0.05 | 0.05 | 0.04 | 0.04 | 0.07 |
 | `mul1` | 0.25 | 0.28 | 0.26 | 0.29 | 0.30 | 0.32 | 0.33 | 0.36 | 0.38 | 0.40 | 0.44 | 0.49 | 0.57 | 0.66 | 0.56 | 0.64 | 0.78 |
 | `addmul1` | 0.19 | 0.19 | 0.18 | 0.20 | 0.20 | 0.23 | 0.22 | 0.22 | 0.24 | 0.25 | 0.29 | 0.31 | 0.38 | 0.44 | 0.42 | 0.47 | 0.51 |
 | `mul` | 0.38 | 0.41 | 0.48 | 0.51 | 0.64 | 0.71 | 0.88 | 0.99 | 1.29 | 1.54 | 1.95 | 2.31 | 2.78 | 3.37 | 4.16 | 4.71 | 7.41 |
@@ -109,6 +115,9 @@ Time of MPN:
 | `div` | 132 ns | 304 ns | 322 ns | 354 ns | 387 ns | 424 ns | 539 ns | 701 ns | 1.05 µs | 1.56 µs | 2.91 µs | 4.58 µs | 9.51 µs | 16.2 µs | 33.7 µs | 58 µs | 208 µs |
 | `sbdiv` | 84.4 ns | 256 ns | 272 ns | 299 ns | 343 ns | 376 ns | 491 ns | 652 ns | 1.01 µs | 1.52 µs | 2.86 µs | 4.53 µs | 9.48 µs | 16.1 µs | 33.5 µs | 57.9 µs | 220 µs |
 | `sqrt` | 484 ns | 483 ns | 1.98 µs | 1.99 µs | 3.69 µs | 4.38 µs | 5.87 µs | 6.54 µs | 8.03 µs | 8.1 µs | 10.8 µs | 11.7 µs | 14.9 µs | 17.5 µs | 25.3 µs | 31.9 µs | 74.7 µs |
+| `gcd` | 96.5 ns | 1.58 µs | 2.33 µs | 2.71 µs | 4.62 µs | 7.23 µs | 11.1 µs | 14.4 µs | 23.2 µs | 33 µs | 56.7 µs | 81.4 µs | 142 µs | 214 µs | 388 µs | 603 µs | 1.87 ms |
+| `str` | 111 ns | 399 ns | 543 ns | 723 ns | 1.35 µs | 1.74 µs | 2.35 µs | 3.59 µs | 6.02 µs | 9.34 µs | 17.1 µs | 25.3 µs | 37.5 µs | 58 µs | 85.9 µs | 142 µs | 375 µs |
+| `parse` | 265 ns | 569 ns | 780 ns | 988 ns | 1.42 µs | 1.82 µs | 2.72 µs | 3.61 µs | 5.42 µs | 7.29 µs | 11.1 µs | 15.2 µs | 24.1 µs | 33.2 µs | 55.4 µs | 81.4 µs | 399 µs |
 | `mul1` | 43.9 ns | 43.8 ns | 46 ns | 46 ns | 47.3 ns | 50 ns | 51.9 ns | 56.9 ns | 61.9 ns | 68.4 ns | 79.2 ns | 92.8 ns | 120 ns | 156 ns | 201 ns | 255 ns | 451 ns |
 | `addmul1` | 44 ns | 44.5 ns | 45.3 ns | 46.6 ns | 48.6 ns | 49.7 ns | 53.7 ns | 56.5 ns | 63 ns | 69.5 ns | 85 ns | 101 ns | 136 ns | 173 ns | 231 ns | 290 ns | 522 ns |
 | `mul` | 55.4 ns | 55.3 ns | 62.4 ns | 67.5 ns | 92.6 ns | 113 ns | 176 ns | 258 ns | 498 ns | 837 ns | 1.84 µs | 3.3 µs | 7.49 µs | 13.8 µs | 31.2 µs | 55.6 µs | 223 µs |
@@ -192,6 +201,23 @@ The ratio to `Nat` is in parentheses; for `sqrt` it is to Lean's `Nat.sqrt`, not
 divide-and-conquer division costs `O(M(n) log n)`, and its ratio grows slowly with the size, where
 GMP switches to division by Newton's iteration.
 
+### Large sizes, gcd and decimal strings
+
+From `bench gcd str parse 512 1024 2048 4096 8192`, the fastest of three runs, on 2026-10-24.
+`str` and `parse` compare with Lean's `Nat.repr` and `String.toNat?`, which are written in Lean,
+not with GMP's `mpz_get_str` and `mpz_set_str`; `gcd` compares with `Nat.gcd`, GMP's `mpz_gcd`.
+
+| op | 512 | 1024 | 2048 | 4096 | 8192 |
+|---|---:|---:|---:|---:|---:|
+| `gcd` | 1.89 ms (4.68) | 6.49 ms (4.99) | 22.8 ms (6.37) | 60.7 ms (6.41) | 149 ms (6.08) |
+| `str` | 376 µs (0.02) | 1.06 ms (0.01) | 2.98 ms (0.01) | 8.35 ms (0.01) | 22.5 ms (0.01) |
+| `parse` | 401 µs (0.07) | 925 µs (0.06) | 2.24 ms (0.04) | 5.51 ms (0.03) | 13.5 ms (0.02) |
+
+`gcd` is Lehmer's algorithm with steps of 31 bits (cofactors below `2³¹`) applied by `mulSubMul`
+in one pass each, and half-gcd from `gcdHalf = 2048` limbs (`gcdh<T>` sweeps the threshold: at
+4096 limbs, 62 ms against 91 for Lehmer alone; at 8192, 152 against 352). GMP's steps are of 62
+bits, from two words of each number.
+
 ### Large sizes, squares
 
 From `bench ksqr toomsqr fftsqr autosqr 512 1024 2048 3072 4096 8192 16384 32768 65536`, the
@@ -265,3 +291,4 @@ Times are the fastest of five runs, in the format of the tables above.
 | 2026-10-24 | `ef5cd91`+ | schoolbook division in one array without allocating per step (`divStepIn`, `divLoopIn`): the quotient limb in the freed top limb of the window, the multiply-subtract fold ended by a continuation | `sbdiv` 429 → 251 ns at 2 limbs, 1.56 µs → 649 ns at 16, 7.77 → 4.52 µs at 64, 70.1 → 58.0 µs at 256 (4.20 → 3.47 times `Nat`); `div` within 3.5 of `Nat` up to 256 limbs, 4.04 at 512, 4.22 at 1024, 6.07 at 8192 |
 | 2026-10-24 | `88fcfff`+ | products modulo `β^N - 1` by the FFT (`fft_coef_cyc`, `fftMulModAt`, `Num.mulModB`, `Num.modB`), like GMP's `mpn_mulmod_bnm1`; new row `mulmod` | `mulmod` vs `auto` (`n` by `n`): 839 µs vs 1.85 ms at 4096 limbs, 1.86 vs 3.69 ms at 8192, 3.67 vs 8.23 ms at 16384, 8.19 vs 18.6 ms at 32768 (0.45–0.5 of a product) |
 | 2026-10-24 | `d813acd`+ | all tables regenerated (five runs of the default sizes, three of each large-size section), with `-falign-loops=64` for the C compiler: the same machine code of the square basecase (`sqrRowsLoop`) ran 11% slower when the library before it grew and moved it across a 64-byte boundary | `sqr` 2.13 → 1.90 µs at 64 limbs, `ksqr` 68.5 → 61.1 µs at 512, `autosqr` back to 2.0–2.7 times `Nat`; `add` 132 → 115 ns at 64 limbs; others within ±3%; `mul` 3.0–4.1 times `Nat` from 1024 limbs, `div` 4.07–6.59 from 512 |
+| 2026-10-24 | `c2b5325`+ | `Num.gcd` (Lehmer's algorithm with the one-pass kernel `mulSubMul`, half-gcd from 2048 limbs) and decimal strings (`Num.toDecimal`, `Num.ofDecimal?`), from `main`'s generic layer on the new instance `ops64`; `Num.lt` compares from the top down without allocating; new rows `gcd`, `str`, `parse` (large sizes above) | `gcd` 0.89 of `Nat` at one limb, 4.7–6.4 from 4 limbs (8.8 at 2); `str` 8.35 ms and `parse` 5.51 ms at 4096 limbs (Lean's `Nat.repr` 1.09 s); `div` at 1024 limbs 4.23 → 4.10 from `Num.lt` |

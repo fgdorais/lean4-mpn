@@ -106,7 +106,7 @@ public def applyInv (M : Mat2 α) (a b : α) : α × α :=
   (o.absDiff (o.mul M.m22 a) (o.mul M.m12 b), o.absDiff (o.mul M.m11 b) (o.mul M.m21 a))
 
 /-- A matrix of determinant `±1` keeps the greatest common divisor. -/
-private theorem gcd_unimodular (a b : Nat) (A B C D : Int)
+public theorem gcd_unimodular (a b : Nat) (A B C D : Int)
     (h : A * D - B * C = 1 ∨ A * D - B * C = -1) :
     Nat.gcd (A * a + B * b).natAbs (C * a + D * b).natAbs = Nat.gcd a b := by
   apply Nat.dvd_antisymm

@@ -153,8 +153,8 @@ def toNat (a : UInt64Array) : Nat := a.foldr (fun d n => n * 2 ^ 64 + d.toNat) 0
 
 def ops : List String :=
   ["add", "sub", "shl", "shr", "div1", "sbdiv", "div", "sqrt", "mulmod", "gcd", "str", "parse",
-    "mul1", "addmul1", "mul", "sqr", "comba", "kara", "toom", "kara2", "toom2", "fft", "fft2", "auto", "ksqr", "fftsqr",
-    "toomsqr", "autosqr", "mulref"]
+    "mul1", "addmul1", "mul", "sqr", "comba", "kara", "toom", "kara2", "toom2", "fft", "fft2",
+    "auto", "ksqr", "fftsqr", "toomsqr", "autosqr", "mulref"]
 
 def main (args : List String) : IO Unit := do
   let noNat := args.contains "--no-nat"
@@ -351,6 +351,13 @@ def main (args : List String) : IO Unit := do
               MPN.mul (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice y.toUSlice)
               checkArr a h)
             (time (· * ·) checkNat na (toNat h))
+        else
+        if op.startsWith "gcdh" then
+          -- `gcdh<T>`: `gcd` with half-gcd from `T` limbs, for tuning `gcdHalf`.
+          let T := (op.drop 4).toString.toNat!
+          row noNat op n
+            (time (fun (x y : UInt64Array) => MPN.gcdWith T x y) checkArr a b)
+            (time Nat.gcd checkNat na nb)
         else
         if op.startsWith "fsq" then
           let k := (op.drop 3).toString.toNat!

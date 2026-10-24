@@ -241,70 +241,83 @@ public theorem toNat_shr (a : UInt64Array) (k : Nat) (hU : a.size < USize.size) 
 
 /-! ## Comparison -/
 
-/-- Whether `a < b`, from the borrow of `a - b` on copies of the same size. -/
-public def lt (a b : UInt64Array) : Bool :=
-  let m := max a.size b.size
-  let a' := (add1 (UInt64Array.replicate m 0).toUSlice a.toUSlice 0).1
-  let b' := (add1 (UInt64Array.replicate m 0).toUSlice b.toUSlice 0).1
-  (MPN.sub (UInt64Array.replicate m 0).toUSlice a'.toUSlice b'.toUSlice 0).2 != 0
+/-- Limb `i` of `a`, or `0` past its end. -/
+@[inline] public def limbAt (a : UInt64Array) (i : Nat) : UInt64 :=
+  if h : i < a.size then a[i] else 0
 
-/-- A copy of `a` in `m ≥ a.size` limbs. -/
-private theorem pad_spec (a : UInt64Array) (m : Nat) (hm : a.size ≤ m) (hU : m < USize.size) :
-    (add1 (UInt64Array.replicate m 0).toUSlice a.toUSlice 0).1.size = m ∧
-      (add1 (UInt64Array.replicate m 0).toUSlice a.toUSlice 0).1.toNat = a.toNat := by
-  obtain ⟨z₁, z₂, -⟩ := zeros_spec m hU
-  obtain ⟨a₁, a₂, a₃⟩ := toUSlice_spec a (by lia)
-  have h := valAt_add1 (UInt64Array.replicate m 0).toUSlice a.toUSlice 0
-    (USize.le_iff_toNat_le.2 (by rw [a₂, z₂]; exact hm))
-  rw [z₁, a₂, a₃, UInt64.toNat_zero, Nat.add_zero] at h
-  have hA : a.toNat < 2 ^ (64 * a.size) := by rw [toNat_eq_valAt]; exact valAt_lt ..
-  obtain ⟨hv, -⟩ := no_carry h hA
-  refine ⟨by simp, ?_⟩
-  have e := UInt64Array.valAt_add (add1 (UInt64Array.replicate m 0).toUSlice a.toUSlice 0).1 0
-    a.size (m - a.size)
-  rw [Nat.add_sub_cancel' hm, hv, Nat.zero_add] at e
-  rw [toNat_eq_valAt, show (add1 (UInt64Array.replicate m 0).toUSlice a.toUSlice 0).1.size = m by
-    simp, e]
-  -- The limbs above `a` are still zero.
-  have : (add1 (UInt64Array.replicate m 0).toUSlice a.toUSlice 0).1.valAt a.size (m - a.size) =
-      0 := by
-    rw [← valAt_replicate_zero m a.size (m - a.size)]
-    refine valAt_congr _ fun i h₁ _ => ?_
-    rw [getElem!_add1 _ _ _ _ (by rw [z₁, a₂, z₂]; lia)]
+public theorem limbAt_eq (a : UInt64Array) (i : Nat) : limbAt a i = a[i]! := by
+  unfold limbAt
+  split
+  · rw [getElem!_eq_getElem]
+  · rename_i h; rw [getElem!_neg a i h]; rfl
+
+/-- Whether limbs `0` to `i - 1` of `a` are below those of `b`, comparing from the top down. -/
+public def ltLoop (a b : UInt64Array) : Nat → Bool
+  | 0 => false
+  | i + 1 =>
+    let x := limbAt a i
+    let y := limbAt b i
+    if x < y then true else if y < x then false else ltLoop a b i
+
+private theorem ltLoop_iff (a b : UInt64Array) :
+    ∀ i, ltLoop a b i = true ↔ a.valAt 0 i < b.valAt 0 i := by
+  intro i
+  induction i with
+  | zero => simp [ltLoop]
+  | succ i ih =>
+    have ea := UInt64Array.valAt_add a 0 i 1
+    have eb := UInt64Array.valAt_add b 0 i 1
+    rw [valAt_one, Nat.zero_add] at ea eb
+    rw [ea, eb, ltLoop, ← limbAt_eq, ← limbAt_eq]
+    have hla := valAt_lt a 0 i
+    have hlb := valAt_lt b 0 i
+    generalize a.valAt 0 i = La at *
+    generalize b.valAt 0 i = Lb at *
+    generalize 2 ^ (64 * i) = P at *
+    generalize limbAt a i = x
+    generalize limbAt b i = y
+    split
+    · rename_i h
+      rw [UInt64.lt_iff_toNat_lt] at h
+      have := Nat.mul_le_mul_left P (show x.toNat + 1 ≤ y.toNat from h)
+      rw [Nat.mul_add, Nat.mul_one] at this
+      simp only [true_iff]
+      lia
+    · split
+      · rename_i _ h
+        rw [UInt64.lt_iff_toNat_lt] at h
+        have := Nat.mul_le_mul_left P (show y.toNat + 1 ≤ x.toNat from h)
+        rw [Nat.mul_add, Nat.mul_one] at this
+        simp only [Bool.false_eq_true, false_iff, Nat.not_lt]
+        lia
+      · rename_i h₁ h₂
+        have e : x = y := by
+          rw [UInt64.lt_iff_toNat_lt] at h₁ h₂
+          exact UInt64.toNat_inj.1 (by lia)
+        rw [ih, e]
+        lia
+
+/-- Limbs past the end are zero. -/
+private theorem valAt_past (a : UInt64Array) : ∀ k lo, a.size ≤ lo → a.valAt lo k = 0 := by
+  intro k
+  induction k with
+  | zero => intro lo _; simp
+  | succ k ih =>
+    intro lo h
+    rw [valAt_succ, ih (lo + 1) (by lia), getElem!_neg a lo (by lia)]
     rfl
-  rw [this, Nat.mul_zero, Nat.add_zero]
 
-public theorem lt_iff (a b : UInt64Array) (hU : a.size + b.size < USize.size) :
+public theorem valAt_ge (a : UInt64Array) (m : Nat) (h : a.size ≤ m) :
+    a.valAt 0 m = a.toNat := by
+  rw [toNat_eq_valAt, show m = a.size + (m - a.size) by lia, UInt64Array.valAt_add,
+    valAt_past a _ (0 + a.size) (by lia), Nat.mul_zero, Nat.add_zero]
+
+/-- Whether `a < b`, comparing limbs from the top down. -/
+public def lt (a b : UInt64Array) : Bool := ltLoop a b (max a.size b.size)
+
+public theorem lt_iff (a b : UInt64Array) (_hU : a.size + b.size < USize.size) :
     lt a b = true ↔ a.toNat < b.toNat := by
-  unfold lt
-  dsimp only
-  generalize hm : max a.size b.size = m
-  obtain ⟨pa₁, pa₂⟩ := pad_spec a m (by lia) (by lia)
-  obtain ⟨pb₁, pb₂⟩ := pad_spec b m (by lia) (by lia)
-  obtain ⟨z₁, z₂, -⟩ := zeros_spec m (by lia)
-  generalize (add1 (UInt64Array.replicate m 0).toUSlice a.toUSlice 0).1 = a' at pa₁ pa₂ ⊢
-  generalize (add1 (UInt64Array.replicate m 0).toUSlice b.toUSlice 0).1 = b' at pb₁ pb₂ ⊢
-  obtain ⟨a₁, a₂, a₃⟩ := toUSlice_spec a' (by lia)
-  obtain ⟨b₁, b₂, b₃⟩ := toUSlice_spec b' (by lia)
-  have h := valAt_sub (UInt64Array.replicate m 0).toUSlice a'.toUSlice b'.toUSlice 0
-    (USize.le_iff_toNat_le.2 (by rw [a₂, b₂, pa₁, pb₁]; exact Nat.le_refl _))
-    (USize.le_iff_toNat_le.2 (by rw [a₂, z₂, pa₁]; exact Nat.le_refl _))
-  rw [z₁, a₂, a₃, b₃, pa₁, pa₂, pb₂, UInt64.toNat_zero, Nat.add_zero] at h
-  have hV := valAt_lt (MPN.sub (UInt64Array.replicate m 0).toUSlice a'.toUSlice b'.toUSlice 0).1
-    0 m
-  have hB : b.toNat < 2 ^ (64 * m) := by
-    rw [toNat_eq_valAt]
-    exact Nat.lt_of_lt_of_le (valAt_lt ..) (Nat.pow_le_pow_right (by decide) (by lia))
-  rw [bne_iff_ne, ne_eq, ← UInt64.toNat_inj, UInt64.toNat_zero]
-  generalize (MPN.sub _ _ _ _).1.valAt 0 m = V at *
-  generalize (MPN.sub _ _ _ _).2.toNat = c at *
-  constructor
-  · intro hc
-    have := Nat.mul_le_mul_left (2 ^ (64 * m)) (show 1 ≤ c by lia)
-    lia
-  · intro hab hc
-    subst hc
-    lia
+  rw [lt, ltLoop_iff, valAt_ge a _ (by lia), valAt_ge b _ (by lia)]
 
 /-! ## Division -/
 
