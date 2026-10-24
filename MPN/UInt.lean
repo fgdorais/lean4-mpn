@@ -13,7 +13,7 @@ word of a double-width result:
 * `addh c x y` adds the carry out of `x + y` to `c`;
 * `subh b x y` adds the borrow out of `x - y` to `b`;
 * `mulh x y` is the high word of `x * y`;
-* `div2 hi lo d` is the quotient of the double word `hi lo` by `d` (`UInt64` only).
+* `div2 hi lo d` is the quotient of the double word `hi lo` by `d`.
 
 The low words are the ordinary wrapping `x + y`, `x - y` and `x * y`, so a limb loop computes
 the low word and the carry, borrow or high word separately, without allocating a pair.
@@ -84,6 +84,58 @@ public theorem UInt32.toNat_mulh (x y : UInt32) :
   rw [Nat.mod_eq_of_lt (a := x.toNat * y.toNat) (by lia),
     Nat.mod_eq_of_lt (a := x.toNat * y.toNat / _) (by simp; lia)]
   rfl
+
+/--
+The low word of the quotient of `hi β + lo` by `d`, where `β = 2³²`, or `0` when `d = 0`. When
+`hi < d` the quotient fits in a word, and `lo - q d` is the remainder (`toNat_div2_rem`).
+-/
+@[inline]
+public def UInt32.div2 (hi lo d : UInt32) : UInt32 :=
+  (((hi.toUInt64 <<< 32) + lo.toUInt64) / d.toUInt64).toUInt32
+
+public theorem UInt32.toNat_div2 (hi lo d : UInt32) (h : hi.toNat < d.toNat) :
+    (UInt32.div2 hi lo d).toNat = (hi.toNat * 2 ^ 32 + lo.toNat) / d.toNat := by
+  have := lo.toNat_lt
+  have hq : (hi.toNat * 2 ^ 32 + lo.toNat) / d.toNat < 2 ^ 32 := by
+    rw [Nat.div_lt_iff_lt_mul (by lia)]
+    have := Nat.mul_le_mul_right (2 ^ 32) (show hi.toNat + 1 ≤ d.toNat from h)
+    rw [Nat.add_mul, Nat.one_mul] at this
+    rw [Nat.mul_comm]
+    lia
+  have hw : ((hi.toUInt64 <<< 32) + lo.toUInt64).toNat = hi.toNat * 2 ^ 32 + lo.toNat := by
+    have := hi.toNat_lt
+    simp only [UInt64.toNat_add, UInt64.toNat_shiftLeft, UInt32.toNat_toUInt64,
+      UInt64.reduceToNat, Nat.reduceMod, Nat.shiftLeft_eq]
+    rw [Nat.mod_eq_of_lt (a := hi.toNat * 2 ^ 32) (by lia), Nat.mod_eq_of_lt (by lia)]
+  simp only [UInt32.div2, UInt64.toNat_toUInt32, UInt64.toNat_div, hw, UInt32.toNat_toUInt64]
+  exact Nat.mod_eq_of_lt hq
+
+/-- The remainder of `hi β + lo` by `d`, for `hi < d`, from the quotient `q = div2 hi lo d`. -/
+public theorem UInt32.toNat_div2_rem (hi lo d : UInt32) (h : hi.toNat < d.toNat) :
+    (lo - UInt32.div2 hi lo d * d).toNat = (hi.toNat * 2 ^ 32 + lo.toNat) % d.toNat ∧
+      d.toNat * (UInt32.div2 hi lo d).toNat + (lo - UInt32.div2 hi lo d * d).toNat =
+        hi.toNat * 2 ^ 32 + lo.toNat := by
+  have hq := UInt32.toNat_div2 hi lo d h
+  have hdm := Nat.div_add_mod (hi.toNat * 2 ^ 32 + lo.toNat) d.toNat
+  have hr := Nat.mod_lt (hi.toNat * 2 ^ 32 + lo.toNat) (show 0 < d.toNat by lia)
+  have hd := d.toNat_lt
+  -- `lo = r + q d` in words, so `lo - q d = r`.
+  have e : lo = UInt32.ofNat ((hi.toNat * 2 ^ 32 + lo.toNat) % d.toNat) +
+      UInt32.div2 hi lo d * d := by
+    apply UInt32.toNat_inj.1
+    rw [UInt32.toNat_add, UInt32.toNat_mul, UInt32.toNat_ofNat', hq, ← Nat.add_mod,
+      Nat.mul_comm _ d.toNat]
+    generalize (hi.toNat * 2 ^ 32 + lo.toNat) / d.toNat = q at *
+    generalize (hi.toNat * 2 ^ 32 + lo.toNat) % d.toNat = r at *
+    rw [Nat.add_comm r, hdm, Nat.add_comm, Nat.add_mul_mod_self_right,
+      Nat.mod_eq_of_lt lo.toNat_lt]
+  have e' : (lo - UInt32.div2 hi lo d * d).toNat = (hi.toNat * 2 ^ 32 + lo.toNat) % d.toNat := by
+    generalize (hi.toNat * 2 ^ 32 + lo.toNat) % d.toNat = r at e hr ⊢
+    generalize UInt32.div2 hi lo d = Q at e ⊢
+    rw [e, UInt32.add_sub_cancel, UInt32.toNat_ofNat', Nat.mod_eq_of_lt (by lia)]
+  refine ⟨e', ?_⟩
+  rw [e', hq]
+  exact hdm
 
 /-! ## `UInt64` -/
 

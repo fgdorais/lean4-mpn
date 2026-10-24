@@ -229,6 +229,15 @@ def checkBits (n : Nat) : Bool :=
 
 /-! Division -/
 
+-- Two-by-one division of words, on both widths, against `Nat`.
+#guard [(0, 0, 1), (0, 5, 3), (2, 7, 3), (0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFF), (1, 0, 2),
+  (0x7FFFFFFF, 0x12345678, 0x80000000)].all fun (h, l, d) =>
+    (UInt32.div2 h.toUInt32 l.toUInt32 d.toUInt32).toNat == (h * 2 ^ 32 + l) / d &&
+    (UInt64.div2 h.toUInt64 l.toUInt64 d.toUInt64).toNat == (h * 2 ^ 64 + l) / d
+#guard (UInt64.div2 0xFFFFFFFFFFFFFFFE 0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF).toNat ==
+  ((2 ^ 64 - 2) * 2 ^ 64 + 2 ^ 64 - 1) / (2 ^ 64 - 1)
+
+
 /--
 Checks `divRem` on an `m`-limb `a` and an `n`-limb `b`, written at offset 1 of padded buffers:
 the quotient and the remainder, and the padding unchanged.
