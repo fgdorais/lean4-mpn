@@ -405,7 +405,7 @@ public theorem getElem!_divExactInto (r : USlice) (d dinv : UInt64)
   exact (divExact_spec d dinv hd _ _ _ _ 0 0).2.1 i (by rw [USize.toNat_zero]; lia)
 
 public theorem valAt_divExactInto (r : USlice) (d dinv : UInt64)
-    (hd : d.toNat * dinv.toNat % 2 ^ 64 = 1) (hd₁ : 2 ^ 64 % d.toNat = 1) (hd₃ : 2 ≤ d.toNat)
+    (hd : d.toNat * dinv.toNat % 2 ^ 64 = 1) (hd₁ : d.toNat % 2 = 1)
     (h : r.array.valAt r.start.toNat r.size.toNat % d.toNat = 0) :
     (divExactInto r d dinv).1.valAt r.start.toNat r.size.toNat =
       r.array.valAt r.start.toNat r.size.toNat / d.toNat := by
@@ -415,40 +415,37 @@ public theorem valAt_divExactInto (r : USlice) (d dinv : UInt64)
   rw [divExactInto, foldUInPlaceThen_eq]
   have hQ := valAt_lt (foldUInPlace r.size (divExactStep d dinv r.size) r.array r.start
     (r.loopBound (USize.le_iff_toNat_le.2 (Nat.le_refl _))) 0 0).1 r.start.toNat r.size.toNat
-  -- `2^(64 n) ≡ 1` modulo `d`, so the borrow out is a multiple of `d`, and below `d`.
-  have hB : 2 ^ (64 * r.size.toNat) % d.toNat = 1 % d.toNat := by
-    rw [Nat.pow_mul, Nat.pow_mod, hd₁, Nat.one_pow]
-  have hc_lt : (foldUInPlace r.size (divExactStep d dinv r.size) r.array r.start
-      (r.loopBound (USize.le_iff_toNat_le.2 (Nat.le_refl _))) 0 0).2.toNat < d.toNat := by
-    have hX := valAt_lt r.array r.start.toNat r.size.toNat
-    rcases Nat.lt_or_ge (foldUInPlace r.size (divExactStep d dinv r.size) r.array r.start
-      (r.loopBound (USize.le_iff_toNat_le.2 (Nat.le_refl _))) 0 0).2.toNat d.toNat with e | e
-    · exact e
-    · exfalso
-      have h₁ := Nat.mul_le_mul_left (2 ^ (64 * r.size.toNat)) e
-      have h₂ := Nat.mul_lt_mul_of_pos_left hQ (show 0 < d.toNat by lia)
-      generalize (foldUInPlace (β := UInt64) _ _ _ _ _ 0 0).1.valAt _ _ = Q at *
-      generalize (foldUInPlace (β := UInt64) _ _ _ _ _ 0 0).2.toNat = c at *
-      generalize r.array.valAt r.start.toNat r.size.toNat = X at *
-      generalize 2 ^ (64 * r.size.toNat) = P at *
-      rw [Nat.mul_comm] at h₁
-      have : X + P * c ≥ X + P * d.toNat := Nat.add_le_add_left (Nat.mul_le_mul_left P e) X
-      have : P * d.toNat > d.toNat * Q := by rw [Nat.mul_comm P]; exact h₂
-      lia
+  have hX := valAt_lt r.array r.start.toNat r.size.toNat
+  -- `d` is odd, so prime to `2^(64 n)`: the borrow out is a multiple of `d`, and below it.
+  have hcop : Nat.Coprime d.toNat (2 ^ (64 * r.size.toNat)) := by
+    refine Nat.Coprime.pow_right _ ?_
+    show Nat.gcd d.toNat 2 = 1
+    rw [Nat.gcd_comm, Nat.gcd_rec, hd₁]; rfl
   generalize (foldUInPlace (β := UInt64) _ _ _ _ _ 0 0).1.valAt _ _ = Q at *
   generalize (foldUInPlace (β := UInt64) _ _ _ _ _ 0 0).2.toNat = c at *
   generalize r.array.valAt r.start.toNat r.size.toNat = X at *
   generalize 2 ^ (64 * r.size.toNat) = P at *
   generalize d.toNat = D at *
-  have hcD : c % D = 0 := by
-    have : (X + P * c) % D = 0 := by rw [← hs]; simp [Nat.mul_mod_right]
-    rw [Nat.add_mod, h, Nat.zero_add, Nat.mul_mod, hB, Nat.mod_eq_of_lt (show 1 < D by lia),
-      Nat.one_mul, Nat.mod_mod, Nat.mod_mod] at this
-    exact this
+  have hD : 1 ≤ D := by
+    rcases Nat.eq_zero_or_pos D with e | e
+    · rw [e] at hd₁; exact absurd hd₁ (by decide)
+    · exact e
+  have hc_lt : c < D := by
+    rcases Nat.lt_or_ge c D with e | e
+    · exact e
+    · have h₁ := Nat.mul_le_mul_left P e
+      have h₂ : D * Q < D * P := Nat.mul_lt_mul_of_pos_left hQ (by lia)
+      rw [Nat.mul_comm P D] at h₁
+      lia
+  have hdvd : D ∣ P * c := by
+    have h₁ : D ∣ X := Nat.dvd_of_mod_eq_zero h
+    have h₂ : P * c = D * Q - X := by lia
+    rw [h₂]
+    exact Nat.dvd_sub (Nat.dvd_mul_right _ _) h₁
   have hc : c = 0 := by
     rcases Nat.eq_zero_or_pos c with e | e
     · exact e
-    · exact absurd (Nat.le_of_dvd e (Nat.dvd_of_mod_eq_zero hcD)) (by lia)
+    · exact absurd (Nat.le_of_dvd e (hcop.dvd_of_dvd_mul_left hdvd)) (by lia)
   subst hc
   rw [Nat.mul_zero, Nat.add_zero] at hs
   rw [← hs, Nat.mul_div_cancel_left _ (by lia)]
@@ -469,7 +466,7 @@ public theorem valAt_divExact3Into (r : USlice)
     (h : r.array.valAt r.start.toNat r.size.toNat % 3 = 0) :
     (divExact3Into r).1.valAt r.start.toNat r.size.toNat =
       r.array.valAt r.start.toNat r.size.toNat / 3 :=
-  valAt_divExactInto _ _ _ (by decide) (by decide) (by decide) h
+  valAt_divExactInto _ _ _ (by decide) (by decide) h
 
 /-- Divides the limbs of `r` by `5` in place. -/
 public def divExact5Into (r : USlice) : UInt64Array × UInt64 :=
@@ -487,7 +484,43 @@ public theorem valAt_divExact5Into (r : USlice)
     (h : r.array.valAt r.start.toNat r.size.toNat % 5 = 0) :
     (divExact5Into r).1.valAt r.start.toNat r.size.toNat =
       r.array.valAt r.start.toNat r.size.toNat / 5 :=
-  valAt_divExactInto _ _ _ (by decide) (by decide) (by decide) h
+  valAt_divExactInto _ _ _ (by decide) (by decide) h
+
+/-- Divides the limbs of `r` by `7` in place. -/
+public def divExact7Into (r : USlice) : UInt64Array × UInt64 :=
+  divExactInto r 7 0x6DB6DB6DB6DB6DB7
+
+@[simp] public theorem size_divExact7Into (r : USlice) :
+    (divExact7Into r).1.size = r.array.size := size_divExactInto ..
+
+/-- `divExact7Into` leaves the limbs of `r` outside the slice unchanged. -/
+public theorem getElem!_divExact7Into (r : USlice) (i : Nat)
+    (hi : i < r.start.toNat ∨ r.start.toNat + r.size.toNat ≤ i) :
+    (divExact7Into r).1[i]! = r.array[i]! := getElem!_divExactInto _ _ _ (by decide) i hi
+
+public theorem valAt_divExact7Into (r : USlice)
+    (h : r.array.valAt r.start.toNat r.size.toNat % 7 = 0) :
+    (divExact7Into r).1.valAt r.start.toNat r.size.toNat =
+      r.array.valAt r.start.toNat r.size.toNat / 7 :=
+  valAt_divExactInto _ _ _ (by decide) (by decide) h
+
+/-- Divides the limbs of `r` by `9` in place. -/
+public def divExact9Into (r : USlice) : UInt64Array × UInt64 :=
+  divExactInto r 9 0x8E38E38E38E38E39
+
+@[simp] public theorem size_divExact9Into (r : USlice) :
+    (divExact9Into r).1.size = r.array.size := size_divExactInto ..
+
+/-- `divExact9Into` leaves the limbs of `r` outside the slice unchanged. -/
+public theorem getElem!_divExact9Into (r : USlice) (i : Nat)
+    (hi : i < r.start.toNat ∨ r.start.toNat + r.size.toNat ≤ i) :
+    (divExact9Into r).1[i]! = r.array[i]! := getElem!_divExactInto _ _ _ (by decide) i hi
+
+public theorem valAt_divExact9Into (r : USlice)
+    (h : r.array.valAt r.start.toNat r.size.toNat % 9 = 0) :
+    (divExact9Into r).1.valAt r.start.toNat r.size.toNat =
+      r.array.valAt r.start.toNat r.size.toNat / 9 :=
+  valAt_divExactInto _ _ _ (by decide) (by decide) h
 
 /-! ## Right shifts -/
 

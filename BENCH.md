@@ -48,13 +48,13 @@ so five runs make the tables reliable. Within one run, distrust a row whose spre
 | `addmul1` | `MPN.addMul1` | `n` limbs times a limb, added to `n` limbs | one pass, `USize` indices |
 | `mul` | `MPN.mulBasecase` | `n` by `n` limbs | schoolbook by rows: `mul1`, then `addMul1` with a continuation, `USize` indices |
 | `kara` | `MPN.mulKaratsuba` | `n` by `n` limbs | Karatsuba from 64 limbs (`karatsubaThreshold`), `mulBasecase` below |
-| `toom` | `MPN.mulToom` | `n` by `n` limbs | Toom-4 from 600 limbs (`toom4Threshold`), Toom-3 from 384 (`toom3Threshold`), `mulKaratsuba` below |
+| `toom` | `MPN.mulToom` | `n` by `n` limbs | Toom-6 from 1000 limbs (`toom6Threshold`), Toom-4 from 600 (`toom4Threshold`), Toom-3 from 384 (`toom3Threshold`), `mulKaratsuba` below |
 | `kara2` | `MPN.mulKaratsuba` | `n` by `n / 2` limbs | as `kara` |
 | `toom2` | `MPN.mulToom` | `n` by `n / 2` limbs | Toom-3 by 2 or Toom-4 by 2 from 384 limbs in the smaller operand, `mulKaratsuba` below |
 | `fft` | `MPN.FFT.fftMul` | `n` by `n` limbs | Schönhage–Strassen with `2ᵏ` pieces, `k = fftK (2 n)`, the pointwise products by `mulToom` |
 | `fft2` | `MPN.FFT.fftMul` | `n` by `n / 2` limbs | as `fft` |
 | `fftK` | `MPN.FFT.fftMul` | `n` by `n` limbs | as `fft` with `2ᴷ` pieces, for example `fft9`, for tuning `fftK` |
-| `auto` | `MPN.mul` | `n` by `n` limbs | the FFT from `fftThreshold = 3072` limbs in the larger operand with `fftMinSmall = 320` in the smaller, `mulToom` below |
+| `auto` | `MPN.mul` | `n` by `n` limbs | the FFT from `fftThreshold = 4096` limbs in the larger operand (`fftThresholdUnbal = 3072` for shapes of `3 : 2` or more) with `fftMinSmall = 320` in the smaller, `mulToom` below |
 | `auto2`, `auto4`, `auto8` | `MPN.mul` | `n` by `n / 2`, `n / 4`, `n / 8` limbs | as `auto`, with the unbalanced products split into pieces |
 | `autobS` | `MPN.mul` | `n` by `S` limbs, for example `autob256` | as `auto2` |
 | `fftbS`, `toombS` | `MPN.FFT.fftMul`, `MPN.mulToom` | `n` by `S` limbs, for example `fftb256` | for tuning `fftMinSmall` |
@@ -120,20 +120,22 @@ one, which needs the smaller one to be longer than that half, so on `n` by `n / 
 ### Large sizes, multiplication
 
 From `bench toom fft auto toom2 fft2 1024 2048 3072 4096 8192 16384 32768 65536`, the fastest of
-three runs, on 2026-10-23, with Toom-4.
+three runs, on 2026-10-23, with Toom-6.
 
 | op | 1024 | 2048 | 3072 | 4096 | 8192 | 16384 | 32768 | 65536 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| `toom` | 254 µs (3.32) | 708 µs (3.26) | 1.28 ms (3.47) | 1.92 ms (3.71) | 5.24 ms (4.37) | 14.2 ms (5.32) | 37.6 ms (5.77) | 99.8 ms (7.39) |
-| `fft` | 549 µs (7.17) | 858 µs (4.03) | 1.28 ms (3.81) | 1.82 ms (4.01) | 3.63 ms (3.33) | 8.07 ms (3.60) | 18.2 ms (3.38) | 40.4 ms (2.99) |
-| `auto` | 253 µs (3.32) | 700 µs (3.29) | 1.28 ms (3.83) | 1.82 ms (4.02) | 3.61 ms (3.31) | 8.06 ms (3.61) | 18.2 ms (3.38) | 40.7 ms (3.04) |
-| `toom2` | 210 µs (3.74) | 628 µs (4.13) | 998 µs (4.01) | 1.55 ms (4.61) | 4.11 ms (5.34) | 11.4 ms (6.63) | 30.1 ms (7.66) | 81.9 ms (8.43) |
-| `fft2` | 317 µs (5.65) | 692 µs (4.52) | 943 µs (3.77) | 1.28 ms (3.79) | 2.69 ms (3.49) | 6.04 ms (3.51) | 13.2 ms (3.36) | 31.7 ms (3.26) |
+| `toom` | 251 µs (3.33) | 689 µs (3.19) | 1.20 ms (3.31) | 1.78 ms (3.48) | 4.88 ms (4.14) | 12.3 ms (4.66) | 32.7 ms (5.10) | 81.3 ms (6.07) |
+| `fft` | 551 µs (7.30) | 853 µs (4.06) | 1.27 ms (3.83) | 1.82 ms (4.05) | 3.61 ms (3.37) | 8.03 ms (3.63) | 18.2 ms (3.43) | 40.3 ms (3.03) |
+| `auto` | 250 µs (3.31) | 684 µs (3.24) | 1.19 ms (3.60) | 1.82 ms (4.06) | 3.62 ms (3.35) | 8.08 ms (3.64) | 18.2 ms (3.41) | 40.4 ms (3.04) |
+| `toom2` | 205 µs (3.69) | 618 µs (4.09) | 980 µs (3.98) | 1.54 ms (4.61) | 3.95 ms (5.19) | 10.7 ms (6.33) | 27.2 ms (7.01) | 70.6 ms (7.32) |
+| `fft2` | 318 µs (5.72) | 691 µs (4.55) | 939 µs (3.77) | 1.27 ms (3.80) | 2.69 ms (3.51) | 6.01 ms (3.54) | 13.2 ms (3.38) | 31.6 ms (3.27) |
 
 ### Unbalanced products
 
-`MPN.mul`, ratio to `Nat` only, the fastest of three runs, on 2026-10-23: `auto2`, `auto4`,
-`auto8` for `n` by `n / 2`, `n / 4`, `n / 8` limbs, and `autobS` for `n` by `S` limbs.
+`MPN.mul`, ratio to `Nat` only, the fastest of three runs, on 2026-10-23 before Toom-6: `auto2`,
+`auto4`, `auto8` for `n` by `n / 2`, `n / 4`, `n / 8` limbs, and `autobS` for `n` by `S` limbs.
+With Toom-6 and the new FFT thresholds, `auto2`, `auto4` and `auto8` stay within 2.7–3.7 but for
+4096 by 1024 (4.12) and 6144 by 1536 (4.27), where the FFT and the Toom methods tie.
 
 | n | `auto` | `auto2` | `auto4` | `auto8` | `b64` | `b128` | `b256` | `b320` | `b512` | `b1024` | `b2048` |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -173,9 +175,12 @@ fastest of three runs, on 2026-10-23.
   best). For squares (`fsq6` to `fsq11`) it is the best from 8192 limbs and within 4% below.
 - Toom-4 and Toom-4 by 3 beat Toom-3 by 5–9% from 1024 limbs, more above (the FFT takes over
   there); `toom4Threshold` between 384 and 1000 limbs makes no difference beyond ±2%, and is 600.
-- With Toom-4, the FFT ties `toom` at 3072 limbs per operand, balanced, and passes it at 2816 by
-  1408, hence `fftThreshold = 3072` limbs in the larger operand: a bound on the total cannot suit
-  both shapes (it was 5120 limbs in all before Toom-4).
+- Toom-6 beats Toom-4 by 3–8% from 1536 limbs, with `toom6Threshold` from 1000 to 2200 limbs
+  within ±1% of each other; it is 1000.
+- With Toom-6, the FFT ties `toom` at 4096 limbs per operand, balanced, but passes `toom2` at 3072
+  by 1536, hence `fftThreshold = 4096` limbs in the larger operand and `fftThresholdUnbal = 3072`
+  when the operands differ by `3 : 2` or more (it was 3072 for both with Toom-4, and 5120 limbs
+  in all before).
 - With `S` limbs in the smaller operand, below 384, `mulToom` is the schoolbook method, about
   3.5 µs per limb of `S` at 4096 limbs in the other and 14 µs at 16384, while the FFT costs what
   its total does (0.9 ms, 3.6 ms). They cross at `S` ≈ 260 for 4096 and 16384 limbs and 326 for
@@ -210,3 +215,4 @@ Times are the fastest of five runs, in the format of the tables above.
 | 2026-10-23 | `a446651`+ | Toom-4 and Toom-4 by 3 (points `0, …, 5, ∞`, the interpolation in place with `rshiftInto` and `divExact5Into`), from `toom4Threshold = 600` limbs; `fftThreshold` now on the larger operand, 3072 limbs | `toom` 776 → 708 µs at 2048 limbs, 2.08 → 1.92 ms at 4096, 17.1 → 14.2 ms at 16384, 127 → 99.8 ms at 65536; `auto` within 3.0–4.0 of `Nat` from 1024 to 65536 limbs |
 | 2026-10-23 | `6b4baa3`+ | unbalanced products split into pieces of the size of the smaller operand (`mulChunked`), from `chunkMinSmall = 96` limbs, below `chunkMaxSmall = 1024` when the larger operand is in the range of the FFT; new rows `auto2`, `auto4`, `auto8`, `autobS` | `MPN.mul` at 1536 by 384 limbs 10.8 → 3.3 times `Nat`, at `n` by 256 5.4 → 3.1, at 2048 by 512 8.0 → 3.3; every shape measured within 4 but 6144 by 1536 (4.27) |
 | 2026-10-23 | `877a7a6`+ | Toom-3 and Toom-4 squares (`sqrToom`: one set of evaluations, squares for the products, the interpolations of the products), from `toom3SqrThreshold = 600` and `toom4SqrThreshold = 1000` limbs; `MPN.sqr` uses them below `sqrFFTThreshold`, now 2816 | `autosqr` 186 → 169 µs at 1024 limbs, 569 → 485 µs at 2048, 1.07 ms → 823 µs at 3072; within 2.0–2.7 of `Nat` from 512 to 65536 limbs |
+| 2026-10-23 | `7afea80`+ | Toom-6 (points `0, …, 9, ∞`, the interpolation of degree 10 generated, 130 steps in place, its proof through `extract_lets`; exact division by any odd constant, `divExact7Into`, `divExact9Into`), from `toom6Threshold = 1000` limbs; `fftThreshold` 4096 and `fftThresholdUnbal` 3072 | `toom` 979 → 915 µs at 2560 limbs, 14.2 → 12.3 ms at 16384, 99.8 → 81.3 ms at 65536; `auto` at 3072 limbs 1.28 → 1.19 ms |

@@ -19,11 +19,11 @@ comes with Lean.
 | `MPN.Mul.Basecase` | `mul1`, `addMul1`, `mulBasecase` | `mpn_mul_1`, `mpn_addmul_1`, `mpn_mul_basecase` |
 | `MPN.Mul.Comba` | `mulComba`: schoolbook by columns | |
 | `MPN.Mul.Karatsuba` | `mulKaratsuba`, from `karatsubaThreshold = 64` limbs | `mpn_kara_mul_n` |
-| `MPN.Linear` | in place: `addMulInto`, `subMulInto`, `shl63Into` (halving), `rshiftInto`, `divExactInto` (by odd divisors of `2⁶⁴ - 1`: `divExact3Into`, `divExact5Into`) | `mpn_addmul_1`, `mpn_rshift`, `mpn_divexact_by3`, `mpn_divexact_1` |
-| `MPN.Mul.Toom` | `mulToom`: Toom-4 and Toom-4 by 3 from `toom4Threshold = 600` limbs, Toom-3, Toom-3 by 2 and Toom-4 by 2 from `toom3Threshold = 384` limbs; `sqrToom`: the Toom-4 square from 1000 limbs, the Toom-3 square from 600 | `mpn_toom44_mul`, `mpn_toom43_mul`, `mpn_toom33_mul`, `mpn_toom32_mul`, `mpn_toom42_mul`, `mpn_toom4_sqr`, `mpn_toom3_sqr` |
+| `MPN.Linear` | in place: `addMulInto`, `subMulInto`, `shl63Into` (halving), `rshiftInto`, `divExactInto` (by odd constants: `divExact3Into`, `divExact5Into`, `divExact7Into`, `divExact9Into`) | `mpn_addmul_1`, `mpn_rshift`, `mpn_divexact_by3`, `mpn_divexact_1` |
+| `MPN.Mul.Toom` | `mulToom`: Toom-6 from `toom6Threshold = 1000` limbs, Toom-4 and Toom-4 by 3 from `toom4Threshold = 600` limbs, Toom-3, Toom-3 by 2 and Toom-4 by 2 from `toom3Threshold = 384` limbs; `sqrToom`: the Toom-4 square from 1000 limbs, the Toom-3 square from 600 | `mpn_toom6h_mul`, `mpn_toom44_mul`, `mpn_toom43_mul`, `mpn_toom33_mul`, `mpn_toom32_mul`, `mpn_toom42_mul`, `mpn_toom4_sqr`, `mpn_toom3_sqr` |
 | `MPN.FFT.Fermat` | in place on windows of one array, modulo `2^(64 n) + 1`: `normAt`, `addModAt`, `subModAt`, `mulPow2At` | `mpn_fft_add_modF`, `mpn_fft_sub_modF`, `mpn_fft_mul_2exp_modF` |
 | `MPN.FFT.Transform` | `fwd`, `inv`: the transforms of length `2ᵏ`, in place | `mpn_fft_fft`, `mpn_fft_fftinv` |
-| `MPN.FFT.Mul` | `fftMul`, `fftSqr`: Schönhage–Strassen with `2ᵏ` pieces; `MPN.mul` and `MPN.sqr`, which split unbalanced products into pieces (`mulChunked`) and choose the FFT from `fftThreshold = 3072` limbs in the larger operand and `sqrFFTThreshold = 2816` limbs, and `mulToom` or `sqrToom` below | `mpn_mul_fft`, `mpn_mul`, `mpn_sqr` |
+| `MPN.FFT.Mul` | `fftMul`, `fftSqr`: Schönhage–Strassen with `2ᵏ` pieces; `MPN.mul` and `MPN.sqr`, which split unbalanced products into pieces (`mulChunked`) and choose the FFT from `fftThreshold = 4096` limbs in the larger operand and `sqrFFTThreshold = 2816` limbs, and `mulToom` or `sqrToom` below | `mpn_mul_fft`, `mpn_mul`, `mpn_sqr` |
 | `MPN.Sqr.Basecase` | `sqrBasecase` | `mpn_sqr_basecase` |
 | `MPN.Sqr.Karatsuba` | `sqrKaratsuba`, from `sqrKaratsubaThreshold = 96` limbs | `mpn_kara_sqr_n` |
 

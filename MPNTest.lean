@@ -217,8 +217,11 @@ def checkToom (m n : Nat) : Bool :=
   (1600, 500), (2000, 390), (1200, 1200)].all fun (m, n) => checkToom m n
 
 -- Toom-4 (`3/4 < n/m`), Toom-4 by 3 (`1/2 < n/m ≤ 3/4`, roughly), and Toom-4 recursing into itself.
-#guard [(700, 700), (800, 610), (900, 650), (1000, 600), (2400, 2400)].all fun (m, n) => checkToom m
-    n
+#guard [(700, 700), (800, 610), (900, 650), (1000, 600), (2400, 2400)].all
+  fun (m, n) => checkToom m n
+
+-- Toom-6 (`5/6 < n/m`), at and above `toom6Threshold`, and recursing into Toom-4.
+#guard [(1500, 1500), (1700, 1500), (3000, 2600), (6000, 6000)].all fun (m, n) => checkToom m n
 
 /-! FFT residues -/
 
@@ -325,7 +328,8 @@ def checkMPNMul (m n : Nat) : Bool :=
       s[0]! == pad && s[m + n + 1]! == pad
 
 -- Below and above `fftThreshold`, and an unbalanced pair on each side of `fftMinSmall`.
-#guard [(3071, 3071), (3072, 3000), (3072, 1500), (5000, 330), (5000, 300), (4, 3)].all
+#guard [(4095, 4095), (4096, 4000), (3072, 2048), (3072, 2049), (5000, 330), (5000, 300),
+  (4, 3)].all
   fun (m, n) => checkMPNMul m n
 
 -- Unbalanced products, split into chunks of the smaller operand: around `chunkMinSmall`, around
