@@ -227,6 +227,40 @@ def checkBits (n : Nat) : Bool :=
 
 #guard [1, 2, 3, 5, 16, 33].all checkBits
 
+/-! Division -/
+
+/--
+Checks `divRem` on an `m`-limb `a` and an `n`-limb `b`, written at offset 1 of padded buffers:
+the quotient and the remainder, and the padding unchanged.
+-/
+def checkDiv (m n : Nat) : Bool :=
+  let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
+  let as := [randomLimbs m 11, 2 ^ (64 * m) - 1, 2 ^ (64 * (m - 1)), 2 ^ (64 * m - 1) + 12345]
+  let bs := [randomLimbs n 12, 2 ^ (64 * n) - 1, 2 ^ (64 * (n - 1)), 2 ^ (64 * (n - 1)) + 1,
+    2 ^ (64 * n - 1), 3 * 2 ^ (64 * (n - 1)) + 5]
+  as.all fun x => bs.all fun y =>
+    let k := m - n + 1
+    let q := UInt64Array.replicate (k + 2) pad
+    let r := UInt64Array.replicate (n + 2) pad
+    let (q', r') := MPN.divRem (inner q k) (inner r n) (limbs m x).toUSlice (limbs n y).toUSlice
+    window q' 1 k == x / y && window r' 1 n == x % y && q'[0]! == pad && q'[k + 1]! == pad &&
+      r'[0]! == pad && r'[n + 1]! == pad
+
+#guard [(1, 1), (5, 1), (2, 2), (3, 2), (10, 3), (10, 10), (40, 17), (100, 50), (300, 2)].all
+  fun (m, n) => checkDiv m n
+
+-- An estimate one too large after the 3-by-2 correction, so that `addBack` runs: the top limbs of
+-- `2 ^ (64 n - 1) + 2 ^ (64 (n - 2)) - 1` give the estimate `2` for `2 ^ (64 n)`, whose quotient is
+-- `1`, and the same shifted up a few limbs.
+#guard [3, 4, 9].all fun n =>
+  let y := 2 ^ (64 * n - 1) + 2 ^ (64 * (n - 2)) - 1
+  [2 ^ (64 * n), 2 ^ (64 * n) + 5, 2 ^ (64 * (n + 3)) + 2 ^ (64 * 3) - 1].all fun x =>
+    let m := (Nat.log2 x) / 64 + 1
+    let k := m - n + 1
+    let (q', r') := MPN.divRem (UInt64Array.replicate k 0).toUSlice
+      (UInt64Array.replicate n 0).toUSlice (limbs m x).toUSlice (limbs n y).toUSlice
+    window q' 0 k == x / y && window r' 0 n == x % y
+
 /-! Toom multiplication -/
 
 /-- Checks `mulToom` on an `m`-limb `a` and an `n`-limb `b`, in both orders. -/

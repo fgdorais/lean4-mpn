@@ -339,7 +339,8 @@ private theorem toNat_mask (x s : UInt64) (hs : s.toNat < 64) :
       rw [h₁, UInt64.toNat_one]; exact Nat.one_le_two_pow)), h₁, UInt64.toNat_one]
   rw [UInt64.toNat_and, hm, Nat.and_two_pow_sub_one_eq_mod]
 
-private theorem toNat_pred {m : USize} (h : ¬m = 0) : (m - 1).toNat = m.toNat - 1 := by
+/-- `m - 1` does not wrap around when `m ≠ 0`. -/
+public theorem toNat_pred {m : USize} (h : ¬m = 0) : (m - 1).toNat = m.toNat - 1 := by
   have : m.toNat ≠ 0 := fun e => h (USize.toNat_inj.1 (by rw [e]; rfl))
   exact (USize.toNat_sub_of_le m 1 (USize.le_iff_toNat_le.2 (by rw [USize.toNat_one]; lia))).trans
     (by rw [USize.toNat_one])

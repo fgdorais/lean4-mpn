@@ -9,6 +9,8 @@ public import MPN.UIntArray
 public import MPN.AddSub
 public import MPN.Linear
 public import MPN.Bits
+public import MPN.Div.Limb
+public import MPN.Div.Basecase
 public import MPN.Mul.Basecase
 public import MPN.Mul.Comba
 public import MPN.Mul.Karatsuba
@@ -30,6 +32,7 @@ Verified multi-precision arithmetic on `UInt64` limbs, in the style of GMP's `mp
 * `MPN.AddSub`: addition and subtraction;
 * `MPN.Linear`: in-place passes for the Toom methods: `± b x`, halving, exact division by 3;
 * `MPN.Bits`: shifts by any number of bits, clearing, and the base-two logarithm;
+* `MPN.Div.Limb`, `MPN.Div.Basecase`: division by a limb and schoolbook division;
 * `MPN.Mul.Basecase`, `MPN.Mul.Comba`, `MPN.Mul.Karatsuba`, `MPN.Mul.Toom`: multiplication;
 * `MPN.Sqr.Basecase`, `MPN.Sqr.Karatsuba`: squaring;
 * `MPN.FFT.Roots`, `MPN.FFT.Fermat`, `MPN.FFT.Transform`, `MPN.FFT.Mul`: FFT multiplication,
