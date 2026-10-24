@@ -60,7 +60,7 @@ so five runs make the tables reliable. Within one run, distrust a row whose spre
 | `fftbS`, `toombS` | `MPN.FFT.fftMul`, `MPN.mulToom` | `n` by `S` limbs, for example `fftb256` | for tuning `fftMinSmall` |
 | `fftsqr` | `MPN.FFT.fftSqr` | `n` limbs | one forward transform, the pointwise squares by `sqrKaratsuba`, `k = fftK (2 n)` |
 | `fsqK` | `MPN.FFT.fftSqr` | `n` limbs | as `fftsqr` with `2ᴷ` pieces, for example `fsq9` |
-| `toomsqr` | `MPN.sqrToom` | `n` limbs | the Toom-4 square from 1000 limbs (`toom4SqrThreshold`), the Toom-3 square from 600 (`toom3SqrThreshold`), `sqrKaratsuba` below |
+| `toomsqr` | `MPN.sqrToom` | `n` limbs | the Toom-6 square from 1200 limbs (`toom6SqrThreshold`), the Toom-4 square from 1000 (`toom4SqrThreshold`), the Toom-3 square from 600 (`toom3SqrThreshold`), `sqrKaratsuba` below |
 | `autosqr` | `MPN.sqr` | `n` limbs | the FFT from `sqrFFTThreshold = 2816` limbs, `sqrToom` below |
 | `sqr` | `MPN.sqrBasecase` | `n` limbs | the cross products once by rows (`mul1`, `addMul1`), then doubled with the diagonal in one pass |
 | `ksqr` | `MPN.sqrKaratsuba` | `n` limbs | Karatsuba with three squares from 96 limbs (`sqrKaratsubaThreshold`), `sqrBasecase` below |
@@ -194,6 +194,11 @@ fastest of three runs, on 2026-10-23.
   1024), hence `toom3SqrThreshold = 600`; the Toom-4 square adds 6–10% at 1024, 1536, 3072 and
   4096 limbs with a threshold of 700 or 1000, and is 1000. `fftsqr` passes `toomsqr` at 2816
   limbs, hence `sqrFFTThreshold = 2816` (it was 2048, against `ksqr`).
+- The Toom-6 square gains 0–5% on the Toom-4 square (3% at 2048 limbs, 5% at 4096), with
+  `toom6SqrThreshold` from 1200 to 2400 within noise; it is 1200, and `sqrFFTThreshold` stays.
+- A product whose larger operand has twice the limbs of the smaller is always unbalanced for the
+  FFT, which wins those from `fftThresholdUnbal = 3072` limbs: the pieces of `mulChunked` beyond
+  `chunkMaxSmall` stop there (4000 by 1700 limbs 1.41 → 1.15 ms).
 
 ## History
 
@@ -216,3 +221,4 @@ Times are the fastest of five runs, in the format of the tables above.
 | 2026-10-23 | `6b4baa3`+ | unbalanced products split into pieces of the size of the smaller operand (`mulChunked`), from `chunkMinSmall = 96` limbs, below `chunkMaxSmall = 1024` when the larger operand is in the range of the FFT; new rows `auto2`, `auto4`, `auto8`, `autobS` | `MPN.mul` at 1536 by 384 limbs 10.8 → 3.3 times `Nat`, at `n` by 256 5.4 → 3.1, at 2048 by 512 8.0 → 3.3; every shape measured within 4 but 6144 by 1536 (4.27) |
 | 2026-10-23 | `877a7a6`+ | Toom-3 and Toom-4 squares (`sqrToom`: one set of evaluations, squares for the products, the interpolations of the products), from `toom3SqrThreshold = 600` and `toom4SqrThreshold = 1000` limbs; `MPN.sqr` uses them below `sqrFFTThreshold`, now 2816 | `autosqr` 186 → 169 µs at 1024 limbs, 569 → 485 µs at 2048, 1.07 ms → 823 µs at 3072; within 2.0–2.7 of `Nat` from 512 to 65536 limbs |
 | 2026-10-23 | `7afea80`+ | Toom-6 (points `0, …, 9, ∞`, the interpolation of degree 10 generated, 130 steps in place, its proof through `extract_lets`; exact division by any odd constant, `divExact7Into`, `divExact9Into`), from `toom6Threshold = 1000` limbs; `fftThreshold` 4096 and `fftThresholdUnbal` 3072 | `toom` 979 → 915 µs at 2560 limbs, 14.2 → 12.3 ms at 16384, 99.8 → 81.3 ms at 65536; `auto` at 3072 limbs 1.28 → 1.19 ms |
+| 2026-10-23 | `a7402ca`+ | the Toom-6 square, from `toom6SqrThreshold = 1200` limbs; `mulChunked` beyond `chunkMaxSmall` only below `fftThresholdUnbal` | `toomsqr` 500 → 485 µs at 2048 limbs, 1.29 → 1.23 ms at 4096; 4000 by 1700 limbs 1.41 → 1.15 ms (4.03 → 3.26 times `Nat`) |

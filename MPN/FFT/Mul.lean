@@ -1511,7 +1511,7 @@ public def chunkMaxSmall : Nat := 1024
 /-- `mul` for `b.size ≤ a.size`. -/
 public def mulU (r a b : USlice) : UInt64Array :=
   if chunkMinSmall ≤ b.size.toNat ∧ 2 * b.size.toNat ≤ a.size.toNat ∧
-      (b.size.toNat < chunkMaxSmall ∨ a.size.toNat < fftThreshold) ∧
+      (b.size.toNat < chunkMaxSmall ∨ a.size.toNat < fftThresholdUnbal) ∧
       a.size.toNat + b.size.toNat ≤ r.size.toNat ∧
       a.array.size < USize.size ∧ r.array.size < USize.size then
     mulChunked r a b
@@ -1536,7 +1536,7 @@ private theorem mulU_spec (r a b : USlice) :
 /--
 Writes the `a.size + b.size` limbs of `a b` into `r`: by `mulChunked` when the larger operand
 has at least twice the limbs of the smaller, which has at least `chunkMinSmall` limbs, and less
-than `chunkMaxSmall` unless the larger one is below `fftThreshold`; by `mulBal` otherwise. It
+than `chunkMaxSmall` unless the larger one is below `fftThresholdUnbal`; by `mulBal` otherwise. It
 requires `0 < a.size`, `0 < b.size` and `a.size + b.size ≤ r.size`.
 -/
 public def mul (r a b : USlice) : UInt64Array :=

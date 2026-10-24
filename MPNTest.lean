@@ -363,6 +363,6 @@ def checkSqrToom (n : Nat) : Bool :=
     let s := MPN.sqrToom (inner r (2 * n)) (limbs n x).toUSlice
     window s 1 (2 * n) == x * x && s[0]! == pad && s[2 * n + 1]! == pad
 
--- Below and above `toom3SqrThreshold` and `toom4SqrThreshold`, and the Toom-4 square recursing.
-#guard [399, 400, 401, 899, 900, 1001, 2800].all checkSqrToom
+-- Around `toom3SqrThreshold`, `toom4SqrThreshold` and `toom6SqrThreshold`, and recursion.
+#guard [599, 600, 999, 1000, 1199, 1200, 2800, 7300].all checkSqrToom
 
