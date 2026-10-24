@@ -44,6 +44,7 @@ so five runs make the tables reliable. Within one run, distrust a row whose spre
 | op | operation | operands | algorithm |
 |---|---|---|---|
 | `add`, `sub` | `MPN.add`, `MPN.sub` | `n` and `n` limbs (`sub`: `n + 1` and `n`) | `addN`/`subN`, then `add1`/`sub1`, on `USlice`s with `USize` indices |
+| `shl`, `shr` | `MPN.lshift`, `MPN.rshift` | `n` limbs, by 13 bits | one pass, `USize` indices; `Nat`'s `<<<` and `>>>` |
 | `mul1` | `MPN.mul1` | `n` limbs times a limb | one pass, `USize` indices |
 | `addmul1` | `MPN.addMul1` | `n` limbs times a limb, added to `n` limbs | one pass, `USize` indices |
 | `mul` | `MPN.mulBasecase` | `n` by `n` limbs | schoolbook by rows: `mul1`, then `addMul1` with a continuation, `USize` indices |
@@ -75,6 +76,8 @@ Ratio MPN / Nat (below 1 is faster than Nat):
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | `add` | 0.45 | 0.57 | 0.50 | 0.58 | 0.61 | 0.62 | 0.64 | 0.66 | 0.70 | 0.73 | 0.78 | 0.83 | 0.93 | 1.01 | 0.95 | 1.00 | 1.13 |
 | `sub` | 0.56 | 0.48 | 0.55 | 0.51 | 0.51 | 0.53 | 0.55 | 0.53 | 0.56 | 0.55 | 0.60 | 0.72 | 0.85 | 0.96 | 1.06 | 1.03 | 1.28 |
+| `shl` | 0.30 | 0.41 | 0.41 | 0.41 | 0.44 | 0.43 | 0.46 | 0.48 | 0.50 | 0.54 | 0.59 | 0.64 | 0.77 | 0.90 | 0.71 | 0.85 | 1.05 |
+| `shr` | 3.46 | 0.41 | 0.42 | 0.43 | 0.44 | 0.44 | 0.46 | 0.45 | 0.49 | 0.50 | 0.55 | 0.61 | 0.70 | 0.80 | 0.63 | 0.83 | 0.92 |
 | `mul1` | 0.26 | 0.30 | 0.27 | 0.30 | 0.32 | 0.32 | 0.34 | 0.36 | 0.39 | 0.41 | 0.45 | 0.49 | 0.56 | 0.66 | 0.62 | 0.70 | 0.79 |
 | `addmul1` | 0.19 | 0.19 | 0.19 | 0.21 | 0.20 | 0.23 | 0.22 | 0.22 | 0.25 | 0.26 | 0.30 | 0.33 | 0.40 | 0.44 | 0.43 | 0.44 | 0.54 |
 | `mul` | 0.41 | 0.44 | 0.50 | 0.54 | 0.60 | 0.70 | 0.90 | 1.04 | 1.32 | 1.57 | 1.97 | 2.49 | 2.81 | 3.44 | 4.24 | 4.80 | 7.47 |
@@ -90,6 +93,8 @@ Time of MPN:
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | `add` | 63.6 ns | 67.9 ns | 69 ns | 69.8 ns | 73.5 ns | 73.9 ns | 77.1 ns | 80 ns | 87.2 ns | 93.2 ns | 105 ns | 118 ns | 146 ns | 174 ns | 228 ns | 274 ns | 485 ns |
 | `sub` | 66.9 ns | 67 ns | 67.6 ns | 69.4 ns | 72.4 ns | 73.1 ns | 75.9 ns | 80.8 ns | 87.8 ns | 95.2 ns | 110 ns | 126 ns | 159 ns | 194 ns | 261 ns | 321 ns | 581 ns |
+| `shl` | 41.8 ns | 44.6 ns | 45.3 ns | 45.7 ns | 47.9 ns | 47.9 ns | 50.6 ns | 53.4 ns | 57 ns | 61.9 ns | 70.7 ns | 80.3 ns | 101 ns | 127 ns | 158 ns | 201 ns | 345 ns |
+| `shr` | 46 ns | 46.4 ns | 48.4 ns | 49.1 ns | 50.5 ns | 50.3 ns | 52.5 ns | 53.9 ns | 58 ns | 60.9 ns | 69.5 ns | 79 ns | 96 ns | 117 ns | 144 ns | 188 ns | 313 ns |
 | `mul1` | 45.1 ns | 45.3 ns | 46.4 ns | 46.2 ns | 48.9 ns | 49 ns | 53.3 ns | 56.4 ns | 62.9 ns | 68.5 ns | 79.7 ns | 91.8 ns | 117 ns | 153 ns | 199 ns | 253 ns | 450 ns |
 | `addmul1` | 44.4 ns | 44.2 ns | 45.8 ns | 47.5 ns | 47.5 ns | 48.8 ns | 51.6 ns | 55.8 ns | 62.5 ns | 69.2 ns | 83.6 ns | 99.7 ns | 134 ns | 167 ns | 226 ns | 281 ns | 522 ns |
 | `mul` | 58 ns | 60 ns | 63.4 ns | 71.9 ns | 85.5 ns | 109 ns | 175 ns | 259 ns | 498 ns | 841 ns | 1.83 µs | 3.48 µs | 7.48 µs | 13.9 µs | 31.7 µs | 56.2 µs | 224 µs |
@@ -222,3 +227,4 @@ Times are the fastest of five runs, in the format of the tables above.
 | 2026-10-23 | `877a7a6`+ | Toom-3 and Toom-4 squares (`sqrToom`: one set of evaluations, squares for the products, the interpolations of the products), from `toom3SqrThreshold = 600` and `toom4SqrThreshold = 1000` limbs; `MPN.sqr` uses them below `sqrFFTThreshold`, now 2816 | `autosqr` 186 → 169 µs at 1024 limbs, 569 → 485 µs at 2048, 1.07 ms → 823 µs at 3072; within 2.0–2.7 of `Nat` from 512 to 65536 limbs |
 | 2026-10-23 | `7afea80`+ | Toom-6 (points `0, …, 9, ∞`, the interpolation of degree 10 generated, 130 steps in place, its proof through `extract_lets`; exact division by any odd constant, `divExact7Into`, `divExact9Into`), from `toom6Threshold = 1000` limbs; `fftThreshold` 4096 and `fftThresholdUnbal` 3072 | `toom` 979 → 915 µs at 2560 limbs, 14.2 → 12.3 ms at 16384, 99.8 → 81.3 ms at 65536; `auto` at 3072 limbs 1.28 → 1.19 ms |
 | 2026-10-23 | `a7402ca`+ | the Toom-6 square, from `toom6SqrThreshold = 1200` limbs; `mulChunked` beyond `chunkMaxSmall` only below `fftThresholdUnbal` | `toomsqr` 500 → 485 µs at 2048 limbs, 1.29 → 1.23 ms at 4096; 4000 by 1700 limbs 1.41 → 1.15 ms (4.03 → 3.26 times `Nat`) |
+| 2026-10-23 | `767df92`+ | `MPN.Bits`: `lshift`/`rshift` by `0 < s < 64` (one pass, `foldUInPlaceThen`), `shiftLeft`/`shiftRight` by any number of bits, `log2`; new rows `shl`, `shr` | `shl` 0.41–0.64 of `Nat` from 2 to 64 limbs, 345 ns at 512 (1.05); `shr` likewise, 313 ns at 512 (0.92); at one limb `Nat`'s `>>>` returns a scalar without allocating (3.46) |

@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.Linear
+public import MPN.Bits
 public import MPN.Mul.Karatsuba
 public import MPN.Sqr.Karatsuba
 
@@ -45,16 +45,6 @@ public def toom6Threshold : Nat := 1000
 
 /-! ## Building blocks -/
 
-/-- The step of `zeroInto`. -/
-@[inline, expose] public def zeroStep (n : USize) (j : USize) (_h : j < n) (_x c : UInt64) :
-    UInt64 × UInt64 :=
-  (0, c)
-
-/-- Clears the limbs of `r`. -/
-public def zeroInto (r : USlice) : UInt64Array :=
-  foldUInPlaceThen r.size (zeroStep r.size) r.array r.start
-    (r.loopBound (USize.le_iff_toNat_le.2 (Nat.le_refl _))) 0 0 fun arr _ _ => arr
-
 /-- `x₀ + j x₁ + j² x₂`, in a new array of `len` limbs. -/
 public def eval3 (x₀ x₁ x₂ : USlice) (len : USize) (j : UInt64) : UInt64Array :=
   let e := (addInto (UInt64Array.replicate len.toNat 0).toUSlice x₀).1
@@ -82,61 +72,6 @@ public def eval2 (x₀ x₁ : USlice) (len : USize) (j : UInt64) : UInt64Array :
   (addMulInto e.toUSlice x₁ j).1
 
 /-! ### Their specifications -/
-
-private theorem zero_spec (n : USize) (arr : UInt64Array) (rs : USize) (hr : LoopBound arr rs n)
-    (j : USize) (c : UInt64) :
-    (foldUInPlace n (zeroStep n) arr rs hr j c).1.size = arr.size ∧
-      (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
-        (foldUInPlace n (zeroStep n) arr rs hr j c).1[i]! = arr[i]!) ∧
-      (foldUInPlace n (zeroStep n) arr rs hr j c).1.valAt (rs.toNat + j.toNat)
-        (n.toNat - j.toNat) = 0 := by
-  induction arr, hr, j, c using foldUInPlace.induct n (zeroStep n) rs with
-  | case1 arr hr j c h p ih =>
-    rw [foldUInPlace_lt _ _ _ _ _ _ _ h]
-    have hj := USize.lt_iff_toNat_lt.1 h
-    have hj₁ := USize.toNat_add_one_of_lt h
-    have hidx := hr.toNat_add h
-    obtain ⟨ih₁, ih₂, ih₃⟩ := ih
-    simp only [p] at ih₁ ih₂ ih₃
-    rw [hj₁] at ih₂ ih₃
-    simp only [UInt64Array.size_uset] at ih₁
-    have hv := ih₂ (rs.toNat + j.toNat) (.inl (by lia))
-    rw [getElem!_uset, hidx] at hv
-    simp only [↓reduceIte] at hv
-    refine ⟨ih₁, fun i hi => ?_, ?_⟩
-    · rw [ih₂ i (by lia), getElem!_uset]
-      simp only [hidx]
-      split <;> lia
-    · obtain ⟨k, hk⟩ : ∃ k, n.toNat - j.toNat = k + 1 := ⟨n.toNat - j.toNat - 1, by lia⟩
-      rw [show n.toNat - (j.toNat + 1) = k by lia, ← Nat.add_assoc] at ih₃
-      rw [hk, UInt64Array.valAt_succ, hv, ih₃]
-      rfl
-  | case2 arr hr j c h =>
-    rw [foldUInPlace_ge _ _ _ _ _ _ _ h]
-    have : n.toNat - j.toNat = 0 := by have := USize.lt_iff_toNat_lt (a := j) (b := n); lia
-    simp [this]
-
-public theorem zeroInto_spec (r : USlice) :
-    (zeroInto r).size = r.array.size ∧
-      (∀ i, (i < r.start.toNat ∨ r.start.toNat + r.size.toNat ≤ i) →
-        (zeroInto r)[i]! = r.array[i]!) ∧
-      (zeroInto r).valAt r.start.toNat r.size.toNat = 0 := by
-  rw [zeroInto, foldUInPlaceThen_eq]
-  have := zero_spec r.size r.array r.start
-    (r.loopBound (USize.le_iff_toNat_le.2 (Nat.le_refl _))) 0 0
-  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero] at this
-  exact this
-
-public theorem valAt_replicate_zero (n lo m : Nat) :
-    (UInt64Array.replicate n 0).valAt lo m = 0 := by
-  induction m generalizing lo with
-  | zero => simp
-  | succ m ih =>
-    rw [valAt_succ, ih]
-    rw [getElem!_eq_getElem!_data, data_replicate]
-    by_cases h : lo < n
-    · simp [h]
-    · simp [h]; rfl
 
 /-- The zero array of `len` limbs, as a slice. -/
 private theorem zeros (len : USize) :

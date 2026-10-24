@@ -199,6 +199,34 @@ def checkLinear (n : Nat) : Bool :=
 
 #guard [2, 3, 5, 16, 33].all checkLinear
 
+/-! Shifts and bits -/
+
+/--
+Checks the shifts and `log2` on an `n`-limb value, written at offset 1 of a padded buffer: the
+limbs written have the right value, and the padding is unchanged.
+-/
+def checkBits (n : Nat) : Bool :=
+  let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
+  (edges n ++ [randomLimbs n 7]).all fun x =>
+    let a := (limbs n x).toUSlice
+    let ls := [1, 7, 63].all fun s =>
+      let r := UInt64Array.replicate (n + 2) pad
+      let (p, c) := MPN.lshift (inner r n) a s.toUInt64
+      let (q, d) := MPN.rshift (inner r n) a s.toUInt64
+      window p 1 n + 2 ^ (64 * n) * c.toNat == x * 2 ^ s && p[0]! == pad && p[n + 1]! == pad &&
+        window q 1 n == x / 2 ^ s && d.toNat == x % 2 ^ s && q[0]! == pad && q[n + 1]! == pad
+    let gs := [0, 1, 63, 64, 65, 128, 64 * n - 1, 64 * n + 3].all fun k =>
+      let m := k / 64 + n
+      let r := UInt64Array.replicate (m + 2) pad
+      let (p, c) := MPN.shiftLeft (inner r m) a k
+      let m' := n - k / 64
+      let q := MPN.shiftRight (inner (UInt64Array.replicate (n + 2) pad) n) a k
+      window p 1 m + 2 ^ (64 * m) * c.toNat == x * 2 ^ k && p[0]! == pad && p[m + 1]! == pad &&
+        window q 1 m' == x / 2 ^ k && q[0]! == pad && q[m' + 1]! == pad
+    ls && gs && MPN.log2 a == x.log2
+
+#guard [1, 2, 3, 5, 16, 33].all checkBits
+
 /-! Toom multiplication -/
 
 /-- Checks `mulToom` on an `m`-limb `a` and an `n`-limb `b`, in both orders. -/
