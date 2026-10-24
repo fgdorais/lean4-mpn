@@ -261,6 +261,18 @@ def checkDiv (m n : Nat) : Bool :=
       (UInt64Array.replicate n 0).toUSlice (limbs m x).toUSlice (limbs n y).toUSlice
     window q' 0 k == x / y && window r' 0 n == x % y
 
+/-- Checks `Num.divMod` on an `m`-limb `x` and an `n`-limb `y`, against `Nat`. -/
+def checkNumDiv (m n : Nat) : Bool :=
+  [randomLimbs m 41, 2 ^ (64 * m) - 1].all fun x =>
+    [randomLimbs n 42, 2 ^ (64 * n) - 1, 2 ^ (64 * (n - 1)) + 1, 2 ^ (64 * n - 1)].all fun y =>
+      let (q, r) := MPN.Num.divMod (limbs m x) (limbs n y)
+      q.toNat == x / y && r.toNat == x % y
+
+-- Below `dcThreshold`, at it, and recursing: digits of `⌊n / 2⌋` limbs and a shorter top digit,
+-- and digits that recurse once more (`1100 / 2 ≥ 512`).
+#guard [(10, 3), (300, 100), (1000, 333), (1100, 512), (2000, 1000), (700, 512),
+  (4000, 1100)].all fun (m, n) => checkNumDiv m n
+
 /-! Square root -/
 
 /-- Checks `sqrtRem` on `x` against `Nat.sqrt`. -/
@@ -272,7 +284,7 @@ def checkSqrt (x : Nat) : Bool :=
 #guard [0, 1, 2, 3, 4, 8, 15, 16, 2 ^ 63, 2 ^ 64 - 1, 2 ^ 64, 2 ^ 126, 2 ^ 128 - 1, 2 ^ 128,
   (2 ^ 64 - 1) ^ 2, (2 ^ 64 - 1) ^ 2 - 1, 3 * 2 ^ 200 + 7].all checkSqrt
 
-#guard [1, 2, 3, 4, 5, 7, 8, 13, 16, 31, 64, 100].all fun n =>
+#guard [1, 2, 3, 4, 5, 7, 8, 13, 16, 31, 64, 100, 300, 600].all fun n =>
   let x := randomLimbs n 31
   let y := randomLimbs ((n + 1) / 2) 32
   [x, x / 3, 2 ^ (64 * n) - 1, y * y, y * y - 1, y * y + 2 * y].all checkSqrt

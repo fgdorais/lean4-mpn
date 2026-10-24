@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.Num
+public import MPN.Div.DC
 
 /-!
 # Square root
@@ -444,7 +444,7 @@ private theorem sqrtRemAux_spec (N : UInt64Array) (n : Nat) (hn : 1 ≤ n) (hs :
     have hX₂v : (Num.shr X 1).toNat = Xn / 2 := by rw [Num.toNat_shr _ _ (by lia), hXv]
     generalize Num.shr X 1 = X₂ at hX₂s hX₂v ⊢
     obtain ⟨d₁, d₂⟩ := Num.toNat_divMod X₂ p.1 (by lia) (by lia)
-    obtain ⟨d₃, d₄⟩ := Num.size_divMod X₂ p.1 (by lia)
+    obtain ⟨d₃, d₄⟩ := Num.size_divMod X₂ p.1 (by lia) (by lia)
     rw [hX₂v, i₃] at d₁ d₂
     generalize Num.divMod X₂ p.1 = d at d₁ d₂ d₃ d₄ ⊢
     -- `q ≤ B`.

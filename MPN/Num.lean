@@ -11,9 +11,10 @@ public import MPN.Div.Basecase
 # Whole arrays as numbers
 
 Each function of `MPN.Num` returns a new array whose value, `UInt64Array.toNat`, is the result of
-an operation on the values of its arguments: `add`, `sub`, `mul`, `sqr`, `shl`, `shr`, `lt` and
-`divMod`, on top of the `mpn` functions. The arrays may have zero limbs on top. Algorithms with
-few allocations per call, like the square root, are written with them and proved on `Nat`.
+an operation on the values of its arguments: `add`, `sub`, `mul`, `sqr`, `shl`, `shr`, `low`,
+`lt` and `divModBase`, on top of the `mpn` functions. The arrays may have zero limbs on top.
+Algorithms with few allocations per call, like the square root and the divide-and-conquer
+division (`MPN.Div.DC`), are written with them and proved on `Nat`.
 -/
 
 open ScalarArray UInt64Array
@@ -311,16 +312,16 @@ public theorem lt_iff (a b : UInt64Array) (hU : a.size + b.size < USize.size) :
 `(a / b, a % b)`, for `0 < b`, by `divRem` on the limbs of `b` up to its top nonzero limb, which
 `log2` finds.
 -/
-public def divMod (a b : UInt64Array) : UInt64Array × UInt64Array :=
+public def divModBase (a b : UInt64Array) : UInt64Array × UInt64Array :=
   let nb := MPN.log2 b.toUSlice / 64 + 1
   if a.size < nb then (UInt64Array.replicate 0 0, a)
   else
     divRem (UInt64Array.replicate (a.size - nb + 1) 0).toUSlice
       (UInt64Array.replicate nb 0).toUSlice a.toUSlice (b.toUSlice.slice 0 nb.toUSize)
 
-public theorem size_divMod (a b : UInt64Array) (hb : b.size < USize.size) :
-    (divMod a b).1.size ≤ a.size + 1 ∧ (divMod a b).2.size ≤ max a.size b.size := by
-  unfold divMod
+public theorem size_divModBase (a b : UInt64Array) (hb : b.size < USize.size) :
+    (divModBase a b).1.size ≤ a.size + 1 ∧ (divModBase a b).2.size ≤ max a.size b.size := by
+  unfold divModBase
   dsimp only
   split
   · simp; lia
@@ -338,9 +339,10 @@ public theorem size_divMod (a b : UInt64Array) (hb : b.size < USize.size) :
         lia
       lia
 
-public theorem toNat_divMod (a b : UInt64Array) (hb : 0 < b.toNat)
+public theorem toNat_divModBase (a b : UInt64Array) (hb : 0 < b.toNat)
     (hU : a.size + b.size + 1 < USize.size) :
-    (divMod a b).1.toNat = a.toNat / b.toNat ∧ (divMod a b).2.toNat = a.toNat % b.toNat := by
+    (divModBase a b).1.toNat = a.toNat / b.toNat ∧
+      (divModBase a b).2.toNat = a.toNat % b.toNat := by
   obtain ⟨b₁, b₂, b₃⟩ := toUSlice_spec b (by lia)
   obtain ⟨a₁, a₂, a₃⟩ := toUSlice_spec a (by lia)
   have hL : MPN.log2 b.toUSlice = _root_.Nat.log2 b.toNat := by rw [log2_eq, b₃]
@@ -358,7 +360,7 @@ public theorem toNat_divMod (a b : UInt64Array) (hb : 0 < b.toNat)
     refine Nat.le_of_not_lt fun h => ?_
     have := Nat.pow_le_pow_right (show 0 < 2 by decide) (show 64 * b.size ≤ 64 * (L / 64) by lia)
     lia
-  unfold divMod
+  unfold divModBase
   dsimp only
   rw [hL]
   split

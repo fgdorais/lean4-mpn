@@ -46,7 +46,8 @@ so five runs make the tables reliable. Within one run, distrust a row whose spre
 | `add`, `sub` | `MPN.add`, `MPN.sub` | `n` and `n` limbs (`sub`: `n + 1` and `n`) | `addN`/`subN`, then `add1`/`sub1`, on `USlice`s with `USize` indices |
 | `shl`, `shr` | `MPN.lshift`, `MPN.rshift` | `n` limbs, by 13 bits | one pass, `USize` indices; `Nat`'s `<<<` and `>>>` |
 | `div1` | `MPN.divRem1` | `n` limbs by a limb | one pass from the top, `UInt64.div2` (128 by 64 bits) per limb |
-| `div` | `MPN.divRem` | `2 n` by `n` limbs | schoolbook (Algorithm D), normalized; `Nat` computes the quotient only |
+| `div` | `MPN.Num.divMod` | `2 n` by `n` limbs | divide and conquer (`divNorm`) from `dcThreshold = 512` limbs in the divisor, schoolbook below; `Nat` computes the quotient only |
+| `sbdiv` | `MPN.divRem` | `2 n` by `n` limbs | schoolbook (Algorithm D), normalized |
 | `sqrt` | `MPN.sqrtRem` | `n` limbs | Zimmermann's Karatsuba square root on `MPN.Num`; `Nat.sqrt` is Lean's Newton iteration on `Nat`, not GMP's `mpz_sqrt` |
 | `mul1` | `MPN.mul1` | `n` limbs times a limb | one pass, `USize` indices |
 | `addmul1` | `MPN.addMul1` | `n` limbs times a limb, added to `n` limbs | one pass, `USize` indices |
@@ -169,6 +170,21 @@ Before the split, the products whose smaller operand was below the Toom shapes w
 schoolbook method: 5–6 times `Nat` at `n` by 256 or 320 limbs, 10.8 at 1536 by 384. The one
 cell left above 4, 6144 by 1536, is as fast either way.
 
+### Large sizes, division
+
+From `bench sbdiv div sqrt 512 1024 2048 4096 8192`, the fastest of three runs, on 2026-10-24. The
+sizes are those of the divisor (`div`, `sbdiv`: `2 n` by `n` limbs) or of the operand (`sqrt`).
+
+| op | 512 | 1024 | 2048 | 4096 | 8192 |
+|---|---:|---:|---:|---:|---:|
+| `sbdiv` | 242 µs (4.70) | 904 µs (5.99) | 3.55 ms (8.74) | 14.3 ms (13.49) | 56.6 ms (23.98) |
+| `div` | 234 µs (4.51) | 690 µs (4.57) | 1.96 ms (5.04) | 5.49 ms (5.57) | 14.9 ms (6.29) |
+| `sqrt` | 91.8 µs (0.41) | 243 µs (0.29) | 685 µs (0.28) | 1.97 ms (0.29) | 5.34 ms (0.31) |
+
+The ratio to `Nat` is in parentheses; for `sqrt` it is to Lean's `Nat.sqrt`, not to GMP. The
+divide-and-conquer division costs `O(M(n) log n)`, and its ratio grows slowly with the size, where
+GMP switches to division by Newton's iteration.
+
 ### Large sizes, squares
 
 From `bench ksqr toomsqr fftsqr autosqr 512 1024 2048 3072 4096 8192 16384 32768 65536`, the
@@ -238,3 +254,4 @@ Times are the fastest of five runs, in the format of the tables above.
 | 2026-10-23 | `a7402ca`+ | the Toom-6 square, from `toom6SqrThreshold = 1200` limbs; `mulChunked` beyond `chunkMaxSmall` only below `fftThresholdUnbal` | `toomsqr` 500 → 485 µs at 2048 limbs, 1.29 → 1.23 ms at 4096; 4000 by 1700 limbs 1.41 → 1.15 ms (4.03 → 3.26 times `Nat`) |
 | 2026-10-23 | `767df92`+ | `MPN.Bits`: `lshift`/`rshift` by `0 < s < 64` (one pass, `foldUInPlaceThen`), `shiftLeft`/`shiftRight` by any number of bits, `log2`; new rows `shl`, `shr` | `shl` 0.41–0.64 of `Nat` from 2 to 64 limbs, 345 ns at 512 (1.05); `shr` likewise, 313 ns at 512 (0.92); at one limb `Nat`'s `>>>` returns a scalar without allocating (3.46) |
 | 2026-10-24 | `0568ff8`+ | `MPN.divRem1`, schoolbook `MPN.divRem`, `MPN.Num` and `MPN.sqrtRem` (Zimmermann); new rows `div1`, `div`, `sqrt` | `div1` 0.40–0.98 of `Nat` up to 32 limbs, 1.64 at 512; `div` 2.9–5.9 (5.19 at 512, 9.4 at 2048 by 1024: no divide-and-conquer yet); `sqrt` 39 µs at 256 limbs, 89 µs at 512 (0.40 of Lean's `Nat.sqrt`) |
+| 2026-10-24 | `0e975af`+ | divide-and-conquer division (`MPN.Num.divNorm`, Burnikel and Ziegler, the remainder of the estimate reused as in GMP) from `dcThreshold = 512` limbs, in `Num.divMod` and so in `sqrtRem`; new row `sbdiv` (large sizes above) | `div` vs `sbdiv` at `2 n` by `n`: 690 vs 904 µs at 1024 limbs, 1.96 vs 3.55 ms at 2048, 14.9 vs 56.6 ms at 8192 (6.29 vs 23.98 times `Nat`); `sqrt` 1.04 → 0.685 ms at 2048 limbs |
