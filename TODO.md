@@ -165,7 +165,7 @@ block of the division, and `topSize` usually stops at the first limb.
 - [x] **Toom-4 squaring** (`toom4Sqr`): seven squares with the evaluations and interpolation of
   `toom44`, from 576 limbs (`sqrToom4`, tuned on Zen 3, below Toom-3 squaring's 656–672). `sqr`
   1024 limbs: 116 → 108 µs, 2048: 335 → 307 µs, 4096: 935 → 836 µs (−10%); `bsqrt` 4096: −3%.
-- [x] **FFT multiplication and squaring** (`Mul.FFT`, `Mul.Fermat`, `Mul.FFTMul`; GMP's
+- [x] **FFT multiplication and squaring** (`FFT.Roots`, `Mul.Fermat`, `Mul.FFTMul`; GMP's
   `mpn_mul_fft`): Schönhage–Strassen modulo `F = 2ᴺ + 1` with `2ᵏ` pieces, `ω = 2^(2N / 2ᵏ)`, a
   recursive radix-2 transform and pointwise products by the dispatcher, all proved: finite sums
   and the inversion of the transform modulo `F` (the geometric sums of length `2ᵏ` are products of

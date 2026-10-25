@@ -10,6 +10,7 @@ public import MPN.Sum
 public import MPN.NatMod
 public import MPN.ListIndex
 public import MPN.Poly
+public import MPN.WordGcd
 public import MPN.Assemble
 public import MPN.UInt
 public import MPN.Basic
@@ -26,7 +27,7 @@ public import MPN.Mul.DivExact
 public import MPN.Mul.Toom3
 public import MPN.Mul.Toom4
 public import MPN.Mul.Toom6
-public import MPN.Mul.FFT
+public import MPN.FFT.Roots
 public import MPN.Mul.Fermat
 public import MPN.Mul.FFTMul
 public import MPN.Config

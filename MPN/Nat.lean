@@ -13,6 +13,7 @@ public import MPN.Div
 public import MPN.Bits
 public import MPN.Decimal
 public import MPN.MulSubMul
+public import MPN.WordGcd
 public import MPN.Generic.HGCD
 public import MPN.Generic.Radix
 import Std.Data.String.ToNat
@@ -1327,88 +1328,6 @@ public theorem le_iff_toNat_le {x y : MPN.Nat} : x ≤ y ↔ x.toNat ≤ y.toNat
 
 /-! ## Greatest common divisor -/
 
-/-- Euclid's algorithm on words. -/
-def wordGcd (a b : UInt64) : UInt64 :=
-  if _h : b = 0 then a else wordGcd b (a % b)
-termination_by b.toNat
-decreasing_by
-  have : b.toNat ≠ 0 := fun h' => _h (UInt64.toNat_inj.1 (by simpa using h'))
-  rw [UInt64.toNat_mod]
-  exact Nat.mod_lt _ (by lia)
-
-private theorem toNat_wordGcd (a b : UInt64) :
-    (wordGcd a b).toNat = _root_.Nat.gcd a.toNat b.toNat := by
-  induction a, b using wordGcd.induct with
-  | case1 a => rw [wordGcd]; simp
-  | case2 a b h ih =>
-    rw [wordGcd, dite_eq_right h, ih, UInt64.toNat_mod, Nat.gcd_comm a.toNat b.toNat,
-      Nat.gcd_rec b.toNat a.toNat, Nat.gcd_comm]
-
-/-- A matrix of determinant `±1` keeps the greatest common divisor. -/
-private theorem gcd_unimodular (a b : Nat) (A B C D : Int)
-    (h : A * D - B * C = 1 ∨ A * D - B * C = -1) :
-    _root_.Nat.gcd (A * a + B * b).natAbs (C * a + D * b).natAbs = _root_.Nat.gcd a b := by
-  apply Nat.dvd_antisymm
-  · -- The gcd of the combinations divides `a` and `b`, which the inverse matrix recovers.
-    have hx :
-        (_root_.Nat.gcd (A * a + B * b).natAbs (C * a + D * b).natAbs : Int) ∣ A * a + B * b :=
-      Int.ofNat_dvd_left.2 (Nat.gcd_dvd_left _ _)
-    have hy :
-        (_root_.Nat.gcd (A * a + B * b).natAbs (C * a + D * b).natAbs : Int) ∣ C * a + D * b :=
-      Int.ofNat_dvd_left.2 (Nat.gcd_dvd_right _ _)
-    have ha : D * (A * a + B * b) - B * (C * a + D * b) = (A * D - B * C) * a := by grind
-    have hb : A * (C * a + D * b) - C * (A * a + B * b) = (A * D - B * C) * b := by grind
-    have hda := Int.dvd_sub (Int.dvd_trans hx (Int.dvd_mul_left D _))
-      (Int.dvd_trans hy (Int.dvd_mul_left B _))
-    have hdb := Int.dvd_sub (Int.dvd_trans hy (Int.dvd_mul_left A _))
-      (Int.dvd_trans hx (Int.dvd_mul_left C _))
-    rw [ha] at hda
-    rw [hb] at hdb
-    refine Nat.dvd_gcd ?_ ?_
-    · rcases h with h | h <;> rw [h] at hda <;> simp at hda <;> exact Int.natCast_dvd_natCast.1 hda
-    · rcases h with h | h <;> rw [h] at hdb <;> simp at hdb <;> exact Int.natCast_dvd_natCast.1 hdb
-  · have ga : (_root_.Nat.gcd a b : Int) ∣ (a : Int) :=
-      Int.natCast_dvd_natCast.2 (Nat.gcd_dvd_left a b)
-    have gb : (_root_.Nat.gcd a b : Int) ∣ (b : Int) :=
-      Int.natCast_dvd_natCast.2 (Nat.gcd_dvd_right a b)
-    refine Nat.dvd_gcd ?_ ?_
-    · exact Int.ofNat_dvd_left.1 (Int.dvd_add (Int.dvd_trans ga (Int.dvd_mul_left A _))
-        (Int.dvd_trans gb (Int.dvd_mul_left B _)))
-    · exact Int.ofNat_dvd_left.1 (Int.dvd_add (Int.dvd_trans ga (Int.dvd_mul_left C _))
-        (Int.dvd_trans gb (Int.dvd_mul_left D _)))
-
-/-- The cofactors of a run of Lehmer's steps, as one object with unboxed fields. -/
-structure Cofactors where
-  A : Int64
-  B : Int64
-  C : Int64
-  D : Int64
-
-/--
-Euclid's algorithm on the leading words `x ≥ y` of two numbers, with the cofactors `A`, `B`, `C`,
-`D` of the steps so far, like GMP's `hgcd2` on one word: it stops when the remainder falls below
-`2³¹`, half the bits of the words, which keeps the cofactors below `2³¹`, as `mulSubMul` needs, or
-when Jebelean's condition fails, which makes the quotients those of the full numbers. A quotient of
-`1`, the most common, costs a comparison rather than a division. It computes in `Int64`, since `Int`
-boxes values from `2³¹`; nothing is proved about it, since `lehmerStep` checks the cofactors it
-returns and `gcd` takes a step of Euclid's algorithm when they do not apply.
--/
-def lehmerSteps (x y A B C D : Int64) : Nat → Cofactors
-  | 0 => ⟨A, B, C, D⟩
-  | f + 1 =>
-    if y < 0x80000000 then ⟨A, B, C, D⟩
-    else
-      let q : Int64 := if x < y + y then 1 else x / y
-      let r := x - q * y
-      let C' := A - q * C
-      let D' := B - q * D
-      -- Jebelean's condition: the quotient is that of the full numbers when the remainder and
-      -- the difference of the remainders exceed the cofactors and their differences.
-      if r < C'.abs ∨ r < D'.abs ∨ y - r < (C' - C).abs ∨ y - r < (D' - D).abs ∨
-          0x80000000 ≤ C'.abs ∨ 0x80000000 ≤ D'.abs then
-        ⟨A, B, C, D⟩
-      else lehmerSteps y r C D C' D' f
-
 /--
 The numbers `|A x + B y|` and `|C x + D y|` of a step of Lehmer's algorithm with the cofactors
 `A`, `B`, `C`, `D`, when the step is valid: the cofactors are below `2³¹`, their determinant is
@@ -1494,7 +1413,7 @@ private theorem lehmerStep_gcd (x y : MPN.Nat) (A B C D : Int) (p : MPN.Nat × M
         rw [toNat_mulSubMul_natAbs _ _ _ _ A B ha hb hA' hB' hu,
           toNat_mulSubMul_natAbs _ _ _ _ D C hd hc' hD' hC' hv, toNat_limbs, toNat_limbs,
           Int.add_comm (D * _)]
-        exact gcd_unimodular _ _ A B C D (hdet' (by rw [hA', hD']; simp)
+        exact NatOps.gcd_unimodular _ _ A B C D (hdet' (by rw [hA', hD']; simp)
           (by rw [hB', hC']; simp [Int.neg_mul_neg]))
       · exact absurd h (by simp)
     · split at h
@@ -1513,16 +1432,11 @@ private theorem lehmerStep_gcd (x y : MPN.Nat) (A B C D : Int) (p : MPN.Nat × M
           rw [toNat_mulSubMul_natAbs _ _ _ _ B A hb ha hB' hA' hu,
             toNat_mulSubMul_natAbs _ _ _ _ C D hc' hd hC' hD' hv, toNat_limbs, toNat_limbs,
             Int.add_comm (B * _)]
-          exact gcd_unimodular _ _ A B C D
+          exact NatOps.gcd_unimodular _ _ A B C D
             (hdet' (by rw [hA', hD']; simp [Int.neg_mul_neg]) (by rw [hB', hC']; simp))
         · exact absurd h (by simp)
       · exact absurd h (by simp)
   · exact absurd h (by simp)
-
-/-- Two words, as one object with unboxed fields. -/
-structure LeadWords where
-  x : Int64
-  y : Int64
 
 /--
 The leading 62 bits of `a`, normalized so that its top bit is set, and the bits of `b` at the same

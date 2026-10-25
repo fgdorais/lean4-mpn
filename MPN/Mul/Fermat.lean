@@ -8,7 +8,7 @@ public import MPN.Add
 public import MPN.Sub
 public import MPN.Mul.Limb
 public import MPN.Cmp
-public import MPN.Mul.FFT
+public import MPN.FFT.Roots
 
 /-!
 # Residues modulo `2ᴺ + 1`
