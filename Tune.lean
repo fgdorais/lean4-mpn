@@ -407,12 +407,9 @@ def normDiv (div : (u v : UInt32Array.Slice) → 2 ≤ v.size → UInt32Array)
   let v := vf.toSlice.slice 0 (topSize vf)
   if h : 2 ≤ v.size then div (mulRow a f) v h else a.copy
 
-/-- One level of division by blocks over `divRemBasecase`. -/
-def divDCStep (u v : UInt32Array.Slice) (h : 2 ≤ v.size) : UInt32Array :=
-  if h4 : 4 ≤ v.size then
-    (divRemDC config u v h4 fun u' v' _ hn' => divRemBasecase u' v' hn').1
-  else
-    (divRemBasecase u v h).1
+/-- One level of division by blocks (`dcGen`, `main`'s `NatOps.divNorm`) over the schoolbook one. -/
+def divDCStep (u v : UInt32Array.Slice) (_ : 2 ≤ v.size) : UInt32Array :=
+  (dcGen v.size u.copy v).1
 
 /-- Tunes `divDC`: where one level of division by blocks beats `divRemBasecase`, at `2 n / n`. -/
 def tuneDivDC (log : Bool) : IO Nat := medianOf 3 do

@@ -36,7 +36,6 @@ public import MPN.Sqr.Basecase
 public import MPN.Sqr
 public import MPN.Div.Limb
 public import MPN.Div.Basecase
-public import MPN.Div.DC
 public import MPN.Div.Two
 public import MPN.Div
 public import MPN.Generic.Ops

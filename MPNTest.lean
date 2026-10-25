@@ -381,14 +381,12 @@ def sqrFFTConfig : Config := { sqrBasecase := 2, sqrKaratsuba := 4, sqrToom3 := 
   let r := add (add z₀ (shiftLimbs mid k)) (shiftLimbs z₂ (2 * k))
   r == mul a b && toNat r == m * n
 
--- Division by blocks from 4 limbs, over Algorithm D, against `Nat`: random operands, all-ones
--- operands, and shapes from one block up.
-def dcConfig : Config := { divDC := 4 }
-
+-- Division by blocks (`main`'s `NatOps.divNorm`) from 4 limbs, over Algorithm D, against `Nat`:
+-- random operands, all-ones operands, and shapes from one block up.
 def dcCheck (x y : Nat) : Bool :=
   let v : UInt32Array.Slice := ofNat y
   if h : 2 ≤ v.size then
-    let p := divRemWith dcConfig (ofNat x) v h
+    let p := divRemNormWith 4 (ofNat x : UInt32Array.Slice).copy v h
     toNat p.1 == x / y && toNat p.2 == x % y
   else true
 
