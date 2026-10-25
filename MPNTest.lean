@@ -135,10 +135,10 @@ def checkKaratsuba (m n : Nat) : Bool :=
   let r := UInt64Array.replicate (m + n + 2) pad
   [(randomLimbs m 1, randomLimbs n 2), (2 ^ (64 * m) - 1, 2 ^ (64 * n) - 1),
     (2 ^ (64 * m) - 1, 2 ^ (64 * (n - 1)))].all fun (x, y) =>
-    let s := MPN.mulKaratsuba (inner r (m + n)) (limbs m x).toUSlice (limbs n y).toUSlice
+    let s := MPN.mulKaratsuba MPN.config (inner r (m + n)) (limbs m x).toUSlice (limbs n y).toUSlice
     window s 1 (m + n) == x * y && s[0]! == pad && s[m + n + 1]! == pad
 
--- Around `karatsubaThreshold = 64`: one level, two levels (130 splits into 65), unbalanced
+-- Around `mulKaratsuba = 64`: one level, two levels (130 splits into 65), unbalanced
 -- operands below and above the split point, and below the threshold.
 #guard [(64, 64), (65, 64), (100, 77), (127, 65), (130, 130), (130, 60), (257, 256), (63, 63),
   (50, 10)].all fun (m, n) => checkKaratsuba m n
@@ -161,17 +161,17 @@ def checkSqrKaratsuba (n : Nat) : Bool :=
   let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
   let r := UInt64Array.replicate (2 * n + 2) pad
   [randomLimbs n 1, randomLimbs n 7, 2 ^ (64 * n) - 1, 2 ^ (64 * n - 1)].all fun x =>
-    let s := MPN.sqrKaratsuba (inner r (2 * n)) (limbs n x).toUSlice
+    let s := MPN.sqrKaratsuba MPN.config (inner r (2 * n)) (limbs n x).toUSlice
     window s 1 (2 * n) == x * x && s[0]! == pad && s[2 * n + 1]! == pad
 
--- Around `sqrKaratsubaThreshold = 96`: below, one level, two levels, odd sizes.
+-- Around `sqrKaratsuba = 96`: below, one level, two levels, odd sizes.
 #guard [64, 95, 96, 97, 127, 192, 193, 257, 400].all checkSqrKaratsuba
 
 -- A window too short for the square: both leave it unchanged.
 #guard
   let r := UInt64Array.replicate 5 7
   let a := (limbs 2 (2 ^ 100)).toUSlice
-  MPN.sqrBasecase (inner r 3) a == r && MPN.sqrKaratsuba (inner r 3) a == r
+  MPN.sqrBasecase (inner r 3) a == r && MPN.sqrKaratsuba MPN.config (inner r 3) a == r
 
 /-! Linear passes for the Toom methods -/
 
@@ -277,7 +277,7 @@ def checkNumDiv (m n : Nat) : Bool :=
       let (q, r) := MPN.Num.divMod (limbs m x) (limbs n y)
       q.toNat == x / y && r.toNat == x % y
 
--- Below `dcThreshold`, at it, and recursing: digits of `⌊n / 2⌋` limbs and a shorter top digit,
+-- Below `divDC`, at it, and recursing: digits of `⌊n / 2⌋` limbs and a shorter top digit,
 -- and digits that recurse once more (`1100 / 2 ≥ 512`).
 #guard [(10, 3), (300, 100), (1000, 333), (1100, 512), (2000, 1000), (700, 512),
   (4000, 1100)].all fun (m, n) => checkNumDiv m n
@@ -366,8 +366,8 @@ def checkToom (m n : Nat) : Bool :=
   let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
   let r := UInt64Array.replicate (m + n + 2) pad
   [(randomLimbs m 1, randomLimbs n 2), (2 ^ (64 * m) - 1, 2 ^ (64 * n) - 1)].all fun (x, y) =>
-    let s := MPN.mulToom (inner r (m + n)) (limbs m x).toUSlice (limbs n y).toUSlice
-    let t := MPN.mulToom (inner r (m + n)) (limbs n y).toUSlice (limbs m x).toUSlice
+    let s := MPN.mulToom MPN.config (inner r (m + n)) (limbs m x).toUSlice (limbs n y).toUSlice
+    let t := MPN.mulToom MPN.config (inner r (m + n)) (limbs n y).toUSlice (limbs m x).toUSlice
     window s 1 (m + n) == x * y && window t 1 (m + n) == x * y &&
       s[0]! == pad && s[m + n + 1]! == pad
 
@@ -380,7 +380,7 @@ def checkToom (m n : Nat) : Bool :=
 #guard [(700, 700), (800, 610), (900, 650), (1000, 600), (2400, 2400)].all
   fun (m, n) => checkToom m n
 
--- Toom-6 (`5/6 < n/m`), at and above `toom6Threshold`, and recursing into Toom-4.
+-- Toom-6 (`5/6 < n/m`), at and above `mulToom6`, and recursing into Toom-4.
 #guard [(1500, 1500), (1700, 1500), (3000, 2600), (6000, 6000)].all fun (m, n) => checkToom m n
 
 /-! FFT residues -/
@@ -469,8 +469,8 @@ def checkFFT (m n k : Nat) : Bool :=
   let p := MPN.FFT.fftParams (m + n) k
   decide (MPN.FFT.FFTCheck (inner r (m + n)) (limbs m 1).toUSlice (limbs n 1).toUSlice k p.1 p.2) &&
   [(randomLimbs m 1, randomLimbs n 2), (2 ^ (64 * m) - 1, 2 ^ (64 * n) - 1)].all fun (x, y) =>
-    let s := MPN.FFT.fftMul (inner r (m + n)) (limbs m x).toUSlice (limbs n y).toUSlice k
-    let t := MPN.FFT.fftMul (inner r (m + n)) (limbs n y).toUSlice (limbs m x).toUSlice k
+    let s := MPN.FFT.fftMul MPN.config (inner r (m + n)) (limbs m x).toUSlice (limbs n y).toUSlice k
+    let t := MPN.FFT.fftMul MPN.config (inner r (m + n)) (limbs n y).toUSlice (limbs m x).toUSlice k
     window s 1 (m + n) == x * y && window t 1 (m + n) == x * y &&
       s[0]! == pad && s[m + n + 1]! == pad
 
@@ -482,18 +482,18 @@ def checkMPNMul (m n : Nat) : Bool :=
   let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
   let r := UInt64Array.replicate (m + n + 2) pad
   [(randomLimbs m 1, randomLimbs n 2), (2 ^ (64 * m) - 1, 2 ^ (64 * n) - 1)].all fun (x, y) =>
-    let s := MPN.mul (inner r (m + n)) (limbs m x).toUSlice (limbs n y).toUSlice
-    let t := MPN.mul (inner r (m + n)) (limbs n y).toUSlice (limbs m x).toUSlice
+    let s := MPN.mul MPN.config (inner r (m + n)) (limbs m x).toUSlice (limbs n y).toUSlice
+    let t := MPN.mul MPN.config (inner r (m + n)) (limbs n y).toUSlice (limbs m x).toUSlice
     window s 1 (m + n) == x * y && window t 1 (m + n) == x * y &&
       s[0]! == pad && s[m + n + 1]! == pad
 
--- Below and above `fftThreshold`, and an unbalanced pair on each side of `fftMinSmall`.
+-- Below and above `mulFFT`, and an unbalanced pair on each side of `mulFFTMin`.
 #guard [(4095, 4095), (4096, 4000), (3072, 2048), (3072, 2049), (5000, 330), (5000, 300),
   (4, 3)].all
   fun (m, n) => checkMPNMul m n
 
--- Unbalanced products, split into chunks of the smaller operand: around `chunkMinSmall`, around
--- twice the smaller operand, a last chunk of one limb, and around `chunkMaxSmall`.
+-- Unbalanced products, split into chunks of the smaller operand: around `mulUnbalanced`, around
+-- twice the smaller operand, a last chunk of one limb, and around `mulChunkMax`.
 #guard [(1000, 96), (1000, 95), (1000, 500), (999, 500), (1001, 100), (3071, 1500), (5000, 1023),
   (5000, 1024)].all
   fun (m, n) => checkMPNMul m n
@@ -506,12 +506,12 @@ def checkMPNSqr (n k : Nat) : Bool :=
   decide (MPN.FFT.FFTCheck (inner r (2 * n)) (limbs n 1).toUSlice (limbs n 1).toUSlice k p.1
     p.2) &&
   [randomLimbs n 1, 2 ^ (64 * n) - 1].all fun x =>
-    let s := MPN.FFT.fftSqr (inner r (2 * n)) (limbs n x).toUSlice k
-    let t := MPN.sqr (inner r (2 * n)) (limbs n x).toUSlice
+    let s := MPN.FFT.fftSqr MPN.config (inner r (2 * n)) (limbs n x).toUSlice k
+    let t := MPN.sqr MPN.config (inner r (2 * n)) (limbs n x).toUSlice
     window s 1 (2 * n) == x * x && window t 1 (2 * n) == x * x &&
       s[0]! == pad && s[2 * n + 1]! == pad && t[0]! == pad && t[2 * n + 1]! == pad
 
--- `MPN.sqr` on each side of `sqrFFTThreshold`.
+-- `MPN.sqr` on each side of `sqrFFT`.
 #guard [(1, 1), (7, 2), (100, 4), (300, 6), (2047, 8), (2815, 8), (2816, 8)].all
   fun (n, k) => checkMPNSqr n k
 
@@ -520,9 +520,9 @@ def checkSqrToom (n : Nat) : Bool :=
   let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
   let r := UInt64Array.replicate (2 * n + 2) pad
   [randomLimbs n 1, 2 ^ (64 * n) - 1].all fun x =>
-    let s := MPN.sqrToom (inner r (2 * n)) (limbs n x).toUSlice
+    let s := MPN.sqrToom MPN.config (inner r (2 * n)) (limbs n x).toUSlice
     window s 1 (2 * n) == x * x && s[0]! == pad && s[2 * n + 1]! == pad
 
--- Around `toom3SqrThreshold`, `toom4SqrThreshold` and `toom6SqrThreshold`, and recursion.
+-- Around `sqrToom3`, `sqrToom4` and `sqrToom6`, and recursion.
 #guard [599, 600, 999, 1000, 1199, 1200, 2800, 7300].all checkSqrToom
 

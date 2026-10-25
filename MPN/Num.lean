@@ -152,7 +152,7 @@ where
 /-- `a b`, in `a.size + b.size` limbs. -/
 public def mul (a b : UInt64Array) : UInt64Array :=
   if a.size = 0 ∨ b.size = 0 then UInt64Array.replicate 0 0
-  else MPN.mul (UInt64Array.replicate (a.size + b.size) 0).toUSlice a.toUSlice b.toUSlice
+  else MPN.mul config (UInt64Array.replicate (a.size + b.size) 0).toUSlice a.toUSlice b.toUSlice
 
 public theorem toNat_mul (a b : UInt64Array) (hU : a.size + b.size < USize.size) :
     (mul a b).toNat = a.toNat * b.toNat := by
@@ -168,7 +168,7 @@ public theorem toNat_mul (a b : UInt64Array) (hU : a.size + b.size < USize.size)
     obtain ⟨z₁, z₂, -⟩ := zeros_spec (a.size + b.size) hU
     obtain ⟨a₁, a₂, a₃⟩ := toUSlice_spec a (by lia)
     obtain ⟨b₁, b₂, b₃⟩ := toUSlice_spec b (by lia)
-    have hm := valAt_mul (UInt64Array.replicate (a.size + b.size) 0).toUSlice a.toUSlice
+    have hm := valAt_mul config (UInt64Array.replicate (a.size + b.size) 0).toUSlice a.toUSlice
       b.toUSlice (USize.lt_iff_toNat_lt.2 (by rw [a₂]; simp; lia))
       (USize.lt_iff_toNat_lt.2 (by rw [b₂]; simp; lia)) (by rw [a₂, b₂, z₂]; exact Nat.le_refl _)
     rw [z₁, a₂, b₂, a₃, b₃] at hm
@@ -181,7 +181,7 @@ public theorem size_mul_le (a b : UInt64Array) : (mul a b).size ≤ a.size + b.s
 /-- `a²`, in `2 a.size` limbs. -/
 public def sqr (a : UInt64Array) : UInt64Array :=
   if a.size = 0 then UInt64Array.replicate 0 0
-  else MPN.sqr (UInt64Array.replicate (2 * a.size) 0).toUSlice a.toUSlice
+  else MPN.sqr config (UInt64Array.replicate (2 * a.size) 0).toUSlice a.toUSlice
 
 public theorem toNat_sqr (a : UInt64Array) (hU : 2 * a.size < USize.size) :
     (sqr a).toNat = a.toNat * a.toNat := by
@@ -193,7 +193,7 @@ public theorem toNat_sqr (a : UInt64Array) (hU : 2 * a.size < USize.size) :
   · rename_i h
     obtain ⟨z₁, z₂, -⟩ := zeros_spec (2 * a.size) hU
     obtain ⟨a₁, a₂, a₃⟩ := toUSlice_spec a (by lia)
-    have hm := valAt_sqr (UInt64Array.replicate (2 * a.size) 0).toUSlice a.toUSlice
+    have hm := valAt_sqr config (UInt64Array.replicate (2 * a.size) 0).toUSlice a.toUSlice
       (USize.lt_iff_toNat_lt.2 (by rw [a₂]; simp; lia)) (by rw [a₂, z₂]; exact Nat.le_refl _)
     rw [z₁, a₂, a₃] at hm
     rw [toNat_eq_valAt]

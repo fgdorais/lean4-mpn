@@ -7,6 +7,7 @@ module
 public import MPN.AddSub
 public import MPN.Mul.Basecase
 public import MPN.Mul.KaratsubaMid
+public import MPN.Config
 
 /-!
 # Karatsuba multiplication
@@ -20,7 +21,7 @@ public import MPN.Mul.KaratsubaMid
 * `(a₀ + a₁) (b₀ + b₁)` into a new array, and adds `z₁ = a₀ b₁ + a₁ b₀`, which is that minus
   `z₀` and `z₂`, to `r` from limb `k` on in one pass (`karatsubaMid`),
 
-all three products recursively. Below `karatsubaThreshold` limbs, or when `b.size ≤ k`, it is
+all three products recursively. Below `cfg.mulKaratsuba` limbs, or when `b.size ≤ k`, it is
 `mulBasecase`. It requires `0 < b.size` and `a.size + b.size ≤ r.size`, and leaves `r` unchanged
 otherwise.
 -/
@@ -29,8 +30,10 @@ open ScalarArray UInt64Array
 
 namespace MPN
 
-/-- The number of limbs of `a` from which `mulKaratsuba` splits its operands. -/
-public def karatsubaThreshold : USize := 64
+/-- The thresholds of the library, from the `mpn.*` options it is compiled with. -/
+public def config : Config := mpn_config%
+
+variable (cfg : Config)
 
 /-! ## Sums of halves -/
 
@@ -72,18 +75,10 @@ public theorem valAt_sumLimbs (a b : USlice) (hb : b.size ≤ a.size) :
 
 /-! ## The product -/
 
-/-- The recursion needs at least four limbs, so that `⌈m / 2⌉ + 1 < m`. -/
-private theorem four_le_threshold : 4 ≤ karatsubaThreshold.toNat := by
-  have : 4294967296 ≤ USize.size := by cases USize.size_eq <;> lia
-  rw [karatsubaThreshold, USize.toNat_ofNat,
-    Nat.mod_eq_of_lt (by simp only [USize.size] at this; lia)]
-  decide
-
 /-- The split point of `mulKaratsuba`, `⌈m / 2⌉`. -/
-private theorem toNat_split {m : USize} (h : karatsubaThreshold ≤ m) :
+private theorem toNat_split {cfg : Config} {m : USize} (hm : cfg.mulKaratsuba ≤ m.toNat) :
     (m - m / 2).toNat = m.toNat - m.toNat / 2 ∧ 4 ≤ m.toNat := by
-  have hm := USize.le_iff_toNat_le.1 h
-  have := four_le_threshold
+  have := cfg.four_le_mulKaratsuba
   have : 4294967296 ≤ USize.size := by cases USize.size_eq <;> lia
   have hd : (m / 2).toNat = m.toNat / 2 := by
     rw [USize.toNat_div, USize.toNat_ofNat,
@@ -93,11 +88,11 @@ private theorem toNat_split {m : USize} (h : karatsubaThreshold ≤ m) :
 
 /--
 Writes the `a.size + b.size` limbs of `a * b` into `r`, by Karatsuba's method above
-`karatsubaThreshold` and by `mulBasecase` below. It requires `0 < b.size` and
+`cfg.mulKaratsuba` and by `mulBasecase` below. It requires `0 < b.size` and
 `a.size + b.size ≤ r.size`, and leaves `r` unchanged otherwise.
 -/
-public def mulKaratsuba (r a b : USlice) : UInt64Array :=
-  if h : karatsubaThreshold ≤ a.size ∧ b.size ≤ a.size ∧ a.size - a.size / 2 < b.size ∧
+public def mulKaratsuba (cfg : Config) (r a b : USlice) : UInt64Array :=
+  if h : cfg.mulKaratsuba ≤ a.size.toNat ∧ b.size ≤ a.size ∧ a.size - a.size / 2 < b.size ∧
       a.size ≤ r.size ∧ b.size ≤ r.size - a.size then
     let k := a.size - a.size / 2
     let n := a.size + b.size
@@ -107,9 +102,9 @@ public def mulKaratsuba (r a b : USlice) : UInt64Array :=
     let b₁ := b.slice k b.size
     let sa := sumLimbs a₀ a₁
     let sb := sumLimbs b₀ b₁
-    let r₁ := mulKaratsuba (r.slice 0 (k + k)) a₀ b₀
-    let r₂ := mulKaratsuba ((r₁.uslice r.start r.stop).slice (k + k) n) a₁ b₁
-    let t₁ := mulKaratsuba (UInt64Array.replicate (k + k + 2).toNat 0).toUSlice sa.toUSlice
+    let r₁ := mulKaratsuba cfg (r.slice 0 (k + k)) a₀ b₀
+    let r₂ := mulKaratsuba cfg ((r₁.uslice r.start r.stop).slice (k + k) n) a₁ b₁
+    let t₁ := mulKaratsuba cfg (UInt64Array.replicate (k + k + 2).toNat 0).toUSlice sa.toUSlice
       sb.toUSlice
     karatsubaMid r₂ r.start k n t₁
   else
@@ -144,11 +139,11 @@ public theorem toNat_split_slices (a : USlice) {k : USize} (hk : k.toNat ≤ a.s
   rw [UInt64Array.valAt_add]
 
 private theorem mulKaratsuba_spec (N : Nat) : ∀ (r a b : USlice), a.size.toNat = N →
-    (mulKaratsuba r a b).size = r.array.size ∧
+    (mulKaratsuba cfg r a b).size = r.array.size ∧
       (∀ i, (i < r.start.toNat ∨ r.start.toNat + a.size.toNat + b.size.toNat ≤ i) →
-        (mulKaratsuba r a b)[i]! = r.array[i]!) ∧
+        (mulKaratsuba cfg r a b)[i]! = r.array[i]!) ∧
       (0 < b.size → a.size.toNat + b.size.toNat ≤ r.size.toNat →
-        (mulKaratsuba r a b).valAt r.start.toNat (a.size.toNat + b.size.toNat) =
+        (mulKaratsuba cfg r a b).valAt r.start.toNat (a.size.toNat + b.size.toNat) =
           a.toNat * b.toNat) := by
   induction N using Nat.strongRecOn with
   | _ N ih =>
@@ -196,7 +191,7 @@ private theorem mulKaratsuba_spec (N : Nat) : ∀ (r a b : USlice), a.size.toNat
     rw [hW₀, ha₀, hb₀] at h1u h1v
     rw [hW₀'] at h1v
     replace h1v := h1v (by rw [USize.lt_iff_toNat_lt, hb₀, USize.toNat_zero]; lia) (Nat.le_refl _)
-    generalize mulKaratsuba (r.slice 0 (k + k)) (a.slice 0 k) (b.slice 0 k) = r₁ at *
+    generalize mulKaratsuba cfg (r.slice 0 (k + k)) (a.slice 0 k) (b.slice 0 k) = r₁ at *
     -- `z₂` into the limbs above them.
     obtain ⟨hU₁s, hU₁z, hU₁a⟩ := uslice_same r r₁ h1s
     have hW₁ := (r₁.uslice r.start r.stop).start_slice (i := k + k) (j := a.size + b.size)
@@ -213,7 +208,7 @@ private theorem mulKaratsuba_spec (N : Nat) : ∀ (r a b : USlice), a.size.toNat
     rw [hW₁, ha₁, hb₁] at h2u h2v
     rw [hW₁'] at h2v
     replace h2v := h2v (by rw [USize.lt_iff_toNat_lt, hb₁, USize.toNat_zero]; lia) (by lia)
-    generalize mulKaratsuba ((r₁.uslice r.start r.stop).slice (k + k) (a.size + b.size))
+    generalize mulKaratsuba cfg ((r₁.uslice r.start r.stop).slice (k + k) (a.size + b.size))
       (a.slice k a.size) (b.slice k b.size) = r₂ at *
     -- The sums of the halves.
     have hsa := valAt_sumLimbs (a.slice 0 k) (a.slice k a.size)
@@ -245,7 +240,7 @@ private theorem mulKaratsuba_spec (N : Nat) : ∀ (r a b : USlice), a.size.toNat
     rw [start_toUSlice, USize.toNat_zero, hsaU, hsbU, hTU] at h3v
     replace h3v := h3v (by rw [USize.lt_iff_toNat_lt, hsbU, USize.toNat_zero]; lia) (by lia)
     rw [hsaN, hsbN, show k.toNat + 1 + (k.toNat + 1) = k.toNat + k.toNat + 2 by lia] at h3v
-    generalize mulKaratsuba (UInt64Array.replicate (k + k + 2).toNat 0).toUSlice sa.toUSlice
+    generalize mulKaratsuba cfg (UInt64Array.replicate (k + k + 2).toNat 0).toUSlice sa.toUSlice
       sb.toUSlice = t₁ at *
     -- The middle term, added to `r` in one pass.
     have hOK : MidOK r₂ r.start k (a.size + b.size) t₁ :=
@@ -284,18 +279,19 @@ private theorem mulKaratsuba_spec (N : Nat) : ∀ (r a b : USlice), a.size.toNat
       fun hb hr => valAt_mulBasecase r a b hb hr⟩
 
 @[simp] public theorem size_mulKaratsuba (r a b : USlice) :
-    (mulKaratsuba r a b).size = r.array.size :=
-  (mulKaratsuba_spec _ r a b rfl).1
+    (mulKaratsuba cfg r a b).size = r.array.size :=
+  (mulKaratsuba_spec cfg _ r a b rfl).1
 
 /-- `mulKaratsuba` leaves the limbs of `r` outside the ones it writes unchanged. -/
 public theorem getElem!_mulKaratsuba (r a b : USlice) (i : Nat)
     (hi : i < r.start.toNat ∨ r.start.toNat + a.size.toNat + b.size.toNat ≤ i) :
-    (mulKaratsuba r a b)[i]! = r.array[i]! :=
-  (mulKaratsuba_spec _ r a b rfl).2.1 i hi
+    (mulKaratsuba cfg r a b)[i]! = r.array[i]! :=
+  (mulKaratsuba_spec cfg _ r a b rfl).2.1 i hi
 
 public theorem valAt_mulKaratsuba (r a b : USlice) (hb : 0 < b.size)
     (hr : a.size.toNat + b.size.toNat ≤ r.size.toNat) :
-    (mulKaratsuba r a b).valAt r.start.toNat (a.size.toNat + b.size.toNat) = a.toNat * b.toNat :=
-  (mulKaratsuba_spec _ r a b rfl).2.2 hb hr
+    (mulKaratsuba cfg r a b).valAt r.start.toNat (a.size.toNat + b.size.toNat) =
+      a.toNat * b.toNat :=
+  (mulKaratsuba_spec cfg _ r a b rfl).2.2 hb hr
 
 end MPN

@@ -456,20 +456,14 @@ public theorem ofDecimalWith_eq (parseDC : Nat) (s : String) :
       exact toNat_finish_foldl _ (String.isNat_iff.1 h).2.1
   · rw [ofDecimalWith, ite_eq_right h, String.toNat?_eq_none (by simpa using h), Option.map_none]
 
-/-- The number of limbs from which `Num.toDecimal` uses divide and conquer. -/
-public def strDC : Nat := 40
-
-/-- The number of limbs' worth of digits from which `Num.ofDecimal?` uses divide and conquer. -/
-public def parseDC : Nat := 512
-
 /-- The decimal digits of `a`, like `Nat.repr a.toNat`. -/
-public def Num.toDecimal (a : UInt64Array) : String := toDecimalWith strDC a
+public def Num.toDecimal (a : UInt64Array) : String := toDecimalWith config.strDC a
 
 @[simp] public theorem Num.toDecimal_eq (a : UInt64Array) : Num.toDecimal a = Nat.repr a.toNat :=
   toDecimalWith_eq ..
 
 /-- The number that a string of decimal digits denotes, like `String.toNat?`. -/
-public def Num.ofDecimal? (s : String) : Option UInt64Array := ofDecimalWith parseDC s
+public def Num.ofDecimal? (s : String) : Option UInt64Array := ofDecimalWith config.parseDC s
 
 @[simp] public theorem Num.ofDecimal?_eq (s : String) :
     (Num.ofDecimal? s).map UInt64Array.toNat = s.toNat? :=

@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN.UInt
+public import MPN.Config
 public import MPN.UIntArray
 public import MPN.AddSub
 public import MPN.Linear

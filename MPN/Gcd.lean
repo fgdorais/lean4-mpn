@@ -22,8 +22,9 @@ public import MPN.WordGcd
   determinant `±1` keeps the greatest common divisor.
 * Euclid's algorithm on pairs of words (`gcd2`, like GMP's `mpn_gcd_22`) once both numbers have at
   most two limbs.
-* Half-gcd (`NatOps.hgcdReduce`) from `gcdHalf` limbs, whose base case up to `hgcdBase` limbs is
-  the same steps with their matrix kept up to date in one pass per entry (`baseW`, `mulAddMul`).
+* Half-gcd (`NatOps.hgcdReduce`) from `config.gcdHalf` limbs, whose base case up to `hgcdBase`
+  limbs is the same steps with their matrix kept up to date in one pass per entry (`baseW`,
+  `mulAddMul`).
 -/
 
 open ScalarArray UInt64Array
@@ -772,11 +773,8 @@ public theorem toNat_gcdWith (half : Nat) (x y : UInt64Array) :
   | case3 x y h =>
     rw [gcdWith, ite_eq_right h, toNat_gcdLehmer]
 
-/-- The number of limbs of the smaller number from which `gcd` uses half-gcd. -/
-public def gcdHalf : Nat := 1024
-
 /-- `Nat.gcd a.toNat b.toNat`. -/
-public def Num.gcd (a b : UInt64Array) : UInt64Array := gcdWith gcdHalf a b
+public def Num.gcd (a b : UInt64Array) : UInt64Array := gcdWith config.gcdHalf a b
 
 @[simp] public theorem Num.toNat_gcd (a b : UInt64Array) :
     (Num.gcd a b).toNat = Nat.gcd a.toNat b.toNat :=

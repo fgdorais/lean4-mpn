@@ -264,7 +264,7 @@ def main (args : List String) : IO Unit := do
       | "kara" =>
         row noNat op n
           (time (fun (x y : UInt64Array) =>
-            MPN.mulKaratsuba (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
+            MPN.mulKaratsuba MPN.config (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
               y.toUSlice) checkArr a b)
           (time (· * ·) checkNat na nb)
       | "sqr" =>
@@ -276,13 +276,13 @@ def main (args : List String) : IO Unit := do
       | "ksqr" =>
         row noNat op n
           (time (fun (x _ : UInt64Array) =>
-            MPN.sqrKaratsuba (UInt64Array.replicate (2 * x.size) 0).toUSlice x.toUSlice)
+            MPN.sqrKaratsuba MPN.config (UInt64Array.replicate (2 * x.size) 0).toUSlice x.toUSlice)
             checkArr a a)
           (time (fun x _ => x * x) checkNat na na)
       | "toom" =>
         row noNat op n
           (time (fun (x y : UInt64Array) =>
-            MPN.mulToom (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
+            MPN.mulToom MPN.config (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
               y.toUSlice) checkArr a b)
           (time (· * ·) checkNat na nb)
       | "kara2" =>
@@ -290,56 +290,56 @@ def main (args : List String) : IO Unit := do
         let h := sample (n / 2) 2
         row noNat op n
           (time (fun (x y : UInt64Array) =>
-            MPN.mulKaratsuba (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
+            MPN.mulKaratsuba MPN.config (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
               y.toUSlice) checkArr a h)
           (time (· * ·) checkNat na (toNat h))
       | "toom2" =>
         let h := sample (n / 2) 2
         row noNat op n
           (time (fun (x y : UInt64Array) =>
-            MPN.mulToom (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
+            MPN.mulToom MPN.config (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
               y.toUSlice) checkArr a h)
           (time (· * ·) checkNat na (toNat h))
       | "fft" =>
         row noNat op n
           (time (fun (x y : UInt64Array) =>
-            MPN.FFT.fftMul (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
+            MPN.FFT.fftMul MPN.config (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
               y.toUSlice (MPN.FFT.fftK (x.size + y.size))) checkArr a b)
           (time (· * ·) checkNat na nb)
       | "fftsqr" =>
         row noNat op n
           (time (fun (x _ : UInt64Array) =>
-            MPN.FFT.fftSqr (UInt64Array.replicate (2 * x.size) 0).toUSlice x.toUSlice
+            MPN.FFT.fftSqr MPN.config (UInt64Array.replicate (2 * x.size) 0).toUSlice x.toUSlice
               (MPN.FFT.fftK (2 * x.size))) checkArr a a)
           (time (fun x _ => x * x) checkNat na na)
       | "toomsqr" =>
         row noNat op n
           (time (fun (x _ : UInt64Array) =>
-            MPN.sqrToom (UInt64Array.replicate (2 * x.size) 0).toUSlice x.toUSlice)
+            MPN.sqrToom MPN.config (UInt64Array.replicate (2 * x.size) 0).toUSlice x.toUSlice)
             checkArr a a)
           (time (fun x _ => x * x) checkNat na na)
       | "autosqr" =>
         row noNat op n
           (time (fun (x _ : UInt64Array) =>
-            MPN.sqr (UInt64Array.replicate (2 * x.size) 0).toUSlice x.toUSlice) checkArr a a)
+            MPN.sqr MPN.config (UInt64Array.replicate (2 * x.size) 0).toUSlice x.toUSlice) checkArr a a)
           (time (fun x _ => x * x) checkNat na na)
       | "auto" =>
         row noNat op n
           (time (fun (x y : UInt64Array) =>
-            MPN.mul (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice y.toUSlice)
+            MPN.mul MPN.config (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice y.toUSlice)
             checkArr a b)
           (time (· * ·) checkNat na nb)
       | "fft2" =>
         let h := sample (n / 2) 2
         row noNat op n
           (time (fun (x y : UInt64Array) =>
-            MPN.FFT.fftMul (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
+            MPN.FFT.fftMul MPN.config (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
               y.toUSlice (MPN.FFT.fftK (x.size + y.size))) checkArr a h)
           (time (· * ·) checkNat na (toNat h))
       | "mulref" =>
         row noNat op n (time refMul checkArr a b) (time (· * ·) checkNat na nb)
       | _ =>
-        -- `fftb<s>`, `toomb<s>`: `n` by `s` limbs, for tuning `fftMinSmall`.
+        -- `fftb<s>`, `toomb<s>`: `n` by `s` limbs, for tuning `mulFFTMin`.
         -- `auto2`, `auto4`, `auto8`: `MPN.mul` on `n` by `n / d` limbs; `autobS`: on `n` by `S`.
         let sh : Option Nat := if op == "auto2" then some (n / 2) else if op == "auto4" then
           some (n / 4) else if op == "auto8" then some (n / 8) else if op.startsWith "autob" then
@@ -348,7 +348,7 @@ def main (args : List String) : IO Unit := do
           let h := sample sz 2
           row noNat op n
             (time (fun (x y : UInt64Array) =>
-              MPN.mul (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice y.toUSlice)
+              MPN.mul MPN.config (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice y.toUSlice)
               checkArr a h)
             (time (· * ·) checkNat na (toNat h))
         else
@@ -363,7 +363,7 @@ def main (args : List String) : IO Unit := do
           let k := (op.drop 3).toString.toNat!
           row noNat op n
             (time (fun (x _ : UInt64Array) =>
-              MPN.FFT.fftSqr (UInt64Array.replicate (2 * x.size) 0).toUSlice x.toUSlice k)
+              MPN.FFT.fftSqr MPN.config (UInt64Array.replicate (2 * x.size) 0).toUSlice x.toUSlice k)
               checkArr a a)
             (time (fun x _ => x * x) checkNat na na)
         else
@@ -374,10 +374,10 @@ def main (args : List String) : IO Unit := do
           row noNat op n
             (time (fun (x y : UInt64Array) =>
               if op.startsWith "fftb" then
-                MPN.FFT.fftMul (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
+                MPN.FFT.fftMul MPN.config (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
                   y.toUSlice (MPN.FFT.fftK (x.size + y.size))
               else
-                MPN.mulToom (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
+                MPN.mulToom MPN.config (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
                   y.toUSlice) checkArr a h)
             (time (· * ·) checkNat na (toNat h))
         else
@@ -387,7 +387,7 @@ def main (args : List String) : IO Unit := do
           if op.startsWith "fft" then
             row noNat op n
               (time (fun (x y : UInt64Array) =>
-                MPN.FFT.fftMul (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
+                MPN.FFT.fftMul MPN.config (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
                   y.toUSlice k) checkArr a b)
               (time (· * ·) checkNat na nb)
           else throw <| .userError s!"unknown operation {op}"

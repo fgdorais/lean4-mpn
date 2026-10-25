@@ -47,7 +47,7 @@ so five runs make the tables reliable. Within one run, distrust a row whose spre
 | `add`, `sub` | `MPN.add`, `MPN.sub` | `n` and `n` limbs (`sub`: `n + 1` and `n`) | `addN`/`subN`, then `add1`/`sub1`, on `USlice`s with `USize` indices |
 | `shl`, `shr` | `MPN.lshift`, `MPN.rshift` | `n` limbs, by 13 bits | one pass, `USize` indices; `Nat`'s `<<<` and `>>>` |
 | `div1` | `MPN.divRem1` | `n` limbs by a limb | one pass from the top, `UInt64.div2` (128 by 64 bits) per limb |
-| `div` | `MPN.Num.divMod` | `2 n` by `n` limbs | divide and conquer (`divNorm`) from `dcThreshold = 512` limbs in the divisor, schoolbook below; `Nat` computes the quotient only |
+| `div` | `MPN.Num.divMod` | `2 n` by `n` limbs | divide and conquer (`divNorm`) from `divDC = 512` limbs in the divisor, schoolbook below; `Nat` computes the quotient only |
 | `sbdiv` | `MPN.divRem` | `2 n` by `n` limbs | schoolbook (Algorithm D), normalized |
 | `sqrt` | `MPN.sqrtRem` | `n` limbs | Zimmermann's Karatsuba square root on `MPN.Num`; `Nat.sqrt` is Lean's Newton iteration on `Nat`, not GMP's `mpz_sqrt` |
 | `mulmod` | `MPN.Num.mulModB` | `n` by `n` limbs modulo `β^n - 1` | the FFT with the pieces wrapping around (`fftMulModAt`), `2ᵏ` pieces for `k = fftK n`; `Nat` multiplies |
@@ -57,23 +57,23 @@ so five runs make the tables reliable. Within one run, distrust a row whose spre
 | `mul1` | `MPN.mul1` | `n` limbs times a limb | one pass, `USize` indices |
 | `addmul1` | `MPN.addMul1` | `n` limbs times a limb, added to `n` limbs | one pass, `USize` indices |
 | `mul` | `MPN.mulBasecase` | `n` by `n` limbs | schoolbook by rows: `mul1`, then `addMul1` with a continuation, `USize` indices |
-| `kara` | `MPN.mulKaratsuba` | `n` by `n` limbs | Karatsuba from 64 limbs (`karatsubaThreshold`), `mulBasecase` below |
-| `toom` | `MPN.mulToom` | `n` by `n` limbs | Toom-6 from 1000 limbs (`toom6Threshold`), Toom-4 from 600 (`toom4Threshold`), Toom-3 from 384 (`toom3Threshold`), `mulKaratsuba` below |
+| `kara` | `MPN.mulKaratsuba` | `n` by `n` limbs | Karatsuba from 64 limbs (`mulKaratsuba`), `mulBasecase` below |
+| `toom` | `MPN.mulToom` | `n` by `n` limbs | Toom-6 from 1000 limbs (`mulToom6`), Toom-4 from 600 (`mulToom4`), Toom-3 from 384 (`mulToom3`), `mulKaratsuba` below |
 | `kara2` | `MPN.mulKaratsuba` | `n` by `n / 2` limbs | as `kara` |
 | `toom2` | `MPN.mulToom` | `n` by `n / 2` limbs | Toom-3 by 2 or Toom-4 by 2 from 384 limbs in the smaller operand, `mulKaratsuba` below |
 | `fft` | `MPN.FFT.fftMul` | `n` by `n` limbs | Schönhage–Strassen with `2ᵏ` pieces, `k = fftK (2 n)`, the pointwise products by `mulToom` |
 | `fft2` | `MPN.FFT.fftMul` | `n` by `n / 2` limbs | as `fft` |
 | `fftK` | `MPN.FFT.fftMul` | `n` by `n` limbs | as `fft` with `2ᴷ` pieces, for example `fft9`, for tuning `fftK` |
-| `auto` | `MPN.mul` | `n` by `n` limbs | the FFT from `fftThreshold = 4096` limbs in the larger operand (`fftThresholdUnbal = 3072` for shapes of `3 : 2` or more) with `fftMinSmall = 320` in the smaller, `mulToom` below |
+| `auto` | `MPN.mul` | `n` by `n` limbs | the FFT from `mulFFT = 4096` limbs in the larger operand (`mulFFTUnbal = 3072` for shapes of `3 : 2` or more) with `mulFFTMin = 320` in the smaller, `mulToom` below |
 | `auto2`, `auto4`, `auto8` | `MPN.mul` | `n` by `n / 2`, `n / 4`, `n / 8` limbs | as `auto`, with the unbalanced products split into pieces |
 | `autobS` | `MPN.mul` | `n` by `S` limbs, for example `autob256` | as `auto2` |
-| `fftbS`, `toombS` | `MPN.FFT.fftMul`, `MPN.mulToom` | `n` by `S` limbs, for example `fftb256` | for tuning `fftMinSmall` |
+| `fftbS`, `toombS` | `MPN.FFT.fftMul`, `MPN.mulToom` | `n` by `S` limbs, for example `fftb256` | for tuning `mulFFTMin` |
 | `fftsqr` | `MPN.FFT.fftSqr` | `n` limbs | one forward transform, the pointwise squares by `sqrKaratsuba`, `k = fftK (2 n)` |
 | `fsqK` | `MPN.FFT.fftSqr` | `n` limbs | as `fftsqr` with `2ᴷ` pieces, for example `fsq9` |
-| `toomsqr` | `MPN.sqrToom` | `n` limbs | the Toom-6 square from 1200 limbs (`toom6SqrThreshold`), the Toom-4 square from 1000 (`toom4SqrThreshold`), the Toom-3 square from 600 (`toom3SqrThreshold`), `sqrKaratsuba` below |
-| `autosqr` | `MPN.sqr` | `n` limbs | the FFT from `sqrFFTThreshold = 2816` limbs, `sqrToom` below |
+| `toomsqr` | `MPN.sqrToom` | `n` limbs | the Toom-6 square from 1200 limbs (`sqrToom6`), the Toom-4 square from 1000 (`sqrToom4`), the Toom-3 square from 600 (`sqrToom3`), `sqrKaratsuba` below |
+| `autosqr` | `MPN.sqr` | `n` limbs | the FFT from `sqrFFT = 2816` limbs, `sqrToom` below |
 | `sqr` | `MPN.sqrBasecase` | `n` limbs | the cross products once by rows (`mul1`, `addMul1`), then doubled with the diagonal in one pass |
-| `ksqr` | `MPN.sqrKaratsuba` | `n` limbs | Karatsuba with three squares from 96 limbs (`sqrKaratsubaThreshold`), `sqrBasecase` below |
+| `ksqr` | `MPN.sqrKaratsuba` | `n` limbs | Karatsuba with three squares from 96 limbs (`sqrKaratsuba`), `sqrBasecase` below |
 | `comba` | `MPN.mulComba` | `n` by `n` limbs | schoolbook by columns into a three-word accumulator, `USize` indices |
 | `mulref` | `Bench.refMul` | `n` by `n` limbs | schoolbook by rows, a hand-written loop with `Nat` indices and the arithmetic of `addMul1`; not part of the library, kept as a control since its code does not change |
 
@@ -239,31 +239,31 @@ fastest of three runs, on 2026-10-25 (`5b34dcf`).
   `4ᵏ ≥ 10 T` is within 6% of the best everywhere (at 4096 limbs per operand, `k = 9` where 8 is
   best). For squares (`fsq6` to `fsq11`) it is the best from 8192 limbs and within 4% below.
 - Toom-4 and Toom-4 by 3 beat Toom-3 by 5–9% from 1024 limbs, more above (the FFT takes over
-  there); `toom4Threshold` between 384 and 1000 limbs makes no difference beyond ±2%, and is 600.
-- Toom-6 beats Toom-4 by 3–8% from 1536 limbs, with `toom6Threshold` from 1000 to 2200 limbs
+  there); `mulToom4` between 384 and 1000 limbs makes no difference beyond ±2%, and is 600.
+- Toom-6 beats Toom-4 by 3–8% from 1536 limbs, with `mulToom6` from 1000 to 2200 limbs
   within ±1% of each other; it is 1000.
 - With Toom-6, the FFT ties `toom` at 4096 limbs per operand, balanced, but passes `toom2` at 3072
-  by 1536, hence `fftThreshold = 4096` limbs in the larger operand and `fftThresholdUnbal = 3072`
+  by 1536, hence `mulFFT = 4096` limbs in the larger operand and `mulFFTUnbal = 3072`
   when the operands differ by `3 : 2` or more (it was 3072 for both with Toom-4, and 5120 limbs
   in all before).
 - With `S` limbs in the smaller operand, below 384, `mulToom` is the schoolbook method, about
   3.5 µs per limb of `S` at 4096 limbs in the other and 14 µs at 16384, while the FFT costs what
   its total does (0.9 ms, 3.6 ms). They cross at `S` ≈ 260 for 4096 and 16384 limbs and 326 for
-  65536 (`fftbS`, `toombS`), hence `fftMinSmall = 320`.
+  65536 (`fftbS`, `toombS`), hence `mulFFTMin = 320`.
 - Unbalanced products are split when the larger operand has at least twice the limbs of the
-  smaller, which has at least `chunkMinSmall = 96`: pieces of the size of the smaller, each by
+  smaller, which has at least `mulUnbalanced = 96`: pieces of the size of the smaller, each by
   `mulBal`. With 1536 limbs or more in the smaller operand, one FFT on the whole product beats
   one per piece by 10–20% (`autobS` against `fftbS`), and they tie at 1024: hence
-  `chunkMaxSmall = 1024` when the larger operand is in the range of the FFT.
+  `mulChunkMax = 1024` when the larger operand is in the range of the FFT.
 - The Toom-3 square passes `ksqr` at 600 to 768 limbs (2–3% slower at 512, 6–14% faster from
-  1024), hence `toom3SqrThreshold = 600`; the Toom-4 square adds 6–10% at 1024, 1536, 3072 and
+  1024), hence `sqrToom3 = 600`; the Toom-4 square adds 6–10% at 1024, 1536, 3072 and
   4096 limbs with a threshold of 700 or 1000, and is 1000. `fftsqr` passes `toomsqr` at 2816
-  limbs, hence `sqrFFTThreshold = 2816` (it was 2048, against `ksqr`).
+  limbs, hence `sqrFFT = 2816` (it was 2048, against `ksqr`).
 - The Toom-6 square gains 0–5% on the Toom-4 square (3% at 2048 limbs, 5% at 4096), with
-  `toom6SqrThreshold` from 1200 to 2400 within noise; it is 1200, and `sqrFFTThreshold` stays.
+  `sqrToom6` from 1200 to 2400 within noise; it is 1200, and `sqrFFT` stays.
 - A product whose larger operand has twice the limbs of the smaller is always unbalanced for the
-  FFT, which wins those from `fftThresholdUnbal = 3072` limbs: the pieces of `mulChunked` beyond
-  `chunkMaxSmall` stop there (4000 by 1700 limbs 1.41 → 1.15 ms).
+  FFT, which wins those from `mulFFTUnbal = 3072` limbs: the pieces of `mulChunked` beyond
+  `mulChunkMax` stop there (4000 by 1700 limbs 1.41 → 1.15 ms).
 
 ## History
 
@@ -302,3 +302,4 @@ Times are the fastest of five runs, in the format of the tables above.
 | 2026-10-25 | `5b34dcf`+ | all tables regenerated on lean4-scalar-arrays `49cf1b1` (five runs of the default sizes, three of each large-size section) | within 8% of `e985b32` everywhere except the squares at 65536 limbs, where only `Nat` moved (`autosqr` 2.20 → 2.02 with the same 26.7 ms) |
 | 2026-10-25 | `140f314`+ | Karatsuba's middle term in one pass (`karatsubaMid`, from `main32`'s `addDiffInto`): limb `r[k + i] + t[i] - z₀[i] - z₂[i]` with a carry between `-2` and `1` (its high word from `UInt64.addDiffh`, a `__uint128_t` sum), written into `t` with lean4-scalar-arrays' slice fold, then copied into `r` with `copySlice`; it replaces two `subInto` and an `addInto`, for `mulKaratsuba` and `sqrKaratsuba` | from three alternating runs against `5b34dcf`: `kara` 5–7% faster from 128 to 4096 limbs (1024: 287 → 266 µs), `ksqr` 4–7%, `toom`, `toomsqr`, `auto`, `autosqr` 3–7% from 128 to 2048 limbs; unchanged at 4096, where the FFT takes over. Tables not regenerated |
 | 2026-10-25 | `98b3367`+ | the square root by `main`'s generic Zimmermann recursion (`NatOps.sqrtRemAux`) over `ops64`, with `sqrt2` on two limbs as its base; `NatOps.sqr` (`Num.sqr` in `ops64`) for the square of the quotient and the radix powers; `trimA` pops zero top limbs in place instead of copying them away, for every operation of `ops64` | from three alternating runs against `140f314`: `sqrt` 9–16% faster from 2 to 64 limbs, 2–4% from 1024; `gcd` 23–27% faster from 4 to 256 limbs, 7% at 4096; `str` 8–13% from 64 limbs, `parse` 2–8%; `div` within ±2.5%. Tables not regenerated |
+| 2026-10-25 | `03b1884`+ | the thresholds as `MPN.Config` (as on `main32`), set by the build options of the lakefile; the dispatchers (`mulKaratsuba`, `sqrKaratsuba`, `mulToom`, `sqrToom`, the FFT, `MPN.mul`, `MPN.sqr`) take a `Config` and compare `Nat` thresholds; `lake exe tune` | from three alternating runs against `03b1884`: within ±1% from 16 limbs on `mul`, `sqr`, `div`, `gcd`, `str`, `sqrt`; `mul` 1–3 ns slower at 3 and 4 limbs (+3–5%), where `comba`, unchanged, moves by ±4–7% between the two builds. Defaults unchanged; two runs of `tune` on Zen 3 agree on all but the Toom squares (`sqrToom3` 864 and 480, `sqrToom4` 1152 and 672) |

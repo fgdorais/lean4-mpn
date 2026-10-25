@@ -25,6 +25,8 @@ open ScalarArray UInt64Array
 
 namespace MPN.FFT
 
+variable (cfg : Config)
+
 /-! ## Slices at `Nat` offsets -/
 
 /-- The limbs `o` to `o + len - 1` of `arr`. -/
@@ -339,22 +341,23 @@ public theorem reduceAt_spec (arr : UInt64Array) (n d : Nat) (P : UInt64Array)
 The pointwise products of windows `p` to `p + cnt - 1` of the blocks at `oA` and `oB`, into the
 first, through the array `P` of `2 n + 2` limbs.
 -/
-public def pointLoop (n oA oB : Nat) : UInt64Array → UInt64Array → Nat → Nat → UInt64Array
+public def pointLoop (cfg : Config) (n oA oB : Nat) :
+    UInt64Array → UInt64Array → Nat → Nat → UInt64Array
   | arr, _, _, 0 => arr
   | arr, P, p, cnt + 1 =>
-    let P := mulToom P.toUSlice (sl arr (oA + p * (n + 1)) (n + 1))
+    let P := mulToom cfg P.toUSlice (sl arr (oA + p * (n + 1)) (n + 1))
       (sl arr (oB + p * (n + 1)) (n + 1))
-    pointLoop n oA oB (reduceAt arr n (oA + p * (n + 1)) P) P (p + 1) cnt
+    pointLoop cfg n oA oB (reduceAt arr n (oA + p * (n + 1)) P) P (p + 1) cnt
 
 public theorem pointLoop_spec (n oA oB : Nat) (hn : 1 ≤ n) (cnt : Nat) :
     ∀ arr P p, P.size = 2 * n + 2 → P.size < USize.size → arr.size < USize.size →
       oA + (p + cnt) * (n + 1) ≤ oB → oB + (p + cnt) * (n + 1) ≤ arr.size →
       (∀ q, p ≤ q → q < p + cnt → coef arr n oA q < fermat n ∧ coef arr n oB q < fermat n) →
-      (pointLoop n oA oB arr P p cnt).size = arr.size ∧
+      (pointLoop cfg n oA oB arr P p cnt).size = arr.size ∧
       (∀ j, (j < oA + p * (n + 1) ∨ oA + (p + cnt) * (n + 1) ≤ j) →
-        (pointLoop n oA oB arr P p cnt)[j]! = arr[j]!) ∧
+        (pointLoop cfg n oA oB arr P p cnt)[j]! = arr[j]!) ∧
       (∀ q, p ≤ q → q < p + cnt →
-        coef (pointLoop n oA oB arr P p cnt) n oA q =
+        coef (pointLoop cfg n oA oB arr P p cnt) n oA q =
           coef arr n oA q * coef arr n oB q % fermat n) := by
   induction cnt with
   | zero =>
@@ -371,15 +374,15 @@ public theorem pointLoop_spec (n oA oB : Nat) (hn : 1 ≤ n) (cnt : Nat) :
       USize.lt_iff_toNat_lt.2 (by rw [x₃, USize.toNat_zero]; lia)
     have hy₀ : 0 < (sl arr (oB + p * (n + 1)) (n + 1)).size :=
       USize.lt_iff_toNat_lt.2 (by rw [y₃, USize.toNat_zero]; lia)
-    have m₁ := size_mulToom P.toUSlice (sl arr (oA + p * (n + 1)) (n + 1))
+    have m₁ := size_mulToom cfg P.toUSlice (sl arr (oA + p * (n + 1)) (n + 1))
       (sl arr (oB + p * (n + 1)) (n + 1))
-    have m₂ := valAt_mulToom P.toUSlice (sl arr (oA + p * (n + 1)) (n + 1))
+    have m₂ := valAt_mulToom cfg P.toUSlice (sl arr (oA + p * (n + 1)) (n + 1))
       (sl arr (oB + p * (n + 1)) (n + 1)) hx₀ hy₀ (by rw [x₃, y₃, hPs]; lia)
     rw [x₃, y₃, x₄, y₄, start_toUSlice, USize.toNat_zero, show n + 1 + (n + 1) = 2 * n + 2 by lia]
       at m₂
     rw [array_toUSlice] at m₁
     rw [pointLoop]
-    generalize mulToom P.toUSlice (sl arr (oA + p * (n + 1)) (n + 1))
+    generalize mulToom cfg P.toUSlice (sl arr (oA + p * (n + 1)) (n + 1))
       (sl arr (oB + p * (n + 1)) (n + 1)) = P' at *
     obtain ⟨hvA, hvB⟩ := hv p (Nat.le_refl _) (by lia)
     simp only [coef, win, fermat] at hvA hvB
@@ -400,7 +403,7 @@ public theorem pointLoop_spec (n oA oB : Nat) (hn : 1 ≤ n) (cnt : Nat) :
     · rw [i₂ j (by rw [Nat.add_mul, Nat.one_mul]; lia), r₂ j (by lia)]
     · by_cases e : q = p
       · subst e
-        have : coef (pointLoop n oA oB a₁ P' (q + 1) cnt) n oA q = coef a₁ n oA q :=
+        have : coef (pointLoop cfg n oA oB a₁ P' (q + 1) cnt) n oA q = coef a₁ n oA q :=
           win_congr fun j _ _ => i₂ j (by lia)
         rw [this]
         exact r₃.trans (by rw [m₂])
@@ -410,21 +413,22 @@ public theorem pointLoop_spec (n oA oB : Nat) (hn : 1 ≤ n) (cnt : Nat) :
 The pointwise squares of windows `p` to `p + cnt - 1` of the block at `oA`, through the array `P`
 of `2 n + 2` limbs.
 -/
-public def pointSqrLoop (n oA : Nat) : UInt64Array → UInt64Array → Nat → Nat → UInt64Array
+public def pointSqrLoop (cfg : Config) (n oA : Nat) :
+    UInt64Array → UInt64Array → Nat → Nat → UInt64Array
   | arr, _, _, 0 => arr
   | arr, P, p, cnt + 1 =>
-    let P := sqrKaratsuba P.toUSlice (sl arr (oA + p * (n + 1)) (n + 1))
-    pointSqrLoop n oA (reduceAt arr n (oA + p * (n + 1)) P) P (p + 1) cnt
+    let P := sqrKaratsuba cfg P.toUSlice (sl arr (oA + p * (n + 1)) (n + 1))
+    pointSqrLoop cfg n oA (reduceAt arr n (oA + p * (n + 1)) P) P (p + 1) cnt
 
 public theorem pointSqrLoop_spec (n oA : Nat) (hn : 1 ≤ n) (cnt : Nat) :
     ∀ arr P p, P.size = 2 * n + 2 → P.size < USize.size → arr.size < USize.size →
       oA + (p + cnt) * (n + 1) ≤ arr.size →
       (∀ q, p ≤ q → q < p + cnt → coef arr n oA q < fermat n) →
-      (pointSqrLoop n oA arr P p cnt).size = arr.size ∧
+      (pointSqrLoop cfg n oA arr P p cnt).size = arr.size ∧
       (∀ j, (j < oA + p * (n + 1) ∨ oA + (p + cnt) * (n + 1) ≤ j) →
-        (pointSqrLoop n oA arr P p cnt)[j]! = arr[j]!) ∧
+        (pointSqrLoop cfg n oA arr P p cnt)[j]! = arr[j]!) ∧
       (∀ q, p ≤ q → q < p + cnt →
-        coef (pointSqrLoop n oA arr P p cnt) n oA q =
+        coef (pointSqrLoop cfg n oA arr P p cnt) n oA q =
           coef arr n oA q * coef arr n oA q % fermat n) := by
   induction cnt with
   | zero =>
@@ -438,13 +442,13 @@ public theorem pointSqrLoop_spec (n oA : Nat) (hn : 1 ≤ n) (cnt : Nat) :
     have hPs := size_toUSlice P hPS
     have hx₀ : 0 < (sl arr (oA + p * (n + 1)) (n + 1)).size :=
       USize.lt_iff_toNat_lt.2 (by rw [x₃, USize.toNat_zero]; lia)
-    have m₁ := size_sqrKaratsuba P.toUSlice (sl arr (oA + p * (n + 1)) (n + 1))
-    have m₂ := valAt_sqrKaratsuba P.toUSlice (sl arr (oA + p * (n + 1)) (n + 1)) hx₀
+    have m₁ := size_sqrKaratsuba cfg P.toUSlice (sl arr (oA + p * (n + 1)) (n + 1))
+    have m₂ := valAt_sqrKaratsuba cfg P.toUSlice (sl arr (oA + p * (n + 1)) (n + 1)) hx₀
       (by rw [x₃, hPs]; lia)
     rw [x₃, x₄, start_toUSlice, USize.toNat_zero, show 2 * (n + 1) = 2 * n + 2 by lia] at m₂
     rw [array_toUSlice] at m₁
     rw [pointSqrLoop]
-    generalize sqrKaratsuba P.toUSlice (sl arr (oA + p * (n + 1)) (n + 1)) = P' at *
+    generalize sqrKaratsuba cfg P.toUSlice (sl arr (oA + p * (n + 1)) (n + 1)) = P' at *
     have hvA := hv p (Nat.le_refl _) (by lia)
     simp only [coef, win, fermat] at hvA
     obtain ⟨r₁, r₂, r₃⟩ := reduceAt_spec arr n (oA + p * (n + 1)) P' hS (by lia) hn (by rw [m₁, hP])
@@ -463,7 +467,7 @@ public theorem pointSqrLoop_spec (n oA : Nat) (hn : 1 ≤ n) (cnt : Nat) :
     · rw [i₂ j (by rw [Nat.add_mul, Nat.one_mul]; lia), r₂ j (by lia)]
     · by_cases e : q = p
       · subst e
-        have : coef (pointSqrLoop n oA a₁ P' (q + 1) cnt) n oA q = coef a₁ n oA q :=
+        have : coef (pointSqrLoop cfg n oA a₁ P' (q + 1) cnt) n oA q = coef a₁ n oA q :=
           win_congr fun j _ _ => i₂ j (by lia)
         rw [this]
         exact r₃.trans (by rw [m₂])
@@ -946,7 +950,7 @@ public theorem fft_coef_cyc (αL βL : List Nat) (k n σ X : Nat) (hk : 1 ≤ k)
 the pieces of `m` limbs of each operand. The layout of the flat array: the block of `a` at `0`,
 the block of `b` at `K (n + 1)`, the scratch window, and a zero window.
 -/
-public def fftMulAt (r a b : USlice) (k m n : Nat) : UInt64Array :=
+public def fftMulAt (cfg : Config) (r a b : USlice) (k m n : Nat) : UInt64Array :=
   let K := 2 ^ k
   let oB := K * (n + 1)
   let t := 2 * K * (n + 1)
@@ -956,7 +960,7 @@ public def fftMulAt (r a b : USlice) (k m n : Nat) : UInt64Array :=
   let FA := loadLoop oB n m b FA 0 K
   let FA := fwd n t k FA 0 σ
   let FA := fwd n t k FA oB σ
-  let FA := pointLoop n 0 oB FA (UInt64Array.replicate (2 * n + 2) 0) 0 K
+  let FA := pointLoop cfg n 0 oB FA (UInt64Array.replicate (2 * n + 2) 0) 0 K
   let FA := inv n t k FA 0 σ
   let FA := scaleLoop n 0 t z k FA 0 K
   recLoop (a.size.toNat + b.size.toNat) m n 0 FA
@@ -1004,10 +1008,10 @@ private theorem coef_pieces (a : USlice) (m L K i : Nat) (hL : a.size.toNat ≤ 
 
 set_option maxHeartbeats 800000 in
 public theorem fftMulAt_spec (r a b : USlice) (k m n : Nat) (hp : FFTParams r a b k m n) :
-    (fftMulAt r a b k m n).size = r.array.size ∧
+    (fftMulAt cfg r a b k m n).size = r.array.size ∧
       (∀ i, (i < r.start.toNat ∨ r.start.toNat + a.size.toNat + b.size.toNat ≤ i) →
-        (fftMulAt r a b k m n)[i]! = r.array[i]!) ∧
-      (fftMulAt r a b k m n).valAt r.start.toNat (a.size.toNat + b.size.toNat) =
+        (fftMulAt cfg r a b k m n)[i]! = r.array[i]!) ∧
+      (fftMulAt cfg r a b k m n).valAt r.start.toNat (a.size.toNat + b.size.toNat) =
         a.toNat * b.toNat := by
   obtain ⟨hk, hn, hm, hmn, hdiv, ha, hb, hpc, hbits, hr, hS, h64, haS, hbS, hrS⟩ := hp
   have hF₀ : 0 < fermat n := by simp [fermat]
@@ -1072,12 +1076,13 @@ public theorem fftMulAt_spec (r a b : USlice) (k m n : Nat) (hp : FFTParams r a 
     have := win_in 0 n p (2 ^ k) hp
     exact win_congr fun j _ _ => g₂ j (by lia) (by lia)
   -- The pointwise products.
-  obtain ⟨p₁, p₂, p₃⟩ := pointLoop_spec n 0 (2 ^ k * (n + 1)) hn (2 ^ k) A₄
+  obtain ⟨p₁, p₂, p₃⟩ := pointLoop_spec cfg n 0 (2 ^ k * (n + 1)) hn (2 ^ k) A₄
     (UInt64Array.replicate (2 * n + 2) 0) 0 (by simp) (by simp; lia) (by rw [g₁, f₁, m₁]; exact hSz)
     (by lia) (by rw [g₁, f₁, m₁]; lia) (fun q _ hq => by
       rw [cA₄ q (by lia), f₃ q (by lia), g₃ q (by lia)]
       exact ⟨Nat.mod_lt _ hF₀, Nat.mod_lt _ hF₀⟩)
-  generalize pointLoop n 0 (2 ^ k * (n + 1)) A₄ (UInt64Array.replicate (2 * n + 2) 0) 0 (2 ^ k) =
+  generalize pointLoop cfg n 0 (2 ^ k * (n + 1)) A₄ (UInt64Array.replicate (2 * n + 2) 0) 0
+    (2 ^ k) =
     A₅ at *
   -- The inverse transform.
   obtain ⟨v₁, v₂, v₃⟩ := inv_spec n (2 * 2 ^ k * (n + 1)) hn h64 k A₅ 0 σ hσ
@@ -1194,7 +1199,7 @@ each, the cyclic convolution of the transforms, and the coefficients added at `2
 sum is `≡ a b` modulo `2^(64 N) - 1` since `2^(64 m K) ≡ 1`. Like GMP's `mpn_mulmod_bnm1`, it
 costs about half a product of the same operands.
 -/
-public def fftMulModAt (r a b : USlice) (k m n : Nat) : UInt64Array :=
+public def fftMulModAt (cfg : Config) (r a b : USlice) (k m n : Nat) : UInt64Array :=
   let K := 2 ^ k
   let oB := K * (n + 1)
   let t := 2 * K * (n + 1)
@@ -1204,7 +1209,7 @@ public def fftMulModAt (r a b : USlice) (k m n : Nat) : UInt64Array :=
   let FA := loadLoop oB n m b FA 0 K
   let FA := fwd n t k FA 0 σ
   let FA := fwd n t k FA oB σ
-  let FA := pointLoop n 0 oB FA (UInt64Array.replicate (2 * n + 2) 0) 0 K
+  let FA := pointLoop cfg n 0 oB FA (UInt64Array.replicate (2 * n + 2) 0) 0 K
   let FA := inv n t k FA 0 σ
   let FA := scaleLoop n 0 t z k FA 0 K
   recLoop (m * K + n + 1) m n 0 FA (zeroInto (r.slice 0 (m * K + n + 1).toUSize)) r.start.toNat 0 K
@@ -1246,10 +1251,10 @@ private theorem sum_pow_lt (c : Nat → Nat) (C X K : Nat) (hX : 2 ≤ X) (hc : 
 
 set_option maxHeartbeats 800000 in
 public theorem fftMulModAt_spec (r a b : USlice) (k m n : Nat) (hp : FFTModParams r a b k m n) :
-    (fftMulModAt r a b k m n).size = r.array.size ∧
+    (fftMulModAt cfg r a b k m n).size = r.array.size ∧
       (∀ i, (i < r.start.toNat ∨ r.start.toNat + (m * 2 ^ k + n + 1) ≤ i) →
-        (fftMulModAt r a b k m n)[i]! = r.array[i]!) ∧
-      (fftMulModAt r a b k m n).valAt r.start.toNat (m * 2 ^ k + n + 1) %
+        (fftMulModAt cfg r a b k m n)[i]! = r.array[i]!) ∧
+      (fftMulModAt cfg r a b k m n).valAt r.start.toNat (m * 2 ^ k + n + 1) %
           (2 ^ (64 * (m * 2 ^ k)) - 1) =
         a.toNat * b.toNat % (2 ^ (64 * (m * 2 ^ k)) - 1) := by
   obtain ⟨hk, hn, hm, hmn, hdiv, ha, hb, hpa, hpb, hbits, hr, hS, h64, haS, hbS, hrS⟩ := hp
@@ -1315,12 +1320,13 @@ public theorem fftMulModAt_spec (r a b : USlice) (k m n : Nat) (hp : FFTModParam
     have := win_in 0 n p (2 ^ k) hp
     exact win_congr fun j _ _ => g₂ j (by lia) (by lia)
   -- The pointwise products.
-  obtain ⟨p₁, p₂, p₃⟩ := pointLoop_spec n 0 (2 ^ k * (n + 1)) hn (2 ^ k) A₄
+  obtain ⟨p₁, p₂, p₃⟩ := pointLoop_spec cfg n 0 (2 ^ k * (n + 1)) hn (2 ^ k) A₄
     (UInt64Array.replicate (2 * n + 2) 0) 0 (by simp) (by simp; lia) (by rw [g₁, f₁, m₁]; exact hSz)
     (by lia) (by rw [g₁, f₁, m₁]; lia) (fun q _ hq => by
       rw [cA₄ q (by lia), f₃ q (by lia), g₃ q (by lia)]
       exact ⟨Nat.mod_lt _ hF₀, Nat.mod_lt _ hF₀⟩)
-  generalize pointLoop n 0 (2 ^ k * (n + 1)) A₄ (UInt64Array.replicate (2 * n + 2) 0) 0 (2 ^ k) =
+  generalize pointLoop cfg n 0 (2 ^ k * (n + 1)) A₄ (UInt64Array.replicate (2 * n + 2) 0) 0
+    (2 ^ k) =
     A₅ at *
   -- The inverse transform.
   obtain ⟨v₁, v₂, v₃⟩ := inv_spec n (2 * 2 ^ k * (n + 1)) hn h64 k A₅ 0 σ hσ
@@ -1488,14 +1494,14 @@ public def fftModN (k m : Nat) : Nat :=
 `a²` into the first `2 a.size` limbs of `r`, like `fftMulAt r a a` with one forward transform and
 squares for the pointwise products: the block of `a` at `0`, the scratch window and a zero window.
 -/
-public def fftSqrAt (r a : USlice) (k m n : Nat) : UInt64Array :=
+public def fftSqrAt (cfg : Config) (r a : USlice) (k m n : Nat) : UInt64Array :=
   let K := 2 ^ k
   let t := K * (n + 1)
   let z := t + (n + 1)
   let σ := 2 * (64 * n) / K
   let FA := loadLoop 0 n m a (UInt64Array.replicate (z + (n + 1)) 0) 0 K
   let FA := fwd n t k FA 0 σ
-  let FA := pointSqrLoop n 0 FA (UInt64Array.replicate (2 * n + 2) 0) 0 K
+  let FA := pointSqrLoop cfg n 0 FA (UInt64Array.replicate (2 * n + 2) 0) 0 K
   let FA := inv n t k FA 0 σ
   let FA := scaleLoop n 0 t z k FA 0 K
   recLoop (a.size.toNat + a.size.toNat) m n 0 FA
@@ -1503,10 +1509,10 @@ public def fftSqrAt (r a : USlice) (k m n : Nat) : UInt64Array :=
 
 set_option maxHeartbeats 800000 in
 public theorem fftSqrAt_spec (r a : USlice) (k m n : Nat) (hp : FFTParams r a a k m n) :
-    (fftSqrAt r a k m n).size = r.array.size ∧
+    (fftSqrAt cfg r a k m n).size = r.array.size ∧
       (∀ i, (i < r.start.toNat ∨ r.start.toNat + a.size.toNat + a.size.toNat ≤ i) →
-        (fftSqrAt r a k m n)[i]! = r.array[i]!) ∧
-      (fftSqrAt r a k m n).valAt r.start.toNat (a.size.toNat + a.size.toNat) =
+        (fftSqrAt cfg r a k m n)[i]! = r.array[i]!) ∧
+      (fftSqrAt cfg r a k m n).valAt r.start.toNat (a.size.toNat + a.size.toNat) =
         a.toNat * a.toNat := by
   obtain ⟨hk, hn, hm, hmn, hdiv, ha, -, hpc, hbits, hr, hS, h64, haS, -, hrS⟩ := hp
   have hF₀ : 0 < fermat n := by simp [fermat]
@@ -1541,10 +1547,10 @@ public theorem fftSqrAt_spec (r a : USlice) (k m n : Nat) (hp : FFTParams r a a 
     (fun p hp => by rw [cA p hp]; exact Nat.lt_trans (piece_lt ..) hXF)
   generalize fwd n (2 ^ k * (n + 1)) k A₂ 0 σ = A₄ at *
   -- The pointwise squares.
-  obtain ⟨p₁, p₂, p₃⟩ := pointSqrLoop_spec n 0 hn (2 ^ k) A₄
+  obtain ⟨p₁, p₂, p₃⟩ := pointSqrLoop_spec cfg n 0 hn (2 ^ k) A₄
     (UInt64Array.replicate (2 * n + 2) 0) 0 (by simp) (by simp; lia) (by rw [f₁, l₁]; exact hSz)
     (by rw [f₁, l₁]; lia) (fun q _ hq => by rw [f₃ q (by lia)]; exact Nat.mod_lt _ hF₀)
-  generalize pointSqrLoop n 0 A₄ (UInt64Array.replicate (2 * n + 2) 0) 0 (2 ^ k) = A₅ at *
+  generalize pointSqrLoop cfg n 0 A₄ (UInt64Array.replicate (2 * n + 2) 0) 0 (2 ^ k) = A₅ at *
   -- The inverse transform.
   obtain ⟨v₁, v₂, v₃⟩ := inv_spec n (2 ^ k * (n + 1)) hn h64 k A₅ 0 σ hσ
     ⟨by rw [p₁, f₁, l₁]; exact hSz, by rw [p₁, f₁, l₁]; lia, by rw [p₁, f₁, l₁]; lia,
@@ -1673,75 +1679,75 @@ private theorem FFTCheck.params {r a b : USlice} {k m n : Nat} (h : FFTCheck r a
 Writes the `a.size + b.size` limbs of `a b` into `r`, by the FFT with `2ᵏ` pieces, or by
 `mulToom` when the parameters of `fftParams` do not suit the sizes.
 -/
-public def fftMul (r a b : USlice) (k : Nat) : UInt64Array :=
+public def fftMul (cfg : Config) (r a b : USlice) (k : Nat) : UInt64Array :=
   let p := fftParams (a.size.toNat + b.size.toNat) k
-  if FFTCheck r a b k p.1 p.2 then fftMulAt r a b k p.1 p.2 else mulToom r a b
+  if FFTCheck r a b k p.1 p.2 then fftMulAt cfg r a b k p.1 p.2 else mulToom cfg r a b
 
 private theorem fftMul_spec (r a b : USlice) (k : Nat) :
-    (fftMul r a b k).size = r.array.size ∧
+    (fftMul cfg r a b k).size = r.array.size ∧
       (∀ i, (i < r.start.toNat ∨ r.start.toNat + a.size.toNat + b.size.toNat ≤ i) →
-        (fftMul r a b k)[i]! = r.array[i]!) ∧
+        (fftMul cfg r a b k)[i]! = r.array[i]!) ∧
       (0 < a.size → 0 < b.size → a.size.toNat + b.size.toNat ≤ r.size.toNat →
-        (fftMul r a b k).valAt r.start.toNat (a.size.toNat + b.size.toNat) =
+        (fftMul cfg r a b k).valAt r.start.toNat (a.size.toNat + b.size.toNat) =
           a.toNat * b.toNat) := by
   rw [fftMul]
   split
   · rename_i h
-    obtain ⟨s₁, s₂, s₃⟩ := fftMulAt_spec r a b k _ _ h.params
+    obtain ⟨s₁, s₂, s₃⟩ := fftMulAt_spec cfg r a b k _ _ h.params
     exact ⟨s₁, s₂, fun _ _ _ => s₃⟩
-  · exact ⟨size_mulToom r a b, getElem!_mulToom r a b, valAt_mulToom r a b⟩
+  · exact ⟨size_mulToom cfg r a b, getElem!_mulToom cfg r a b, valAt_mulToom cfg r a b⟩
 
 @[simp] public theorem size_fftMul (r a b : USlice) (k : Nat) :
-    (fftMul r a b k).size = r.array.size :=
-  (fftMul_spec r a b k).1
+    (fftMul cfg r a b k).size = r.array.size :=
+  (fftMul_spec cfg r a b k).1
 
 /-- `fftMul` leaves the limbs of `r` outside the ones it writes unchanged. -/
 public theorem getElem!_fftMul (r a b : USlice) (k : Nat) (i : Nat)
     (hi : i < r.start.toNat ∨ r.start.toNat + a.size.toNat + b.size.toNat ≤ i) :
-    (fftMul r a b k)[i]! = r.array[i]! :=
-  (fftMul_spec r a b k).2.1 i hi
+    (fftMul cfg r a b k)[i]! = r.array[i]! :=
+  (fftMul_spec cfg r a b k).2.1 i hi
 
 public theorem valAt_fftMul (r a b : USlice) (k : Nat) (ha : 0 < a.size) (hb : 0 < b.size)
     (hr : a.size.toNat + b.size.toNat ≤ r.size.toNat) :
-    (fftMul r a b k).valAt r.start.toNat (a.size.toNat + b.size.toNat) = a.toNat * b.toNat :=
-  (fftMul_spec r a b k).2.2 ha hb hr
+    (fftMul cfg r a b k).valAt r.start.toNat (a.size.toNat + b.size.toNat) = a.toNat * b.toNat :=
+  (fftMul_spec cfg r a b k).2.2 ha hb hr
 
 /--
 Writes the `2 a.size` limbs of `a²` into `r`, by the FFT with `2ᵏ` pieces, or by `sqrKaratsuba`
 when the parameters of `fftParams` do not suit the size.
 -/
-public def fftSqr (r a : USlice) (k : Nat) : UInt64Array :=
+public def fftSqr (cfg : Config) (r a : USlice) (k : Nat) : UInt64Array :=
   let p := fftParams (a.size.toNat + a.size.toNat) k
-  if FFTCheck r a a k p.1 p.2 then fftSqrAt r a k p.1 p.2 else sqrKaratsuba r a
+  if FFTCheck r a a k p.1 p.2 then fftSqrAt cfg r a k p.1 p.2 else sqrKaratsuba cfg r a
 
 private theorem fftSqr_spec (r a : USlice) (k : Nat) :
-    (fftSqr r a k).size = r.array.size ∧
+    (fftSqr cfg r a k).size = r.array.size ∧
       (∀ i, (i < r.start.toNat ∨ r.start.toNat + 2 * a.size.toNat ≤ i) →
-        (fftSqr r a k)[i]! = r.array[i]!) ∧
+        (fftSqr cfg r a k)[i]! = r.array[i]!) ∧
       (0 < a.size → 2 * a.size.toNat ≤ r.size.toNat →
-        (fftSqr r a k).valAt r.start.toNat (2 * a.size.toNat) = a.toNat * a.toNat) := by
+        (fftSqr cfg r a k).valAt r.start.toNat (2 * a.size.toNat) = a.toNat * a.toNat) := by
   rw [fftSqr]
   split
   · rename_i h
-    obtain ⟨s₁, s₂, s₃⟩ := fftSqrAt_spec r a k _ _ h.params
+    obtain ⟨s₁, s₂, s₃⟩ := fftSqrAt_spec cfg r a k _ _ h.params
     rw [show 2 * a.size.toNat = a.size.toNat + a.size.toNat by lia]
     exact ⟨s₁, fun i hi => s₂ i (by lia), fun _ _ => s₃⟩
-  · exact ⟨size_sqrKaratsuba r a, getElem!_sqrKaratsuba r a, valAt_sqrKaratsuba r a⟩
+  · exact ⟨size_sqrKaratsuba cfg r a, getElem!_sqrKaratsuba cfg r a, valAt_sqrKaratsuba cfg r a⟩
 
 @[simp] public theorem size_fftSqr (r a : USlice) (k : Nat) :
-    (fftSqr r a k).size = r.array.size :=
-  (fftSqr_spec r a k).1
+    (fftSqr cfg r a k).size = r.array.size :=
+  (fftSqr_spec cfg r a k).1
 
 /-- `fftSqr` leaves the limbs of `r` outside the ones it writes unchanged. -/
 public theorem getElem!_fftSqr (r a : USlice) (k : Nat) (i : Nat)
     (hi : i < r.start.toNat ∨ r.start.toNat + 2 * a.size.toNat ≤ i) :
-    (fftSqr r a k)[i]! = r.array[i]! :=
-  (fftSqr_spec r a k).2.1 i hi
+    (fftSqr cfg r a k)[i]! = r.array[i]! :=
+  (fftSqr_spec cfg r a k).2.1 i hi
 
 public theorem valAt_fftSqr (r a : USlice) (k : Nat) (ha : 0 < a.size)
     (hr : 2 * a.size.toNat ≤ r.size.toNat) :
-    (fftSqr r a k).valAt r.start.toNat (2 * a.size.toNat) = a.toNat * a.toNat :=
-  (fftSqr_spec r a k).2.2 ha hr
+    (fftSqr cfg r a k).valAt r.start.toNat (2 * a.size.toNat) = a.toNat * a.toNat :=
+  (fftSqr_spec cfg r a k).2.2 ha hr
 
 end MPN.FFT
 
@@ -1749,58 +1755,40 @@ namespace MPN
 
 open FFT
 
-/--
-The size of the larger operand, in limbs, from which `mul` uses the FFT. With Toom-6, the FFT
-ties `mulToom` at 4096 limbs by 4096 (Zen 3, 2026-10-23).
--/
-public def fftThreshold : Nat := 4096
-
-/--
-The size of the larger operand from which `mul` uses the FFT when the operands differ by `3 : 2`
-or more, where the Toom methods are slower: the FFT wins from 3072 by 1536.
--/
-public def fftThresholdUnbal : Nat := 3072
-
-/--
-The size of the smaller operand below which `mul` does not use the FFT: there `mulToom` is the
-schoolbook method, whose cost grows with the smaller operand, while that of the FFT follows the
-total. They cross at 260 to 330 limbs for 4096 to 65536 limbs in the other operand (Zen 3,
-2026-10-23).
--/
-public def fftMinSmall : Nat := 320
+variable (cfg : Config)
 
 /--
 Writes the `a.size + b.size` limbs of `a b` into `r`, for operands of comparable sizes: by
-`fftMul` from `fftThreshold` limbs in the larger operand, or `fftThresholdUnbal` when they differ
-by `3 : 2` or more, when the smaller one has `fftMinSmall` limbs, by `mulToom` otherwise, which
+`fftMul` from `cfg.mulFFT` limbs in the larger operand, or `cfg.mulFFTUnbal` when they differ
+by `3 : 2` or more, when the smaller one has `cfg.mulFFTMin` limbs, by `mulToom` otherwise, which
 uses the Toom methods, Karatsuba and the schoolbook method by the sizes. It requires
 `0 < a.size`, `0 < b.size` and `a.size + b.size ≤ r.size`.
 -/
-public def mulBal (r a b : USlice) : UInt64Array :=
-  if (fftThreshold ≤ max a.size.toNat b.size.toNat ∨
-      fftThresholdUnbal ≤ max a.size.toNat b.size.toNat ∧
+public def mulBal (cfg : Config) (r a b : USlice) : UInt64Array :=
+  if (cfg.mulFFT ≤ max a.size.toNat b.size.toNat ∨
+      cfg.mulFFTUnbal ≤ max a.size.toNat b.size.toNat ∧
         3 * min a.size.toNat b.size.toNat ≤ 2 * max a.size.toNat b.size.toNat) ∧
-      fftMinSmall ≤ min a.size.toNat b.size.toNat then
-    fftMul r a b (fftK (a.size.toNat + b.size.toNat))
-  else mulToom r a b
+      cfg.mulFFTMin ≤ min a.size.toNat b.size.toNat then
+    fftMul cfg r a b (fftK (a.size.toNat + b.size.toNat))
+  else mulToom cfg r a b
 
-@[simp] public theorem size_mulBal (r a b : USlice) : (mulBal r a b).size = r.array.size := by
+@[simp] public theorem size_mulBal (r a b : USlice) : (mulBal cfg r a b).size = r.array.size := by
   rw [mulBal]; split <;> simp
 
 /-- `mulBal` leaves the limbs of `r` outside the ones it writes unchanged. -/
 public theorem getElem!_mulBal (r a b : USlice) (i : Nat)
     (hi : i < r.start.toNat ∨ r.start.toNat + a.size.toNat + b.size.toNat ≤ i) :
-    (mulBal r a b)[i]! = r.array[i]! := by
+    (mulBal cfg r a b)[i]! = r.array[i]! := by
   rw [mulBal]; split
-  · exact getElem!_fftMul r a b _ i hi
-  · exact getElem!_mulToom r a b i hi
+  · exact getElem!_fftMul cfg r a b _ i hi
+  · exact getElem!_mulToom cfg r a b i hi
 
 public theorem valAt_mulBal (r a b : USlice) (ha : 0 < a.size) (hb : 0 < b.size)
     (hr : a.size.toNat + b.size.toNat ≤ r.size.toNat) :
-    (mulBal r a b).valAt r.start.toNat (a.size.toNat + b.size.toNat) = a.toNat * b.toNat := by
+    (mulBal cfg r a b).valAt r.start.toNat (a.size.toNat + b.size.toNat) = a.toNat * b.toNat := by
   rw [mulBal]; split
-  · exact valAt_fftMul r a b _ ha hb hr
-  · exact valAt_mulToom r a b ha hb hr
+  · exact valAt_fftMul cfg r a b _ ha hb hr
+  · exact valAt_mulToom cfg r a b ha hb hr
 
 /-! ## Unbalanced products -/
 
@@ -1808,13 +1796,14 @@ public theorem valAt_mulBal (r a b : USlice) (ha : 0 < a.size) (hb : 0 < b.size)
 The products of pieces `i` to `i + cnt - 1` of `a`, of `c` limbs, by `b`, each by `mulBal` into
 a new array, added to the region of `T` limbs at `rs` of `arr`, piece `j` from limb `j c` on.
 -/
-public def chunkLoop (T c rs : Nat) (a b : USlice) : UInt64Array → Nat → Nat → UInt64Array
+public def chunkLoop (cfg : Config) (T c rs : Nat) (a b : USlice) :
+    UInt64Array → Nat → Nat → UInt64Array
   | arr, _, 0 => arr
   | arr, i, cnt + 1 =>
-    let P := mulBal
+    let P := mulBal cfg
       (UInt64Array.replicate ((FFT.pieceSl a c i).size.toNat + b.size.toNat) 0).toUSlice
       (FFT.pieceSl a c i) b
-    chunkLoop T c rs a b
+    chunkLoop cfg T c rs a b
       (addCoef arr rs T (i * c) P 0 ((FFT.pieceSl a c i).size.toNat + b.size.toNat)) (i + 1) cnt
 
 set_option maxHeartbeats 400000 in
@@ -1824,9 +1813,9 @@ public theorem chunkLoop_spec (T c rs : Nat) (a b : USlice) (hc : 1 ≤ c)
     ∀ arr i, arr.size < USize.size → rs + T ≤ arr.size → (i + cnt) * c < a.size.toNat + c →
       arr.valAt rs T + sumRange (fun j => 2 ^ (64 * ((i + j) * c)) *
         (FFT.piece a c (i + j) * b.toNat)) cnt < 2 ^ (64 * T) →
-      (chunkLoop T c rs a b arr i cnt).size = arr.size ∧
-      (∀ t, (t < rs ∨ rs + T ≤ t) → (chunkLoop T c rs a b arr i cnt)[t]! = arr[t]!) ∧
-      (chunkLoop T c rs a b arr i cnt).valAt rs T = arr.valAt rs T +
+      (chunkLoop cfg T c rs a b arr i cnt).size = arr.size ∧
+      (∀ t, (t < rs ∨ rs + T ≤ t) → (chunkLoop cfg T c rs a b arr i cnt)[t]! = arr[t]!) ∧
+      (chunkLoop cfg T c rs a b arr i cnt).valAt rs T = arr.valAt rs T +
         sumRange (fun j => 2 ^ (64 * ((i + j) * c)) * (FFT.piece a c (i + j) * b.toNat)) cnt := by
   induction cnt with
   | zero => intro arr i _ _ _ _; exact ⟨rfl, fun _ _ => rfl, by simp [chunkLoop]⟩
@@ -1850,15 +1839,15 @@ public theorem chunkLoop_spec (T c rs : Nat) (a b : USlice) (hc : 1 ≤ c)
     have hrep := size_toUSlice (UInt64Array.replicate ((FFT.pieceSl a c i).size.toNat +
       b.size.toNat) 0) (by rw [size_replicate]; exact hlen)
     simp only [size_replicate] at hrep
-    have hv := valAt_mulBal (UInt64Array.replicate ((FFT.pieceSl a c i).size.toNat +
+    have hv := valAt_mulBal cfg (UInt64Array.replicate ((FFT.pieceSl a c i).size.toNat +
       b.size.toNat) 0).toUSlice (FFT.pieceSl a c i) b
       (USize.lt_iff_toNat_lt.2 (by rw [p₁, USize.toNat_zero]; lia)) hb
       (by rw [hrep]; exact Nat.le_refl _)
-    have hsz := size_mulBal (UInt64Array.replicate ((FFT.pieceSl a c i).size.toNat +
+    have hsz := size_mulBal cfg (UInt64Array.replicate ((FFT.pieceSl a c i).size.toNat +
       b.size.toNat) 0).toUSlice (FFT.pieceSl a c i) b
     rw [start_toUSlice, USize.toNat_zero, p₂] at hv
     rw [array_toUSlice, size_replicate] at hsz
-    generalize mulBal (UInt64Array.replicate ((FFT.pieceSl a c i).size.toNat + b.size.toNat)
+    generalize mulBal cfg (UInt64Array.replicate ((FFT.pieceSl a c i).size.toNat + b.size.toNat)
       0).toUSlice (FFT.pieceSl a c i) b = P at *
     -- Added from limb `i c` on.
     obtain ⟨c₁, c₂, c₃⟩ := addCoef_spec arr rs T (i * c) P 0
@@ -1877,17 +1866,17 @@ public theorem chunkLoop_spec (T c rs : Nat) (a b : USlice) (hc : 1 ≤ c)
 `a b` for `b.size ≤ a.size`, by `mulBal` on the pieces of `a` of `b.size` limbs, the products
 added into the zeroed limbs of `r`, like GMP's `mpn_mul` on unbalanced operands.
 -/
-public def mulChunked (r a b : USlice) : UInt64Array :=
-  chunkLoop (a.size.toNat + b.size.toNat) b.size.toNat r.start.toNat a b
+public def mulChunked (cfg : Config) (r a b : USlice) : UInt64Array :=
+  chunkLoop cfg (a.size.toNat + b.size.toNat) b.size.toNat r.start.toNat a b
     (zeroInto (r.slice 0 (a.size + b.size))) 0 ((a.size.toNat + b.size.toNat - 1) / b.size.toNat)
 
 private theorem mulChunked_spec (r a b : USlice) (hb : 0 < b.size)
     (hr : a.size.toNat + b.size.toNat ≤ r.size.toNat) (haS : a.array.size < USize.size)
     (hrS : r.array.size < USize.size) :
-    (mulChunked r a b).size = r.array.size ∧
+    (mulChunked cfg r a b).size = r.array.size ∧
       (∀ i, (i < r.start.toNat ∨ r.start.toNat + a.size.toNat + b.size.toNat ≤ i) →
-        (mulChunked r a b)[i]! = r.array[i]!) ∧
-      (mulChunked r a b).valAt r.start.toNat (a.size.toNat + b.size.toNat) =
+        (mulChunked cfg r a b)[i]! = r.array[i]!) ∧
+      (mulChunked cfg r a b).valAt r.start.toNat (a.size.toNat + b.size.toNat) =
         a.toNat * b.toNat := by
   have hb' := USize.lt_iff_toNat_lt.1 hb
   rw [USize.toNat_zero] at hb'
@@ -1930,105 +1919,90 @@ private theorem mulChunked_spec (r a b : USlice) (hb : 0 < b.size)
   simp only [USlice.array_slice, e₁, e₂] at z₁ z₂ z₃
   rw [mulChunked, hL]
   generalize zeroInto (r.slice 0 (a.size + b.size)) = R₀ at *
-  obtain ⟨c₁, c₂, c₃⟩ := chunkLoop_spec (a.size.toNat + b.size.toNat) b.size.toNat r.start.toNat
+  obtain ⟨c₁, c₂, c₃⟩ := chunkLoop_spec cfg (a.size.toNat + b.size.toNat) b.size.toNat r.start.toNat
     a b (by lia) haS hb (Nat.le_refl _) (by have := r.size.toNat_lt_size; lia) L R₀ 0
     (by rw [z₁]; exact hrS) (by rw [z₁]; lia) (by lia) (by rw [z₃, Nat.zero_add, hab]; exact hablt)
   refine ⟨by rw [c₁, z₁], fun i hi => ?_, ?_⟩
   · rw [c₂ i (by lia), z₂ i (by lia)]
   · rw [c₃, z₃, Nat.zero_add, hab]
 
-/-- The size of the smaller operand from which `mul` splits unbalanced products. -/
-public def chunkMinSmall : Nat := 96
-
-/--
-The size of the smaller operand from which `mul` no longer splits unbalanced products when the
-larger one is in the range of the FFT: from 1536 limbs, one FFT on the whole product is 10–20%
-faster than one per piece, and they tie at 1024 (Zen 3, 2026-10-23).
--/
-public def chunkMaxSmall : Nat := 1024
-
 /-- `mul` for `b.size ≤ a.size`. -/
-public def mulU (r a b : USlice) : UInt64Array :=
-  if chunkMinSmall ≤ b.size.toNat ∧ 2 * b.size.toNat ≤ a.size.toNat ∧
-      (b.size.toNat < chunkMaxSmall ∨ a.size.toNat < fftThresholdUnbal) ∧
+public def mulU (cfg : Config) (r a b : USlice) : UInt64Array :=
+  if cfg.mulUnbalanced ≤ b.size.toNat ∧ 2 * b.size.toNat ≤ a.size.toNat ∧
+      (b.size.toNat < cfg.mulChunkMax ∨ a.size.toNat < cfg.mulFFTUnbal) ∧
       a.size.toNat + b.size.toNat ≤ r.size.toNat ∧
       a.array.size < USize.size ∧ r.array.size < USize.size then
-    mulChunked r a b
-  else mulBal r a b
+    mulChunked cfg r a b
+  else mulBal cfg r a b
 
 private theorem mulU_spec (r a b : USlice) :
-    (mulU r a b).size = r.array.size ∧
+    (mulU cfg r a b).size = r.array.size ∧
       (∀ i, (i < r.start.toNat ∨ r.start.toNat + a.size.toNat + b.size.toNat ≤ i) →
-        (mulU r a b)[i]! = r.array[i]!) ∧
+        (mulU cfg r a b)[i]! = r.array[i]!) ∧
       (0 < a.size → 0 < b.size → a.size.toNat + b.size.toNat ≤ r.size.toNat →
-        (mulU r a b).valAt r.start.toNat (a.size.toNat + b.size.toNat) = a.toNat * b.toNat) := by
+        (mulU cfg r a b).valAt r.start.toNat (a.size.toNat + b.size.toNat) =
+          a.toNat * b.toNat) := by
   rw [mulU]
   split
   · rename_i h
     have h₁ := h.1
-    simp only [chunkMinSmall] at h₁
+    have := cfg.one_le_mulUnbalanced
     have hb : 0 < b.size := USize.lt_iff_toNat_lt.2 (by rw [USize.toNat_zero]; lia)
-    obtain ⟨s₁, s₂, s₃⟩ := mulChunked_spec r a b hb h.2.2.2.1 h.2.2.2.2.1 h.2.2.2.2.2
+    obtain ⟨s₁, s₂, s₃⟩ := mulChunked_spec cfg r a b hb h.2.2.2.1 h.2.2.2.2.1 h.2.2.2.2.2
     exact ⟨s₁, s₂, fun _ _ _ => s₃⟩
-  · exact ⟨size_mulBal r a b, getElem!_mulBal r a b, valAt_mulBal r a b⟩
+  · exact ⟨size_mulBal cfg r a b, getElem!_mulBal cfg r a b, valAt_mulBal cfg r a b⟩
 
 /--
 Writes the `a.size + b.size` limbs of `a b` into `r`: by `mulChunked` when the larger operand
-has at least twice the limbs of the smaller, which has at least `chunkMinSmall` limbs, and less
-than `chunkMaxSmall` unless the larger one is below `fftThresholdUnbal`; by `mulBal` otherwise. It
+has at least twice the limbs of the smaller, which has at least `cfg.mulUnbalanced` limbs, and less
+than `cfg.mulChunkMax` unless the larger one is below `cfg.mulFFTUnbal`; by `mulBal` otherwise. It
 requires `0 < a.size`, `0 < b.size` and `a.size + b.size ≤ r.size`.
 -/
-public def mul (r a b : USlice) : UInt64Array :=
-  if b.size ≤ a.size then mulU r a b else mulU r b a
+public def mul (cfg : Config) (r a b : USlice) : UInt64Array :=
+  if b.size ≤ a.size then mulU cfg r a b else mulU cfg r b a
 
-@[simp] public theorem size_mul (r a b : USlice) : (mul r a b).size = r.array.size := by
-  rw [mul]; split <;> exact (mulU_spec ..).1
+@[simp] public theorem size_mul (r a b : USlice) : (mul cfg r a b).size = r.array.size := by
+  rw [mul]; split <;> exact (mulU_spec cfg ..).1
 
 /-- `mul` leaves the limbs of `r` outside the ones it writes unchanged. -/
 public theorem getElem!_mul (r a b : USlice) (i : Nat)
     (hi : i < r.start.toNat ∨ r.start.toNat + a.size.toNat + b.size.toNat ≤ i) :
-    (mul r a b)[i]! = r.array[i]! := by
+    (mul cfg r a b)[i]! = r.array[i]! := by
   rw [mul]; split
-  · exact (mulU_spec r a b).2.1 i hi
-  · exact (mulU_spec r b a).2.1 i (by lia)
+  · exact (mulU_spec cfg r a b).2.1 i hi
+  · exact (mulU_spec cfg r b a).2.1 i (by lia)
 
 public theorem valAt_mul (r a b : USlice) (ha : 0 < a.size) (hb : 0 < b.size)
     (hr : a.size.toNat + b.size.toNat ≤ r.size.toNat) :
-    (mul r a b).valAt r.start.toNat (a.size.toNat + b.size.toNat) = a.toNat * b.toNat := by
+    (mul cfg r a b).valAt r.start.toNat (a.size.toNat + b.size.toNat) = a.toNat * b.toNat := by
   rw [mul]; split
-  · exact (mulU_spec r a b).2.2 ha hb hr
-  · rw [Nat.add_comm, Nat.mul_comm]; exact (mulU_spec r b a).2.2 hb ha (by lia)
+  · exact (mulU_spec cfg r a b).2.2 ha hb hr
+  · rw [Nat.add_comm, Nat.mul_comm]; exact (mulU_spec cfg r b a).2.2 hb ha (by lia)
 
 /--
-The size, in limbs, from which `sqr` uses the FFT, where it passes the Toom squares (Zen 3,
-2026-10-23).
--/
-public def sqrFFTThreshold : Nat := 2816
-
-/--
-Writes the `2 a.size` limbs of `a²` into `r`: by `fftSqr` from `sqrFFTThreshold` limbs, by
+Writes the `2 a.size` limbs of `a²` into `r`: by `fftSqr` from `cfg.sqrFFT` limbs, by
 `sqrToom` below. It requires
 `0 < a.size` and `2 a.size ≤ r.size`.
 -/
-public def sqr (r a : USlice) : UInt64Array :=
-  if sqrFFTThreshold ≤ a.size.toNat then fftSqr r a (fftK (2 * a.size.toNat))
-  else sqrToom r a
+public def sqr (cfg : Config) (r a : USlice) : UInt64Array :=
+  if cfg.sqrFFT ≤ a.size.toNat then fftSqr cfg r a (fftK (2 * a.size.toNat))
+  else sqrToom cfg r a
 
-@[simp] public theorem size_sqr (r a : USlice) : (sqr r a).size = r.array.size := by
+@[simp] public theorem size_sqr (r a : USlice) : (sqr cfg r a).size = r.array.size := by
   rw [sqr]; split <;> simp
 
 /-- `sqr` leaves the limbs of `r` outside the ones it writes unchanged. -/
 public theorem getElem!_sqr (r a : USlice) (i : Nat)
     (hi : i < r.start.toNat ∨ r.start.toNat + 2 * a.size.toNat ≤ i) :
-    (sqr r a)[i]! = r.array[i]! := by
+    (sqr cfg r a)[i]! = r.array[i]! := by
   rw [sqr]; split
-  · exact getElem!_fftSqr r a _ i hi
-  · exact getElem!_sqrToom r a i hi
+  · exact getElem!_fftSqr cfg r a _ i hi
+  · exact getElem!_sqrToom cfg r a i hi
 
 public theorem valAt_sqr (r a : USlice) (ha : 0 < a.size) (hr : 2 * a.size.toNat ≤ r.size.toNat) :
-    (sqr r a).valAt r.start.toNat (2 * a.size.toNat) = a.toNat * a.toNat := by
+    (sqr cfg r a).valAt r.start.toNat (2 * a.size.toNat) = a.toNat * a.toNat := by
   rw [sqr]; split
-  · exact valAt_fftSqr r a _ ha hr
-  · exact valAt_sqrToom r a ha hr
+  · exact valAt_fftSqr cfg r a _ ha hr
+  · exact valAt_sqrToom cfg r a ha hr
 
 end MPN

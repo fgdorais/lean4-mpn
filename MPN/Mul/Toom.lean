@@ -27,21 +27,12 @@ which makes the evaluations smaller but some intermediate values negative.
 * Toom-4 by 2 (`4 × 2` pieces, degree 4): the points `0, 1, 2, 3, ∞`, five products, with the
   interpolation of Toom-3.
 
-`mulToom r a b` chooses by the sizes, and is `mulKaratsuba` below `toom3Threshold` limbs.
+`mulToom cfg r a b` chooses by the sizes, and is `mulKaratsuba` below `cfg.mulToom3` limbs.
 -/
 
 open ScalarArray UInt64Array
 
 namespace MPN
-
-/-- The size of the smaller operand from which `mulToom` uses the Toom methods. -/
-public def toom3Threshold : USize := 384
-
-/-- The size of the smaller operand from which `mulToom` uses Toom-4 and Toom-4 by 3. -/
-public def toom4Threshold : Nat := 600
-
-/-- The size of the smaller operand from which `mulToom` uses Toom-6. -/
-public def toom6Threshold : Nat := 1000
 
 /-! ## Building blocks -/
 
@@ -3701,23 +3692,22 @@ private theorem toom66_spec (r a b : USlice) (k : USize) (hk : Shape66 r a b k)
 
 /-! ## The dispatcher -/
 
+variable (cfg : Config)
+
 /-- The guard of the Toom methods, and the split points as `Nat`s. -/
-private theorem toom_guard {r a b : USlice}
-    (h : toom3Threshold ≤ b.size ∧ b.size ≤ a.size ∧ a.size ≤ r.size ∧ b.size ≤ r.size - a.size) :
-    384 ≤ b.size.toNat ∧ b.size.toNat ≤ a.size.toNat ∧
+private theorem toom_guard {cfg : Config} {r a b : USlice}
+    (h : cfg.mulToom3 ≤ b.size.toNat ∧ b.size ≤ a.size ∧ a.size ≤ r.size ∧
+      b.size ≤ r.size - a.size) :
+    12 ≤ b.size.toNat ∧ b.size.toNat ≤ a.size.toNat ∧
       a.size.toNat + b.size.toNat ≤ r.size.toNat ∧
       ((a.size + 2) / 3).toNat = (a.size.toNat + 2) / 3 ∧
       ((a.size + 3) / 4).toNat = (a.size.toNat + 3) / 4 := by
   have : 4294967296 ≤ USize.size := by cases USize.size_eq <;> lia
-  have hT : toom3Threshold.toNat = 384 := by
-    rw [toom3Threshold, USize.toNat_ofNat,
-      Nat.mod_eq_of_lt (by simp only [USize.size] at this; lia)]
-  have h₁ := USize.le_iff_toNat_le.1 h.1
+  have h₁ := Nat.le_trans cfg.twelve_le_mulToom3 h.1
   have h₂ := USize.le_iff_toNat_le.1 h.2.1
   have h₃ := USize.le_iff_toNat_le.1 h.2.2.1
   have h₄ := USize.le_iff_toNat_le.1 h.2.2.2
   rw [USize.toNat_sub_of_le _ _ h.2.2.1] at h₄
-  rw [hT] at h₁
   have := r.size.toNat_lt_size
   have hc2 : (2 : USize).toNat = 2 := by
     rw [USize.toNat_ofNat, Nat.mod_eq_of_lt (by simp only [USize.size] at this; lia)]
@@ -3739,20 +3729,24 @@ private theorem toNat_ceil6 (x : USize) (hx : x.toNat + 5 < USize.size) :
   rw [USize.toNat_div, USize.toNat_add_of_lt (by rw [hc5]; lia), hc5, hc6]
 
 /-- `mulToom` for `b.size ≤ a.size`. -/
-def mulToomAux (r a b : USlice) : UInt64Array :=
+def mulToomAux (cfg : Config) (r a b : USlice) : UInt64Array :=
   let mul : Mul (a.size.toNat + b.size.toNat) := fun r' a' b' _ =>
-    if b'.size ≤ a'.size then mulToomAux r' a' b' else mulToomAux r' b' a'
-  if h : toom3Threshold ≤ b.size ∧ b.size ≤ a.size ∧ a.size ≤ r.size ∧ b.size ≤ r.size - a.size then
+    if b'.size ≤ a'.size then mulToomAux cfg r' a' b' else mulToomAux cfg r' b' a'
+  if h : cfg.mulToom3 ≤ b.size.toNat ∧ b.size ≤ a.size ∧ a.size ≤ r.size ∧
+      b.size ≤ r.size - a.size then
     have hg := toom_guard h
-    if h₆₆ : toom6Threshold ≤ b.size.toNat ∧ 5 * ((a.size.toNat + 5) / 6) < b.size.toNat then
+    if h₆₆ : cfg.mulToom6 ≤ b.size.toNat ∧ 5 * ((a.size.toNat + 5) / 6) < b.size.toNat then
       toom66 r a b ((a.size + 5) / 6) (by
+        have := cfg.thirtytwo_le_mulToom6
         have := toNat_ceil6 a.size (by have := r.size.toNat_lt_size; lia)
         refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> lia) mul
-    else if h₄₄ : toom4Threshold ≤ b.size.toNat ∧ 3 * ((a.size.toNat + 3) / 4) < b.size.toNat then
-      toom44 r a b ((a.size + 3) / 4) (by refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> lia) mul
-    else if h₄₃ : toom4Threshold ≤ b.size.toNat ∧ 2 * ((a.size.toNat + 3) / 4) < b.size.toNat ∧
+    else if h₄₄ : cfg.mulToom4 ≤ b.size.toNat ∧ 3 * ((a.size.toNat + 3) / 4) < b.size.toNat then
+      toom44 r a b ((a.size + 3) / 4) (by
+        have := cfg.thirtytwo_le_mulToom4; refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> lia) mul
+    else if h₄₃ : cfg.mulToom4 ≤ b.size.toNat ∧ 2 * ((a.size.toNat + 3) / 4) < b.size.toNat ∧
         b.size.toNat ≤ 3 * ((a.size.toNat + 3) / 4) then
-      toom43 r a b ((a.size + 3) / 4) (by refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> lia) mul
+      toom43 r a b ((a.size + 3) / 4) (by
+        have := cfg.thirtytwo_le_mulToom4; refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> lia) mul
     else if h₃₃ : (a.size + 2) / 3 + (a.size + 2) / 3 < b.size then
       toom33 r a b ((a.size + 2) / 3) (by
         have := USize.lt_iff_toNat_lt.1 h₃₃
@@ -3771,9 +3765,9 @@ def mulToomAux (r a b : USlice) : UInt64Array :=
         rw [USize.toNat_add_of_lt (by lia)] at this
         refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> lia) mul
     else
-      mulKaratsuba r a b
+      mulKaratsuba cfg r a b
   else
-    mulKaratsuba r a b
+    mulKaratsuba cfg r a b
 termination_by a.size.toNat + b.size.toNat
 decreasing_by all_goals lia
 
@@ -3783,13 +3777,14 @@ private theorem MulOK.swap {R : UInt64Array} {r a b : USlice} (h : MulOK R r b a
   refine ⟨h₁, fun i hi => h₂ i (by lia), fun ha hb hr => ?_⟩
   rw [Nat.add_comm, Nat.mul_comm]; exact h₃ hb ha (by lia)
 
-private theorem mulKaratsuba_ok (r a b : USlice) : MulOK (mulKaratsuba r a b) r a b :=
-  ⟨size_mulKaratsuba r a b, getElem!_mulKaratsuba r a b,
-    fun _ hb hr => valAt_mulKaratsuba r a b hb hr⟩
+private theorem mulKaratsuba_ok (r a b : USlice) : MulOK (mulKaratsuba cfg r a b) r a b :=
+  ⟨size_mulKaratsuba cfg r a b, getElem!_mulKaratsuba cfg r a b,
+    fun _ hb hr => valAt_mulKaratsuba cfg r a b hb hr⟩
 
-private theorem mulToomAux_spec (r a b : USlice) : MulOK (mulToomAux r a b) r a b := by
+private theorem mulToomAux_spec (r a b : USlice) : MulOK (mulToomAux cfg r a b) r a b := by
   have hmul (r' a' b' : USlice) (h' : a'.size.toNat + b'.size.toNat < a.size.toNat + b.size.toNat) :
-      MulOK (if b'.size ≤ a'.size then mulToomAux r' a' b' else mulToomAux r' b' a') r' a' b' := by
+      MulOK (if b'.size ≤ a'.size then mulToomAux cfg r' a' b' else mulToomAux cfg r' b' a')
+        r' a' b' := by
     split
     · exact mulToomAux_spec r' a' b'
     · exact (mulToomAux_spec r' b' a').swap
@@ -3807,56 +3802,47 @@ private theorem mulToomAux_spec (r a b : USlice) : MulOK (mulToomAux r a b) r a 
             · exact toom32_spec _ _ _ _ _ _ hmul
             · split
               · exact toom42_spec _ _ _ _ _ _ hmul
-              · exact mulKaratsuba_ok r a b
-  · exact mulKaratsuba_ok r a b
+              · exact mulKaratsuba_ok cfg r a b
+  · exact mulKaratsuba_ok cfg r a b
 termination_by a.size.toNat + b.size.toNat
 decreasing_by all_goals lia
 
 /--
 Writes the `a.size + b.size` limbs of `a * b` into `r`, by Toom-4 or Toom-4 by 3 from
-`toom4Threshold` limbs in the smaller operand, and by Toom-3, Toom-3 by 2 or Toom-4 by 2,
-depending on the sizes, from `toom3Threshold` limbs, and by
+`cfg.mulToom4` limbs in the smaller operand, and by Toom-3, Toom-3 by 2 or Toom-4 by 2,
+depending on the sizes, from `cfg.mulToom3` limbs, and by
 `mulKaratsuba` below. It requires `0 < a.size`, `0 < b.size` and `a.size + b.size ≤ r.size`, and
 leaves `r` unchanged otherwise.
 -/
-public def mulToom (r a b : USlice) : UInt64Array :=
-  if b.size ≤ a.size then mulToomAux r a b else mulToomAux r b a
+public def mulToom (cfg : Config) (r a b : USlice) : UInt64Array :=
+  if b.size ≤ a.size then mulToomAux cfg r a b else mulToomAux cfg r b a
 
-private theorem mulToom_spec (r a b : USlice) : MulOK (mulToom r a b) r a b := by
+private theorem mulToom_spec (r a b : USlice) : MulOK (mulToom cfg r a b) r a b := by
   rw [mulToom]
   split
-  · exact mulToomAux_spec r a b
-  · exact (mulToomAux_spec r b a).swap
+  · exact mulToomAux_spec cfg r a b
+  · exact (mulToomAux_spec cfg r b a).swap
 
 /-- `mulToom` keeps the size of the array of `r`. -/
-@[simp] public theorem size_mulToom (r a b : USlice) : (mulToom r a b).size = r.array.size :=
-  (mulToom_spec r a b).1
+@[simp] public theorem size_mulToom (r a b : USlice) : (mulToom cfg r a b).size = r.array.size :=
+  (mulToom_spec cfg r a b).1
 
 /-- `mulToom` leaves the limbs of `r` outside the ones it writes unchanged. -/
 public theorem getElem!_mulToom (r a b : USlice) (i : Nat)
     (hi : i < r.start.toNat ∨ r.start.toNat + a.size.toNat + b.size.toNat ≤ i) :
-    (mulToom r a b)[i]! = r.array[i]! :=
-  (mulToom_spec r a b).2.1 i hi
+    (mulToom cfg r a b)[i]! = r.array[i]! :=
+  (mulToom_spec cfg r a b).2.1 i hi
 
 public theorem valAt_mulToom (r a b : USlice) (ha : 0 < a.size) (hb : 0 < b.size)
     (hr : a.size.toNat + b.size.toNat ≤ r.size.toNat) :
-    (mulToom r a b).valAt r.start.toNat (a.size.toNat + b.size.toNat) = a.toNat * b.toNat :=
-  (mulToom_spec r a b).2.2 ha hb hr
+    (mulToom cfg r a b).valAt r.start.toNat (a.size.toNat + b.size.toNat) = a.toNat * b.toNat :=
+  (mulToom_spec cfg r a b).2.2 ha hb hr
 
 /-! ## Squaring
 
 Toom-3 and Toom-4 on `a` by itself: one set of pieces and evaluations, and squares for the
 products, with the interpolations of the products. The squares recurse through `Sqr`.
 -/
-
-/-- The size from which `sqrToom` uses Toom-3. -/
-public def toom3SqrThreshold : Nat := 600
-
-/-- The size from which `sqrToom` uses Toom-4. -/
-public def toom4SqrThreshold : Nat := 1000
-
-/-- The size from which `sqrToom` uses Toom-6. -/
-public def toom6SqrThreshold : Nat := 1200
 
 /-- A squaring of operands of fewer than `N` limbs, the recursive calls of the Toom squares. -/
 public abbrev Sqr (N : Nat) : Type := (r a : USlice) → a.size.toNat < N → UInt64Array
@@ -4437,37 +4423,37 @@ private theorem sqr_guard {r a : USlice} (h : a.size.toNat + a.size.toNat ≤ r.
   · rw [USize.toNat_div, USize.toNat_add_of_lt (by rw [hc3]; lia), hc3, hc4]
 
 /-- `sqrToom`, recursively. -/
-def sqrToomAux (r a : USlice) : UInt64Array :=
-  let sq : Sqr a.size.toNat := fun r' a' _ => sqrToomAux r' a'
-  if h : toom3SqrThreshold ≤ a.size.toNat ∧ a.size.toNat + a.size.toNat ≤ r.size.toNat then
+def sqrToomAux (cfg : Config) (r a : USlice) : UInt64Array :=
+  let sq : Sqr a.size.toNat := fun r' a' _ => sqrToomAux cfg r' a'
+  if h : cfg.sqrToom3 ≤ a.size.toNat ∧ a.size.toNat + a.size.toNat ≤ r.size.toNat then
     have hg := sqr_guard h.2
-    if toom6SqrThreshold ≤ a.size.toNat then
+    if h₆ : cfg.sqrToom6 ≤ a.size.toNat then
       toom6Sqr r a ((a.size + 5) / 6) (by
-        simp only [toom3SqrThreshold] at *
+        have := cfg.thirtytwo_le_sqrToom6
         have := toNat_ceil6 a.size (by have := r.size.toNat_lt_size; lia)
         refine ⟨?_, ?_, ?_, ?_⟩ <;> lia) sq
-    else if toom4SqrThreshold ≤ a.size.toNat then
+    else if h₄ : cfg.sqrToom4 ≤ a.size.toNat then
       toom4Sqr r a ((a.size + 3) / 4) (by
-        simp only [toom3SqrThreshold] at *
+        have := cfg.thirtytwo_le_sqrToom4
         refine ⟨?_, ?_, ?_, ?_⟩ <;> lia) sq
     else
       toom3Sqr r a ((a.size + 2) / 3) (by
-        simp only [toom3SqrThreshold] at *
+        have := cfg.twelve_le_sqrToom3
         refine ⟨?_, ?_, ?_, ?_⟩ <;> lia) sq
   else
-    sqrKaratsuba r a
+    sqrKaratsuba cfg r a
 termination_by a.size.toNat
 decreasing_by all_goals lia
 
-private theorem sqrKaratsuba_ok (r a : USlice) : MulOK (sqrKaratsuba r a) r a a := by
-  refine ⟨size_sqrKaratsuba r a, fun i hi => getElem!_sqrKaratsuba r a i (by lia),
+private theorem sqrKaratsuba_ok (r a : USlice) : MulOK (sqrKaratsuba cfg r a) r a a := by
+  refine ⟨size_sqrKaratsuba cfg r a, fun i hi => getElem!_sqrKaratsuba cfg r a i (by lia),
     fun ha _ hr => ?_⟩
   rw [← Nat.two_mul]
-  exact valAt_sqrKaratsuba r a ha (by lia)
+  exact valAt_sqrKaratsuba cfg r a ha (by lia)
 
-private theorem sqrToomAux_spec (r a : USlice) : MulOK (sqrToomAux r a) r a a := by
+private theorem sqrToomAux_spec (r a : USlice) : MulOK (sqrToomAux cfg r a) r a a := by
   have hsq (r' a' : USlice) (h' : a'.size.toNat < a.size.toNat) :
-      MulOK (sqrToomAux r' a') r' a' a' := sqrToomAux_spec r' a'
+      MulOK (sqrToomAux cfg r' a') r' a' a' := sqrToomAux_spec r' a'
   rw [sqrToomAux]
   split
   · split
@@ -4475,31 +4461,31 @@ private theorem sqrToomAux_spec (r a : USlice) : MulOK (sqrToomAux r a) r a a :=
     · split
       · exact toom4Sqr_spec _ _ _ _ _ hsq
       · exact toom3Sqr_spec _ _ _ _ _ hsq
-  · exact sqrKaratsuba_ok r a
+  · exact sqrKaratsuba_ok cfg r a
 termination_by a.size.toNat
 decreasing_by all_goals lia
 
 /--
-Writes the `2 a.size` limbs of `a²` into `r`: by the Toom-6 square from `toom6SqrThreshold`
-limbs, the Toom-4 square from `toom4SqrThreshold`, the Toom-3 square from `toom3SqrThreshold`,
+Writes the `2 a.size` limbs of `a²` into `r`: by the Toom-6 square from `cfg.sqrToom6`
+limbs, the Toom-4 square from `cfg.sqrToom4`, the Toom-3 square from `cfg.sqrToom3`,
 and `sqrKaratsuba` below. It requires
 `0 < a.size` and `2 a.size ≤ r.size`, and leaves `r` unchanged otherwise.
 -/
-public def sqrToom (r a : USlice) : UInt64Array := sqrToomAux r a
+public def sqrToom (cfg : Config) (r a : USlice) : UInt64Array := sqrToomAux cfg r a
 
-@[simp] public theorem size_sqrToom (r a : USlice) : (sqrToom r a).size = r.array.size :=
-  (sqrToomAux_spec r a).1
+@[simp] public theorem size_sqrToom (r a : USlice) : (sqrToom cfg r a).size = r.array.size :=
+  (sqrToomAux_spec cfg r a).1
 
 /-- `sqrToom` leaves the limbs of `r` outside the ones it writes unchanged. -/
 public theorem getElem!_sqrToom (r a : USlice) (i : Nat)
     (hi : i < r.start.toNat ∨ r.start.toNat + 2 * a.size.toNat ≤ i) :
-    (sqrToom r a)[i]! = r.array[i]! :=
-  (sqrToomAux_spec r a).2.1 i (by lia)
+    (sqrToom cfg r a)[i]! = r.array[i]! :=
+  (sqrToomAux_spec cfg r a).2.1 i (by lia)
 
 public theorem valAt_sqrToom (r a : USlice) (ha : 0 < a.size)
     (hr : 2 * a.size.toNat ≤ r.size.toNat) :
-    (sqrToom r a).valAt r.start.toNat (2 * a.size.toNat) = a.toNat * a.toNat := by
+    (sqrToom cfg r a).valAt r.start.toNat (2 * a.size.toNat) = a.toNat * a.toNat := by
   rw [Nat.two_mul]
-  exact (sqrToomAux_spec r a).2.2 ha ha (by lia)
+  exact (sqrToomAux_spec cfg r a).2.2 ha ha (by lia)
 
 end MPN

@@ -10,7 +10,7 @@ public import MPN.Generic.DC
 /-!
 # Divide-and-conquer division
 
-`Num.divMod a b` divides by the schoolbook method (`divModBase`) below `dcThreshold` limbs in `b`,
+`Num.divMod a b` divides by the schoolbook method (`divModBase`) below `config.divDC` limbs in `b`,
 and above by `main`'s base-generic divide-and-conquer division (`NatOps.divNorm`, the scheme of
 Burnikel and Ziegler and of GMP's `mpn_dcpi1_div_qr`) on `ops64B`, the instance of `NatOps` with
 the schoolbook division at the bottom. It normalizes first, shifting `a` and `b` left by the bits
@@ -21,9 +21,6 @@ the remainder back.
 open ScalarArray UInt64Array
 
 namespace MPN.Num
-
-/-- The number of limbs of the divisor from which `divMod` divides by divide and conquer. -/
-public def dcThreshold : Nat := 512
 
 /-- `βˢ - 1`, in `s` limbs. -/
 public def allOnes (s : Nat) : UInt64Array := UInt64Array.replicate s 0xFFFFFFFFFFFFFFFF
@@ -71,16 +68,16 @@ public theorem fitTo_spec (x : UInt64Array) (m : Nat) (hv : x.toNat < 2 ^ (64 * 
 /-! ## Division -/
 
 /--
-`(a / b, a % b)`, for `0 < b`: when `b` has at least `dcThreshold` limbs, `a` and `b` are shifted
+`(a / b, a % b)`, for `0 < b`: when `b` has at least `config.divDC` limbs, `a` and `b` are shifted
 left by the `c` bits that set the top bit of `b`, divided by `NatOps.divNorm` on `ops64B`, and the
 remainder is shifted back; otherwise `divModBase`.
 -/
 public def divMod (a b : UInt64Array) : UInt64Array × UInt64Array :=
   let L := MPN.log2 b.toUSlice
   let nb := L / 64 + 1
-  if dcThreshold ≤ nb ∧ nb ≤ a.size ∧ 8 * a.size + 48 < USize.size then
+  if config.divDC ≤ nb ∧ nb ≤ a.size ∧ 8 * a.size + 48 < USize.size then
     let c := 63 - L % 64
-    let r := ops64B.divNorm divBase64 dcThreshold (low (shl a c) (a.size + 1)) (low (shl b c) nb)
+    let r := ops64B.divNorm divBase64 config.divDC (low (shl a c) (a.size + 1)) (low (shl b c) nb)
       nb (a.size + 1 - nb)
     (fitTo r.1 (a.size + 1), fitTo (shr (fitTo r.2 nb) c) (max a.size b.size))
   else divModBase a b
@@ -136,7 +133,7 @@ private theorem divMod_dc (a b : UInt64Array) (hb : 0 < b.toNat)
             exact Nat.le_trans (Nat.pow_le_pow_right (by decide) (by lia)) hlo
     have hb₀' : 0 < b.toNat * 2 ^ c := Nat.mul_pos hb (Nat.two_pow_pos _)
     obtain ⟨r₃, r₄⟩ := ops64B.divNorm_spec divBase64
-      (fun U V hV => val_divBase64 U V (by simp only [ops64B_val] at hV; lia)) dcThreshold nb
+      (fun U V hV => val_divBase64 U V (by simp only [ops64B_val] at hV; lia)) config.divDC nb
       (a.size + 1 - nb) (low (shl a c) (a.size + 1)) (low (shl b c) nb)
       (by simp only [ops64B_val]; rw [hVv]; exact hb₀')
       (by simp only [ops64B_val, ops64B_B]; rw [hVv, ← Nat.pow_mul]; exact hVlt)
@@ -144,7 +141,7 @@ private theorem divMod_dc (a b : UInt64Array) (hb : 0 < b.toNat)
     simp only [ops64B_val] at r₃ r₄
     rw [hUv, hVv, Nat.mul_div_mul_right _ _ (Nat.two_pow_pos _)] at r₃
     rw [hUv, hVv, Nat.mul_mod_mul_right] at r₄
-    generalize ops64B.divNorm divBase64 dcThreshold (low (shl a c) (a.size + 1))
+    generalize ops64B.divNorm divBase64 config.divDC (low (shl a c) (a.size + 1))
       (low (shl b c) nb) nb (a.size + 1 - nb) = r at r₃ r₄
     -- The quotient fits in `a.size + 1` limbs, and the remainder in `nb`, then in `b`'s.
     have hqa : a.toNat / b.toNat < 2 ^ (64 * (a.size + 1)) :=

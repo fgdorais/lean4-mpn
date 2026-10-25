@@ -28,7 +28,7 @@ public def mulModB (a b : UInt64Array) (k m : Nat) : UInt64Array :=
   let n := FFT.fftModN k m
   let r := UInt64Array.replicate (m * 2 ^ k + n + 1) 0
   if FFT.FFTModCheck r.toUSlice a.toUSlice b.toUSlice k m n then
-    FFT.fftMulModAt r.toUSlice a.toUSlice b.toUSlice k m n
+    FFT.fftMulModAt config r.toUSlice a.toUSlice b.toUSlice k m n
   else mul a b
 
 public theorem toNat_mulModB (a b : UInt64Array) (k m : Nat)
@@ -40,8 +40,8 @@ public theorem toNat_mulModB (a b : UInt64Array) (k m : Nat)
   split
   · rename_i h
     have hrS := h.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2
-    obtain ⟨-, -, e⟩ := FFT.fftMulModAt_spec _ _ _ k m _ h.params
-    obtain ⟨s₁, -, -⟩ := FFT.fftMulModAt_spec _ _ _ k m _ h.params
+    obtain ⟨-, -, e⟩ := FFT.fftMulModAt_spec config _ _ _ k m _ h.params
+    obtain ⟨s₁, -, -⟩ := FFT.fftMulModAt_spec config _ _ _ k m _ h.params
     rw [toUSlice_toNat a (by lia), toUSlice_toNat b (by lia)] at e
     rw [toNat_eq_valAt, s₁]
     simpa using e
