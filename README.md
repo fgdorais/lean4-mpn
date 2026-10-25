@@ -20,7 +20,10 @@ Both stay merged with `main`: a change to the common part is made here and merge
 | `MPN.Sum` | finite sums `sumRange f n`, for column sums of products and the inverse FFT |
 | `MPN.NatMod` | congruences modulo the Fermat numbers of the FFT |
 | `MPN.Poly` | coefficient lists and their values `polyVal x cs`: sums, products, even and odd parts |
+| `MPN.FFT.Roots` | the inversion of the FFT's transform modulo a Fermat number, on natural numbers |
+| `MPN.WordGcd` | Euclid's algorithm on words, and the runs of Lehmer's steps on leading words |
 | `MPN.Generic.Ops` | `NatOps α`: the operations of a representation of numbers at a base, with their specifications |
+| `MPN.Generic.Barrett` | division by a reciprocal from Newton's iteration over `NatOps`, every estimate checked |
 | `MPN.Generic.HGCD` | half-gcd over `NatOps` (Schönhage, Möller), with the instance's base case |
 | `MPN.Generic.Radix` | decimal strings by divide and conquer over `NatOps` |
 
