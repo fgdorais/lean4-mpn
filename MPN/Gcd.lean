@@ -634,48 +634,6 @@ def mulMatW (M : Mat2 UInt64Array) (S : WMat) : Mat2 UInt64Array :=
     trimA (mulAddMul M.m21 M.m22 S.s11 S.s21), trimA (mulAddMul M.m21 M.m22 S.s12 S.s22),
     M.neg != S.neg⟩
 
-private theorem det_mulW (a b c d e f g h : Int) :
-    (e * a + g * b) * (f * c + h * d) - (f * a + h * b) * (e * c + g * d) =
-      (a * d - b * c) * (e * h - f * g) := by
-  grind
-
-private theorem unimodular_mulMatW (M : Mat2 UInt64Array) (S : WMat) (hM : ops64.Unimodular M)
-    (hS : S.OK) : ops64.Unimodular (mulMatW M S) := by
-  obtain ⟨h₁₁, h₁₂, h₂₁, h₂₂, hp, hn⟩ := hS
-  unfold NatOps.Unimodular at *
-  simp only [mulMatW, ops64_val, toNat_trimA] at *
-  rw [toNat_mulAddMul _ _ _ _ h₁₁ h₂₁, toNat_mulAddMul _ _ _ _ h₁₂ h₂₂,
-    toNat_mulAddMul _ _ _ _ h₁₁ h₂₁, toNat_mulAddMul _ _ _ _ h₁₂ h₂₂]
-  push_cast
-  have e := det_mulW M.m11.toNat M.m12.toNat M.m21.toNat M.m22.toNat S.s11.toNat S.s12.toNat
-    S.s21.toNat S.s22.toNat
-  have hS : (S.s11.toNat * S.s22.toNat - S.s12.toNat * S.s21.toNat : Int) =
-      if S.neg then -1 else 1 := by
-    cases hs : S.neg
-    · have := hp hs
-      have : ((S.s11.toNat * S.s22.toNat : Nat) : Int) = ((S.s12.toNat * S.s21.toNat + 1 : Nat) : Int) := by
-        rw [this]
-      push_cast at this; simp; lia
-    · have := hn hs
-      have : ((S.s12.toNat * S.s21.toNat : Nat) : Int) = ((S.s11.toNat * S.s22.toNat + 1 : Nat) : Int) := by
-        rw [this]
-      push_cast at this; simp; lia
-  rw [e, hM, hS]
-  rcases Bool.eq_false_or_eq_true M.neg with h | h <;>
-    rcases Bool.eq_false_or_eq_true S.neg with h' | h' <;> simp [h, h']
-
-private theorem fwd_mulMatW (M : Mat2 UInt64Array) (S : WMat) (hS : S.OK)
-    (a₀ b₀ a b x y : UInt64Array) (hF : ops64.Fwd M a₀ b₀ a b)
-    (ha : a.toNat = S.s11.toNat * x.toNat + S.s12.toNat * y.toNat)
-    (hb : b.toNat = S.s21.toNat * x.toNat + S.s22.toNat * y.toNat) :
-    ops64.Fwd (mulMatW M S) a₀ b₀ x y := by
-  obtain ⟨h₁₁, h₁₂, h₂₁, h₂₂, -, -⟩ := hS
-  unfold NatOps.Fwd at *
-  simp only [mulMatW, ops64_val, toNat_trimA] at *
-  rw [toNat_mulAddMul _ _ _ _ h₁₁ h₂₁, toNat_mulAddMul _ _ _ _ h₁₂ h₂₂,
-    toNat_mulAddMul _ _ _ _ h₁₁ h₂₁, toNat_mulAddMul _ _ _ _ h₁₂ h₂₂, hF.1, hF.2, ha, hb]
-  constructor <;> grind
-
 /-- The matrix of the cofactors `m` and the numbers it takes to `a` and `b`, when it is valid. -/
 def tryCof (a b : UInt64Array) (m : Cofactors) : Option (WMat × UInt64Array × UInt64Array) :=
   match wmatOf m with
@@ -725,48 +683,38 @@ def geB (b : UInt64Array) (s : Nat) : Bool :=
   0 < s && fits (b.size + 1) && 64 * s ≤ MPN.log2 b.toUSlice
 
 /--
-Lehmer's steps (`stepW`) while `b ≥ βˢ` and they make the numbers smaller, at most `fuel` of them,
-with the product of their matrices (`mulMatW`).
+Half-gcd's base case of word matrices, for `NatOps.smallBase`: Lehmer's steps of 62 bits
+(`stepW`) applied by `mulSubMul`, and the matrix updated by `mulAddMul` (`mulMatW`).
 -/
-def baseLoopW (s : Nat) (a b : UInt64Array) (M : Mat2 UInt64Array) :
-    Nat → Mat2 UInt64Array × UInt64Array × UInt64Array
-  | 0 => (M, a, b)
-  | fuel + 1 =>
-    if geB b s then
-      match stepW a b with
-      | none => (M, a, b)
-      | some r =>
-        if ops64.le r.2.2 r.2.1 ∧ !(ops64.le b r.2.2) then
-          baseLoopW s r.2.1 r.2.2 (mulMatW M r.1) fuel
-        else (M, a, b)
-    else (M, a, b)
+def steps64 : ops64.SmallSteps where
+  W := WMat
+  e₁₁ S := S.s11.toNat
+  e₁₂ S := S.s12.toNat
+  e₂₁ S := S.s21.toNat
+  e₂₂ S := S.s22.toNat
+  neg S := S.neg
+  ok S := S.OK
+  step := stepW
+  mulMat := mulMatW
+  geB := geB
+  det_of_ok _ h := ⟨h.2.2.2.2.1, h.2.2.2.2.2⟩
+  step_spec a b r h := by
+    obtain ⟨h₁, h₂, h₃⟩ := stepW_spec a b r h
+    simp only [ops64_val]
+    exact ⟨h₁, h₂, h₃⟩
+  mulMat_spec M S h := by
+    obtain ⟨h₁₁, h₁₂, h₂₁, h₂₂, -, -⟩ := h
+    simp only [mulMatW, ops64_val, toNat_trimA]
+    rw [toNat_mulAddMul _ _ _ _ h₁₁ h₂₁, toNat_mulAddMul _ _ _ _ h₁₂ h₂₂,
+      toNat_mulAddMul _ _ _ _ h₁₁ h₂₁, toNat_mulAddMul _ _ _ _ h₁₂ h₂₂]
+    refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> simp [Nat.mul_comm]
 
-private theorem baseLoopW_ok (s : Nat) (a₀ b₀ : UInt64Array) :
-    ∀ fuel (a b : UInt64Array) (M : Mat2 UInt64Array), ops64.Unimodular M →
-      ops64.Fwd M a₀ b₀ a b → ops64.HgcdOK a₀ b₀ (baseLoopW s a b M fuel) := by
-  intro fuel
-  induction fuel with
-  | zero => intro a b M hM hF; exact ⟨hM, hF⟩
-  | succ fuel ih =>
-    intro a b M hM hF
-    simp only [baseLoopW]
-    split
-    · split
-      · exact ⟨hM, hF⟩
-      · rename_i r hr
-        obtain ⟨hS, ha, hb⟩ := stepW_spec a b r hr
-        split
-        · exact ih _ _ _ (unimodular_mulMatW M r.1 hM hS)
-            (fwd_mulMatW M r.1 hS a₀ b₀ a b _ _ hF ha hb)
-        · exact ⟨hM, hF⟩
-    · exact ⟨hM, hF⟩
-
-/-- The base case of half-gcd: `baseLoopW` from the identity. -/
+/-- The base case of half-gcd: `NatOps.smallBase` with `steps64`. -/
 def baseW (s : Nat) (a b : UInt64Array) : Mat2 UInt64Array × UInt64Array × UInt64Array :=
-  baseLoopW s a b ops64.matId (4 * a.size + 4)
+  ops64.smallBase steps64 s a b
 
 private theorem baseW_ok (s : Nat) (a b : UInt64Array) : ops64.HgcdOK a b (baseW s a b) :=
-  baseLoopW_ok s a b _ a b _ ops64.unimodular_matId (ops64.fwd_matId a b)
+  ops64.smallBase_ok steps64 s a b
 
 /-- The size up to which half-gcd computes its matrices by Lehmer's steps alone. -/
 public def hgcdBase : Nat := 128
