@@ -1660,13 +1660,14 @@ public def hgcdBase : Nat := 8
 
 /-- One reduction of `x ≥ y` by half-gcd (`NatOps.hgcdReduce`), trimmed. -/
 public def hgcdNat (x y : MPN.Nat) : MPN.Nat × MPN.Nat :=
-  let p := ops32.hgcdReduce lehmerMat hgcdBase x.limbs.toSlice y.limbs.toSlice
+  let p := ops32.hgcdReduce (ops32.stepBase lehmerMat) hgcdBase x.limbs.toSlice y.limbs.toSlice
   (ofLimbs (trim p.1.copy) (isTrimmed_trim _), ofLimbs (trim p.2.copy) (isTrimmed_trim _))
 
 private theorem gcd_hgcdNat (x y : MPN.Nat) :
     _root_.Nat.gcd (hgcdNat x y).1.toNat (hgcdNat x y).2.toNat =
       _root_.Nat.gcd x.toNat y.toNat := by
-  have h := ops32.gcd_hgcdReduce lehmerMat unimodular_lehmerMat hgcdBase x.limbs.toSlice
+  have h := ops32.gcd_hgcdReduce (ops32.stepBase lehmerMat)
+    (ops32.stepBase_ok lehmerMat unimodular_lehmerMat) hgcdBase x.limbs.toSlice
     y.limbs.toSlice
   simp only [ops32_val] at h
   simp only [hgcdNat, toNat_ofLimbs, toNat_trim, toNat_copy]

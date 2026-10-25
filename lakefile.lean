@@ -11,11 +11,11 @@ with this package's own settings, by passing options with its `require`. In a `l
 [[require]]
 name = "lean4-mpn"
 git = "https://github.com/fgdorais/lean4-mpn"
-rev = "main"
+rev = "main32"
 options = { march = "native", mulKaratsuba = "48" }
 ```
 
-or in a `lakefile.lean`, `require «lean4-mpn» from git "…" @ "main" with
+or in a `lakefile.lean`, `require «lean4-mpn» from git "…" @ "main32" with
 NameMap.empty |>.insert `march "native"`. The same options work on the command line with `-K`,
 for example `lake build -R -K march=native`. Lake keeps the configuration it elaborated, so after
 changing the options, build once with `-R` to reconfigure.

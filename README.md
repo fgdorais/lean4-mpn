@@ -15,6 +15,10 @@ bitwise operations, `^`, `ToString`, `Repr`), as well as `gcd`, `lcm`, `log2`, `
 `ofString?`: every operation is proved to agree with `Nat` through `MPN.Nat.toNat`, which is a
 bijection, and `toString` and `ofString?` with `Nat.repr` and `String.toNat?`.
 
+This is the `main32` branch. The part that does not depend on the width of a limb (finite sums,
+polynomials and the base-generic algorithms of `MPN.Generic`) lives on `main`, which this branch
+merges; `main64` is the same on `UInt64` limbs.
+
 ## Tuning
 
 Multiplication, squaring, division, the greatest common divisor and decimal strings switch
@@ -28,7 +32,7 @@ given processor:
 [[require]]
 name = "lean4-mpn"
 git = "https://github.com/fgdorais/lean4-mpn"
-rev = "main"
+rev = "main32"
 options = { march = "native", mulKaratsuba = "64", mulToom3 = "480", divDC = "176" }
 ```
 

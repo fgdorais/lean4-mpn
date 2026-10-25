@@ -19,6 +19,13 @@ open ScalarArray
 
 namespace MPN
 
+/-- `ofLimbs` is the value of the limbs as coefficients at `2³²`. -/
+public theorem ofLimbs_eq_polyVal (l : List UInt32) :
+    ofLimbs l = polyVal (2 ^ 32) (l.map UInt32.toNat) := by
+  induction l with
+  | nil => rfl
+  | cons d l ih => simp [ofLimbs_cons, polyVal, ih]
+
 /-- Adds `Σ cᵢ βᵏ⁽ᵒᶠᶠ ⁺ ⁱ⁾`... the coefficients `cs` at limbs `off`, `off + k`, `off + 2 k`, …. -/
 public def assembleFrom (r : UInt32Array) (off k : Nat) : List UInt32Array → UInt32Array
   | [] => r
