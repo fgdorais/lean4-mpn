@@ -65,7 +65,7 @@ signed carry out.
   (e, UInt64.mulh a xi - UInt64.mulh b yi - UInt64.subh 0 pl ql + UInt64.addh 0 d s - (s >>> 63))
 
 private theorem msWord_spec (xi yi a b s : UInt64) (ha : a.toNat < 2 ^ 62) (hb : b.toNat < 2 ^ 62)
-    (hs : -2 ^ 62 - 2 ≤ sval s ∧ sval s ≤ 2 ^ 62 + 1) :
+    (_hs : -2 ^ 62 - 2 ≤ sval s ∧ sval s ≤ 2 ^ 62 + 1) :
     ((msWord xi yi a b s).1.toNat : Int) + 2 ^ 64 * sval (msWord xi yi a b s).2 =
         a.toNat * xi.toNat - b.toNat * yi.toNat + sval s ∧
       -2 ^ 62 - 2 ≤ sval (msWord xi yi a b s).2 ∧ sval (msWord xi yi a b s).2 ≤ 2 ^ 62 + 1 := by
@@ -78,7 +78,7 @@ private theorem msWord_spec (xi yi a b s : UInt64) (ha : a.toNat < 2 ^ 62) (hb :
   have hneg : (s >>> 63).toNat = s.toNat / 2 ^ 63 := by
     rw [UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow]; rfl
   simp only [msWord]
-  generalize hsv : sval s = σ at hs ⊢
+  generalize hsv : sval s = σ at _hs ⊢
   have hσ : σ = s.toNat - 2 ^ 64 * (s.toNat / 2 ^ 63 : Nat) := by
     rw [← hsv]; unfold sval
     split
@@ -242,7 +242,7 @@ public theorem toNat_mulSubMul (x y : UInt64Array) (a b : UInt64) (ha : a.toNat 
       rw [Option.some.injEq] at h
       subst h
       have hsv : sval F.2 = F.2.toNat := by
-        unfold sval; rw [if_pos (by rw [UInt64.lt_iff_toNat_lt] at hs; simpa using hs)]
+        unfold sval; rw [ite_eq_left (by rw [UInt64.lt_iff_toNat_lt] at hs; simpa using hs)]
       have hsz : F.1.size = max x.size y.size + 1 := by rw [f₁]; simp
       rw [toNat_eq_valAt, size_set!, hsz, UInt64Array.valAt_add, valAt_one, Nat.zero_add,
         getElem!_set!_self _ _ _ (by lia),

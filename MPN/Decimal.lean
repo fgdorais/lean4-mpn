@@ -444,7 +444,7 @@ public theorem ofDecimalWith_eq (parseDC : Nat) (s : String) :
     · rw [Option.map_some, Option.some.injEq]
       have hd : ∀ c ∈ (s.toList.filter (· != '_')).toArray.toList, c.isDigit = true := by
         intro c hc
-        simp only [List.toList_toArray, List.mem_filter, bne_iff_ne, ne_eq] at hc
+        simp only [List.mem_filter, bne_iff_ne, ne_eq] at hc
         rcases (String.isNat_iff.1 h).2.1 c hc.1 with h' | h'
         · exact h'
         · exact absurd h' hc.2
