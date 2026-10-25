@@ -18,6 +18,7 @@ public import MPN.Mul.Toom
 public import MPN.Sqr.Basecase
 public import MPN.Sqr.Karatsuba
 public import MPN.FFT.Roots
+public import MPN.WordGcd
 public import MPN.FFT.Fermat
 public import MPN.FFT.Transform
 public import MPN.FFT.Mul
@@ -26,6 +27,7 @@ public import MPN.Div.DC
 public import MPN.Div.Mu
 public import MPN.Sqrt
 public import MPN.Generic.Ops
+public import MPN.Generic.Barrett
 public import MPN.Generic.HGCD
 public import MPN.Generic.Radix
 public import MPN.Generic.Ops64
@@ -52,10 +54,11 @@ Verified multi-precision arithmetic on `UInt64` limbs, in the style of GMP's `mp
   windows.
 * `MPN.Num`: whole arrays as numbers, each operation returning a new array;
 * `MPN.Div.DC`: divide-and-conquer division on them, `Num.divMod`;
-* `MPN.Div.Mu`: products modulo `β^N - 1` by the FFT, and division by a reciprocal;
+* `MPN.Div.Mu`: products modulo `β^N - 1` by the FFT (`mulModB`), and reductions modulo `β^N - 1`;
 * `MPN.Sqrt`: the square root and its remainder, by Zimmermann's Karatsuba square root.
-* `MPN.Generic.Ops`, `MPN.Generic.HGCD`, `MPN.Generic.Radix`: base-generic algorithms from `main`
-  (half-gcd, decimal strings by divide and conquer) over `NatOps`;
+* `MPN.Generic.Ops`, `MPN.Generic.Barrett`, `MPN.Generic.HGCD`, `MPN.Generic.Radix`: base-generic
+  algorithms from `main` (division by a reciprocal, half-gcd, decimal strings by divide and
+  conquer) over `NatOps`;
 * `MPN.Generic.Ops64`: the instance of `NatOps` for 64-bit limbs, on `MPN.Num`;
 * `MPN.Lehmer`: `mulSubMul`, `a x - b y` in one pass, the kernel of Lehmer's step;
 * `MPN.Gcd`: the greatest common divisor, by Lehmer's algorithm and half-gcd;

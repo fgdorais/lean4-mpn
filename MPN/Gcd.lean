@@ -7,6 +7,7 @@ module
 public import MPN.Generic.HGCD
 public import MPN.Generic.Ops64
 public import MPN.Lehmer
+public import MPN.WordGcd
 
 /-!
 # Greatest common divisor
@@ -29,40 +30,10 @@ open ScalarArray UInt64Array
 
 namespace MPN
 
-/-! ## Lehmer's steps on words -/
+/-! ## Lehmer's steps on words
 
-/-- The cofactors of a run of Lehmer's steps, as one object with unboxed fields. -/
-structure Cofactors where
-  A : Int64
-  B : Int64
-  C : Int64
-  D : Int64
-
-/--
-Euclid's algorithm on the leading words `x ≥ y` of two numbers, with the cofactors `A`, `B`, `C`,
-`D` of the steps so far, like GMP's `hgcd2` on one word: it stops when the remainder falls below
-`2³¹`, half the bits of the words, which keeps the cofactors below `2³¹`, or when Jebelean's
-condition fails, which makes the quotients those of the full numbers. Nothing is proved about it:
-`applyCof` and `wmatOf` check the cofactors, and the caller that the numbers got smaller.
+`lehmerSteps`, with its `Cofactors`, and `LeadWords` are in `MPN.WordGcd`.
 -/
-def lehmerSteps (x y A B C D : Int64) : Nat → Cofactors
-  | 0 => ⟨A, B, C, D⟩
-  | f + 1 =>
-    if y < 0x80000000 then ⟨A, B, C, D⟩
-    else
-      let q : Int64 := if x < y + y then 1 else x / y
-      let r := x - q * y
-      let C' := A - q * C
-      let D' := B - q * D
-      if r < C'.abs ∨ r < D'.abs ∨ y - r < (C' - C).abs ∨ y - r < (D' - D).abs ∨
-          0x80000000 ≤ C'.abs ∨ 0x80000000 ≤ D'.abs then
-        ⟨A, B, C, D⟩
-      else lehmerSteps y r C D C' D' f
-
-/-- Two words, as one object with unboxed fields. -/
-structure LeadWords where
-  x : Int64
-  y : Int64
 
 /--
 The leading 62 bits of `a`, from its top nonzero limb, and the bits of `b` at the same positions,
@@ -279,21 +250,6 @@ private theorem toNat_modN (x y : UInt64Array) (hy : y.toNat ≠ 0) :
 def zeroA : UInt64Array := UInt64Array.replicate 0 0
 
 private theorem toNat_zeroA : zeroA.toNat = 0 := by simp [zeroA, toNat_eq_valAt]
-
-/-- The greatest common divisor of two words, by Euclid's algorithm. -/
-def wordGcd (a b : UInt64) : UInt64 := if _h : b = 0 then a else wordGcd b (a % b)
-termination_by b.toNat
-decreasing_by
-  rw [UInt64.toNat_mod]
-  exact Nat.mod_lt _ (Nat.pos_of_ne_zero fun e => _h (UInt64.toNat_inj.1 (by rw [e]; rfl)))
-
-private theorem toNat_wordGcd (a b : UInt64) :
-    (wordGcd a b).toNat = Nat.gcd a.toNat b.toNat := by
-  induction a, b using wordGcd.induct with
-  | case1 a => rw [wordGcd]; simp
-  | case2 a b h ih =>
-    rw [wordGcd, dite_eq_right h, ih, UInt64.toNat_mod]
-    exact (Nat.gcd_comm _ _).trans ((Nat.gcd_rec _ _).symm.trans (Nat.gcd_comm _ _))
 
 /-! ## Two words -/
 
