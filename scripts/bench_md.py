@@ -9,7 +9,9 @@ Turns the output of `lake exe bench` into the Markdown tables of BENCH.md.
 
 prints two tables, operations by size: the ratio MPN / Nat, and the time of MPN. Lines that
 are not rows of the benchmark (the header, other output) are ignored, so the output of several
-runs can be concatenated.
+runs can be concatenated. A row that appears more than once keeps the fastest time of each
+column: some processes run every trial of an operation slower than others, and the fastest of a
+few runs is the time without that.
 """
 
 import sys
@@ -35,6 +37,18 @@ def parse(lines):
     return rows
 
 
+def merge(rows):
+    """One row per (op, limbs), with the fastest time of each column, in first-seen order."""
+    best = {}
+    for op, n, mpn, nat in rows:
+        if (op, n) in best:
+            _, _, m, t = best[(op, n)]
+            mpn = min(mpn, m)
+            nat = t if nat is None else nat if t is None else min(nat, t)
+        best[(op, n)] = (op, n, mpn, nat)
+    return list(best.values())
+
+
 def fmt_time(ns):
     for unit, scale in (('s', 1e9), ('ms', 1e6), ('µs', 1e3)):
         if ns >= scale:
@@ -55,7 +69,7 @@ def table(rows, cell):
 
 
 def main():
-    rows = parse(open(sys.argv[1], encoding='utf-8') if len(sys.argv) > 1 else sys.stdin)
+    rows = merge(parse(open(sys.argv[1], encoding='utf-8') if len(sys.argv) > 1 else sys.stdin))
     print('Ratio MPN / Nat (below 1 is faster than Nat):\n')
     print(table(rows, lambda r: f'{r[2] / r[3]:.2f}' if r[3] else ''))
     print('\nTime of MPN:\n')
