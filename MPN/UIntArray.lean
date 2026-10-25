@@ -451,7 +451,7 @@ private unsafe def foldUInPlaceThenImpl {β γ : Type} (n : USize)
     (f : (j : USize) → j < n → UInt64 → β → UInt64 × β) (arr : UInt64Array) (rs : USize)
     (_ : LoopBound arr rs n) (j : USize) (b : β)
     (g : (arr' : UInt64Array) → arr'.size = arr.size → β → γ) : γ :=
-  loop (ensureExclusiveUnsafe arr) j b
+  loop arr.ensureExclusive j b
 where
   @[specialize] loop (a : UInt64Array) (j : USize) (b : β) : γ :=
     if j < n then
@@ -528,7 +528,7 @@ private unsafe def foldUInPlace2ThenImpl {β γ : Type} (n : USize)
     (rs xs ys : USize) (_ : LoopBound arr rs n) (_ : LoopBound arr xs n)
     (_ : LoopBound arr ys n) (j : USize) (b : β)
     (g : (arr' : UInt64Array) → arr'.size = arr.size → β → γ) : γ :=
-  loop (ensureExclusiveUnsafe arr) j b
+  loop arr.ensureExclusive j b
 where
   @[specialize] loop (a : UInt64Array) (j : USize) (b : β) : γ :=
     if j < n then
