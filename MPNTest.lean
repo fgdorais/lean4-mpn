@@ -429,6 +429,15 @@ def bigNatValues : List Nat :=
 #guard (MPN.Nat.ofNat (2 ^ 64 - 1) + 1).toNat == 2 ^ 64
 #guard (MPN.Nat.ofNat (2 ^ 64) - 1).toNat == 2 ^ 64 - 1
 
+-- `gcd` below `2⁹⁶` (`gcd2`) and just above: common factors, a second number of one word, below
+-- and above `2³²` (`rem2`), zero, equal numbers.
+#guard [(2 ^ 96 - 1, 2 ^ 64 + 1), (2 ^ 95 + 3, 3 ^ 50), (sample1 90 91, sample1 80 93),
+    (sample1 96 95, 4294967291), (sample1 96 97, 2 ^ 40 + 15), (2 ^ 90 * 5, 2 ^ 80 * 25),
+    (2 ^ 96 - 1, 2 ^ 96 - 1), (2 ^ 128 - 1, 2 ^ 64 + 1), (2 ^ 127 + 7, 3 ^ 40), (sample1 120 81, sample1 70 83),
+    (2 ^ 100 * 3, 2 ^ 90 * 9), (2 ^ 128 - 1, 2 ^ 128 - 1), (2 ^ 100, 0), (0, 2 ^ 70 + 1),
+    (sample1 128 85, 12345), (sample1 65 87 * 6, sample1 60 89 * 6)].all fun (a, b) =>
+  (MPN.Nat.gcd (MPN.Nat.ofNat a) (MPN.Nat.ofNat b)).toNat == Nat.gcd a b
+
 -- `gcd` with large common factors.
 #guard [1, 5, 40].all fun k =>
   let g := sample1 (32 * k) 71

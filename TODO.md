@@ -260,6 +260,8 @@ block of the division, and `topSize` usually stops at the first limb.
     one Newton step, which is at least the root by AM-GM, then steps down while `x² > n` with one
     square (`sqrtFix`), where the iteration took a second division to stop. Faster than `Nat` up
     to 4 limbs, 1.0–2.2× behind above (from 1.6–4×).
+  - [x] `gcd2` (Euclid's algorithm on pairs of words, from `main64`) below `2⁹⁶`: `bgcd` 42% faster
+    at 3 limbs; at 4 limbs and inside Lehmer's algorithm it does not beat Lehmer's steps here.
   - [x] square roots of a root of 40 limbs and up by `main`'s generic Zimmermann recursion
     (`NatOps.sqrtRemAux` over `ops32`), Newton's iteration as its base up to 16 limbs:
     `bsqrt` 20% faster at 64 limbs, 2.7× from 512 (about 0.29 of `Nat` at 1024).

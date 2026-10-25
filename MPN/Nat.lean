@@ -424,20 +424,24 @@ as in `divRem2`, and divided by three `div2Step`s: the quotient is below `2⁹�
 limbs of the shifted `a` are already below the divisor and start the remainder. The quotient comes
 as its low word and its high word.
 -/
-def divRem128 (a : UInt32Array) (b : UInt64) : UInt64 × UInt64 × UInt64 :=
+@[inline] def divRem128L (x₀ x₁ x₂ x₃ : UInt32) (b : UInt64) : UInt64 × UInt64 × UInt64 :=
   let sN := 31 - (b >>> 32).toUInt32.toNat.log2
   let s := sN.toUInt64
   let V := b <<< s
   let vt := (V >>> 32).toUInt32
   let vs := V.toUInt32
-  let p₀ := shlStep s (a.getD 0 0) 0
-  let p₁ := shlStep s (a.getD 1 0) p₀.2
-  let p₂ := shlStep s (a.getD 2 0) p₁.2
-  let p₃ := shlStep s (a.getD 3 0) p₂.2
+  let p₀ := shlStep s (x₀) 0
+  let p₁ := shlStep s (x₁) p₀.2
+  let p₂ := shlStep s (x₂) p₁.2
+  let p₃ := shlStep s (x₃) p₂.2
   let t₂ := div2Step vt vs ((p₃.2.toUInt64 <<< 32) + p₃.1.toUInt64) p₂.1
   let t₁ := div2Step vt vs t₂.2 p₁.1
   let t₀ := div2Step vt vs t₁.2 p₀.1
   (t₀.1.toUInt64 + (t₁.1.toUInt64 <<< 32), t₂.1.toUInt64, t₀.2 >>> s)
+
+/-- `divRem128L` on the four limbs of `a`. -/
+def divRem128 (a : UInt32Array) (b : UInt64) : UInt64 × UInt64 × UInt64 :=
+  divRem128L (a.getD 0 0) (a.getD 1 0) (a.getD 2 0) (a.getD 3 0) b
 
 /--
 Unscaling a division: `X S = Q (b S) + r` with `r < b S` gives `X / b = Q` and `X % b = r / S`.
@@ -474,10 +478,12 @@ private theorem toNat_four (a : UInt32Array) (ha : a.size ≤ 4) :
   simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul, Nat.zero_add, Nat.mul_one,
     Nat.reduceMul]
 
-private theorem divRem128_spec (a : UInt32Array) (b : UInt64) (ha : a.size ≤ 4)
+private theorem divRem128L_spec (x₀ x₁ x₂ x₃ : UInt32) (b : UInt64)
     (hb : 4294967296 ≤ b) :
-    (divRem128 a b).1.toNat + 2 ^ 64 * (divRem128 a b).2.1.toNat = MPN.toNat a / b.toNat ∧
-      (divRem128 a b).2.2.toNat = MPN.toNat a % b.toNat := by
+    (divRem128L x₀ x₁ x₂ x₃ b).1.toNat + 2 ^ 64 * (divRem128L x₀ x₁ x₂ x₃ b).2.1.toNat =
+        (x₀.toNat + 2 ^ 32 * x₁.toNat + 2 ^ 64 * x₂.toNat + 2 ^ 96 * x₃.toNat) / b.toNat ∧
+      (divRem128L x₀ x₁ x₂ x₃ b).2.2.toNat =
+        (x₀.toNat + 2 ^ 32 * x₁.toNat + 2 ^ 64 * x₂.toNat + 2 ^ 96 * x₃.toNat) % b.toNat := by
   rw [UInt64.le_iff_toNat_le] at hb
   simp only [UInt64.reduceToNat] at hb
   have hbβ := b.toNat_lt
@@ -490,7 +496,7 @@ private theorem divRem128_spec (a : UInt32Array) (b : UInt64) (ha : a.size ≤ 4
   have hl : (b.toNat / 2 ^ 32).log2 < 32 := (Nat.log2_lt hd₁0).2 (by lia)
   have hlt := Nat.lt_log2_self (n := b.toNat / 2 ^ 32)
   have hge := Nat.log2_self_le hd₁0
-  simp only [divRem128, hd₁]
+  simp only [divRem128L, hd₁]
   generalize (b.toNat / 2 ^ 32).log2 = l at hl hlt hge
   have hS : 0 < 2 ^ (31 - l) := Nat.two_pow_pos _
   have hsU : (31 - l).toUInt64.toNat = 31 - l := by
@@ -522,19 +528,19 @@ private theorem divRem128_spec (a : UInt32Array) (b : UInt64) (ha : a.size ≤ 4
   generalize ((b <<< (31 - l).toUInt64) >>> 32).toUInt32 = vt at hvtvs hvt ⊢
   generalize (b <<< (31 - l).toUInt64).toUInt32 = vs at hvtvs ⊢
   -- The shift: four `shlStep`s make `X 2ˢ` in five words.
-  obtain ⟨e₀, c₀⟩ := shlStep_spec (31 - l) (by lia) (a.getD 0 0) 0 (by simpa using hS)
+  obtain ⟨e₀, c₀⟩ := shlStep_spec (31 - l) (by lia) (x₀) 0 (by simpa using hS)
   simp only [UInt32.toNat_zero, Nat.add_zero] at e₀
-  obtain ⟨e₁, c₁⟩ := shlStep_spec (31 - l) (by lia) (a.getD 1 0) _ c₀
-  obtain ⟨e₂, c₂⟩ := shlStep_spec (31 - l) (by lia) (a.getD 2 0) _ c₁
-  obtain ⟨e₃, c₃⟩ := shlStep_spec (31 - l) (by lia) (a.getD 3 0) _ c₂
-  generalize shlStep (31 - l).toUInt64 (a.getD 0 0) 0 = p₀ at *
-  generalize shlStep (31 - l).toUInt64 (a.getD 1 0) p₀.2 = p₁ at *
-  generalize shlStep (31 - l).toUInt64 (a.getD 2 0) p₁.2 = p₂ at *
-  generalize shlStep (31 - l).toUInt64 (a.getD 3 0) p₂.2 = p₃ at *
-  have hX := toNat_four a ha
-  have hXlt : MPN.toNat a < 2 ^ 128 := by
-    have := (a.getD 0 0).toNat_lt; have := (a.getD 1 0).toNat_lt
-    have := (a.getD 2 0).toNat_lt; have := (a.getD 3 0).toNat_lt
+  obtain ⟨e₁, c₁⟩ := shlStep_spec (31 - l) (by lia) (x₁) _ c₀
+  obtain ⟨e₂, c₂⟩ := shlStep_spec (31 - l) (by lia) (x₂) _ c₁
+  obtain ⟨e₃, c₃⟩ := shlStep_spec (31 - l) (by lia) (x₃) _ c₂
+  generalize shlStep (31 - l).toUInt64 (x₀) 0 = p₀ at *
+  generalize shlStep (31 - l).toUInt64 (x₁) p₀.2 = p₁ at *
+  generalize shlStep (31 - l).toUInt64 (x₂) p₁.2 = p₂ at *
+  generalize shlStep (31 - l).toUInt64 (x₃) p₂.2 = p₃ at *
+  have hXlt :
+      (x₀.toNat + 2 ^ 32 * x₁.toNat + 2 ^ 64 * x₂.toNat + 2 ^ 96 * x₃.toNat) < 2 ^ 128 := by
+    have := (x₀).toNat_lt; have := (x₁).toNat_lt
+    have := (x₂).toNat_lt; have := (x₃).toNat_lt
     lia
   -- The top two words start the remainder, below `V`.
   have hR0 : ((p₃.2.toUInt64 <<< 32) + p₃.1.toUInt64).toNat =
@@ -546,12 +552,13 @@ private theorem divRem128_spec (a : UInt32Array) (b : UInt64) (ha : a.size ≤ 4
       Nat.reduceMod, Nat.shiftLeft_eq]
     lia
   generalize hSdef : 2 ^ (31 - l) = S at *
-  generalize MPN.toNat a = X at *
+  generalize hX :
+    (x₀.toNat + 2 ^ 32 * x₁.toNat + 2 ^ 64 * x₂.toNat + 2 ^ 96 * x₃.toNat) = X at *
   generalize b.toNat = B at *
   -- `X S = W`, the five words.
   have hW : X * S = p₀.1.toNat + 2 ^ 32 * p₁.1.toNat + 2 ^ 64 * p₂.1.toNat +
       2 ^ 96 * (p₃.2.toNat * 2 ^ 32 + p₃.1.toNat) := by
-    rw [hX]
+    rw [← hX]
     simp only [Nat.add_mul, Nat.mul_assoc]
     lia
   have hXS : X * S < 2 ^ 128 * S := Nat.mul_lt_mul_of_pos_right hXlt hS
@@ -600,6 +607,13 @@ private theorem divRem128_spec (a : UInt32Array) (b : UInt64) (ha : a.size ≤ 4
     lia
   · rw [hr, UInt64.toNat_shiftRight, hsU, Nat.mod_eq_of_lt (show 31 - l < 64 by lia),
       Nat.shiftRight_eq_div_pow, hSdef]
+
+private theorem divRem128_spec (a : UInt32Array) (b : UInt64) (ha : a.size ≤ 4)
+    (hb : 4294967296 ≤ b) :
+    (divRem128 a b).1.toNat + 2 ^ 64 * (divRem128 a b).2.1.toNat = MPN.toNat a / b.toNat ∧
+      (divRem128 a b).2.2.toNat = MPN.toNat a % b.toNat := by
+  rw [divRem128, toNat_four a ha]
+  exact divRem128L_spec _ _ _ _ b hb
 
 /-- `divRemWord` without the remainder, which `div2` saves allocating. -/
 def divWord (a : UInt32Array) (b : UInt64) : UInt32Array :=
@@ -1527,6 +1541,300 @@ def leadWords (a b : UInt32Array) : LeadWords :=
   ⟨lead (a.getD (n - 1) 0) (a.getD (n - 2) 0) (a.getD (n - 3) 0),
     lead (b.getD (n - 1) 0) (b.getD (n - 2) 0) (b.getD (n - 3) 0)⟩
 
+/-! ## Two words
+
+Euclid's algorithm on numbers below `2¹²⁸` as pairs of words, like GMP's `mpn_gcd_22` and
+`main64`'s `gcd2`: Lehmer's algorithm and its divisions cost more than the steps there.
+-/
+
+/-- The high word of `a b`. -/
+private theorem toNat_mulWide_snd (a b : UInt64) :
+    (mulWide a b).2.toNat = a.toNat * b.toNat / 2 ^ 64 := by
+  have h := mulWide_spec a b
+  have := (mulWide a b).1.toNat_lt
+  rw [← h, Nat.add_mul_div_left _ _ (by decide), Nat.div_eq_of_lt this, Nat.zero_add]
+
+/-- The number `h β + l`. -/
+def v2 (h l : UInt64) : Nat := h.toNat * 2 ^ 64 + l.toNat
+
+/-- `(ah β + al) - (bh β + bl)` in two words. -/
+@[inline] def sub2h (ah al bh bl : UInt64) : UInt64 := ah - bh - (if al < bl then 1 else 0)
+
+private theorem toNat_sub_add (a b : UInt64) :
+    (a - b).toNat + b.toNat = a.toNat + (if a.toNat < b.toNat then 2 ^ 64 else 0) := by
+  rw [UInt64.toNat_sub]
+  have := a.toNat_lt; have := b.toNat_lt
+  split
+  · rw [Nat.mod_eq_of_lt (by lia)]; lia
+  · rw [show 2 ^ 64 - b.toNat + a.toNat = a.toNat - b.toNat + 2 ^ 64 by lia, Nat.add_mod_right,
+      Nat.mod_eq_of_lt (by lia)]
+    lia
+
+private theorem v2_sub (ah al bh bl : UInt64) (h : v2 bh bl ≤ v2 ah al) :
+    v2 (sub2h ah al bh bl) (al - bl) = v2 ah al - v2 bh bl := by
+  unfold v2 sub2h at *
+  have := al.toNat_lt; have := bl.toNat_lt; have := ah.toNat_lt; have := bh.toNat_lt
+  have := (ah - bh).toNat_lt; have := (al - bl).toNat_lt
+  have e₁ := toNat_sub_add al bl
+  have e₂ := toNat_sub_add ah bh
+  have e₃ := toNat_sub_add (ah - bh) (if al < bl then 1 else 0)
+  have := (ah - bh - if al < bl then 1 else 0).toNat_lt
+  generalize ah - bh - (if al < bl then 1 else 0) = t at *
+  by_cases hl : al < bl
+  · have hl' := UInt64.lt_iff_toNat_lt.1 hl
+    simp only [hl, hl', ↓reduceIte, UInt64.toNat_one] at e₁ e₃
+    split at e₃ <;> lia
+  · have hl' := mt UInt64.lt_iff_toNat_lt.2 hl
+    simp only [hl, hl', ↓reduceIte, UInt64.toNat_zero] at e₁ e₃
+    split at e₃ <;> lia
+
+/-- Whether `ah β + al < bh β + bl`. -/
+@[inline] def lt2 (ah al bh bl : UInt64) : Bool := ah < bh || (ah == bh && al < bl)
+
+private theorem lt2_iff (ah al bh bl : UInt64) : lt2 ah al bh bl = true ↔ v2 ah al < v2 bh bl := by
+  unfold lt2 v2
+  have := al.toNat_lt; have := bl.toNat_lt
+  simp only [Bool.or_eq_true, decide_eq_true_eq, Bool.and_eq_true, beq_iff_eq,
+    UInt64.lt_iff_toNat_lt, ← UInt64.toNat_inj]
+  constructor
+  · rintro (h | ⟨h₁, h₂⟩) <;> lia
+  · intro h
+    rcases Nat.lt_or_ge ah.toNat bh.toNat with h' | h'
+    · exact .inl h'
+    · exact .inr ⟨by lia, by lia⟩
+
+/-- The quotient estimate of a step: `⌊ah / (bh + 1)⌋`, at least `1`. -/
+@[inline] def q2 (ah bh : UInt64) : UInt64 := let q := ah / (bh + 1); if q = 0 then 1 else q
+
+private theorem q2_mul_le (ah al bh bl : UInt64) (h : v2 bh bl ≤ v2 ah al) :
+    (q2 ah bh).toNat * v2 bh bl ≤ v2 ah al ∧ 1 ≤ (q2 ah bh).toNat := by
+  unfold q2
+  dsimp only
+  split
+  · simp only [UInt64.toNat_one]; lia
+  · rename_i hq
+    have hq' : (ah / (bh + 1)).toNat ≠ 0 := fun e => hq (UInt64.toNat_inj.1 (by rw [e]; rfl))
+    rw [UInt64.toNat_div] at hq' ⊢
+    have hb1 : (bh + 1).toNat = bh.toNat + 1 := by
+      rw [UInt64.toNat_add, UInt64.toNat_one]
+      rcases Nat.lt_or_ge (bh.toNat + 1) (2 ^ 64) with e | e
+      · exact Nat.mod_eq_of_lt e
+      · exfalso; apply hq'
+        rw [UInt64.toNat_add, UInt64.toNat_one,
+          show bh.toNat + 1 = 2 ^ 64 by have := bh.toNat_lt; lia]
+        simp
+    rw [hb1] at hq' ⊢
+    have hd := Nat.div_mul_le_self ah.toNat (bh.toNat + 1)
+    have := bl.toNat_lt
+    unfold v2
+    constructor
+    · have : ah.toNat / (bh.toNat + 1) * (bh.toNat * 2 ^ 64 + bl.toNat) ≤
+          ah.toNat / (bh.toNat + 1) * ((bh.toNat + 1) * 2 ^ 64) :=
+        Nat.mul_le_mul_left _ (by lia)
+      have : ah.toNat / (bh.toNat + 1) * ((bh.toNat + 1) * 2 ^ 64) ≤ ah.toNat * 2 ^ 64 := by
+        rw [← Nat.mul_assoc]; exact Nat.mul_le_mul_right _ hd
+      lia
+    · lia
+
+/-- The high word of `q (bh β + bl)`. -/
+@[inline] def mul2h (q bh bl : UInt64) : UInt64 := q * bh + (mulWide q bl).2
+
+private theorem v2_mul (q bh bl : UInt64) (h : q.toNat * v2 bh bl < 2 ^ 128) :
+    v2 (mul2h q bh bl) (q * bl) = q.toNat * v2 bh bl := by
+  unfold v2 mul2h at *
+  have hm := Nat.div_add_mod (q.toNat * bl.toNat) (2 ^ 64)
+  rw [UInt64.toNat_add, UInt64.toNat_mul, toNat_mulWide_snd, UInt64.toNat_mul]
+  have : q.toNat * bh.toNat * 2 ^ 64 + q.toNat * bl.toNat < 2 ^ 128 := by
+    rw [Nat.mul_add, ← Nat.mul_assoc] at h; exact h
+  have : q.toNat * bh.toNat < 2 ^ 64 := by
+    rcases Nat.lt_or_ge (q.toNat * bh.toNat) (2 ^ 64) with e | e
+    · exact e
+    · exfalso
+      have := Nat.mul_le_mul_right (2 ^ 64) e
+      lia
+  rw [Nat.mod_eq_of_lt (a := q.toNat * bh.toNat) this]
+  have : q.toNat * bh.toNat + q.toNat * bl.toNat / 2 ^ 64 < 2 ^ 64 := by
+    rcases Nat.lt_or_ge (q.toNat * bh.toNat + q.toNat * bl.toNat / 2 ^ 64) (2 ^ 64) with e | e
+    · exact e
+    · exfalso
+      have := Nat.mul_le_mul_right (2 ^ 64) e
+      lia
+  rw [Nat.mod_eq_of_lt this]
+  lia
+
+/-- A step of `gcd2`: `a = (a - q b) + q b` with `q ≥ 1`. -/
+private theorem v2_step (ah al bh bl : UInt64) (h : ¬lt2 ah al bh bl = true) :
+    v2 (sub2h ah al (mul2h (q2 ah bh) bh bl) (q2 ah bh * bl)) (al - q2 ah bh * bl) +
+      (q2 ah bh).toNat * v2 bh bl = v2 ah al ∧ 1 ≤ (q2 ah bh).toNat := by
+  rw [lt2_iff] at h
+  have hle : v2 bh bl ≤ v2 ah al := Nat.le_of_not_lt h
+  obtain ⟨hq, h1⟩ := q2_mul_le ah al bh bl hle
+  have h128 : v2 ah al < 2 ^ 128 := by
+    unfold v2; have := ah.toNat_lt; have := al.toNat_lt; lia
+  have hm := v2_mul (q2 ah bh) bh bl (Nat.lt_of_le_of_lt hq h128)
+  have hq' : v2 (mul2h (q2 ah bh) bh bl) (q2 ah bh * bl) ≤ v2 ah al := by rw [hm]; exact hq
+  rw [v2_sub _ _ _ _ hq', hm]
+  exact ⟨Nat.sub_add_cancel hq, h1⟩
+
+
+/-- Reducing the high part of `A m + c` modulo `b` first. -/
+private theorem mod_step (A m c b : Nat) : (A * m + c) % b = (A % b * m + c) % b := by
+  have h : A * m + c = A % b * m + c + b * (A / b * m) := by
+    rw [show A * m = (A % b + b * (A / b)) * m by rw [Nat.mod_add_div], Nat.add_mul,
+      Nat.mul_assoc]
+    lia
+  rw [h, Nat.add_mul_mod_self_left]
+
+/-- The two halves of a word. -/
+private theorem toNat_halves (x : UInt64) :
+    x.toUInt32.toNat + 2 ^ 32 * (x >>> 32).toUInt32.toNat = x.toNat := by
+  have := x.toNat_lt
+  simp only [UInt64.toNat_toUInt32, UInt64.toNat_shiftRight, UInt64.reduceToNat, Nat.reduceMod,
+    Nat.shiftRight_eq_div_pow]
+  rw [Nat.mod_eq_of_lt (a := x.toNat / 2 ^ 32) (by lia)]
+  have := Nat.div_add_mod x.toNat (2 ^ 32)
+  lia
+
+/--
+`(ah β + al) % bl` in words: by `divRem128L` for `bl ≥ 2³²`, and below by three remainders of words,
+each of a remainder followed by 32 more bits, which fits in a word.
+-/
+def rem2 (ah al bl : UInt64) : UInt64 :=
+  if 4294967296 ≤ bl then
+    (divRem128L al.toUInt32 (al >>> 32).toUInt32 ah.toUInt32 (ah >>> 32).toUInt32 bl).2.2
+  else
+    let r₁ := ah % bl
+    let r₂ := ((r₁ <<< 32) + (al >>> 32)) % bl
+    ((r₂ <<< 32) + (al &&& 0xFFFFFFFF)) % bl
+
+private theorem toNat_rem2 (ah al bl : UInt64) (hb : 0 < bl.toNat) :
+    (rem2 ah al bl).toNat = v2 ah al % bl.toNat := by
+  unfold rem2
+  split
+  · rename_i h
+    rw [(divRem128L_spec _ _ _ _ bl h).2]
+    congr 1
+    have e₁ := toNat_halves al; have e₂ := toNat_halves ah
+    unfold v2; lia
+  · rename_i h
+    rw [UInt64.le_iff_toNat_le] at h
+    simp only [UInt64.reduceToNat] at h
+    have hal := al.toNat_lt
+    -- A remainder below `bl < 2³²`, followed by 32 bits.
+    have shift (r : UInt64) (x : UInt64) (hr : r.toNat < bl.toNat) (hx : x.toNat < 2 ^ 32) :
+        ((r <<< 32) + x).toNat = r.toNat * 2 ^ 32 + x.toNat := by
+      simp only [UInt64.toNat_add, UInt64.toNat_shiftLeft, UInt64.reduceToNat, Nat.reduceMod,
+        Nat.shiftLeft_eq]
+      rw [Nat.mod_eq_of_lt (a := r.toNat * 2 ^ 32) (by lia), Nat.mod_eq_of_lt (by lia)]
+    have hhi : (al >>> 32).toNat = al.toNat / 2 ^ 32 := by
+      simp [UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow]
+    have hlo : (al &&& 0xFFFFFFFF).toNat = al.toNat % 2 ^ 32 := by
+      rw [UInt64.toNat_and]; exact Nat.and_two_pow_sub_one_eq_mod _ 32
+    have r₁ : (ah % bl).toNat = ah.toNat % bl.toNat := UInt64.toNat_mod ..
+    have hr₁ : (ah % bl).toNat < bl.toNat := by rw [r₁]; exact Nat.mod_lt _ hb
+    have e₂ := shift (ah % bl) (al >>> 32) hr₁ (by rw [hhi]; lia)
+    have r₂ : (((ah % bl) <<< 32 + (al >>> 32)) % bl).toNat =
+        (ah.toNat * 2 ^ 32 + al.toNat / 2 ^ 32) % bl.toNat := by
+      rw [UInt64.toNat_mod, e₂, r₁, hhi, ← mod_step]
+    have hr₂ : (((ah % bl) <<< 32 + (al >>> 32)) % bl).toNat < bl.toNat := by
+      rw [UInt64.toNat_mod]; exact Nat.mod_lt _ hb
+    have e₃ := shift _ (al &&& 0xFFFFFFFF) hr₂ (by rw [hlo]; exact Nat.mod_lt _ (by decide))
+    dsimp only
+    rw [UInt64.toNat_mod, e₃, r₂, hlo, ← mod_step (ah.toNat * 2 ^ 32 + al.toNat / 2 ^ 32) (2 ^ 32)
+      (al.toNat % 2 ^ 32) bl.toNat]
+    have hv : (ah.toNat * 2 ^ 32 + al.toNat / 2 ^ 32) * 2 ^ 32 + al.toNat % 2 ^ 32 = v2 ah al := by
+      have := Nat.div_add_mod al.toNat (2 ^ 32)
+      unfold v2; lia
+    rw [hv]
+
+/--
+The greatest common divisor of `ah β + al` and `bh β + bl` by Euclid's algorithm on pairs of words,
+like GMP's `mpn_gcd_22`: steps `a - q b` with the estimate `q2` of the quotient, which is never too
+large, until `b` fits in a word, then one remainder by `rem2` and `wordGcd`.
+-/
+def gcd2 (ah al bh bl : UInt64) : MPN.Nat :=
+  if bh = 0 then
+    if bl = 0 then wideOf al ah
+    else small (wordGcd bl (rem2 ah al bl))
+  else if _h : lt2 ah al bh bl then gcd2 bh bl ah al
+  else
+    let q := q2 ah bh
+    gcd2 bh bl (sub2h ah al (mul2h q bh bl) (q * bl)) (al - q * bl)
+termination_by v2 ah al + v2 bh bl + (if v2 ah al < v2 bh bl then 1 else 0)
+decreasing_by
+  · rw [lt2_iff] at _h
+    generalize v2 ah al = A at *
+    generalize v2 bh bl = B at *
+    split <;> (try split) <;> lia
+  · rename_i hb
+    obtain ⟨e, h1⟩ := v2_step ah al bh bl _h
+    have hpos : 2 ^ 64 ≤ v2 bh bl := by
+      have : bh.toNat ≠ 0 := fun e => hb (UInt64.toNat_inj.1 (by rw [e]; rfl))
+      unfold v2; lia
+    have hb1 : v2 bh bl ≤ (q2 ah bh).toNat * v2 bh bl := Nat.le_mul_of_pos_left _ h1
+    rw [lt2_iff] at _h
+    generalize v2 (sub2h ah al (mul2h (q2 ah bh) bh bl) (q2 ah bh * bl))
+      (al - q2 ah bh * bl) = R at *
+    generalize v2 ah al = A at *
+    generalize v2 bh bl = B at *
+    generalize (q2 ah bh).toNat * B = P at *
+    split <;> lia
+
+private theorem toNat_wideOf_v2 (lo hi : UInt64) : (wideOf lo hi).toNat = v2 hi lo := by
+  rw [toNat_wideOf, v2]; lia
+
+private theorem toNat_gcd2 (ah al bh bl : UInt64) :
+    (gcd2 ah al bh bl).toNat = _root_.Nat.gcd (v2 ah al) (v2 bh bl) := by
+  induction ah, al, bh, bl using gcd2.induct with
+  | case1 ah al =>
+    rw [gcd2, ite_eq_left rfl, ite_eq_left rfl, toNat_wideOf_v2]
+    simp [v2]
+  | case2 ah al bl hl =>
+    rw [gcd2, ite_eq_left rfl, ite_eq_right hl]
+    have hl' : 0 < bl.toNat := Nat.pos_of_ne_zero fun e => hl (UInt64.toNat_inj.1 (by rw [e]; rfl))
+    rw [toNat_small, toNat_wordGcd, toNat_rem2 _ _ _ hl', show v2 0 bl = bl.toNat by simp [v2],
+      Nat.gcd_comm, ← Nat.gcd_rec, Nat.gcd_comm]
+  | case3 ah al bh bl hb h ih =>
+    rw [gcd2, ite_eq_right hb, dite_eq_left h, ih, Nat.gcd_comm]
+  | case4 ah al bh bl hb h q ih =>
+    simp only [q] at ih
+    rw [gcd2, ite_eq_right hb, dite_eq_right h, ih]
+    obtain ⟨e, -⟩ := v2_step ah al bh bl h
+    rw [← e, Nat.gcd_comm (_ + _), Nat.gcd_add_mul_right_right]
+
+/-- Whether a number is below `2⁹⁶`, from its size. -/
+def fits2 : MPN.Nat → Bool
+  | small _ => true
+  | large a _ => a.size ≤ 3
+
+/-- The word `x + 2³² y` of two limbs. -/
+@[inline] def word2 (x y : UInt32) : UInt64 := x.toUInt64 + (y.toUInt64 <<< 32)
+
+private theorem toNat_word2 (x y : UInt32) : (word2 x y).toNat = x.toNat + 2 ^ 32 * y.toNat := by
+  have := x.toNat_lt; have := y.toNat_lt
+  simp only [word2, UInt64.toNat_add, UInt64.toNat_shiftLeft, UInt32.toNat_toUInt64,
+    UInt64.reduceToNat, Nat.reduceMod, Nat.shiftLeft_eq]
+  rw [Nat.mod_eq_of_lt (a := y.toNat * 2 ^ 32) (by lia), Nat.mod_eq_of_lt (by lia)]
+  lia
+
+/-- The high and low words of a number below `2¹²⁸`, read from its limbs. -/
+def hiWord : MPN.Nat → UInt64
+  | small _ => 0
+  | large a _ => word2 (a.getD 2 0) (a.getD 3 0)
+
+def loWord : MPN.Nat → UInt64
+  | small w => w
+  | large a _ => word2 (a.getD 0 0) (a.getD 1 0)
+
+private theorem v2_words (x : MPN.Nat) (h : fits2 x = true) :
+    v2 (hiWord x) (loWord x) = x.toNat := by
+  cases x with
+  | small w => simp [v2, hiWord, loWord, toNat]
+  | large a ha =>
+    simp only [fits2, decide_eq_true_eq] at h
+    simp only [v2, hiWord, loWord, toNat, toNat_word2, toNat_four a (by lia)]
+    lia
+
 /--
 The greatest common divisor, by Lehmer's algorithm: the cofactors of Euclid's steps on the leading
 words, from `lehmerSteps`, are applied to the full numbers at once with `lehmerStep`, which keeps
@@ -1590,6 +1898,28 @@ private theorem toNat_gcdLehmer (x y : MPN.Nat) :
       simp only [hp, ih, gcd_mod_step]
     · exact hxy
 
+
+/--
+The greatest common divisor of small numbers: on words when both are, on pairs of words (`gcd2`)
+when both are below `2⁹⁶`, where it beats Lehmer's algorithm, and by `gcdLehmer` otherwise. The
+numbers that Lehmer's algorithm leaves along the way are better finished by it.
+-/
+def gcdSmall (x y : MPN.Nat) : MPN.Nat :=
+  match x, y with
+  | small a, small b => small (wordGcd a b)
+  | x, y =>
+    if fits2 x && fits2 y then gcd2 (hiWord x) (loWord x) (hiWord y) (loWord y) else gcdLehmer x y
+
+private theorem toNat_gcdSmall (x y : MPN.Nat) :
+    (gcdSmall x y).toNat = _root_.Nat.gcd x.toNat y.toNat := by
+  unfold gcdSmall
+  split
+  · exact toNat_wordGcd _ _
+  · split
+    · rename_i hf
+      simp only [Bool.and_eq_true] at hf
+      rw [toNat_gcd2, v2_words _ hf.1, v2_words _ hf.2]
+    · exact toNat_gcdLehmer _ _
 
 /-! ## Half-gcd -/
 
@@ -1786,7 +2116,7 @@ public def gcdWith (half : Nat) (x y : MPN.Nat) : MPN.Nat :=
   if half ≤ (minNat x y).limbs.size then
     let p := hgcdOrd x y
     if _hy : blt p.2 (minNat x y) then gcdWith half p.1 p.2 else gcdLehmer x y
-  else gcdLehmer x y
+  else gcdSmall x y
 termination_by y.toNat
 decreasing_by
   rw [blt_iff] at _hy
@@ -1805,7 +2135,7 @@ decreasing_by
     simp only [p] at hy
     rw [dite_eq_right hy, toNat_gcdLehmer]
   | case3 x y h =>
-    rw [gcdWith, ite_eq_right h, toNat_gcdLehmer]
+    rw [gcdWith, ite_eq_right h, toNat_gcdSmall]
 
 /-- The greatest common divisor, with half-gcd from `config.gcdHalf` limbs (`gcdWith`). -/
 public def gcd (x y : MPN.Nat) : MPN.Nat := gcdWith config.gcdHalf x y
