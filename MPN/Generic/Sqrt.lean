@@ -237,7 +237,7 @@ public def sqrtRemAux (base : α → α × α) (T : Nat) (N : α) (n : Nat) : α
     let u := if o.le o.one h.2 then o.add p.1 d₁.2 else d₁.2
     let s := o.add (o.shl l p.1) q
     let U := o.add (o.shl l u) (o.lo l N)
-    let q₂ := o.mul q q
+    let q₂ := o.sqr q
     if o.le q₂ U then (s, o.sub U q₂)
     else (o.sub s o.one, o.sub (o.add U (o.sub (o.add s s) o.one)) q₂)
 termination_by n
@@ -357,9 +357,9 @@ public theorem sqrtRemAux_spec (base : α → α × α) (T : Nat)
     have hUv : o.val (o.add (o.shl l u) (o.lo l N)) = Xn % (2 * t) * B + o.val N % B := by
       rw [o.val_add, o.val_shl, hB', huv, hA₀v]
     generalize o.add (o.shl l u) (o.lo l N) = U at hUv ⊢
-    have hq₂v : o.val (o.mul hd.1 hd.1) = Xn / (2 * t) * (Xn / (2 * t)) := by
-      rw [o.val_mul, f₁]
-    generalize o.mul hd.1 hd.1 = q₂ at hq₂v ⊢
+    have hq₂v : o.val (o.sqr hd.1) = Xn / (2 * t) * (Xn / (2 * t)) := by
+      rw [o.val_sqr, f₁]
+    generalize o.sqr hd.1 = q₂ at hq₂v ⊢
     -- Zimmermann's step.
     have hsplit := split3 (o.val N) B
     rw [hN₁] at hsplit
