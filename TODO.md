@@ -251,7 +251,10 @@ block of the division, and `topSize` usually stops at the first limb.
     `gcdWith` keeps a reduction only when it made the smaller number smaller. From 4608 limbs
     (`gcdHalf`): `gcd` 5120 limbs −7%, 8192 −25%, 16384 −49%, 32768 −68%; up to 2–3× slower
     than Lehmer far below, where allocation, comparisons and trimming in small `NatOps`
-    operations dominate.
+    operations dominate. Since 2026-10-25 the base case goes up to `hgcdBase = 64` limbs (was 8),
+    which makes `gcd` 14–17% faster from 8192 limbs and moves `gcdHalf` to 3072. `main64`'s base
+    case of word matrices applied in one pass (`mulAddMul`) would be the next step, through
+    `main`.
   - [x] integer square root: Newton's iteration at growing precision, from the root of the top
     half (`sqrt (n / 4ᵏ)` for `k` a quarter of the bits), which starts within `2ᵏ` above the root;
     one Newton step, which is at least the root by AM-GM, then steps down while `x² > n` with one

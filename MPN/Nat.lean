@@ -1570,7 +1570,7 @@ private theorem unimodular_lehmerMat (a b : UInt32Array.Slice) (S : Mat2 UInt32A
   · exact absurd h (by simp)
 
 /-- The size below which half-gcd computes its matrices by Lehmer's steps alone. -/
-public def hgcdBase : Nat := 8
+public def hgcdBase : Nat := 64
 
 /-- One reduction of `x ≥ y` by half-gcd (`NatOps.hgcdReduce`), trimmed. -/
 public def hgcdNat (x y : MPN.Nat) : MPN.Nat × MPN.Nat :=
