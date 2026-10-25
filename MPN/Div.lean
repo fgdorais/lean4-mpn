@@ -7,6 +7,7 @@ module
 public import MPN.Div.Limb
 public import MPN.Div.Basecase
 public import MPN.Mul
+public import MPN.Sqr
 public import MPN.Cmp
 public import MPN.Generic.DC
 public import MPN.Div.Two
@@ -218,6 +219,12 @@ public theorem val_divBase32 (u v : UInt32Array.Slice) (hv : toNat v ≠ 0) :
   val_mul x y := by
     show toNat ((mulLimbs x y).toSlice.slice 0 (topSize _)) = _
     rw [toNat_slice_topSize]; exact isMul_mulLimbs.toNat_eq x y
+  sqr x :=
+    let r := (sqrLimbs x).toSlice
+    r.slice 0 (topSize r)
+  val_sqr x := by
+    show toNat ((sqrLimbs x).toSlice.slice 0 (topSize _)) = _
+    rw [toNat_slice_topSize]; exact toNat_sqrLimbs x
   add x y :=
     let r := (addLimbs x y).toSlice
     r.slice 0 (topSize r)

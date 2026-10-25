@@ -29,6 +29,9 @@ public structure NatOps (α : Type) where
   val_lt (x : α) : val x < B ^ size x
   mul : α → α → α
   val_mul (x y : α) : val (mul x y) = val x * val y
+  /-- `x²`, which squaring computes faster than `mul x x`. -/
+  sqr : α → α
+  val_sqr (x : α) : val (sqr x) = val x * val x
   add : α → α → α
   val_add (x y : α) : val (add x y) = val x + val y
   /-- `x - y`, specified when `y ≤ x`. -/

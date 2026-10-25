@@ -151,6 +151,10 @@ public theorem sqrLimbsWith_spec (cfg : Config) (a : UInt32Array.Slice) :
 /-- All `2 * a.size` limbs of `a * a`, untrimmed, like GMP's `mpn_sqr`. -/
 public def sqrLimbs (a : UInt32Array.Slice) : UInt32Array := sqrLimbsWith config a
 
+public theorem toNat_sqrLimbs (a : UInt32Array.Slice) :
+    toNat (sqrLimbs a).toSlice = toNat a * toNat a := by
+  rw [sqrLimbs]; exact (sqrLimbsWith_spec config a).2
+
 /-- Squares a number. -/
 public def sqr (a : UInt32Array.Slice) : UInt32Array := trim (sqrLimbs a)
 
