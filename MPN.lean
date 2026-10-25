@@ -28,6 +28,7 @@ public import MPN.Div.Mu
 public import MPN.Sqrt
 public import MPN.Generic.Ops
 public import MPN.Generic.Barrett
+public import MPN.Generic.DC
 public import MPN.Generic.HGCD
 public import MPN.Generic.Radix
 public import MPN.Generic.Ops64
