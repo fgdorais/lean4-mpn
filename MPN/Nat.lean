@@ -1518,70 +1518,166 @@ private theorem toNat_gcdLehmer (x y : MPN.Nat) :
 
 /-! ## Half-gcd -/
 
-/-- A limb holding `k`, as a slice. -/
-private def limbOf (k : Nat) : UInt32Array.Slice := (UInt32Array.mk #[k.toUInt32]).toSlice
+/-- A `2 × 2` matrix of words below `2³¹`, and the sign of its determinant. -/
+structure WMat where
+  s11 : UInt32
+  s12 : UInt32
+  s21 : UInt32
+  s22 : UInt32
+  neg : Bool
 
-private theorem toNat_limbOf (k : Nat) (h : k < 2 ^ 32) : MPN.toNat (limbOf k) = k := by
-  rw [limbOf, toNat_toSlice]
-  simp [Nat.toUInt32_eq, UInt32.toNat_ofNat', Nat.mod_eq_of_lt h]
+/-- `S` has entries below `2³¹` and determinant `±1`, with the sign of `S.neg`. -/
+def WMat.OK (S : WMat) : Prop :=
+  S.s11.toNat < 2 ^ 31 ∧ S.s12.toNat < 2 ^ 31 ∧ S.s21.toNat < 2 ^ 31 ∧ S.s22.toNat < 2 ^ 31 ∧
+    (S.neg = false → S.s11.toNat * S.s22.toNat = S.s12.toNat * S.s21.toNat + 1) ∧
+    (S.neg = true → S.s12.toNat * S.s21.toNat = S.s11.toNat * S.s22.toNat + 1)
+
+/-- `|x|` as a word, for the cofactors of `lehmerSteps`. -/
+@[inline] def absW (x : Int64) : UInt32 := (if x < 0 then 0 - x else x).toUInt64.toUInt32
+
+/-- The step's result from the two differences of `mulSubMul₂`, when both are nonnegative. -/
+def stepOf (S : WMat) (p : (UInt32Array × Bool) × (UInt32Array × Bool)) :
+    Option (WMat × UInt32Array.Slice × UInt32Array.Slice) :=
+  if p.1.2 = false ∧ p.2.2 = false then some (S, (trim p.1.1).toSlice, (trim p.2.1).toSlice)
+  else none
+
+private theorem stepOf_spec (S : WMat) (p : (UInt32Array × Bool) × (UInt32Array × Bool))
+    (r : WMat × UInt32Array.Slice × UInt32Array.Slice) (h : stepOf S p = some r) :
+    r.1 = S ∧ p.1.2 = false ∧ p.2.2 = false ∧ MPN.toNat r.2.1 = MPN.toNat p.1.1 ∧
+      MPN.toNat r.2.2 = MPN.toNat p.2.1 := by
+  unfold stepOf at h
+  split at h
+  · rename_i hn
+    rw [Option.some.injEq] at h
+    subst h
+    exact ⟨rfl, hn.1, hn.2, toNat_trim _, toNat_trim _⟩
+  · exact absurd h (by simp)
 
 /--
-Lehmer's steps on the leading words of `a ≥ b` as a matrix of `NatOps`, the base step of
-half-gcd: the cofactors `A`, `B`, `C`, `D` of `lehmerSteps` give `M = [[|D|, |B|], [|C|, |A|]]`,
-whose `applyInv` is `(|A a + B b|, |C a + D b|)`, when their determinant is `±1`.
+A step of Lehmer's algorithm for half-gcd's base case, with its matrix: the cofactors `A`, `B`, `C`,
+`D` of `lehmerSteps` on the leading words of `a ≥ b` give `S = [[|D|, |B|], [|C|, |A|]]` and the
+numbers `x = |A a + B b|` and `y = |C a + D b|` with `(a, b) = S (x, y)`, both from `mulSubMul₂` in
+one pass. Only words are checked: below `2³¹`, a determinant of `±1`, and both differences
+nonnegative, which make the relation exact; nothing about the cofactors needs a proof.
 -/
-public def lehmerMat (a b : UInt32Array.Slice) : Option (Mat2 UInt32Array.Slice) :=
-  let w := leadWords a.copy b.copy
+def stepW (a b : UInt32Array.Slice) : Option (WMat × UInt32Array.Slice × UInt32Array.Slice) :=
+  let ca := a.copy
+  let cb := b.copy
+  let w := leadWords ca cb
   let m := lehmerSteps w.x w.y 1 0 0 1 100
-  let A := m.A.toInt.natAbs
-  let B := m.B.toInt.natAbs
-  let C := m.C.toInt.natAbs
-  let D := m.D.toInt.natAbs
-  if A < 2 ^ 32 ∧ B < 2 ^ 32 ∧ C < 2 ^ 32 ∧ D < 2 ^ 32 then
-    if D * A = B * C + 1 then some ⟨limbOf D, limbOf B, limbOf C, limbOf A, false⟩
-    else if B * C = D * A + 1 then some ⟨limbOf D, limbOf B, limbOf C, limbOf A, true⟩
+  let A := absW m.A
+  let B := absW m.B
+  let C := absW m.C
+  let D := absW m.D
+  if A < 0x80000000 ∧ B < 0x80000000 ∧ C < 0x80000000 ∧ D < 0x80000000 then
+    if A.toNat * D.toNat = B.toNat * C.toNat + 1 then
+      stepOf ⟨D, B, C, A, false⟩ (mulSubMul₂ ca cb A B C D)
+    else if B.toNat * C.toNat = A.toNat * D.toNat + 1 then
+      stepOf ⟨D, B, C, A, true⟩ (mulSubMul₂ cb ca B A D C)
     else none
   else none
 
-private theorem unimodular_lehmerMat (a b : UInt32Array.Slice) (S : Mat2 UInt32Array.Slice)
-    (h : lehmerMat a b = some S) : ops32.Unimodular S := by
-  unfold lehmerMat at h
+private theorem fwd_pos₃₂ (p q r s a b X Y : Nat) (hd : s * p = q * r + 1)
+    (hX : X + b * q = a * s) (hY : Y + a * r = b * p) :
+    a = p * X + q * Y ∧ b = r * X + s * Y := by
+  constructor <;> grind
+
+private theorem fwd_neg₃₂ (p q r s a b X Y : Nat) (hd : q * r = s * p + 1)
+    (hX : X + a * s = b * q) (hY : Y + b * p = a * r) :
+    a = p * X + q * Y ∧ b = r * X + s * Y := by
+  constructor <;> grind
+
+private theorem stepW_spec (a b : UInt32Array.Slice) (r : WMat × UInt32Array.Slice ×
+    UInt32Array.Slice) (h : stepW a b = some r) : r.1.OK ∧
+      MPN.toNat a = r.1.s11.toNat * MPN.toNat r.2.1 + r.1.s12.toNat * MPN.toNat r.2.2 ∧
+      MPN.toNat b = r.1.s21.toNat * MPN.toNat r.2.1 + r.1.s22.toNat * MPN.toNat r.2.2 := by
+  unfold stepW at h
   dsimp only at h
+  generalize lehmerSteps _ _ 1 0 0 1 100 = m at h
+  generalize absW m.A = A at h
+  generalize absW m.B = B at h
+  generalize absW m.C = C at h
+  generalize absW m.D = D at h
   split at h
   · rename_i hb
     obtain ⟨hA, hB, hC, hD⟩ := hb
+    simp only [UInt32.lt_iff_toNat_lt, UInt32.reduceToNat] at hA hB hC hD
     split at h
-    · rename_i he
-      rw [Option.some.injEq] at h
-      subst h
-      simp only [NatOps.Unimodular, ops32_val]
-      rw [toNat_limbOf _ hD, toNat_limbOf _ hA, toNat_limbOf _ hB, toNat_limbOf _ hC]
-      simp only [Bool.false_eq_true, ↓reduceIte]
-      lia
+    · rename_i hdet
+      obtain ⟨e₁, e₂, e₃, e₄, e₅⟩ := stepOf_spec _ _ r h
+      rw [mulSubMul₂_eq] at e₂ e₃ e₄ e₅
+      have hx := (mulSubMul_spec a.copy b.copy A B (by lia) (by lia)).1 e₂
+      have hy := (mulSubMul_spec b.copy a.copy D C (by lia) (by lia)).1 e₃
+      simp only [toNat_copy] at hx hy
+      rw [e₁]
+      refine ⟨⟨hD, hB, hC, hA, fun _ => by lia, fun h => absurd h (by simp)⟩, ?_⟩
+      rw [e₄, e₅]
+      exact fwd_pos₃₂ _ _ _ _ _ _ _ _ (by lia) hx hy
     · split at h
-      · rename_i _ he
-        rw [Option.some.injEq] at h
-        subst h
-        simp only [NatOps.Unimodular, ops32_val]
-        rw [toNat_limbOf _ hD, toNat_limbOf _ hA, toNat_limbOf _ hB, toNat_limbOf _ hC]
-        simp only [↓reduceIte]
-        lia
+      · rename_i _ hdet
+        obtain ⟨e₁, e₂, e₃, e₄, e₅⟩ := stepOf_spec _ _ r h
+        rw [mulSubMul₂_eq] at e₂ e₃ e₄ e₅
+        have hx := (mulSubMul_spec b.copy a.copy B A (by lia) (by lia)).1 e₂
+        have hy := (mulSubMul_spec a.copy b.copy C D (by lia) (by lia)).1 e₃
+        simp only [toNat_copy] at hx hy
+        rw [e₁]
+        refine ⟨⟨hD, hB, hC, hA, fun h => absurd h (by simp), fun _ => by lia⟩, ?_⟩
+        rw [e₄, e₅]
+        exact fwd_neg₃₂ _ _ _ _ _ _ _ _ (by lia) hx hy
       · exact absurd h (by simp)
   · exact absurd h (by simp)
 
+/-- `M S`, by `mulAddMul`. -/
+def mulMatW (M : Mat2 UInt32Array.Slice) (S : WMat) : Mat2 UInt32Array.Slice :=
+  let m11 := M.m11.copy
+  let m12 := M.m12.copy
+  let m21 := M.m21.copy
+  let m22 := M.m22.copy
+  ⟨(trim (mulAddMul m11 m12 S.s11 S.s21)).toSlice, (trim (mulAddMul m11 m12 S.s12 S.s22)).toSlice,
+    (trim (mulAddMul m21 m22 S.s11 S.s21)).toSlice, (trim (mulAddMul m21 m22 S.s12 S.s22)).toSlice,
+    M.neg != S.neg⟩
+
+/--
+Half-gcd's base case of word matrices, for `NatOps.smallBase`: Lehmer's steps applied by
+`mulSubMul₂` (`stepW`), and the matrix updated by `mulAddMul` (`mulMatW`).
+-/
+def steps32 : ops32.SmallSteps where
+  W := WMat
+  e₁₁ S := S.s11.toNat
+  e₁₂ S := S.s12.toNat
+  e₂₁ S := S.s21.toNat
+  e₂₂ S := S.s22.toNat
+  neg S := S.neg
+  ok S := S.OK
+  step := stepW
+  mulMat := mulMatW
+  geB b s := decide (s < topSize b)
+  det_of_ok _ h := ⟨h.2.2.2.2.1, h.2.2.2.2.2⟩
+  step_spec a b r h := by
+    obtain ⟨h₁, h₂, h₃⟩ := stepW_spec a b r h
+    simp only [ops32_val]
+    exact ⟨h₁, h₂, h₃⟩
+  mulMat_spec M S h := by
+    obtain ⟨h₁₁, h₁₂, h₂₁, h₂₂, -, -⟩ := h
+    simp only [mulMatW, ops32_val, toNat_trim]
+    rw [toNat_mulAddMul _ _ _ _ h₁₁ h₂₁, toNat_mulAddMul _ _ _ _ h₁₂ h₂₂,
+      toNat_mulAddMul _ _ _ _ h₁₁ h₂₁, toNat_mulAddMul _ _ _ _ h₁₂ h₂₂]
+    simp only [toNat_copy]
+    refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> simp
+
 /-- The size below which half-gcd computes its matrices by Lehmer's steps alone. -/
-public def hgcdBase : Nat := 64
+public def hgcdBase : Nat := 128
 
 /-- One reduction of `x ≥ y` by half-gcd (`NatOps.hgcdReduce`), trimmed. -/
 public def hgcdNat (x y : MPN.Nat) : MPN.Nat × MPN.Nat :=
-  let p := ops32.hgcdReduce (ops32.stepBase lehmerMat) hgcdBase x.limbs.toSlice y.limbs.toSlice
+  let p := ops32.hgcdReduce (ops32.smallBase steps32) hgcdBase x.limbs.toSlice y.limbs.toSlice
   (ofLimbs (trim p.1.copy) (isTrimmed_trim _), ofLimbs (trim p.2.copy) (isTrimmed_trim _))
 
 private theorem gcd_hgcdNat (x y : MPN.Nat) :
     _root_.Nat.gcd (hgcdNat x y).1.toNat (hgcdNat x y).2.toNat =
       _root_.Nat.gcd x.toNat y.toNat := by
-  have h := ops32.gcd_hgcdReduce (ops32.stepBase lehmerMat)
-    (ops32.stepBase_ok lehmerMat unimodular_lehmerMat) hgcdBase x.limbs.toSlice
+  have h := ops32.gcd_hgcdReduce (ops32.smallBase steps32) (ops32.smallBase_ok steps32) hgcdBase
+    x.limbs.toSlice
     y.limbs.toSlice
   simp only [ops32_val] at h
   simp only [hgcdNat, toNat_ofLimbs, toNat_trim, toNat_copy]
