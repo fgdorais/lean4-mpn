@@ -13,12 +13,14 @@ public import MPN.Lehmer
 
 `Num.gcd a b` is `Nat.gcd a.toNat b.toNat`, ported from `main`:
 
-* Lehmer's algorithm (`gcdLehmer`): Euclid's steps on the leading 62 bits of the two numbers
-  (`lehmerSteps`, in `Int64`) give a matrix of determinant `±1` (`lehmerMat`), which is applied to
-  the full numbers at once (`NatOps.applyInvC`); when it does not apply or does not make the
-  numbers smaller, one step of Euclid's algorithm is taken instead. Nothing about the steps on
-  the words needs a proof: a matrix of determinant `±1` keeps the greatest common divisor.
-* Half-gcd (`NatOps.hgcdReduce`, with Lehmer's matrices as its base step) from `gcdHalf` limbs.
+* Lehmer's algorithm (`gcdLehmer`): two runs of Euclid's steps on the leading words of the two
+  numbers (`cofactors2`, with `lehmerSteps` in `Int64`) give cofactors of about 62 bits, which are
+  checked on words (`applyCof`: determinant `±1`) and applied to the full numbers in one pass each
+  (`mulSubMul`); when they do not apply or do not make the numbers smaller, one step of Euclid's
+  algorithm is taken instead. Nothing about the steps on the words needs a proof: a matrix of
+  determinant `±1` keeps the greatest common divisor.
+* Half-gcd (`NatOps.hgcdReduce`) from `gcdHalf` limbs, whose base case up to `hgcdBase` limbs is
+  the same steps with their matrix kept up to date in one pass per entry (`baseW`, `mulAddMul`).
 -/
 
 open ScalarArray UInt64Array
@@ -39,7 +41,7 @@ Euclid's algorithm on the leading words `x ≥ y` of two numbers, with the cofac
 `D` of the steps so far, like GMP's `hgcd2` on one word: it stops when the remainder falls below
 `2³¹`, half the bits of the words, which keeps the cofactors below `2³¹`, or when Jebelean's
 condition fails, which makes the quotients those of the full numbers. Nothing is proved about it:
-`lehmerMat` checks the determinant of the cofactors, and the caller that the numbers got smaller.
+`applyCof` and `wmatOf` check the cofactors, and the caller that the numbers got smaller.
 -/
 def lehmerSteps (x y A B C D : Int64) : Nat → Cofactors
   | 0 => ⟨A, B, C, D⟩
@@ -72,66 +74,7 @@ def leadWords (a b : UInt64Array) : LeadWords :=
   let w (x : UInt64Array) (i : Nat) : UInt64 := if h : i < x.size then x[i] else 0
   ⟨lead (w a n) (w a (n - 1)), lead (w b n) (w b (n - 1))⟩
 
-/--
-`|x|` as a natural number, with word arithmetic: `Int64.toInt` goes through the constant `2⁶⁴`,
-which the compiled code rebuilds from its digits at every call. Its value only affects speed.
--/
-@[inline] def absN (x : Int64) : Nat := if x < 0 then (0 - x).toUInt64.toNat else x.toUInt64.toNat
-
-/-- A limb holding `k`. -/
-def limbOf (k : Nat) : UInt64Array := UInt64Array.replicate 1 k.toUInt64
-
-private theorem toNat_limbOf (k : Nat) (h : k < 2 ^ 64) : (limbOf k).toNat = k := by
-  simp [limbOf, toNat_eq_valAt, Nat.toUInt64_eq, UInt64.toNat_ofNat', Nat.mod_eq_of_lt h]
-
-/--
-Lehmer's steps on the leading words of `a ≥ b` as a matrix: the cofactors `A`, `B`, `C`, `D` of
-`lehmerSteps` give `M = [[|D|, |B|], [|C|, |A|]]`, whose `applyInv` is `(|A a + B b|, |C a + D b|)`,
-when their determinant is `±1`.
--/
-public def lehmerMat (a b : UInt64Array) : Option (Mat2 UInt64Array) :=
-  let w := leadWords a b
-  let m := lehmerSteps w.x w.y 1 0 0 1 100
-  let A := absN m.A
-  let B := absN m.B
-  let C := absN m.C
-  let D := absN m.D
-  if A < 2 ^ 32 ∧ B < 2 ^ 32 ∧ C < 2 ^ 32 ∧ D < 2 ^ 32 then
-    if D * A = B * C + 1 then some ⟨limbOf D, limbOf B, limbOf C, limbOf A, false⟩
-    else if B * C = D * A + 1 then some ⟨limbOf D, limbOf B, limbOf C, limbOf A, true⟩
-    else none
-  else none
-
-public theorem unimodular_lehmerMat (a b : UInt64Array) (S : Mat2 UInt64Array)
-    (h : lehmerMat a b = some S) : ops64.Unimodular S := by
-  unfold lehmerMat at h
-  dsimp only at h
-  split at h
-  · rename_i hb
-    obtain ⟨hA, hB, hC, hD⟩ := hb
-    split at h
-    · rename_i he
-      rw [Option.some.injEq] at h
-      subst h
-      simp only [NatOps.Unimodular, ops64_val]
-      rw [toNat_limbOf _ (by lia), toNat_limbOf _ (by lia), toNat_limbOf _ (by lia),
-        toNat_limbOf _ (by lia)]
-      simp only [Bool.false_eq_true, ↓reduceIte]
-      lia
-    · split at h
-      · rename_i _ he
-        rw [Option.some.injEq] at h
-        subst h
-        simp only [NatOps.Unimodular, ops64_val]
-        rw [toNat_limbOf _ (by lia), toNat_limbOf _ (by lia), toNat_limbOf _ (by lia),
-          toNat_limbOf _ (by lia)]
-        simp only [↓reduceIte]
-        lia
-      · exact absurd h (by simp)
-  · exact absurd h (by simp)
-
 /-! ## Lehmer's algorithm -/
-
 
 /-- `|x|` as a word. -/
 @[inline] def absW (x : Int64) : UInt64 := if x < 0 then (0 - x).toUInt64 else x.toUInt64
@@ -418,31 +361,39 @@ public theorem toNat_gcdLehmer (x y : UInt64Array) :
 
 /-! ## Half-gcd -/
 
-/-- A word as an array of one limb. -/
-def wordA (w : UInt64) : UInt64Array := UInt64Array.replicate 1 w
+/-- A `2 × 2` matrix of words below `2⁶²`, and the sign of its determinant. -/
+structure WMat where
+  s11 : UInt64
+  s12 : UInt64
+  s21 : UInt64
+  s22 : UInt64
+  neg : Bool
 
-private theorem toNat_wordA (w : UInt64) : (wordA w).toNat = w.toNat := by
-  simp [wordA, toNat_eq_valAt]
+/-- `S` has entries below `2⁶²` and determinant `±1`, with the sign of `S.neg`. -/
+def WMat.OK (S : WMat) : Prop :=
+  S.s11.toNat < 2 ^ 62 ∧ S.s12.toNat < 2 ^ 62 ∧ S.s21.toNat < 2 ^ 62 ∧ S.s22.toNat < 2 ^ 62 ∧
+    (S.neg = false → S.s11.toNat * S.s22.toNat = S.s12.toNat * S.s21.toNat + 1) ∧
+    (S.neg = true → S.s12.toNat * S.s21.toNat = S.s11.toNat * S.s22.toNat + 1)
 
 /--
-The matrix `[[|D|, |B|], [|C|, |A|]]` of the cofactors `m`, when they are below `2⁶²` and their
-determinant is `±1`, checked on words.
+The matrix `[[|D|, |B|], [|C|, |A|]]` of the cofactors `m`, whose `S⁻¹ (a, b)` is
+`(|A a + B b|, |C a + D b|)`, when its entries are below `2⁶²` and its determinant is `±1`, checked
+on words.
 -/
-def cofMat (m : Cofactors) : Option (Mat2 UInt64Array) :=
+def wmatOf (m : Cofactors) : Option WMat :=
   let A := absW m.A
   let B := absW m.B
   let C := absW m.C
   let D := absW m.D
   if A < 0x4000000000000000 ∧ B < 0x4000000000000000 ∧ C < 0x4000000000000000 ∧
       D < 0x4000000000000000 then
-    if eqPlusOne D A B C then some ⟨wordA D, wordA B, wordA C, wordA A, false⟩
-    else if eqPlusOne B C D A then some ⟨wordA D, wordA B, wordA C, wordA A, true⟩
+    if eqPlusOne D A B C then some ⟨D, B, C, A, false⟩
+    else if eqPlusOne B C D A then some ⟨D, B, C, A, true⟩
     else none
   else none
 
-private theorem unimodular_cofMat (m : Cofactors) (S : Mat2 UInt64Array)
-    (h : cofMat m = some S) : ops64.Unimodular S := by
-  unfold cofMat at h
+private theorem ok_wmatOf (m : Cofactors) (S : WMat) (h : wmatOf m = some S) : S.OK := by
+  unfold wmatOf at h
   dsimp only at h
   split at h
   · rename_i hb
@@ -454,52 +405,223 @@ private theorem unimodular_cofMat (m : Cofactors) (S : Mat2 UInt64Array)
       have e := eqPlusOne_iff _ _ _ _ (by lia) (by lia) he
       rw [Option.some.injEq] at h
       subst h
-      simp only [NatOps.Unimodular, ops64_val, toNat_wordA, Bool.false_eq_true, ↓reduceIte]
-      have : (((absW m.D).toNat * (absW m.A).toNat : Nat) : Int) =
-          (((absW m.B).toNat * (absW m.C).toNat + 1 : Nat) : Int) := by rw [e]
-      push_cast at this; lia
+      exact ⟨hD, hB, hC, hA, fun _ => e, fun h => absurd h (by simp)⟩
     · split at h
       · rename_i _ he
         have e := eqPlusOne_iff _ _ _ _ (by lia) (by lia) he
         rw [Option.some.injEq] at h
         subst h
-        simp only [NatOps.Unimodular, ops64_val, toNat_wordA, ↓reduceIte]
-        have : (((absW m.B).toNat * (absW m.C).toNat : Nat) : Int) =
-            (((absW m.D).toNat * (absW m.A).toNat + 1 : Nat) : Int) := by rw [e]
-        push_cast at this; lia
+        exact ⟨hD, hB, hC, hA, fun h => absurd h (by simp), fun _ => e⟩
       · exact absurd h (by simp)
   · exact absurd h (by simp)
 
-/-- The base step of half-gcd: the matrix of `cofactors2`, or of one run of Lehmer's steps. -/
-public def lehmerMat2 (a b : UInt64Array) : Option (Mat2 UInt64Array) :=
-  match cofMat (cofactors2 a b) with
-  | some M => some M
-  | none => lehmerMat a b
+/--
+`S⁻¹ (a, b)` when its entries are nonnegative, by `mulSubMul` in one pass each: the numbers
+`(x, y)` with `(a, b) = S (x, y)`.
+-/
+def applyW (S : WMat) (a b : UInt64Array) : Option (UInt64Array × UInt64Array) :=
+  let x := if !S.neg then mulSubMul a b S.s22 S.s12 else mulSubMul b a S.s12 S.s22
+  let y := if !S.neg then mulSubMul b a S.s11 S.s21 else mulSubMul a b S.s21 S.s11
+  match x, y with
+  | some x, some y => some (trimA x, trimA y)
+  | _, _ => none
 
-public theorem unimodular_lehmerMat2 (a b : UInt64Array) (S : Mat2 UInt64Array)
-    (h : lehmerMat2 a b = some S) : ops64.Unimodular S := by
-  unfold lehmerMat2 at h
+private theorem fwd_w_pos (a b x y p q r t : Int) (hd : p * t = q * r + 1)
+    (hx : x = t * a - q * b) (hy : y = p * b - r * a) :
+    a = p * x + q * y ∧ b = r * x + t * y := by
+  subst hx hy; constructor <;> grind
+
+private theorem fwd_w_neg (a b x y p q r t : Int) (hd : q * r = p * t + 1)
+    (hx : x = q * b - t * a) (hy : y = r * a - p * b) :
+    a = p * x + q * y ∧ b = r * x + t * y := by
+  subst hx hy; constructor <;> grind
+
+private theorem fwd_applyW (S : WMat) (hS : S.OK) (a b : UInt64Array)
+    (p : UInt64Array × UInt64Array) (h : applyW S a b = some p) :
+    a.toNat = S.s11.toNat * p.1.toNat + S.s12.toNat * p.2.toNat ∧
+      b.toNat = S.s21.toNat * p.1.toNat + S.s22.toNat * p.2.toNat := by
+  obtain ⟨h₁₁, h₁₂, h₂₁, h₂₂, hp, hn⟩ := hS
+  unfold applyW at h
+  dsimp only at h
   split at h
-  · rename_i M hM
+  · rename_i x y hx hy
     rw [Option.some.injEq] at h
     subst h
-    exact unimodular_cofMat _ _ hM
-  · exact unimodular_lehmerMat a b S h
+    simp only [toNat_trimA]
+    suffices (a.toNat : Int) = S.s11.toNat * x.toNat + S.s12.toNat * y.toNat ∧
+        (b.toNat : Int) = S.s21.toNat * x.toNat + S.s22.toNat * y.toNat by
+      constructor <;> lia
+    cases hs : S.neg
+    · rw [hs] at hx hy
+      simp only [Bool.not_false, ↓reduceIte] at hx hy
+      have ex := toNat_mulSubMul _ _ _ _ h₂₂ h₁₂ x hx
+      have ey := toNat_mulSubMul _ _ _ _ h₁₁ h₂₁ y hy
+      have hd := hp hs
+      exact fwd_w_pos _ _ _ _ _ _ _ _ (by have := congrArg (fun n : Nat => (n : Int)) hd; push_cast at this; exact this)
+        ex ey
+    · rw [hs] at hx hy
+      simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hx hy
+      have ex := toNat_mulSubMul _ _ _ _ h₁₂ h₂₂ x hx
+      have ey := toNat_mulSubMul _ _ _ _ h₂₁ h₁₁ y hy
+      have hd := hn hs
+      exact fwd_w_neg _ _ _ _ _ _ _ _ (by have := congrArg (fun n : Nat => (n : Int)) hd; push_cast at this; exact this)
+        ex ey
+  · exact absurd h (by simp)
 
-/-- The size below which half-gcd computes its matrices by Lehmer's steps alone. -/
-public def hgcdBase : Nat := 8
+/-- `M S`, by `mulAddMul`. -/
+def mulMatW (M : Mat2 UInt64Array) (S : WMat) : Mat2 UInt64Array :=
+  ⟨trimA (mulAddMul M.m11 M.m12 S.s11 S.s21), trimA (mulAddMul M.m11 M.m12 S.s12 S.s22),
+    trimA (mulAddMul M.m21 M.m22 S.s11 S.s21), trimA (mulAddMul M.m21 M.m22 S.s12 S.s22),
+    M.neg != S.neg⟩
+
+private theorem det_mulW (a b c d e f g h : Int) :
+    (e * a + g * b) * (f * c + h * d) - (f * a + h * b) * (e * c + g * d) =
+      (a * d - b * c) * (e * h - f * g) := by
+  grind
+
+private theorem unimodular_mulMatW (M : Mat2 UInt64Array) (S : WMat) (hM : ops64.Unimodular M)
+    (hS : S.OK) : ops64.Unimodular (mulMatW M S) := by
+  obtain ⟨h₁₁, h₁₂, h₂₁, h₂₂, hp, hn⟩ := hS
+  unfold NatOps.Unimodular at *
+  simp only [mulMatW, ops64_val, toNat_trimA] at *
+  rw [toNat_mulAddMul _ _ _ _ h₁₁ h₂₁, toNat_mulAddMul _ _ _ _ h₁₂ h₂₂,
+    toNat_mulAddMul _ _ _ _ h₁₁ h₂₁, toNat_mulAddMul _ _ _ _ h₁₂ h₂₂]
+  push_cast
+  have e := det_mulW M.m11.toNat M.m12.toNat M.m21.toNat M.m22.toNat S.s11.toNat S.s12.toNat
+    S.s21.toNat S.s22.toNat
+  have hS : (S.s11.toNat * S.s22.toNat - S.s12.toNat * S.s21.toNat : Int) =
+      if S.neg then -1 else 1 := by
+    cases hs : S.neg
+    · have := hp hs
+      have : ((S.s11.toNat * S.s22.toNat : Nat) : Int) = ((S.s12.toNat * S.s21.toNat + 1 : Nat) : Int) := by
+        rw [this]
+      push_cast at this; simp; lia
+    · have := hn hs
+      have : ((S.s12.toNat * S.s21.toNat : Nat) : Int) = ((S.s11.toNat * S.s22.toNat + 1 : Nat) : Int) := by
+        rw [this]
+      push_cast at this; simp; lia
+  rw [e, hM, hS]
+  rcases Bool.eq_false_or_eq_true M.neg with h | h <;>
+    rcases Bool.eq_false_or_eq_true S.neg with h' | h' <;> simp [h, h']
+
+private theorem fwd_mulMatW (M : Mat2 UInt64Array) (S : WMat) (hS : S.OK)
+    (a₀ b₀ a b x y : UInt64Array) (hF : ops64.Fwd M a₀ b₀ a b)
+    (ha : a.toNat = S.s11.toNat * x.toNat + S.s12.toNat * y.toNat)
+    (hb : b.toNat = S.s21.toNat * x.toNat + S.s22.toNat * y.toNat) :
+    ops64.Fwd (mulMatW M S) a₀ b₀ x y := by
+  obtain ⟨h₁₁, h₁₂, h₂₁, h₂₂, -, -⟩ := hS
+  unfold NatOps.Fwd at *
+  simp only [mulMatW, ops64_val, toNat_trimA] at *
+  rw [toNat_mulAddMul _ _ _ _ h₁₁ h₂₁, toNat_mulAddMul _ _ _ _ h₁₂ h₂₂,
+    toNat_mulAddMul _ _ _ _ h₁₁ h₂₁, toNat_mulAddMul _ _ _ _ h₁₂ h₂₂, hF.1, hF.2, ha, hb]
+  constructor <;> grind
+
+/-- The matrix of the cofactors `m` and the numbers it takes to `a` and `b`, when it is valid. -/
+def tryCof (a b : UInt64Array) (m : Cofactors) : Option (WMat × UInt64Array × UInt64Array) :=
+  match wmatOf m with
+  | some S =>
+    match applyW S a b with
+    | some p => some (S, p)
+    | none => none
+  | none => none
+
+/-- A step of Lehmer's algorithm, as `lehmerStep`, with its matrix. -/
+def stepW (a b : UInt64Array) : Option (WMat × UInt64Array × UInt64Array) :=
+  match tryCof a b (cofactors2 a b) with
+  | some r => some r
+  | none =>
+    let w := leadWords a b
+    tryCof a b (lehmerSteps w.x w.y 1 0 0 1 100)
+
+private theorem stepW_spec (a b : UInt64Array) (r : WMat × UInt64Array × UInt64Array)
+    (h : stepW a b = some r) : r.1.OK ∧
+      a.toNat = r.1.s11.toNat * r.2.1.toNat + r.1.s12.toNat * r.2.2.toNat ∧
+      b.toNat = r.1.s21.toNat * r.2.1.toNat + r.1.s22.toNat * r.2.2.toNat := by
+  have hc : ∀ m r, tryCof a b m = some r → r.1.OK ∧
+      a.toNat = r.1.s11.toNat * r.2.1.toNat + r.1.s12.toNat * r.2.2.toNat ∧
+      b.toNat = r.1.s21.toNat * r.2.1.toNat + r.1.s22.toNat * r.2.2.toNat := by
+    intro m r h
+    unfold tryCof at h
+    split at h
+    · rename_i S hS
+      split at h
+      · rename_i p hp
+        rw [Option.some.injEq] at h
+        subst h
+        have hok := ok_wmatOf m S hS
+        exact ⟨hok, fwd_applyW S hok a b p hp⟩
+      · exact absurd h (by simp)
+    · exact absurd h (by simp)
+  unfold stepW at h
+  split at h
+  · rename_i q hq
+    rw [Option.some.injEq] at h
+    subst h
+    exact hc _ _ hq
+  · exact hc _ _ h
+
+/-- Whether `b ≥ βˢ` for `s > 0`, from the position of its top bit. It only affects speed. -/
+def geB (b : UInt64Array) (s : Nat) : Bool :=
+  0 < s && fits (b.size + 1) && 64 * s ≤ MPN.log2 b.toUSlice
+
+/--
+Lehmer's steps (`stepW`) while `b ≥ βˢ` and they make the numbers smaller, at most `fuel` of them,
+with the product of their matrices (`mulMatW`).
+-/
+def baseLoopW (s : Nat) (a b : UInt64Array) (M : Mat2 UInt64Array) :
+    Nat → Mat2 UInt64Array × UInt64Array × UInt64Array
+  | 0 => (M, a, b)
+  | fuel + 1 =>
+    if geB b s then
+      match stepW a b with
+      | none => (M, a, b)
+      | some r =>
+        if ops64.le r.2.2 r.2.1 ∧ !(ops64.le b r.2.2) then
+          baseLoopW s r.2.1 r.2.2 (mulMatW M r.1) fuel
+        else (M, a, b)
+    else (M, a, b)
+
+private theorem baseLoopW_ok (s : Nat) (a₀ b₀ : UInt64Array) :
+    ∀ fuel (a b : UInt64Array) (M : Mat2 UInt64Array), ops64.Unimodular M →
+      ops64.Fwd M a₀ b₀ a b → ops64.HgcdOK a₀ b₀ (baseLoopW s a b M fuel) := by
+  intro fuel
+  induction fuel with
+  | zero => intro a b M hM hF; exact ⟨hM, hF⟩
+  | succ fuel ih =>
+    intro a b M hM hF
+    simp only [baseLoopW]
+    split
+    · split
+      · exact ⟨hM, hF⟩
+      · rename_i r hr
+        obtain ⟨hS, ha, hb⟩ := stepW_spec a b r hr
+        split
+        · exact ih _ _ _ (unimodular_mulMatW M r.1 hM hS)
+            (fwd_mulMatW M r.1 hS a₀ b₀ a b _ _ hF ha hb)
+        · exact ⟨hM, hF⟩
+    · exact ⟨hM, hF⟩
+
+/-- The base case of half-gcd: `baseLoopW` from the identity. -/
+def baseW (s : Nat) (a b : UInt64Array) : Mat2 UInt64Array × UInt64Array × UInt64Array :=
+  baseLoopW s a b ops64.matId (4 * a.size + 4)
+
+private theorem baseW_ok (s : Nat) (a b : UInt64Array) : ops64.HgcdOK a b (baseW s a b) :=
+  baseLoopW_ok s a b _ a b _ ops64.unimodular_matId (ops64.fwd_matId a b)
+
+/-- The size up to which half-gcd computes its matrices by Lehmer's steps alone. -/
+public def hgcdBase : Nat := 128
 
 /-- One reduction by half-gcd (`NatOps.hgcdReduce`), on the larger number first. -/
 def hgcdOrd (x y : UInt64Array) : UInt64Array × UInt64Array :=
-  if ops64.le y x then ops64.hgcdReduce lehmerMat2 hgcdBase x y
-  else ops64.hgcdReduce lehmerMat2 hgcdBase y x
+  if ops64.le y x then ops64.hgcdReduce baseW hgcdBase x y
+  else ops64.hgcdReduce baseW hgcdBase y x
 
 private theorem gcd_hgcdOrd (x y : UInt64Array) :
     Nat.gcd (hgcdOrd x y).1.toNat (hgcdOrd x y).2.toNat = Nat.gcd x.toNat y.toNat := by
   unfold hgcdOrd
   split
-  · exact ops64.gcd_hgcdReduce lehmerMat2 unimodular_lehmerMat2 hgcdBase x y
-  · have := ops64.gcd_hgcdReduce lehmerMat2 unimodular_lehmerMat2 hgcdBase y x
+  · exact ops64.gcd_hgcdReduce _ baseW_ok hgcdBase x y
+  · have := ops64.gcd_hgcdReduce _ baseW_ok hgcdBase y x
     simp only [ops64_val] at this
     rw [this, Nat.gcd_comm]
 
@@ -543,7 +665,7 @@ public theorem toNat_gcdWith (half : Nat) (x y : UInt64Array) :
     rw [gcdWith, ite_eq_right h, toNat_gcdLehmer]
 
 /-- The number of limbs of the smaller number from which `gcd` uses half-gcd. -/
-public def gcdHalf : Nat := 4096
+public def gcdHalf : Nat := 1024
 
 /-- `Nat.gcd a.toNat b.toNat`. -/
 public def Num.gcd (a b : UInt64Array) : UInt64Array := gcdWith gcdHalf a b

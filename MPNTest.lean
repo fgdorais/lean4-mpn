@@ -325,8 +325,8 @@ def checkGcd (m n k : Nat) : Bool :=
   (MPN.Num.gcd (limbs 2 12) (limbs 0 0)).toNat == 12
 #guard [(2, 2, 1), (5, 3, 2), (20, 20, 7), (64, 60, 16), (200, 190, 50)].all
   fun (m, n, k) => checkGcd m n k
--- Through half-gcd (`gcdWith` with a low threshold).
-#guard [(40, 40, 8), (100, 90, 20)].all fun (m, n, k) =>
+-- Through half-gcd (`gcdWith` with a low threshold), with recursion above `hgcdBase` limbs.
+#guard [(40, 40, 8), (100, 90, 20), (700, 650, 100), (900, 900, 1)].all fun (m, n, k) =>
   let g := randomLimbs k 71
   let x := randomLimbs m 72 * g
   let y := randomLimbs n 73 * g

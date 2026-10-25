@@ -26,7 +26,7 @@ comes with Lean.
 | `MPN.Num` | whole arrays as numbers: `add`, `sub`, `mul`, `sqr`, `shl`, `shr`, `low`, `lt`, `divMod`, each returning a new array | |
 | `MPN.Div.DC` | `Num.divNorm`: divide-and-conquer division (Burnikel and Ziegler) on `MPN.Num`; `Num.divMod` from `dcThreshold = 512` limbs | `mpn_dcpi1_div_qr` |
 | `MPN.Generic.*` | ported from `main`: `NatOps` (whole-number operations at any base), half-gcd (`HGCD`), decimal strings by divide and conquer (`Radix`); `Ops64` is the 64-bit instance on `MPN.Num` | `mpn_hgcd`, `mpn_get_str`, `mpn_set_str` |
-| `MPN.Lehmer`, `MPN.Gcd` | `mulSubMul` (`a x - b y` in one pass); `Num.gcd`: Lehmer's algorithm and half-gcd | `mpn_hgcd_mul_matrix1_vector`, `mpn_gcd` |
+| `MPN.Lehmer`, `MPN.Gcd` | `mulSubMul` (`a x - b y` in one pass), `mulAddMul` (`a x + b y`); `Num.gcd`: Lehmer's algorithm and half-gcd with its own base case | `mpn_hgcd_mul_matrix1_vector`, `mpn_hgcd_matrix_mul_1`, `mpn_gcd` |
 | `MPN.Decimal` | `Num.toDecimal`, `Num.ofDecimal?`: chunks of 19 digits, divide and conquer on long numbers | `mpn_get_str`, `mpn_set_str` |
 | `MPN.Sqrt` | `sqrtRem`: Zimmermann's Karatsuba square root, Newton's iteration on a double word (`sqrt2`) at the bottom | `mpn_sqrtrem`, `mpn_dc_sqrtrem` |
 | `MPN.Mul.Toom` | `mulToom`: Toom-6 from `toom6Threshold = 1000` limbs, Toom-4 and Toom-4 by 3 from `toom4Threshold = 600` limbs, Toom-3, Toom-3 by 2 and Toom-4 by 2 from `toom3Threshold = 384` limbs; `sqrToom`: the Toom-6 square from 1200 limbs, the Toom-4 square from 1000, the Toom-3 square from 600 | `mpn_toom6h_mul`, `mpn_toom44_mul`, `mpn_toom43_mul`, `mpn_toom33_mul`, `mpn_toom32_mul`, `mpn_toom42_mul`, `mpn_toom6_sqr`, `mpn_toom4_sqr`, `mpn_toom3_sqr` |

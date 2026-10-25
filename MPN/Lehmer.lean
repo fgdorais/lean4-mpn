@@ -11,7 +11,8 @@ public import MPN.Generic.Ops64
 
 `mulSubMul x y a b` is `a x - b y` in one pass over the limbs, like `main`'s `mulSubMul` and GMP's
 `mpn_hgcd_mul_matrix1_vector`, or `none` when it is negative: each limb adds `a xᵢ`, subtracts
-`b yᵢ`, and carries a signed word (`sval`) to the next.
+`b yᵢ`, and carries a signed word (`sval`) to the next. `mulAddMul x y a b` is `a x + b y` in the
+same way, for the entries of the matrices of half-gcd.
 -/
 
 open ScalarArray UInt64Array
@@ -257,5 +258,153 @@ public theorem toNat_mulSubMul (x y : UInt64Array) (a b : UInt64) (ha : a.toNat 
       subst h
       rw [toNat_ofNat, Int.ofNat_sub hle, Int.natCast_mul, Int.natCast_mul]
     · exact absurd h (by simp)
+
+/-! ## Sums -/
+
+/-- One limb of `a x + b y`: the low word of `a xᵢ + b yᵢ + c`, and the carry out. -/
+@[inline, expose] public def maWord (xi yi a b c : UInt64) : UInt64 × UInt64 :=
+  let pl := a * xi
+  let ql := b * yi
+  let t := pl + ql
+  (t + c, UInt64.addh (UInt64.addh (UInt64.mulh a xi + UInt64.mulh b yi) pl ql) t c)
+
+private theorem maWord_spec (xi yi a b c : UInt64) (ha : a.toNat < 2 ^ 62) (hb : b.toNat < 2 ^ 62)
+    (hc : c.toNat ≤ 2 ^ 63) :
+    (maWord xi yi a b c).1.toNat + 2 ^ 64 * (maWord xi yi a b c).2.toNat =
+        a.toNat * xi.toNat + b.toNat * yi.toNat + c.toNat ∧
+      (maWord xi yi a b c).2.toNat ≤ 2 ^ 63 := by
+  have hx := xi.toNat_lt; have hy := yi.toNat_lt
+  have hP := Nat.mul_lt_mul_of_lt_of_le ha (Nat.le_of_lt hx) (Nat.two_pow_pos _)
+  have hQ := Nat.mul_lt_mul_of_lt_of_le hb (Nat.le_of_lt hy) (Nat.two_pow_pos _)
+  have hpl := Nat.div_add_mod (a.toNat * xi.toNat) (2 ^ 64)
+  have hql := Nat.div_add_mod (b.toNat * yi.toNat) (2 ^ 64)
+  simp only [maWord]
+  have hpw : (UInt64.mulh a xi).toNat = a.toNat * xi.toNat / 2 ^ 64 := UInt64.toNat_mulh ..
+  have hqw : (UInt64.mulh b yi).toNat = b.toNat * yi.toNat / 2 ^ 64 := UInt64.toNat_mulh ..
+  have hplw : (a * xi).toNat = a.toNat * xi.toNat % 2 ^ 64 := UInt64.toNat_mul ..
+  have hqlw : (b * yi).toNat = b.toNat * yi.toNat % 2 ^ 64 := UInt64.toNat_mul ..
+  generalize a * xi = pl at *
+  generalize b * yi = ql at *
+  generalize UInt64.mulh a xi = ph at *
+  generalize UInt64.mulh b yi = qh at *
+  generalize a.toNat * xi.toNat = P at *
+  generalize b.toNat * yi.toNat = Q at *
+  have hph : ph.toNat < 2 ^ 62 := by rw [hpw]; lia
+  have hqh : qh.toNat < 2 ^ 62 := by rw [hqw]; lia
+  have h₁ : (ph + qh).toNat = ph.toNat + qh.toNat := by
+    rw [UInt64.toNat_add, Nat.mod_eq_of_lt (by lia)]
+  have ht : (pl + ql).toNat = (pl.toNat + ql.toNat) % 2 ^ 64 := UInt64.toNat_add ..
+  have hk₁ := Nat.div_add_mod (pl.toNat + ql.toNat) (2 ^ 64)
+  have hk₁' : (pl.toNat + ql.toNat) / 2 ^ 64 ≤ 1 := by
+    have := pl.toNat_lt; have := ql.toNat_lt; lia
+  have h₂ : (UInt64.addh (ph + qh) pl ql).toNat = ph.toNat + qh.toNat +
+      (pl.toNat + ql.toNat) / 2 ^ 64 := by
+    rw [UInt64.toNat_addh, h₁, Nat.mod_eq_of_lt (by lia)]
+  generalize pl + ql = t at *
+  have he : (t + c).toNat = (t.toNat + c.toNat) % 2 ^ 64 := UInt64.toNat_add ..
+  have hk₂ := Nat.div_add_mod (t.toNat + c.toNat) (2 ^ 64)
+  have hk₂' : (t.toNat + c.toNat) / 2 ^ 64 ≤ 1 := by have := t.toNat_lt; lia
+  have h₃ : (UInt64.addh (UInt64.addh (ph + qh) pl ql) t c).toNat = ph.toNat + qh.toNat +
+      (pl.toNat + ql.toNat) / 2 ^ 64 + (t.toNat + c.toNat) / 2 ^ 64 := by
+    rw [UInt64.toNat_addh, h₂, Nat.mod_eq_of_lt (by lia)]
+  rw [h₃, he]
+  generalize (pl.toNat + ql.toNat) / 2 ^ 64 = k₁ at *
+  generalize (t.toNat + c.toNat) / 2 ^ 64 = k₂ at *
+  have hP' : P = 2 ^ 64 * ph.toNat + pl.toNat := by rw [hpw, hplw]; lia
+  have hQ' : Q = 2 ^ 64 * qh.toNat + ql.toNat := by rw [hqw, hqlw]; lia
+  rw [ht] at hk₂ he
+  constructor
+  · lia
+  · -- `2⁶⁴ (carry) ≤ P + Q + c < 2¹²⁷ + 2⁶³`.
+    have : 2 ^ 64 * (ph.toNat + qh.toNat + k₁ + k₂) ≤ P + Q + c.toNat := by lia
+    lia
+
+/-- The step of `mulAddMul`: limb `j` of `a x + b y` with the carry `c`. -/
+@[inline, expose] public def maStep (x y : UInt64Array) (a b : UInt64) (n : USize) (j : USize)
+    (_h : j < n) (_z c : UInt64) : UInt64 × UInt64 :=
+  maWord (Num.limbAt x j.toNat) (Num.limbAt y j.toNat) a b c
+
+private theorem ma_spec (x y : UInt64Array) (a b : UInt64) (ha : a.toNat < 2 ^ 62)
+    (hb : b.toNat < 2 ^ 62) (n : USize) (arr : UInt64Array) (rs : USize)
+    (hr : LoopBound arr rs n) (j : USize) (c : UInt64) (hc : c.toNat ≤ 2 ^ 63) :
+    (foldUInPlace n (maStep x y a b n) arr rs hr j c).1.size = arr.size ∧
+      (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
+        (foldUInPlace n (maStep x y a b n) arr rs hr j c).1[i]! = arr[i]!) ∧
+      (foldUInPlace n (maStep x y a b n) arr rs hr j c).1.valAt (rs.toNat + j.toNat)
+          (n.toNat - j.toNat) +
+          2 ^ (64 * (n.toNat - j.toNat)) *
+            (foldUInPlace n (maStep x y a b n) arr rs hr j c).2.toNat =
+        a.toNat * x.valAt j.toNat (n.toNat - j.toNat) +
+          b.toNat * y.valAt j.toNat (n.toNat - j.toNat) + c.toNat ∧
+      (foldUInPlace n (maStep x y a b n) arr rs hr j c).2.toNat ≤ 2 ^ 63 := by
+  induction arr, hr, j, c using foldUInPlace.induct n (maStep x y a b n) rs with
+  | case1 arr hr j c h p ih =>
+    rw [foldUInPlace_lt _ _ _ _ _ _ _ h]
+    have hj := USize.lt_iff_toNat_lt.1 h
+    have hj₁ := USize.toNat_add_one_of_lt h
+    have hidx := hr.toNat_add h
+    obtain ⟨m₁, m₂⟩ := maWord_spec (Num.limbAt x j.toNat) (Num.limbAt y j.toNat) a b c ha hb hc
+    obtain ⟨ih₁, ih₂, ih₃, ih₄⟩ := ih m₂
+    simp only [p, maStep] at ih₁ ih₂ ih₃ ih₄ ⊢
+    rw [hj₁] at ih₂ ih₃
+    simp only [UInt64Array.size_uset] at ih₁
+    have hv := ih₂ (rs.toNat + j.toNat) (.inl (by lia))
+    rw [getElem!_uset, hidx] at hv
+    simp only [↓reduceIte] at hv
+    refine ⟨ih₁, fun i hi => ?_, ?_, ih₄⟩
+    · rw [ih₂ i (by lia), getElem!_uset]
+      simp only [hidx]
+      split <;> lia
+    · obtain ⟨k, hk⟩ : ∃ k, n.toNat - j.toNat = k + 1 := ⟨n.toNat - j.toNat - 1, by lia⟩
+      rw [show n.toNat - (j.toNat + 1) = k by lia, ← Nat.add_assoc] at ih₃
+      rw [hk, UInt64Array.valAt_succ, UInt64Array.valAt_succ, UInt64Array.valAt_succ, hv,
+        ← Num.limbAt_eq, ← Num.limbAt_eq, Nat.mul_succ, Nat.pow_add]
+      generalize (foldUInPlace (β := UInt64) _ _ _ _ _ _ _).1.valAt _ _ = R at *
+      generalize (foldUInPlace (β := UInt64) _ _ _ _ _ _ _).2.toNat = c' at *
+      generalize (maWord _ _ a b c).2.toNat = c₁ at *
+      generalize (maWord _ _ a b c).1.toNat = o at *
+      generalize x.valAt _ k = X at *
+      generalize y.valAt _ k = Y at *
+      generalize (Num.limbAt x j.toNat).toNat = xi at *
+      generalize (Num.limbAt y j.toNat).toNat = yi at *
+      generalize 2 ^ (64 * k) = P at *
+      generalize a.toNat = A at *
+      generalize b.toNat = B at *
+      grind
+  | case2 arr hr j c h =>
+    rw [foldUInPlace_ge _ _ _ _ _ _ _ h]
+    have : n.toNat - j.toNat = 0 := by have := USize.lt_iff_toNat_lt (a := j) (b := n); lia
+    refine ⟨rfl, fun _ _ => rfl, by simp [this], hc⟩
+
+/-- `a x + b y` for `a, b < 2⁶²`, in one pass over the limbs (`maStep`), in `max` sizes `+ 1`. -/
+public def mulAddMul (x y : UInt64Array) (a b : UInt64) : UInt64Array :=
+  let n := max x.size y.size
+  if h : fits (n + 2) = true then
+    foldUInPlaceThen n.toUSize (maStep x y a b n.toUSize) (UInt64Array.replicate (n + 1) 0) 0
+      (ms_bound h) 0 0 fun arr _ c => arr.set! n c
+  else ofNat (a.toNat * x.toNat + b.toNat * y.toNat)
+
+public theorem toNat_mulAddMul (x y : UInt64Array) (a b : UInt64) (ha : a.toNat < 2 ^ 62)
+    (hb : b.toNat < 2 ^ 62) :
+    (mulAddMul x y a b).toNat = a.toNat * x.toNat + b.toNat * y.toNat := by
+  unfold mulAddMul
+  dsimp only
+  split
+  · rename_i hf
+    have hS := lt_of_fits hf
+    have hn : (max x.size y.size).toUSize.toNat = max x.size y.size :=
+      USize.toNat_ofNat_of_lt' (by lia)
+    rw [foldUInPlaceThen_eq]
+    obtain ⟨f₁, -, f₃, -⟩ := ma_spec x y a b ha hb _ _ 0 (ms_bound hf) 0 0 (by simp)
+    simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, hn] at f₁ f₃
+    rw [Num.valAt_ge x _ (by lia), Num.valAt_ge y _ (by lia)] at f₃
+    generalize foldUInPlace _ (maStep x y a b _) _ 0 _ 0 0 = F at f₁ f₃
+    have hsz : F.1.size = max x.size y.size + 1 := by rw [f₁]; simp
+    rw [toNat_eq_valAt, size_set!, hsz, UInt64Array.valAt_add, valAt_one, Nat.zero_add,
+      getElem!_set!_self _ _ _ (by lia),
+      valAt_congr (b := F.1) _ fun i _ hi => getElem!_set!_of_ne _ _ (by lia)]
+    simp only [UInt64.toNat_zero, Nat.add_zero] at f₃
+    lia
+  · exact toNat_ofNat _
 
 end MPN

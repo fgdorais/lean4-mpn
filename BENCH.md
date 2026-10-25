@@ -51,7 +51,7 @@ so five runs make the tables reliable. Within one run, distrust a row whose spre
 | `sbdiv` | `MPN.divRem` | `2 n` by `n` limbs | schoolbook (Algorithm D), normalized |
 | `sqrt` | `MPN.sqrtRem` | `n` limbs | Zimmermann's Karatsuba square root on `MPN.Num`; `Nat.sqrt` is Lean's Newton iteration on `Nat`, not GMP's `mpz_sqrt` |
 | `mulmod` | `MPN.Num.mulModB` | `n` by `n` limbs modulo `β^n - 1` | the FFT with the pieces wrapping around (`fftMulModAt`), `2ᵏ` pieces for `k = fftK n`; `Nat` multiplies |
-| `gcd` | `MPN.Num.gcd` | `n` and `n` limbs | Lehmer's algorithm with steps of 62 bits (`cofactors2`, `mulSubMul`), half-gcd from `gcdHalf = 4096` limbs; `Nat.gcd` is GMP's |
+| `gcd` | `MPN.Num.gcd` | `n` and `n` limbs | Lehmer's algorithm with steps of 62 bits (`cofactors2`, `mulSubMul`), half-gcd from `gcdHalf = 1024` limbs with its own base case (`baseW`, `mulAddMul`); `Nat.gcd` is GMP's |
 | `str` | `MPN.Num.toDecimal` | `n` limbs | chunks of 19 digits, divide and conquer from `strDC = 40` limbs; `Nat.repr` is Lean's, not GMP |
 | `parse` | `MPN.Num.ofDecimal?` | the digits of `n` limbs | chunks of 19 digits, divide and conquer from `19 parseDC` digits (`parseDC = 512`); `String.toNat?` is Lean's, not GMP |
 | `mul1` | `MPN.mul1` | `n` limbs times a limb | one pass, `USize` indices |
@@ -209,16 +209,16 @@ not with GMP's `mpz_get_str` and `mpz_set_str`; `gcd` compares with `Nat.gcd`, G
 
 | op | 512 | 1024 | 2048 | 4096 | 8192 |
 |---|---:|---:|---:|---:|---:|
-| `gcd` | 986 µs (2.47) | 3.32 ms (2.59) | 11.9 ms (3.35) | 43.9 ms (4.66) | 122 ms (5.02) |
+| `gcd` | 990 µs (2.45) | 3.33 ms (2.55) | 10.3 ms (2.86) | 29.9 ms (3.14) | 80.3 ms (3.28) |
 | `str` | 376 µs (0.02) | 1.06 ms (0.01) | 2.98 ms (0.01) | 8.35 ms (0.01) | 22.5 ms (0.01) |
 | `parse` | 401 µs (0.07) | 925 µs (0.06) | 2.24 ms (0.04) | 5.51 ms (0.03) | 13.5 ms (0.02) |
 
 `gcd` is Lehmer's algorithm with steps of about 62 bits, like GMP's: two runs of Euclid's steps on
 the leading words, the second on the leading 128 bits after the first (`cofactors2`), applied by
-`mulSubMul` in one pass for each number; and half-gcd from `gcdHalf = 4096` limbs, with the same
-base step (`gcdh<T>` sweeps the threshold: at 8192 limbs 122 ms against 176 for Lehmer alone, at
-16384 310 against 695, 5.14 times `Nat`). Half-gcd runs on the generic layer, whose allocations
-keep it near 5 times GMP.
+`mulSubMul` in one pass for each number; and half-gcd from `gcdHalf = 1024` limbs, whose base
+case up to `hgcdBase = 128` limbs is the same steps with the matrix updated in one pass per entry
+(`mulAddMul`); above the base case it runs on the generic layer. At 16384 limbs `gcd` takes
+219 ms, 3.61 times `Nat`. `gcdh<T>` sweeps `gcdHalf`.
 
 ### Large sizes, squares
 
@@ -295,3 +295,4 @@ Times are the fastest of five runs, in the format of the tables above.
 | 2026-10-24 | `d813acd`+ | all tables regenerated (five runs of the default sizes, three of each large-size section), with `-falign-loops=64` for the C compiler: the same machine code of the square basecase (`sqrRowsLoop`) ran 11% slower when the library before it grew and moved it across a 64-byte boundary | `sqr` 2.13 → 1.90 µs at 64 limbs, `ksqr` 68.5 → 61.1 µs at 512, `autosqr` back to 2.0–2.7 times `Nat`; `add` 132 → 115 ns at 64 limbs; others within ±3%; `mul` 3.0–4.1 times `Nat` from 1024 limbs, `div` 4.07–6.59 from 512 |
 | 2026-10-24 | `c2b5325`+ | `Num.gcd` (Lehmer's algorithm with the one-pass kernel `mulSubMul`, half-gcd from 2048 limbs) and decimal strings (`Num.toDecimal`, `Num.ofDecimal?`), from `main`'s generic layer on the new instance `ops64`; `Num.lt` compares from the top down without allocating; new rows `gcd`, `str`, `parse` (large sizes above) | `gcd` 0.89 of `Nat` at one limb, 4.7–6.4 from 4 limbs (8.8 at 2); `str` 8.35 ms and `parse` 5.51 ms at 4096 limbs (Lean's `Nat.repr` 1.09 s); `div` at 1024 limbs 4.23 → 4.10 from `Num.lt` |
 | 2026-10-24 | `3267141`+ | Lehmer steps of 62 bits: a second run of Euclid's steps on the leading 128 bits after the first (`cofactors2`, like GMP's `hgcd2`), cofactors below `2⁶²` checked on words (`eqPlusOne`); the same for half-gcd's base step; `gcdHalf = 4096` | `gcd` 4.06 → 1.60 µs at 4 limbs, 81.4 → 41.7 µs at 64, 603 → 322 µs at 256, 6.49 → 3.32 ms at 1024; 2.5–3.2 times `Nat` from 4 to 1024 limbs, 4.7–5.1 from 4096 |
+| 2026-10-24 | `9296210`+ | half-gcd with its own base case (`MPN.baseW`): Lehmer's steps of 62 bits applied by `mulSubMul`, the matrix updated by `mulAddMul` (`a x + b y` in one pass) instead of the generic `baseLoop`'s products, up to `hgcdBase = 128` limbs (was 8); `gcdHalf = 1024` (was 4096), from `gcdh<T>` | `gcd` 43.9 → 29.9 ms at 4096 limbs, 122 → 80.3 ms at 8192, 310 → 219 ms at 16384; 2.9–3.6 times `Nat` from 2048 limbs (was 3.4–5.1) |
