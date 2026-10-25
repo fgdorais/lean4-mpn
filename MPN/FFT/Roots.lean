@@ -21,8 +21,8 @@ This first part, on natural numbers with the sums of `MPN.Sum` and the congruenc
 `MPN.NatMod`, is the inversion of the transform modulo `F`. The transform of length `K` inverts
 because its geometric sums `1 + x + ⋯ + x^(K - 1)` are the products `(1 + x) (1 + x²) ⋯
 (1 + x^(K / 2))`, one of whose factors vanishes when `x` is a power of `ω` other than `1`, since
-`ω^(K / 2) ≡ -1`. No division and no primality are needed. The residues are in
-`MPN.FFT.Fermat`.
+`ω^(K / 2) ≡ -1`. No division and no primality are needed. The residues modulo `F` and the
+transform itself depend on the width of a limb, and are in each library's own FFT modules.
 -/
 
 namespace MPN.FFT
