@@ -20,7 +20,9 @@ The limb is estimated by `qEst` from the top three limbs of `W` and the top two 
 Algorithm D. The step subtracts the estimate times `v` from the window in place, and adds `v` back
 while the window is negative (`addBack`). Correctness only needs the estimate never to be too
 small, which `qEst_ge` proves; that it is rarely too large, when the top limb of `v` is at least
-`β / 2`, is only a matter of speed, and `divRem` normalizes the divisor for it.
+`β / 2`, is only a matter of speed, and `divRem` normalizes the divisor for it. From
+`div32Threshold` limbs in the divisor, the estimate is GMP's 3-by-2 step with a precomputed
+reciprocal instead (`qEstR`), checked exactly, with `qEst` when a check fails.
 
 The division works in one array, like GMP's and `main`'s (`divLoopIn`): after the step for window
 `i`, its remainder is below `v`, so the top limb `i + n` of the window is free, and the step writes
@@ -158,6 +160,190 @@ public theorem qEst_ge (w₂ w₁ w₀ v₁ v₂ : UInt64) (Q : Nat) (hQβ : Q <
         · rw [hq₁]; lia
     · exact qEst_top hdq hr w₀.toNat_lt hQ
   · simp only [UInt64.reduceToNat]; lia
+
+/-! ## The estimate with a precomputed reciprocal
+
+GMP's schoolbook division estimates each quotient limb without the hardware divider, by Möller
+and Granlund's 3-by-2 step (`udiv_qr_3by2`) with the reciprocal `⌊(β³ - 1) / (v₁ β + v₂)⌋ - β`
+of the top two limbs of the normalized divisor (`invert_pi1`). `qEstR` checks the quotient and
+remainder of the step exactly, `q (v₁ β + v₂) + r = w₂ β² + w₁ β + w₀` with `r < v₁ β + v₂`, by
+four products off the dependency chain; then `q` is the quotient of the top three limbs by the
+top two, which is never too small. Otherwise it takes `qEst`. So neither the reciprocal nor the
+error bound of the step needs a proof.
+-/
+
+/-- The reciprocal `⌊(β³ - 1) / (d₁ β + d₀)⌋ - β` of a normalized `d₁ β + d₀`, like GMP's
+`invert_pi1`. -/
+public def recip32 (d₁ d₀ : UInt64) : UInt64 :=
+  let v := recip21 d₁
+  let p := d₁ * v + d₀
+  let vp : UInt64 × UInt64 :=
+    if p < d₀ then
+      let mask := (0 : UInt64) - (decide (d₁ ≤ p)).toUInt64
+      (v - 1 + mask, p - d₁ - (mask &&& d₁))
+    else (v, p)
+  let v := vp.1
+  let t₁ := UInt64.mulh d₀ v
+  let p := vp.2 + t₁
+  if p < t₁ then
+    if d₁ ≤ p && (d₁ < p || d₀ ≤ d₀ * v) then v - 2 else v - 1
+  else v
+
+/-- The carry out of `x + y`, as a word. -/
+@[inline, expose] public def carry (x y : UInt64) : UInt64 := UInt64.addh 0 x y
+
+private theorem carry_add (x y : UInt64) :
+    (carry x y).toNat * 2 ^ 64 + (x + y).toNat = x.toNat + y.toNat := by
+  rw [carry, UInt64.toNat_addh, UInt64.toNat_add, UInt64.toNat_zero, Nat.zero_add]
+  have := x.toNat_lt; have := y.toNat_lt
+  rw [Nat.mod_eq_of_lt (by rw [Nat.div_lt_iff_lt_mul (by decide)]; lia)]
+  have := Nat.div_add_mod (x.toNat + y.toNat) (2 ^ 64)
+  lia
+
+/--
+Whether `q (d₁ β + d₀) + r₁ β + r₀ = n₂ β² + n₁ β + n₀` and `r₁ β + r₀ < d₁ β + d₀`, exactly, by
+the four products of `q` by the limbs of the divisor.
+-/
+@[inline, expose] public def div32Ok (n₂ n₁ n₀ d₁ d₀ q r₁ r₀ : UInt64) : Bool :=
+  let p₀ := q * d₀
+  let h₀ := UInt64.mulh q d₀
+  let p₁ := q * d₁
+  let h₁ := UInt64.mulh q d₁
+  let u := h₀ + p₁
+  let c₀ := carry p₀ r₀
+  let s₁ := u + r₁ + c₀
+  let c₂ := carry u r₁ + carry (u + r₁) c₀
+  p₀ + r₀ == n₀ && s₁ == n₁ && h₁ + carry h₀ p₁ + c₂ == n₂ && (r₁ < d₁ || (r₁ == d₁ && r₀ < d₀))
+
+private theorem div32Ok_spec (n₂ n₁ n₀ d₁ d₀ q r₁ r₀ : UInt64)
+    (h : div32Ok n₂ n₁ n₀ d₁ d₀ q r₁ r₀ = true) :
+    q.toNat * (d₁.toNat * 2 ^ 64 + d₀.toNat) + (r₁.toNat * 2 ^ 64 + r₀.toNat) =
+        (n₂.toNat * 2 ^ 64 + n₁.toNat) * 2 ^ 64 + n₀.toNat ∧
+      r₁.toNat * 2 ^ 64 + r₀.toNat < d₁.toNat * 2 ^ 64 + d₀.toNat := by
+  simp only [div32Ok, Bool.and_eq_true, beq_iff_eq, Bool.or_eq_true, decide_eq_true_eq] at h
+  obtain ⟨⟨⟨e₀, e₁⟩, e₂⟩, hlt⟩ := h
+  have hR : r₁.toNat * 2 ^ 64 + r₀.toNat < d₁.toNat * 2 ^ 64 + d₀.toNat := by
+    rcases hlt with h | ⟨h₁, h₂⟩
+    · have := UInt64.lt_iff_toNat_lt.1 h; have := r₀.toNat_lt
+      have := Nat.mul_le_mul_right (2 ^ 64) (show r₁.toNat + 1 ≤ d₁.toNat by lia); lia
+    · rw [h₁]; have := UInt64.lt_iff_toNat_lt.1 h₂; lia
+  refine ⟨?_, hR⟩
+  have m₀ := mul_words q d₀
+  have m₁ := mul_words q d₁
+  have k₀ := carry_add (q * d₀) r₀
+  have k₁ := carry_add (UInt64.mulh q d₀) (q * d₁)
+  have k₂ := carry_add (UInt64.mulh q d₀ + q * d₁) r₁
+  have k₃ := carry_add (UInt64.mulh q d₀ + q * d₁ + r₁) (carry (q * d₀) r₀)
+  have hc₀ : (carry (q * d₀) r₀).toNat ≤ 1 := by
+    have := (q * d₀).toNat_lt; have := r₀.toNat_lt; have := (q * d₀ + r₀).toNat_lt; lia
+  -- The top word does not overflow: the whole is below `β (d₁ β + d₀) ≤ β³`.
+  have hq := q.toNat_lt
+  have hbig : q.toNat * (d₁.toNat * 2 ^ 64 + d₀.toNat) + (r₁.toNat * 2 ^ 64 + r₀.toNat) <
+      2 ^ 64 * (2 ^ 64 * 2 ^ 64) := by
+    have := Nat.mul_le_mul_right (d₁.toNat * 2 ^ 64 + d₀.toNat) (show q.toNat + 1 ≤ 2 ^ 64 by lia)
+    have := d₁.toNat_lt; have := d₀.toNat_lt
+    have : d₁.toNat * 2 ^ 64 + d₀.toNat ≤ 2 ^ 64 * 2 ^ 64 - 1 := by lia
+    have := Nat.mul_le_mul_left (2 ^ 64) this
+    rw [Nat.add_mul, Nat.one_mul] at *
+    lia
+  have t₂ := congrArg UInt64.toNat e₂
+  have t₁ := congrArg UInt64.toNat e₁
+  have t₀ := congrArg UInt64.toNat e₀
+  rw [UInt64.toNat_add, UInt64.toNat_add, UInt64.toNat_add] at t₂
+  rw [show q.toNat * (d₁.toNat * 2 ^ 64 + d₀.toNat) =
+    q.toNat * d₁.toNat * 2 ^ 64 + q.toNat * d₀.toNat by rw [Nat.mul_add, Nat.mul_assoc]] at hbig ⊢
+  generalize (UInt64.mulh q d₀ + q * d₁ + r₁ + carry (q * d₀) r₀).toNat = s₁ at *
+  generalize (UInt64.mulh q d₀ + q * d₁ + r₁).toNat = s at *
+  generalize (UInt64.mulh q d₀ + q * d₁).toNat = u at *
+  generalize (q * d₀ + r₀).toNat = s₀ at *
+  generalize (carry (UInt64.mulh q d₀ + q * d₁ + r₁) (carry (q * d₀) r₀)).toNat = c₄ at *
+  generalize (carry (UInt64.mulh q d₀ + q * d₁) r₁).toNat = c₃ at *
+  generalize (carry (UInt64.mulh q d₀) (q * d₁)).toNat = c₁ at *
+  generalize (carry (q * d₀) r₀).toNat = c₀ at *
+  generalize (UInt64.mulh q d₀).toNat = A at *
+  generalize (UInt64.mulh q d₁).toNat = B at *
+  generalize (q * d₀).toNat = a at *
+  generalize (q * d₁).toNat = b at *
+  generalize q.toNat * d₀.toNat = P₀ at *
+  generalize q.toNat * d₁.toNat = P₁ at *
+  -- The whole, from the words below the top one.
+  have hT : P₁ * 2 ^ 64 + P₀ + (r₁.toNat * 2 ^ 64 + r₀.toNat) =
+      ((B + c₁ + (c₃ + c₄)) * 2 ^ 64 + s₁) * 2 ^ 64 + s₀ := by lia
+  have hB : B + c₁ + (c₃ + c₄) < 2 ^ 64 := by
+    refine Nat.lt_of_not_le fun hle => ?_
+    have := Nat.mul_le_mul_right (2 ^ 64 * 2 ^ 64) hle
+    lia
+  rw [Nat.mod_eq_of_lt (show B + c₁ < 2 ^ 64 by lia),
+    Nat.mod_eq_of_lt (show c₃ + c₄ < 2 ^ 64 by lia), Nat.mod_eq_of_lt (by lia)] at t₂
+  rw [hT, t₂, ← t₁, t₀]
+
+/--
+The estimate of the quotient limb of `w₂ β² + w₁ β + w₀` by `v₁ β + v₂` by the 3-by-2 step with
+the reciprocal `dv`, checked by `div32Ok`; `qEst` when the check fails.
+-/
+public def qEstR (dv w₂ w₁ w₀ v₁ v₂ : UInt64) : UInt64 :=
+  let q₀ := dv * w₂
+  let q₁ := UInt64.addh (UInt64.mulh dv w₂ + w₂) q₀ w₁
+  let q₀ := q₀ + w₁
+  let r₁ := w₁ - v₁ * q₁
+  -- `(r₁, r₀) = (r₁, w₀) - (v₁, v₂) - v₂ q₁`.
+  let r₁ := r₁ - v₁ - UInt64.subh 0 w₀ v₂
+  let r₀ := w₀ - v₂
+  let t₁ := UInt64.mulh v₂ q₁
+  let t₀ := v₂ * q₁
+  let r₁ := r₁ - t₁ - UInt64.subh 0 r₀ t₀
+  let r₀ := r₀ - t₀
+  let q₁ := q₁ + 1
+  let mask := (0 : UInt64) - (decide (q₀ ≤ r₁)).toUInt64
+  let q₁ := q₁ + mask
+  let r₁ := UInt64.addh (r₁ + (mask &&& v₁)) r₀ (mask &&& v₂)
+  let r₀ := r₀ + (mask &&& v₂)
+  let fix := (v₁ < r₁ || (r₁ == v₁ && v₂ ≤ r₀)).toUInt64
+  let m := (0 : UInt64) - fix
+  let q₁ := q₁ + fix
+  let r₁' := r₁ - (m &&& v₁) - UInt64.subh 0 r₀ (m &&& v₂)
+  let r₀ := r₀ - (m &&& v₂)
+  if div32Ok w₂ w₁ w₀ v₁ v₂ q₁ r₁' r₀ then q₁ else qEst w₂ w₁ w₀ v₁ v₂
+
+/-- `qEstR` is never too small, like `qEst`. -/
+public theorem qEstR_ge (dv w₂ w₁ w₀ v₁ v₂ : UInt64) (Q : Nat) (hQβ : Q < 2 ^ 64)
+    (hQ : Q * (v₁.toNat * 2 ^ 64 + v₂.toNat) ≤
+      (w₂.toNat * 2 ^ 64 + w₁.toNat) * 2 ^ 64 + w₀.toNat) :
+    Q ≤ (qEstR dv w₂ w₁ w₀ v₁ v₂).toNat := by
+  obtain ⟨q, r₁, r₀, e⟩ : ∃ q r₁ r₀, qEstR dv w₂ w₁ w₀ v₁ v₂ =
+      if div32Ok w₂ w₁ w₀ v₁ v₂ q r₁ r₀ then q else qEst w₂ w₁ w₀ v₁ v₂ := ⟨_, _, _, rfl⟩
+  rw [e]; clear e
+  split
+  · rename_i hok
+    obtain ⟨e, hr⟩ := div32Ok_spec _ _ _ _ _ _ _ _ hok
+    have h : Q * (v₁.toNat * 2 ^ 64 + v₂.toNat) <
+        (q.toNat + 1) * (v₁.toNat * 2 ^ 64 + v₂.toNat) := by
+      rw [Nat.succ_mul]; exact Nat.lt_of_le_of_lt hQ (by rw [← e]; exact Nat.add_lt_add_left hr _)
+    exact Nat.le_of_lt_succ (Nat.lt_of_mul_lt_mul_right h)
+  · exact qEst_ge w₂ w₁ w₀ v₁ v₂ Q hQβ hQ
+
+/--
+The size of the divisor from which `divRem` estimates the quotient limbs with the reciprocal
+(`qEstR`). Below it, computing the reciprocal costs more than the steps save, on Zen 3, where the
+hardware divider of `qEst` is fast.
+-/
+public def div32Threshold : Nat := 48
+
+/-- `qEstR` with the reciprocal `dv`, or `qEst` when there is none, `dv = 0`. -/
+@[inline] public def qEstD (dv w₂ w₁ w₀ v₁ v₂ : UInt64) : UInt64 :=
+  if dv = 0 then qEst w₂ w₁ w₀ v₁ v₂ else qEstR dv w₂ w₁ w₀ v₁ v₂
+
+public theorem qEstD_ge (dv w₂ w₁ w₀ v₁ v₂ : UInt64) (Q : Nat) (hQβ : Q < 2 ^ 64)
+    (hQ : Q * (v₁.toNat * 2 ^ 64 + v₂.toNat) ≤
+      (w₂.toNat * 2 ^ 64 + w₁.toNat) * 2 ^ 64 + w₀.toNat) :
+    Q ≤ (qEstD dv w₂ w₁ w₀ v₁ v₂).toNat := by
+  rw [qEstD]; split
+  · exact qEst_ge w₂ w₁ w₀ v₁ v₂ Q hQβ hQ
+  · exact qEstR_ge dv w₂ w₁ w₀ v₁ v₂ Q hQβ hQ
+
+/-- The reciprocal of the top limbs `v₁ v₂` of a divisor of `n` limbs for `divRem`, or `0`. -/
+@[inline] public def divRecip (n : USize) (v₁ v₂ : UInt64) : UInt64 :=
+  if div32Threshold ≤ n.toNat then recip32 v₁ v₂ else 0
 
 /-! ## One step -/
 
@@ -299,11 +485,11 @@ One step of the division, without allocating: subtracts `q v`, for the estimate 
 Otherwise the window went negative and `addBack` corrects it. Afterwards limbs `i` to `i + n - 1`
 hold the remainder of the window by `v` and limb `i + n` the quotient limb.
 -/
-public def divStepIn (w : UInt64Array) (v : USlice) (v₁ v₂ : UInt64) (i n : USize) :
+public def divStepIn (w : UInt64Array) (v : USlice) (v₁ v₂ dv : UInt64) (i n : USize) :
     UInt64Array :=
   if h : i.toNat + n.toNat + 1 ≤ w.size ∧ i.toNat + n.toNat + 1 < USize.size ∧ n ≤ v.size then
     let t := i.toNat + n.toNat
-    let q := qEst w[t]! w[t - 1]! w[t - 2]! v₁ v₂
+    let q := qEstD dv w[t]! w[t - 1]! w[t - 2]! v₁ v₂
     foldUInPlaceThen n (subMul1Step v n h.2.2 q) w i ⟨by lia, by lia⟩ 0 0 fun w' _ b =>
       let top := w'[t]!
       if b = top then w'.set! t q
@@ -313,17 +499,17 @@ public def divStepIn (w : UInt64Array) (v : USlice) (v₁ v₂ : UInt64) (i n : 
   else w
 
 set_option maxHeartbeats 1000000 in
-private theorem divStepIn_spec (w : UInt64Array) (v : USlice) (v₁ v₂ : UInt64) (i n : USize)
+private theorem divStepIn_spec (w : UInt64Array) (v : USlice) (v₁ v₂ dv : UInt64) (i n : USize)
     (hn : v.size = n) (hn₂ : 2 ≤ n.toNat) (hk : i.toNat + n.toNat + 1 ≤ w.size)
     (hU : w.size < USize.size) (hv₀ : 0 < v.toNat)
     (hv₁ : v₁ = v.array[v.start.toNat + n.toNat - 1]!)
     (hv₂ : v₂ = v.array[v.start.toNat + n.toNat - 2]!)
     (hW : w.valAt i.toNat (n.toNat + 1) < v.toNat * 2 ^ 64) :
-    (divStepIn w v v₁ v₂ i n).size = w.size ∧
-      (∀ j, (j < i.toNat ∨ i.toNat + n.toNat + 1 ≤ j) → (divStepIn w v v₁ v₂ i n)[j]! = w[j]!) ∧
-      (divStepIn w v v₁ v₂ i n).valAt i.toNat n.toNat =
+    (divStepIn w v v₁ v₂ dv i n).size = w.size ∧
+      (∀ j, (j < i.toNat ∨ i.toNat + n.toNat + 1 ≤ j) → (divStepIn w v v₁ v₂ dv i n)[j]! = w[j]!) ∧
+      (divStepIn w v v₁ v₂ dv i n).valAt i.toNat n.toNat =
         w.valAt i.toNat (n.toNat + 1) % v.toNat ∧
-      (divStepIn w v v₁ v₂ i n)[i.toNat + n.toNat]!.toNat =
+      (divStepIn w v v₁ v₂ dv i n)[i.toNat + n.toNat]!.toNat =
         w.valAt i.toNat (n.toNat + 1) / v.toNat := by
   have hn1 : (n + 1).toNat = n.toNat + 1 :=
     (USize.toNat_add_of_lt (a := n) (b := 1) (by rw [USize.toNat_one]; lia)).trans
@@ -349,9 +535,9 @@ private theorem divStepIn_spec (w : UInt64Array) (v : USlice) (v₁ v₂ : UInt6
       show i.toNat + (n.toNat - 2) + 2 = i.toNat + n.toNat by lia,
       show i.toNat + (n.toNat - 2) + 1 = i.toNat + n.toNat - 1 by lia,
       show i.toNat + (n.toNat - 2) = i.toNat + n.toNat - 2 by lia]
-  have hge := qEst_ge w[i.toNat + n.toNat]! w[i.toNat + n.toNat - 1]! w[i.toNat + n.toNat - 2]!
+  have hge := qEstD_ge dv w[i.toNat + n.toNat]! w[i.toNat + n.toNat - 1]! w[i.toNat + n.toNat - 2]!
     v₁ v₂ (W / v.toNat) hQβ (est_bound hvn hwn (valAt_lt ..) (Nat.div_mul_le_self W v.toNat))
-  generalize qEst w[i.toNat + n.toNat]! w[i.toNat + n.toNat - 1]! w[i.toNat + n.toNat - 2]!
+  generalize qEstD dv w[i.toNat + n.toNat]! w[i.toNat + n.toNat - 1]! w[i.toNat + n.toNat - 2]!
     v₁ v₂ = q at hge ⊢
   -- The product subtracted from the low `n` limbs of the window.
   have hr : LoopBound w i n := ⟨by lia, by lia⟩
@@ -438,27 +624,27 @@ from window `i - 1` down to window `0`, in place: the quotient limb of window `j
 `j + n`, so that the quotient ends in limbs `n` to `n + i - 1` and the remainder in limbs `0` to
 `n - 1`.
 -/
-public def divLoopIn (w : UInt64Array) (v : USlice) (v₁ v₂ : UInt64) (n i : USize) : UInt64Array :=
+public def divLoopIn (w : UInt64Array) (v : USlice) (v₁ v₂ dv : UInt64) (n i : USize) : UInt64Array :=
   if hi : i = 0 then w
-  else divLoopIn (divStepIn w v v₁ v₂ (i - 1) n) v v₁ v₂ n (i - 1)
+  else divLoopIn (divStepIn w v v₁ v₂ dv (i - 1) n) v v₁ v₂ dv n (i - 1)
 termination_by i.toNat
 decreasing_by
   have := toNat_pred hi
   have : i.toNat ≠ 0 := fun e => hi (USize.toNat_inj.1 (by rw [e]; rfl))
   lia
 
-private theorem divLoopIn_spec (w : UInt64Array) (v : USlice) (v₁ v₂ : UInt64) (n i : USize)
+private theorem divLoopIn_spec (w : UInt64Array) (v : USlice) (v₁ v₂ dv : UInt64) (n i : USize)
     (hn : v.size = n) (hn₂ : 2 ≤ n.toNat) (hk : i.toNat + n.toNat ≤ w.size)
     (hU : w.size < USize.size) (hv₀ : 0 < v.toNat)
     (hv₁ : v₁ = v.array[v.start.toNat + n.toNat - 1]!)
     (hv₂ : v₂ = v.array[v.start.toNat + n.toNat - 2]!)
     (hR : w.valAt 0 (i.toNat + n.toNat) < v.toNat * 2 ^ (64 * i.toNat)) :
-    (divLoopIn w v v₁ v₂ n i).size = w.size ∧
-      (∀ j, i.toNat + n.toNat ≤ j → (divLoopIn w v v₁ v₂ n i)[j]! = w[j]!) ∧
-      v.toNat * (divLoopIn w v v₁ v₂ n i).valAt n.toNat i.toNat +
-          (divLoopIn w v v₁ v₂ n i).valAt 0 n.toNat = w.valAt 0 (i.toNat + n.toNat) ∧
-      (divLoopIn w v v₁ v₂ n i).valAt 0 n.toNat < v.toNat := by
-  induction w, i using divLoopIn.induct v v₁ v₂ n with
+    (divLoopIn w v v₁ v₂ dv n i).size = w.size ∧
+      (∀ j, i.toNat + n.toNat ≤ j → (divLoopIn w v v₁ v₂ dv n i)[j]! = w[j]!) ∧
+      v.toNat * (divLoopIn w v v₁ v₂ dv n i).valAt n.toNat i.toNat +
+          (divLoopIn w v v₁ v₂ dv n i).valAt 0 n.toNat = w.valAt 0 (i.toNat + n.toNat) ∧
+      (divLoopIn w v v₁ v₂ dv n i).valAt 0 n.toNat < v.toNat := by
+  induction w, i using divLoopIn.induct v v₁ v₂ dv n with
   | case1 w =>
     refine ⟨by simp [divLoopIn], fun _ _ => by simp [divLoopIn], by simp [divLoopIn],
       by simpa [divLoopIn] using hR⟩
@@ -479,13 +665,13 @@ private theorem divLoopIn_spec (w : UInt64Array) (v : USlice) (v₁ v₂ : UInt6
       refine Nat.lt_of_mul_lt_mul_left (a := 2 ^ (64 * (i.toNat - 1))) ?_
       rw [Nat.mul_left_comm]
       lia
-    obtain ⟨s₁, s₂, s₃, s₄⟩ := divStepIn_spec w v v₁ v₂ (i - 1) n hn hn₂ (by rw [hp]; lia) hU
+    obtain ⟨s₁, s₂, s₃, s₄⟩ := divStepIn_spec w v v₁ v₂ dv (i - 1) n hn hn₂ (by rw [hp]; lia) hU
       hv₀ hv₁ hv₂ (by rw [hp]; exact hWlt)
     rw [hp] at s₂ s₃ s₄
-    have hlo' : (divStepIn w v v₁ v₂ (i - 1) n).valAt 0 (i.toNat - 1) =
+    have hlo' : (divStepIn w v v₁ v₂ dv (i - 1) n).valAt 0 (i.toNat - 1) =
         w.valAt 0 (i.toNat - 1) :=
       valAt_congr _ fun j _ hj => s₂ j (.inl (by lia))
-    have hR' : (divStepIn w v v₁ v₂ (i - 1) n).valAt 0 ((i - 1).toNat + n.toNat) =
+    have hR' : (divStepIn w v v₁ v₂ dv (i - 1) n).valAt 0 ((i - 1).toNat + n.toNat) =
         w.valAt 0 (i.toNat - 1) + 2 ^ (64 * (i.toNat - 1)) *
           (w.valAt (i.toNat - 1) (n.toNat + 1) % v.toNat) := by
       rw [hp, UInt64Array.valAt_add, Nat.zero_add, hlo', s₃]
@@ -501,20 +687,20 @@ private theorem divLoopIn_spec (w : UInt64Array) (v : USlice) (v₁ v₂ : UInt6
       lia)
     clear ih
     rw [hp] at i₂ i₃ hR'
-    have hqtop : (divLoopIn (divStepIn w v v₁ v₂ (i - 1) n) v v₁ v₂ n (i - 1))[
+    have hqtop : (divLoopIn (divStepIn w v v₁ v₂ dv (i - 1) n) v v₁ v₂ dv n (i - 1))[
         n.toNat + (i.toNat - 1)]!.toNat = w.valAt (i.toNat - 1) (n.toNat + 1) / v.toNat := by
       rw [i₂ _ (by lia), Nat.add_comm, s₄]
     refine ⟨i₁.trans s₁, fun j hj => ?_, ?_, i₄⟩
     · rw [i₂ j (by lia), s₂ j (.inr (by lia))]
-    · have e₁ := UInt64Array.valAt_add (divLoopIn (divStepIn w v v₁ v₂ (i - 1) n) v v₁ v₂ n
+    · have e₁ := UInt64Array.valAt_add (divLoopIn (divStepIn w v v₁ v₂ dv (i - 1) n) v v₁ v₂ dv n
         (i - 1)) n.toNat (i.toNat - 1) 1
       rw [Nat.sub_add_cancel (show 1 ≤ i.toNat by lia), valAt_one, hqtop] at e₁
       rw [e₁, hsplit]
       rw [hR'] at i₃
       have := Nat.div_add_mod (w.valAt (i.toNat - 1) (n.toNat + 1)) v.toNat
-      generalize (divLoopIn (divStepIn w v v₁ v₂ (i - 1) n) v v₁ v₂ n (i - 1)).valAt n.toNat
+      generalize (divLoopIn (divStepIn w v v₁ v₂ dv (i - 1) n) v v₁ v₂ dv n (i - 1)).valAt n.toNat
         (i.toNat - 1) = Q at *
-      generalize (divLoopIn (divStepIn w v v₁ v₂ (i - 1) n) v v₁ v₂ n (i - 1)).valAt 0
+      generalize (divLoopIn (divStepIn w v v₁ v₂ dv (i - 1) n) v v₁ v₂ dv n (i - 1)).valAt 0
         n.toNat = Rn at *
       generalize w.valAt (i.toNat - 1) (n.toNat + 1) / v.toNat = q at *
       generalize w.valAt (i.toNat - 1) (n.toNat + 1) % v.toNat = r at *
@@ -554,7 +740,8 @@ public def divRem (q r a b : USlice) : UInt64Array × UInt64Array :=
     let v := (shiftLeft (UInt64Array.replicate n.toNat 0).toUSlice b k).1
     let p := shiftLeft (UInt64Array.replicate (a.size.toNat + 1) 0).toUSlice a k
     let w := p.1.set! a.size.toNat p.2
-    let res := divLoopIn w v.toUSlice v[n.toNat - 1]! v[n.toNat - 2]! n (a.size + 1 - n)
+    let res := divLoopIn w v.toUSlice v[n.toNat - 1]! v[n.toNat - 2]!
+      (divRecip n v[n.toNat - 1]! v[n.toNat - 2]!) n (a.size + 1 - n)
     ((add1 q (res.uslice n (n + (a.size + 1 - n))) 0).1, shiftRight r (res.uslice 0 n) k)
 
 @[simp] public theorem size_divRem_fst (q r a b : USlice) :
@@ -695,7 +882,8 @@ private theorem divRem_long (q r a b : USlice) (h₁ : ¬b.size ≤ 1) (hab : b.
     rw [Nat.mul_right_comm]
     exact Nat.lt_of_lt_of_le hlt (Nat.mul_le_mul_right _ hle)
   obtain ⟨l₁, l₂, l₄, l₅⟩ := divLoopIn_spec (pw.1.set! a.size.toNat pw.2)
-    pv.1.toUSlice (pv.1[b.size.toNat - 1]!) (pv.1[b.size.toNat - 2]!) b.size (a.size + 1 - b.size)
+    pv.1.toUSlice (pv.1[b.size.toNat - 1]!) (pv.1[b.size.toNat - 2]!)
+    (divRecip b.size pv.1[b.size.toNat - 1]! pv.1[b.size.toNat - 2]!) b.size (a.size + 1 - b.size)
     hvU hn₂ (by rw [hm, hwsz]; lia) (by rw [hwsz]; exact hU) (by rw [hvT]; exact hVpos)
     (by simp) (by simp) hR
   rw [hm, hvT, show a.size.toNat + 1 - b.size.toNat + b.size.toNat = a.size.toNat + 1 by lia,
@@ -707,7 +895,8 @@ private theorem divRem_long (q r a b : USlice) (h₁ : ¬b.size ≤ 1) (hab : b.
   rw [← l₄, Nat.mul_add_div hVpos, Nat.div_eq_of_lt l₅, Nat.add_zero] at hQ
   rw [← l₄, Nat.mul_add_mod, Nat.mod_eq_of_lt l₅] at hRm
   generalize hres : divLoopIn (pw.1.set! a.size.toNat pw.2) pv.1.toUSlice
-    (pv.1[b.size.toNat - 1]!) (pv.1[b.size.toNat - 2]!) b.size (a.size + 1 - b.size) = res
+    (pv.1[b.size.toNat - 1]!) (pv.1[b.size.toNat - 2]!)
+    (divRecip b.size pv.1[b.size.toNat - 1]! pv.1[b.size.toNat - 2]!) b.size (a.size + 1 - b.size) = res
     at l₁ l₂ l₄ l₅ hQ hRm
   -- The remainder, from limbs `0` to `n - 1`.
   have hsl := win_spec res 0 b.size (by rw [USize.toNat_zero, l₁, hwsz]; lia)
