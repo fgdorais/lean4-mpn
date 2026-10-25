@@ -3,8 +3,9 @@
 Verified multi-precision arithmetic for Lean 4 on `UInt64` limbs, in the style of GMP's `mpn`
 functions, stored in the unboxed arrays of
 [lean4-scalar-arrays](https://github.com/fgdorais/lean4-scalar-arrays). Every operation is proved
-correct against `Nat`. The `main` branch is the GMP-free `Nat` on `UInt32` limbs with the full
-set of algorithms; this branch explores 64-bit limbs.
+correct against `Nat`. This is the `main64` branch; `main32` is the GMP-free `Nat` on `UInt32`
+limbs with the full set of algorithms, and `main` is the part the two share (finite sums,
+polynomials and the base-generic algorithms of `MPN.Generic`), which both merge.
 
 The high words of 64-bit sums, differences and products are inline C with `__uint128_t`, so the
 library builds only for 64-bit targets whose C compiler has that type, such as the clang that
@@ -25,7 +26,7 @@ comes with Lean.
 | `MPN.Div.Basecase` | `divRem`: schoolbook division (Algorithm D) with normalization, `qEst` never too small and `addBack` | `mpn_tdiv_qr`, `mpn_sbpi1_div_qr` |
 | `MPN.Num` | whole arrays as numbers: `add`, `sub`, `mul`, `sqr`, `shl`, `shr`, `low`, `lt`, `divMod`, each returning a new array | |
 | `MPN.Div.DC` | `Num.divNorm`: divide-and-conquer division (Burnikel and Ziegler) on `MPN.Num`; `Num.divMod` from `dcThreshold = 512` limbs | `mpn_dcpi1_div_qr` |
-| `MPN.Generic.*` | ported from `main`: `NatOps` (whole-number operations at any base), half-gcd (`HGCD`), decimal strings by divide and conquer (`Radix`); `Ops64` is the 64-bit instance on `MPN.Num` | `mpn_hgcd`, `mpn_get_str`, `mpn_set_str` |
+| `MPN.Generic.*` | shared with `main32` through `main`: `NatOps` (whole-number operations at any base), half-gcd (`HGCD`), decimal strings by divide and conquer (`Radix`); `Ops64` is the 64-bit instance on `MPN.Num` | `mpn_hgcd`, `mpn_get_str`, `mpn_set_str` |
 | `MPN.Lehmer`, `MPN.Gcd` | `mulSubMul` (`a x - b y` in one pass), `mulAddMul` (`a x + b y`); `Num.gcd`: Lehmer's algorithm and half-gcd with its own base case | `mpn_hgcd_mul_matrix1_vector`, `mpn_hgcd_matrix_mul_1`, `mpn_gcd` |
 | `MPN.Decimal` | `Num.toDecimal`, `Num.ofDecimal?`: chunks of 19 digits, divide and conquer on long numbers | `mpn_get_str`, `mpn_set_str` |
 | `MPN.Sqrt` | `sqrtRem`: Zimmermann's Karatsuba square root, Newton's iteration on a double word (`sqrt2`) at the bottom | `mpn_sqrtrem`, `mpn_dc_sqrtrem` |
