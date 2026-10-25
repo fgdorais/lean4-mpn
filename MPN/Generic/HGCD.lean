@@ -407,6 +407,124 @@ public theorem stepBase_ok (step : α → α → Option (Mat2 α))
     o.HgcdOK a b (o.stepBase step s a b) :=
   o.baseLoop_ok step hstep s a b _ a b o.matId o.unimodular_matId (o.fwd_matId a b)
 
+/-! ## A base case of word matrices -/
+
+/--
+The operations of a base case of half-gcd by matrices of small entries, words for example, which
+the instance applies to its numbers in its own way: `step a b` is such a matrix `S` and the numbers
+`(x, y)` with `(a, b) = S (x, y)`, from Lehmer's steps on the leading words of `a` and `b`, and
+`mulMat M S` is the product `M S`. The entries of `S` as natural numbers are `e₁₁ S`, …,
+`e₂₂ S`, and `neg S` is the sign of its determinant; `ok S` is what `mulMat` needs of `S`, such as
+bounds on its entries, and `geB b s` whether `b ≥ Bˢ`, which only affects speed.
+-/
+public structure SmallSteps (o : NatOps α) where
+  /-- The matrices. -/
+  W : Type
+  /-- The entries of a matrix. -/
+  e₁₁ : W → Nat
+  e₁₂ : W → Nat
+  e₂₁ : W → Nat
+  e₂₂ : W → Nat
+  /-- The sign of the determinant. -/
+  neg : W → Bool
+  /-- What `mulMat` needs of a matrix. -/
+  ok : W → Prop
+  /-- A step: a matrix and the numbers it takes to `a` and `b`. -/
+  step : α → α → Option (W × α × α)
+  /-- The product of a matrix of `NatOps` by a small matrix. -/
+  mulMat : Mat2 α → W → Mat2 α
+  /-- Whether `b ≥ Bˢ`. -/
+  geB : α → Nat → Bool
+  det_of_ok : ∀ S, ok S → (neg S = false → e₁₁ S * e₂₂ S = e₁₂ S * e₂₁ S + 1) ∧
+    (neg S = true → e₁₂ S * e₂₁ S = e₁₁ S * e₂₂ S + 1)
+  step_spec : ∀ a b r, step a b = some r → ok r.1 ∧
+    o.val a = e₁₁ r.1 * o.val r.2.1 + e₁₂ r.1 * o.val r.2.2 ∧
+    o.val b = e₂₁ r.1 * o.val r.2.1 + e₂₂ r.1 * o.val r.2.2
+  mulMat_spec : ∀ M S, ok S →
+    o.val (mulMat M S).m11 = o.val M.m11 * e₁₁ S + o.val M.m12 * e₂₁ S ∧
+    o.val (mulMat M S).m12 = o.val M.m11 * e₁₂ S + o.val M.m12 * e₂₂ S ∧
+    o.val (mulMat M S).m21 = o.val M.m21 * e₁₁ S + o.val M.m22 * e₂₁ S ∧
+    o.val (mulMat M S).m22 = o.val M.m21 * e₁₂ S + o.val M.m22 * e₂₂ S ∧
+    (mulMat M S).neg = (M.neg != neg S)
+
+private theorem det_small (a b c d e f g h : Int) :
+    (a * e + b * g) * (c * f + d * h) - (a * f + b * h) * (c * e + d * g) =
+      (a * d - b * c) * (e * h - f * g) := by
+  grind
+
+private theorem unimodular_mulMat (B : o.SmallSteps) (M : Mat2 α) (S : B.W) (hM : o.Unimodular M)
+    (hS : B.ok S) : o.Unimodular (B.mulMat M S) := by
+  obtain ⟨h₁₁, h₁₂, h₂₁, h₂₂, hn⟩ := B.mulMat_spec M S hS
+  obtain ⟨hp, hq⟩ := B.det_of_ok S hS
+  unfold Unimodular at *
+  rw [h₁₁, h₁₂, h₂₁, h₂₂, hn]
+  push_cast
+  rw [det_small, hM]
+  have hS' : (B.e₁₁ S * B.e₂₂ S - B.e₁₂ S * B.e₂₁ S : Int) = if B.neg S then -1 else 1 := by
+    cases hs : B.neg S
+    · have := congrArg (fun n : Nat => (n : Int)) (hp hs)
+      push_cast at this; simp; lia
+    · have := congrArg (fun n : Nat => (n : Int)) (hq hs)
+      push_cast at this; simp; lia
+  rw [hS']
+  rcases Bool.eq_false_or_eq_true M.neg with h | h <;>
+    rcases Bool.eq_false_or_eq_true (B.neg S) with h' | h' <;> simp [h, h']
+
+private theorem fwd_mulMat (B : o.SmallSteps) (M : Mat2 α) (S : B.W) (hS : B.ok S)
+    (a₀ b₀ a b x y : α) (hF : o.Fwd M a₀ b₀ a b)
+    (ha : o.val a = B.e₁₁ S * o.val x + B.e₁₂ S * o.val y)
+    (hb : o.val b = B.e₂₁ S * o.val x + B.e₂₂ S * o.val y) :
+    o.Fwd (B.mulMat M S) a₀ b₀ x y := by
+  obtain ⟨h₁₁, h₁₂, h₂₁, h₂₂, -⟩ := B.mulMat_spec M S hS
+  unfold Fwd at *
+  rw [h₁₁, h₁₂, h₂₁, h₂₂, hF.1, hF.2, ha, hb]
+  constructor <;> grind
+
+/--
+Steps of `B` while `b ≥ Bˢ` and they make the numbers smaller, at most `fuel` of them, with the
+product of their matrices (`mulMat`).
+-/
+public def smallLoop (B : o.SmallSteps) (s : Nat) (a b : α) (M : Mat2 α) :
+    Nat → Mat2 α × α × α
+  | 0 => (M, a, b)
+  | fuel + 1 =>
+    if B.geB b s then
+      match B.step a b with
+      | none => (M, a, b)
+      | some r =>
+        if o.le r.2.2 r.2.1 ∧ !(o.le b r.2.2) then
+          smallLoop B s r.2.1 r.2.2 (B.mulMat M r.1) fuel
+        else (M, a, b)
+    else (M, a, b)
+
+private theorem smallLoop_ok (B : o.SmallSteps) (s : Nat) (a₀ b₀ : α) :
+    ∀ fuel (a b : α) (M : Mat2 α), o.Unimodular M → o.Fwd M a₀ b₀ a b →
+      o.HgcdOK a₀ b₀ (o.smallLoop B s a b M fuel) := by
+  intro fuel
+  induction fuel with
+  | zero => intro a b M hM hF; exact ⟨hM, hF⟩
+  | succ fuel ih =>
+    intro a b M hM hF
+    simp only [smallLoop]
+    split
+    · split
+      · exact ⟨hM, hF⟩
+      · rename_i r hr
+        obtain ⟨hS, ha, hb⟩ := B.step_spec a b r hr
+        split
+        · exact ih _ _ _ (o.unimodular_mulMat B M r.1 hM hS)
+            (o.fwd_mulMat B M r.1 hS a₀ b₀ a b _ _ hF ha hb)
+        · exact ⟨hM, hF⟩
+    · exact ⟨hM, hF⟩
+
+/-- `smallLoop` from the identity matrix, as a base case for `hgcd`. -/
+public def smallBase (B : o.SmallSteps) (s : Nat) (a b : α) : Mat2 α × α × α :=
+  o.smallLoop B s a b o.matId (4 * o.size a + 4)
+
+public theorem smallBase_ok (B : o.SmallSteps) (s : Nat) (a b : α) :
+    o.HgcdOK a b (o.smallBase B s a b) :=
+  o.smallLoop_ok B s a b _ a b o.matId o.unimodular_matId (o.fwd_matId a b)
+
 /--
 Half-gcd: the matrix of Euclid's steps that brings `a ≥ b`, of `n` limbs, below `Bˢ` with
 `s = ⌊n / 2⌋ + 1`, or close to it, and the numbers it brings them to. Up to `T` limbs by the
