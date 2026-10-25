@@ -325,6 +325,15 @@ def checkGcd (m n k : Nat) : Bool :=
   (MPN.Num.gcd (limbs 2 12) (limbs 0 0)).toNat == 12
 #guard [(2, 2, 1), (5, 3, 2), (20, 20, 7), (64, 60, 16), (200, 190, 50)].all
   fun (m, n, k) => checkGcd m n k
+-- On pairs of words (`gcd2`): edge values, a top word `2⁶⁴ - 1` (where `bh + 1` wraps), common
+-- factors of one and two words, and both orders.
+#guard
+  let vs := edges 2 ++ [2 ^ 64, 2 ^ 64 + 1, 2 ^ 65 - 1, (2 ^ 64 - 1) * 2 ^ 64, 2 ^ 127 + 2 ^ 63,
+    randomLimbs 2 81, randomLimbs 2 82 / 2 ^ 70 * 0xFFFFFFFB, randomLimbs 1 83 * 3 ^ 40,
+    randomLimbs 1 84 * 3 ^ 40, 3 ^ 80, 5 ^ 55]
+  vs.all fun x => vs.all fun y =>
+    (MPN.Num.gcd (limbs 2 x) (limbs 2 y)).toNat == Nat.gcd x y &&
+      (MPN.Num.gcd (limbs 2 x) (limbs 1 (y % 2 ^ 64))).toNat == Nat.gcd x (y % 2 ^ 64)
 -- Through half-gcd (`gcdWith` with a low threshold), with recursion above `hgcdBase` limbs.
 #guard [(40, 40, 8), (100, 90, 20), (700, 650, 100), (900, 900, 1)].all fun (m, n, k) =>
   let g := randomLimbs k 71
