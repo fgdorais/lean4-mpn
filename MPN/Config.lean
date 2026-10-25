@@ -37,6 +37,20 @@ public structure Config where
   /-- The Toom methods need at least `12` limbs for their splits. -/
   twelve_le_mulToom3 : 12 ≤ mulToom3 := by decide
   /--
+  The size of the smaller operand from which multiplication uses Toom-3 by 2 when the larger one
+  is between three halves and three times as long (three pieces by two).
+  -/
+  mulToom32 : Nat := 176
+  /-- Toom-3 by 2 needs at least `12` limbs for its split. -/
+  twelve_le_mulToom32 : 12 ≤ mulToom32 := by decide
+  /--
+  The size of the smaller operand from which multiplication uses Toom-4 by 2 when the larger one
+  is between two and four times as long (four pieces by two), where Toom-3 by 2 does not apply.
+  -/
+  mulToom42 : Nat := 88
+  /-- Toom-4 by 2 needs at least `12` limbs for its split. -/
+  twelve_le_mulToom42 : 12 ≤ mulToom42 := by decide
+  /--
   The size of the smaller operand from which multiplication uses Toom-4 or Toom-4 by 3, by the
   shape of the operands.
   -/
@@ -44,10 +58,17 @@ public structure Config where
   /-- Toom-4 needs at least `32` limbs for its split. -/
   thirtytwo_le_mulToom4 : 32 ≤ mulToom4 := by decide
   /--
+  The size of the smaller operand from which multiplication uses Toom-4 by 3 when the larger one
+  is between four thirds and twice as long (four pieces by three).
+  -/
+  mulToom43 : Nat := 600
+  /-- Toom-4 by 3 needs at least `32` limbs for its split. -/
+  thirtytwo_le_mulToom43 : 32 ≤ mulToom43 := by decide
+  /--
   The size of the smaller operand from which multiplication uses Toom-6 when the larger one is less
   than six fifths as long.
   -/
-  mulToom6 : Nat := 1000
+  mulToom6 : Nat := 768
   /-- Toom-6 needs at least `32` limbs for its split. -/
   thirtytwo_le_mulToom6 : 32 ≤ mulToom6 := by decide
   /-- The size of the larger operand from which multiplication uses the FFT. -/
@@ -87,7 +108,7 @@ public structure Config where
   /-- Toom-4 needs at least `32` limbs for its split. -/
   thirtytwo_le_sqrToom4 : 32 ≤ sqrToom4 := by decide
   /-- The size from which squaring uses Toom-6 instead of Toom-4, from `sqrToom3` on. -/
-  sqrToom6 : Nat := 1200
+  sqrToom6 : Nat := 1152
   /-- Toom-6 needs at least `32` limbs for its split. -/
   thirtytwo_le_sqrToom6 : 32 ≤ sqrToom6 := by decide
   /-- The size from which squaring uses the FFT. -/
@@ -116,6 +137,21 @@ public meta register_option mpn.mul.toom3Threshold : Nat := {
   defValue := ({} : Config).mulToom3
   descr := "the size of the smaller operand, in limbs, from which multiplication uses Toom-3 \
     and its unbalanced variants"
+}
+
+public meta register_option mpn.mul.toom32Threshold : Nat := {
+  defValue := ({} : Config).mulToom32
+  descr := "the size of the smaller operand, in limbs, from which multiplication uses Toom-3 by 2"
+}
+
+public meta register_option mpn.mul.toom42Threshold : Nat := {
+  defValue := ({} : Config).mulToom42
+  descr := "the size of the smaller operand, in limbs, from which multiplication uses Toom-4 by 2"
+}
+
+public meta register_option mpn.mul.toom43Threshold : Nat := {
+  defValue := ({} : Config).mulToom43
+  descr := "the size of the smaller operand, in limbs, from which multiplication uses Toom-4 by 3"
 }
 
 public meta register_option mpn.mul.toom4Threshold : Nat := {
@@ -214,6 +250,15 @@ elab "mpn_config%" : term => do
   let mulToom3 := mpn.mul.toom3Threshold.get opts
   unless 12 ≤ mulToom3 do
     throwError "mpn.mul.toom3Threshold must be at least 12, but it is {mulToom3}"
+  let mulToom32 := mpn.mul.toom32Threshold.get opts
+  unless 12 ≤ mulToom32 do
+    throwError "mpn.mul.toom32Threshold must be at least 12, but it is {mulToom32}"
+  let mulToom42 := mpn.mul.toom42Threshold.get opts
+  unless 12 ≤ mulToom42 do
+    throwError "mpn.mul.toom42Threshold must be at least 12, but it is {mulToom42}"
+  let mulToom43 := mpn.mul.toom43Threshold.get opts
+  unless 32 ≤ mulToom43 do
+    throwError "mpn.mul.toom43Threshold must be at least 32, but it is {mulToom43}"
   let mulToom4 := mpn.mul.toom4Threshold.get opts
   unless 32 ≤ mulToom4 do
     throwError "mpn.mul.toom4Threshold must be at least 32, but it is {mulToom4}"
@@ -246,6 +291,9 @@ elab "mpn_config%" : term => do
   let parseDC := mpn.str.parseDCThreshold.get opts
   let mulKaratsubaStx := quote mulKaratsuba
   let mulToom3Stx := quote mulToom3
+  let mulToom32Stx := quote mulToom32
+  let mulToom42Stx := quote mulToom42
+  let mulToom43Stx := quote mulToom43
   let mulToom4Stx := quote mulToom4
   let mulToom6Stx := quote mulToom6
   let mulFFTStx := quote mulFFT
@@ -264,6 +312,9 @@ elab "mpn_config%" : term => do
   let parseDCStx := quote parseDC
   let stx ← `(({ mulKaratsuba := $mulKaratsubaStx
                  mulToom3 := $mulToom3Stx
+                 mulToom32 := $mulToom32Stx
+                 mulToom42 := $mulToom42Stx
+                 mulToom43 := $mulToom43Stx
                  mulToom4 := $mulToom4Stx
                  mulToom6 := $mulToom6Stx
                  mulFFT := $mulFFTStx

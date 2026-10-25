@@ -391,7 +391,12 @@ def checkToom (m n : Nat) : Bool :=
   fun (m, n) => checkToom m n
 
 -- Toom-6 (`5/6 < n/m`), at and above `mulToom6`, and recursing into Toom-4.
-#guard [(1500, 1500), (1700, 1500), (3000, 2600), (6000, 6000)].all fun (m, n) => checkToom m n
+#guard [(770, 770), (800, 790), (1500, 1500), (1700, 1500), (3000, 2600), (6000, 6000)].all
+  fun (m, n) => checkToom m n
+
+-- The unbalanced shapes from their own thresholds: Toom-3 by 2 from `mulToom32` and Toom-4 by 2
+-- from `mulToom42`, below `mulToom3`.
+#guard [(308, 176), (350, 100), (350, 87), (240, 175), (330, 180)].all fun (m, n) => checkToom m n
 
 /-! FFT residues -/
 

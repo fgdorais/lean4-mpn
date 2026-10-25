@@ -31,7 +31,7 @@ comes with Lean.
 | `MPN.Lehmer`, `MPN.Gcd` | `mulSubMul` (`a x - b y` in one pass), `mulAddMul` (`a x + b y`); `Num.gcd`: Euclid's algorithm on pairs of words (`gcd2`) up to two limbs, Lehmer's algorithm, and half-gcd with its own base case | `mpn_gcd_22`, `mpn_hgcd_mul_matrix1_vector`, `mpn_hgcd_matrix_mul_1`, `mpn_gcd` |
 | `MPN.Decimal` | `Num.toDecimal`, `Num.ofDecimal?`: chunks of 19 digits, divide and conquer on long numbers | `mpn_get_str`, `mpn_set_str` |
 | `MPN.Sqrt` | `sqrtRem`: Zimmermann's Karatsuba square root, Newton's iteration on a double word (`sqrt2`) at the bottom | `mpn_sqrtrem`, `mpn_dc_sqrtrem` |
-| `MPN.Mul.Toom` | `mulToom`: Toom-6 from `mulToom6 = 1000` limbs, Toom-4 and Toom-4 by 3 from `mulToom4 = 600` limbs, Toom-3, Toom-3 by 2 and Toom-4 by 2 from `mulToom3 = 384` limbs; `sqrToom`: the Toom-6 square from 1200 limbs, the Toom-4 square from 1000, the Toom-3 square from 600 | `mpn_toom6h_mul`, `mpn_toom44_mul`, `mpn_toom43_mul`, `mpn_toom33_mul`, `mpn_toom32_mul`, `mpn_toom42_mul`, `mpn_toom6_sqr`, `mpn_toom4_sqr`, `mpn_toom3_sqr` |
+| `MPN.Mul.Toom` | `mulToom`: Toom-6 from `mulToom6 = 768` limbs, Toom-4 from `mulToom4 = 600` and Toom-4 by 3 from `mulToom43 = 600` limbs, Toom-3 from `mulToom3 = 384`, Toom-3 by 2 from `mulToom32 = 176` and Toom-4 by 2 from `mulToom42 = 88` limbs, by the shape; `sqrToom`: the Toom-6 square from 1152 limbs, the Toom-4 square from 1000, the Toom-3 square from 600 | `mpn_toom6h_mul`, `mpn_toom44_mul`, `mpn_toom43_mul`, `mpn_toom33_mul`, `mpn_toom32_mul`, `mpn_toom42_mul`, `mpn_toom6_sqr`, `mpn_toom4_sqr`, `mpn_toom3_sqr` |
 | `MPN.FFT.Fermat` | in place on windows of one array, modulo `2^(64 n) + 1`: `normAt`, `addModAt`, `subModAt`, `mulPow2At` | `mpn_fft_add_modF`, `mpn_fft_sub_modF`, `mpn_fft_mul_2exp_modF` |
 | `MPN.FFT.Transform` | `fwd`, `inv`: the transforms of length `2ᵏ`, in place | `mpn_fft_fft`, `mpn_fft_fftinv` |
 | `MPN.FFT.Mul` | `fftMul`, `fftSqr`: Schönhage–Strassen with `2ᵏ` pieces; `MPN.mul` and `MPN.sqr`, which split unbalanced products into pieces (`mulChunked`) and choose the FFT from `mulFFT = 4096` limbs in the larger operand and `sqrFFT = 2816` limbs, and `mulToom` or `sqrToom` below | `mpn_mul_fft`, `mpn_mul`, `mpn_sqr` |
@@ -87,9 +87,10 @@ rev = "main64"
 options = { march = "native", mulKaratsuba = "48", divDC = "384" }
 ```
 
-The keys are the fields of `MPN.Config`: `mulKaratsuba`, `mulToom3`, `mulToom4`, `mulToom6`,
-`mulFFT`, `mulFFTUnbal`, `mulFFTMin`, `mulUnbalanced`, `mulChunkMax`, `sqrKaratsuba`, `sqrToom3`,
-`sqrToom4`, `sqrToom6`, `sqrFFT`, `divDC`, `gcdHalf`, `strDC` and `parseDC`; an invalid value
+The keys are the fields of `MPN.Config`: `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`,
+`mulToom43`, `mulToom4`, `mulToom6`, `mulFFT`, `mulFFTUnbal`, `mulFFTMin`, `mulUnbalanced`,
+`mulChunkMax`, `sqrKaratsuba`, `sqrToom3`, `sqrToom4`, `sqrToom6`, `sqrFFT`, `divDC`, `gcdHalf`,
+`strDC` and `parseDC`; an invalid value
 stops the build. Lake keeps the configuration it elaborated, so after changing the options, build
 once with `lake build -R`. In this package itself, the same options go on the command line:
 `lake build -R -K mulKaratsuba=48`.

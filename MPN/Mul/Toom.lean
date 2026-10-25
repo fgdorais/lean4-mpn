@@ -3631,16 +3631,27 @@ private theorem toom66_spec (r a b : USlice) (k : USize) (hk : Shape66 r a b k)
 
 variable (cfg : Config)
 
+/-- The least of the thresholds of the Toom methods, from which `mulToom` tries them. -/
+public def toomMin (cfg : Config) : Nat :=
+  min (min (min cfg.mulToom3 cfg.mulToom32) (min cfg.mulToom42 cfg.mulToom43))
+    (min cfg.mulToom4 cfg.mulToom6)
+
+private theorem twelve_le_toomMin (cfg : Config) : 12 ≤ toomMin cfg := by
+  have := cfg.twelve_le_mulToom3; have := cfg.twelve_le_mulToom32
+  have := cfg.twelve_le_mulToom42; have := cfg.thirtytwo_le_mulToom43
+  have := cfg.thirtytwo_le_mulToom4; have := cfg.thirtytwo_le_mulToom6
+  simp only [toomMin]; lia
+
 /-- The guard of the Toom methods, and the split points as `Nat`s. -/
 private theorem toom_guard {cfg : Config} {r a b : USlice}
-    (h : cfg.mulToom3 ≤ b.size.toNat ∧ b.size ≤ a.size ∧ a.size ≤ r.size ∧
+    (h : toomMin cfg ≤ b.size.toNat ∧ b.size ≤ a.size ∧ a.size ≤ r.size ∧
       b.size ≤ r.size - a.size) :
     12 ≤ b.size.toNat ∧ b.size.toNat ≤ a.size.toNat ∧
       a.size.toNat + b.size.toNat ≤ r.size.toNat ∧
       ((a.size + 2) / 3).toNat = (a.size.toNat + 2) / 3 ∧
       ((a.size + 3) / 4).toNat = (a.size.toNat + 3) / 4 := by
   have : 4294967296 ≤ USize.size := by cases USize.size_eq <;> lia
-  have h₁ := Nat.le_trans cfg.twelve_le_mulToom3 h.1
+  have h₁ := Nat.le_trans (twelve_le_toomMin cfg) h.1
   have h₂ := USize.le_iff_toNat_le.1 h.2.1
   have h₃ := USize.le_iff_toNat_le.1 h.2.2.1
   have h₄ := USize.le_iff_toNat_le.1 h.2.2.2
@@ -3669,7 +3680,7 @@ private theorem toNat_ceil6 (x : USize) (hx : x.toNat + 5 < USize.size) :
 def mulToomAux (cfg : Config) (r a b : USlice) : UInt64Array :=
   let mul : Mul (a.size.toNat + b.size.toNat) := fun r' a' b' _ =>
     if b'.size ≤ a'.size then mulToomAux cfg r' a' b' else mulToomAux cfg r' b' a'
-  if h : cfg.mulToom3 ≤ b.size.toNat ∧ b.size ≤ a.size ∧ a.size ≤ r.size ∧
+  if h : toomMin cfg ≤ b.size.toNat ∧ b.size ≤ a.size ∧ a.size ≤ r.size ∧
       b.size ≤ r.size - a.size then
     have hg := toom_guard h
     if h₆₆ : cfg.mulToom6 ≤ b.size.toNat ∧ 5 * ((a.size.toNat + 5) / 6) < b.size.toNat then
@@ -3680,27 +3691,18 @@ def mulToomAux (cfg : Config) (r a b : USlice) : UInt64Array :=
     else if h₄₄ : cfg.mulToom4 ≤ b.size.toNat ∧ 3 * ((a.size.toNat + 3) / 4) < b.size.toNat then
       toom44 r a b ((a.size + 3) / 4) (by
         have := cfg.thirtytwo_le_mulToom4; refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> lia) mul
-    else if h₄₃ : cfg.mulToom4 ≤ b.size.toNat ∧ 2 * ((a.size.toNat + 3) / 4) < b.size.toNat ∧
+    else if h₄₃ : cfg.mulToom43 ≤ b.size.toNat ∧ 2 * ((a.size.toNat + 3) / 4) < b.size.toNat ∧
         b.size.toNat ≤ 3 * ((a.size.toNat + 3) / 4) then
       toom43 r a b ((a.size + 3) / 4) (by
-        have := cfg.thirtytwo_le_mulToom4; refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> lia) mul
-    else if h₃₃ : (a.size + 2) / 3 + (a.size + 2) / 3 < b.size then
-      toom33 r a b ((a.size + 2) / 3) (by
-        have := USize.lt_iff_toNat_lt.1 h₃₃
-        rw [USize.toNat_add_of_lt (by lia)] at this
-        refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> lia) mul
-    else if h₃₂ : (a.size + 2) / 3 < b.size then
-      toom32 r a b ((a.size + 2) / 3) (by
-        have := USize.lt_iff_toNat_lt.1 h₃₂
-        have := mt (USize.lt_iff_toNat_lt (a := (a.size + 2) / 3 + (a.size + 2) / 3)).2 h₃₃
-        rw [USize.toNat_add_of_lt (by lia)] at this
-        refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> lia) mul
-    else if h₄₂ : (a.size + 3) / 4 < b.size ∧ b.size ≤ (a.size + 3) / 4 + (a.size + 3) / 4 then
-      toom42 r a b ((a.size + 3) / 4) (by
-        have := USize.lt_iff_toNat_lt.1 h₄₂.1
-        have := USize.le_iff_toNat_le.1 h₄₂.2
-        rw [USize.toNat_add_of_lt (by lia)] at this
-        refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> lia) mul
+        have := cfg.thirtytwo_le_mulToom43; refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> lia) mul
+    else if h₃₃ : cfg.mulToom3 ≤ b.size.toNat ∧ 2 * ((a.size.toNat + 2) / 3) < b.size.toNat then
+      toom33 r a b ((a.size + 2) / 3) (by refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> lia) mul
+    else if h₃₂ : cfg.mulToom32 ≤ b.size.toNat ∧ (a.size.toNat + 2) / 3 < b.size.toNat ∧
+        b.size.toNat ≤ 2 * ((a.size.toNat + 2) / 3) then
+      toom32 r a b ((a.size + 2) / 3) (by refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> lia) mul
+    else if h₄₂ : cfg.mulToom42 ≤ b.size.toNat ∧ (a.size.toNat + 3) / 4 < b.size.toNat ∧
+        b.size.toNat ≤ 2 * ((a.size.toNat + 3) / 4) then
+      toom42 r a b ((a.size + 3) / 4) (by refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> lia) mul
     else
       mulKaratsuba cfg r a b
   else

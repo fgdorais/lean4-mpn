@@ -23,10 +23,11 @@ changing the options, build once with `-R` to reconfigure.
 * `march`: compiles the library's C code with `-march=<value>`, for example `native`, which lets
   the C compiler use the vector instructions of the machine. The binaries then run only on
   processors with those instructions.
-* `mulKaratsuba`, `mulToom3`, `mulToom4`, `mulToom6`, `mulFFT`, `mulFFTUnbal`, `mulFFTMin`,
-  `mulUnbalanced`, `mulChunkMax`, `sqrKaratsuba`, `sqrToom3`, `sqrToom4`, `sqrToom6`, `sqrFFT`,
-  `divDC`, `gcdHalf`, `strDC`, `parseDC`: the thresholds, by the names of the fields of
-  `MPN.Config`. The keys have no dots, since TOML passes a quoted key as one name.
+* `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`, `mulToom43`, `mulToom4`, `mulToom6`,
+  `mulFFT`, `mulFFTUnbal`, `mulFFTMin`, `mulUnbalanced`, `mulChunkMax`, `sqrKaratsuba`,
+  `sqrToom3`, `sqrToom4`, `sqrToom6`, `sqrFFT`, `divDC`, `gcdHalf`, `strDC`, `parseDC`: the
+  thresholds, by the names of the fields of `MPN.Config`. The keys have no dots, since TOML passes
+  a quoted key as one name.
 -/
 
 /--
@@ -43,6 +44,9 @@ def thresholdOptions : Array LeanOption :=
     | none => #[]
   opt `mul.karatsubaThreshold (get_config? mulKaratsuba) ++
     opt `mul.toom3Threshold (get_config? mulToom3) ++
+    opt `mul.toom32Threshold (get_config? mulToom32) ++
+    opt `mul.toom42Threshold (get_config? mulToom42) ++
+    opt `mul.toom43Threshold (get_config? mulToom43) ++
     opt `mul.toom4Threshold (get_config? mulToom4) ++
     opt `mul.toom6Threshold (get_config? mulToom6) ++
     opt `mul.fftThreshold (get_config? mulFFT) ++
