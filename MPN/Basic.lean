@@ -6,6 +6,7 @@ module
 
 public import ScalarArray.UInt32
 public import MPN.Limbs
+public import MPN.FoldInPlace
 
 /-!
 # Natural numbers as limbs

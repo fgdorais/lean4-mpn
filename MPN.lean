@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN.Limbs
+public import MPN.FoldInPlace
 public import MPN.Sum
 public import MPN.NatMod
 public import MPN.ListIndex
