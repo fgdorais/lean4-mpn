@@ -8,6 +8,7 @@ public import MPN.Sum
 public import MPN.NatMod
 public import MPN.Poly
 public import MPN.FFT.Roots
+public import MPN.FFT.Algebra
 public import MPN.WordGcd
 public import MPN.Generic.Ops
 public import MPN.Generic.Barrett

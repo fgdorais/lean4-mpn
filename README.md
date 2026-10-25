@@ -21,6 +21,7 @@ Both stay merged with `main`: a change to the common part is made here and merge
 | `MPN.NatMod` | congruences modulo the Fermat numbers of the FFT |
 | `MPN.Poly` | coefficient lists and their values `polyVal x cs`: sums, products, even and odd parts |
 | `MPN.FFT.Roots` | the inversion of the FFT's transform modulo a Fermat number, on natural numbers |
+| `MPN.FFT.Algebra` | the algebra of the transforms modulo `2ᴺ + 1` for any `N`: bit reversal, the butterflies, and the coefficients they give (`fft_coef`, and `fft_coef_cyc` for products modulo `x^K - 1`) |
 | `MPN.WordGcd` | Euclid's algorithm on words, and the runs of Lehmer's steps on leading words |
 | `MPN.Generic.Ops` | `NatOps α`: the operations of a representation of numbers at a base, with their specifications |
 | `MPN.Generic.Barrett` | division by a reciprocal from Newton's iteration over `NatOps`, every estimate checked |
