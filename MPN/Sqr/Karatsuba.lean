@@ -13,9 +13,9 @@ public import MPN.Sqr.Basecase
 `sqrKaratsuba r a` writes the `2 a.size` limbs of `a * a` into the slice `r`, like
 `mulKaratsuba r a a` but with three squares: it splits `a` at `k = ⌈a.size / 2⌉` into
 `a = a₀ + 2^(64 k) a₁` and computes `a₀²` and `a₁²` into `r`, and `(a₀ + a₁)²` into a new array,
-from which it subtracts them to get `2 a₀ a₁`, which it adds to `r` from limb `k` on. Below
-`sqrKaratsubaThreshold` limbs it is `sqrBasecase`. It requires `0 < a.size` and
-`2 a.size ≤ r.size`, and leaves `r` unchanged otherwise.
+and adds `2 a₀ a₁`, which is that minus them, to `r` from limb `k` on in one pass
+(`karatsubaMid`). Below `sqrKaratsubaThreshold` limbs it is `sqrBasecase`. It requires
+`0 < a.size` and `2 a.size ≤ r.size`, and leaves `r` unchanged otherwise.
 -/
 
 open ScalarArray UInt64Array
@@ -59,10 +59,7 @@ public def sqrKaratsuba (r a : USlice) : UInt64Array :=
     let r₁ := sqrKaratsuba (r.slice 0 (k + k)) a₀
     let r₂ := sqrKaratsuba ((r₁.uslice r.start r.stop).slice (k + k) n) a₁
     let t₁ := sqrKaratsuba (UInt64Array.replicate (k + k + 2).toNat 0).toUSlice sa.toUSlice
-    let w := r₂.uslice r.start r.stop
-    let t₂ := (subInto t₁.toUSlice (w.slice 0 (k + k))).1
-    let t₃ := (subInto t₂.toUSlice (w.slice (k + k) n)).1
-    (addInto (w.slice k n) (t₃.toUSlice.slice 0 (min (n - k) (k + k + 2)))).1
+    karatsubaMid r₂ r.start k n t₁
   else
     sqrBasecase r a
 termination_by a.size.toNat
@@ -174,129 +171,37 @@ private theorem sqrKaratsuba_spec (N : Nat) : ∀ (r a : USlice), a.size.toNat =
     rw [hsaN, show k.toNat + 1 + (k.toNat + 1) = k.toNat + k.toNat + 2 by lia] at h3v
     generalize sqrKaratsuba (UInt64Array.replicate (k + k + 2).toNat 0).toUSlice
       sa.toUSlice = t₁ at *
-    -- Subtracting `z₀` and `z₂`, read from `r`.
-    obtain ⟨hws, hwz, hwa⟩ := uslice_same r r₂ (h2s)
-    have hX₀ := (r₂.uslice r.start r.stop).toNat_slice (i := 0) (j := k + k)
-      (by rw [USize.toNat_zero]; lia) (by rw [hkk, hwz]; lia)
-    have hX₀' := (r₂.uslice r.start r.stop).size_slice (i := 0) (j := k + k)
-      (by rw [USize.toNat_zero]; lia) (by rw [hkk, hwz]; lia)
-    rw [hws, hwa, USize.toNat_zero, Nat.add_zero, Nat.sub_zero, hkk] at hX₀
-    rw [USize.toNat_zero, Nat.sub_zero, hkk] at hX₀'
-    have hz₀ : r₂.valAt r.start.toNat (k.toNat + k.toNat) = r₁.valAt r.start.toNat
-        (k.toNat + k.toNat) := valAt_congr _ fun i _ hi => h2u i (by lia)
-    rw [hz₀, h1v] at hX₀
-    have ht₁U := size_toUSlice t₁ (by rw [h3s]; lia)
-    rw [h3s] at ht₁U
-    have hs₂ := valAt_subInto t₁.toUSlice ((r₂.uslice r.start r.stop).slice 0 (k + k)) 0
-      (USize.le_iff_toNat_le.2 (by rw [hX₀', ht₁U]; lia))
-    rw [start_toUSlice, USize.toNat_zero, ht₁U, array_toUSlice, hX₀, UInt64.toNat_zero,
-      Nat.add_zero, h3v] at hs₂
-    have ht₂s := size_subInto t₁.toUSlice ((r₂.uslice r.start r.stop).slice 0 (k + k)) 0
-    rw [array_toUSlice, h3s] at ht₂s
-    generalize subInto t₁.toUSlice ((r₂.uslice r.start r.stop).slice 0 (k + k)) 0 = p₂ at *
-    have hX₁ := (r₂.uslice r.start r.stop).toNat_slice (i := k + k) (j := a.size + a.size)
-      (by rw [hkk, hn]; lia) (by rw [hn, hwz]; lia)
-    have hX₁' := (r₂.uslice r.start r.stop).size_slice (i := k + k) (j := a.size + a.size)
-      (by rw [hkk, hn]; lia) (by rw [hn, hwz]; lia)
-    rw [hws, hwa, hkk, hn,
-      show a.size.toNat + a.size.toNat - (k.toNat + k.toNat) =
-        a.size.toNat - k.toNat + (a.size.toNat - k.toNat) by lia, h2v] at hX₁
-    rw [hkk, hn] at hX₁'
-    have ht₂U := size_toUSlice p₂.1 (by rw [ht₂s]; lia)
-    rw [ht₂s] at ht₂U
-    have hs₃ := valAt_subInto p₂.1.toUSlice
-      ((r₂.uslice r.start r.stop).slice (k + k) (a.size + a.size)) 0
-      (USize.le_iff_toNat_le.2 (by rw [hX₁', ht₂U]; lia))
-    rw [start_toUSlice, USize.toNat_zero, ht₂U, array_toUSlice, hX₁, UInt64.toNat_zero,
-      Nat.add_zero] at hs₃
-    have ht₃s := size_subInto p₂.1.toUSlice
-      ((r₂.uslice r.start r.stop).slice (k + k) (a.size + a.size)) 0
-    rw [array_toUSlice, ht₂s] at ht₃s
-    generalize subInto p₂.1.toUSlice
-      ((r₂.uslice r.start r.stop).slice (k + k) (a.size + a.size)) 0 = p₃ at *
-    -- Adding `z₁` from limb `k` on.
-    have ht₃U := size_toUSlice p₃.1 (by rw [ht₃s]; lia)
-    rw [ht₃s] at ht₃U
-    have hY := p₃.1.toUSlice.toNat_slice (i := 0) (j := min (a.size + a.size - k) (k + k + 2))
-      (by rw [USize.toNat_zero]; lia) (by rw [hL, ht₃U]; lia)
-    have hY' := p₃.1.toUSlice.size_slice (i := 0) (j := min (a.size + a.size - k) (k + k + 2))
-      (by rw [USize.toNat_zero]; lia) (by rw [hL, ht₃U]; lia)
-    rw [start_toUSlice, array_toUSlice, USize.toNat_zero, Nat.add_zero, Nat.sub_zero, hL] at hY
-    rw [USize.toNat_zero, Nat.sub_zero, hL] at hY'
-    have hX₂ := (r₂.uslice r.start r.stop).start_slice (i := k) (j := a.size + a.size)
-      (by rw [hn]; lia) (by rw [hn, hwz]; lia)
-    have hX₂' := (r₂.uslice r.start r.stop).size_slice (i := k) (j := a.size + a.size)
-      (by rw [hn]; lia) (by rw [hn, hwz]; lia)
-    rw [hws] at hX₂
-    rw [hn] at hX₂'
-    have hs₄ := valAt_addInto ((r₂.uslice r.start r.stop).slice k (a.size + a.size))
-      (p₃.1.toUSlice.slice 0 (min (a.size + a.size - k) (k + k + 2))) 0
-      (USize.le_iff_toNat_le.2 (by rw [hY', hX₂']; lia))
-    rw [hX₂, hX₂', USlice.array_slice, hwa, hY, UInt64.toNat_zero, Nat.add_zero] at hs₄
-    have h4s := size_addInto ((r₂.uslice r.start r.stop).slice k (a.size + a.size))
-      (p₃.1.toUSlice.slice 0 (min (a.size + a.size - k) (k + k + 2))) 0
-    have h4u := getElem!_addInto ((r₂.uslice r.start r.stop).slice k (a.size + a.size))
-      (p₃.1.toUSlice.slice 0 (min (a.size + a.size - k) (k + k + 2))) 0
-    rw [USlice.array_slice, hwa, h2s] at h4s
-    rw [hX₂, hX₂', USlice.array_slice, hwa] at h4u
-    generalize addInto ((r₂.uslice r.start r.stop).slice k (a.size + a.size))
-      (p₃.1.toUSlice.slice 0 (min (a.size + a.size - k) (k + k + 2))) 0 = p₄ at *
-    refine ⟨h4s, fun i hi => ?_, fun _ _ => ?_⟩
-    · rw [h4u i (by lia), h2u i (by lia), h1u i (by lia)]
+    -- The middle term, added to `r` in one pass.
+    have hOK : MidOK r₂ r.start k (a.size + a.size) t₁ :=
+      ⟨⟨by rw [hn, h2s]; have := hrb.1; lia, by rw [hn]; have := hrb.2; lia⟩, by rw [hn]; lia,
+        by rw [hn]; lia, by rw [h3s], by lia⟩
+    obtain ⟨m₁, m₂, m₃⟩ := karatsubaMid_spec r₂ r.start k (a.size + a.size) t₁ hOK
+    rw [hn] at m₂ m₃
+    refine ⟨by rw [m₁, h2s], fun i hi => ?_, fun _ _ => ?_⟩
+    · rw [m₂ i (by lia), h2u i (by lia), h1u i (by lia)]
     · -- The names of the values, and the powers of `2⁶⁴` that relate them.
       have hAB : a.toNat * a.toNat < 2 ^ (64 * (a.size.toNat + a.size.toNat)) := by
         rw [USlice.toNat_eq_valAt a, Nat.mul_add, Nat.pow_add]
         exact Nat.mul_lt_mul_of_lt_of_lt (valAt_lt ..) (valAt_lt ..)
+      have hz₀ : r₂.valAt r.start.toNat (k.toNat + k.toNat) = (a.slice 0 k).toNat *
+          (a.slice 0 k).toNat := by
+        rw [← h1v]; exact valAt_congr _ fun i _ hi => h2u i (by lia)
+      rw [show a.size.toNat + a.size.toNat - (k.toNat + k.toNat) =
+        a.size.toNat - k.toNat + (a.size.toNat - k.toNat) by lia] at m₃
+      rw [h2v, hz₀] at m₃
       generalize hK : k.toNat = K at *
-      generalize hM : a.size.toNat = M at *
-      generalize hs₀ : r.start.toNat = s₀ at *
-      generalize hA₀ : (a.slice 0 k).toNat = A₀ at *
-      generalize hA₁ : (a.slice k a.size).toNat = A₁ at *
-      rw [show M - K + (M - K) = M + M - (K + K) by lia] at h2v
-      have hv₂ := valAt_lt p₂.1 0 (K + K + 2)
-      have hv₃ := valAt_lt p₃.1 0 (K + K + 2)
+      generalize (a.slice 0 k).toNat = A₀ at *
+      generalize (a.slice k a.size).toNat = A₁ at *
       rw [hA] at hAB ⊢
       -- The identity of Karatsuba's method.
-      have hring : (A₀ + A₁) * (A₀ + A₁) = A₀ * A₀ + A₁ * A₁ + (A₀ * A₁ + A₁ * A₀) := by grind
+      have hring : (A₀ + A₁) * (A₀ + A₁) = A₀ * A₀ + (A₀ * A₁ + A₁ * A₀) + A₁ * A₁ := by grind
       have hprod : (A₀ + 2 ^ (64 * K) * A₁) * (A₀ + 2 ^ (64 * K) * A₁) =
           A₀ * A₀ + 2 ^ (64 * K) * (A₀ * A₁ + A₁ * A₀) +
-            2 ^ (64 * K) * 2 ^ (64 * K) * (A₁ * A₁) := by grind
-      rw [hring] at hs₂
-      -- No borrow: `z₁` remains.
-      have hz₁ : p₃.1.valAt 0 (K + K + 2) = A₀ * A₁ + A₁ * A₀ :=
-        karatsuba_borrows hs₂ hs₃ hv₂ hv₃
-      -- `z₁` fits in the limbs from `k` on, so the truncated slice is all of it.
-      have hPR : 2 ^ (64 * (M + M)) = 2 ^ (64 * K) * 2 ^ (64 * (M + M - K)) := by
-        rw [← Nat.pow_add]; congr 1; lia
-      have hZR : A₀ * A₁ + A₁ * A₀ < 2 ^ (64 * (M + M - K)) := by
-        have hpos : 0 < 2 ^ (64 * K) := Nat.two_pow_pos _
-        rw [hprod, hPR] at hAB
-        refine Nat.lt_of_mul_lt_mul_left (a := 2 ^ (64 * K)) ?_
-        generalize 2 ^ (64 * K) * (A₀ * A₁ + A₁ * A₀) = W at *
-        lia
-      have hZ : p₃.1.valAt 0 (min (M + M - K) (K + K + 2)) = A₀ * A₁ + A₁ * A₀ := by
-        rw [valAt_mod _ _ (Nat.min_le_right ..), hz₁]
-        apply Nat.mod_eq_of_lt
-        rcases Nat.le_total (M + M - K) (K + K + 2) with hle | hle
-        · rw [Nat.min_eq_left hle]; exact hZR
-        · rw [Nat.min_eq_right hle, ← hz₁]; exact valAt_lt ..
-      rw [hZ] at hs₄
-      -- The limbs of `r` from `k` on before the addition: the high half of `z₀`, then `z₂`.
-      have hz₀ : r₂.valAt s₀ (K + K) = A₀ * A₀ := by
-        rw [← h1v]; exact valAt_congr _ fun i _ hi => h2u i (by lia)
-      rw [UInt64Array.valAt_add] at hz₀
-      have hhi : r₂.valAt (s₀ + K) (M + M - K) =
-          r₂.valAt (s₀ + K) K + 2 ^ (64 * K) * (A₁ * A₁) := by
-        rw [show M + M - K = K + (M + M - (K + K)) by lia, UInt64Array.valAt_add,
-          show s₀ + K + K = s₀ + (K + K) by lia, h2v]
-      rw [hhi] at hs₄
-      have hlo : p₄.1.valAt s₀ K = r₂.valAt s₀ K :=
-        valAt_congr _ fun i _ hi => h4u i (.inl hi)
-      -- The result, and no carry since the product fits.
-      rw [show M + M = K + (M + M - K) by lia, UInt64Array.valAt_add, hlo]
+            2 ^ (64 * (K + K)) * (A₁ * A₁) := by
+        rw [show 64 * (K + K) = 64 * K + 64 * K by lia, Nat.pow_add]; grind
+      rw [hring] at h3v
       rw [hprod] at hAB ⊢
-      rw [hPR] at hAB
-      exact karatsuba_combine hz₀ hs₄ hAB
+      exact m₃ _ h3v hAB
   · exact ⟨size_sqrBasecase .., fun i hi => getElem!_sqrBasecase r a i hi,
       fun hb hr => valAt_sqrBasecase r a hb hr⟩
 
