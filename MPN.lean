@@ -11,5 +11,6 @@ public import MPN.FFT.Roots
 public import MPN.WordGcd
 public import MPN.Generic.Ops
 public import MPN.Generic.Barrett
+public import MPN.Generic.DC
 public import MPN.Generic.HGCD
 public import MPN.Generic.Radix
