@@ -699,250 +699,6 @@ public theorem recLoop_spec (T m n oA : Nat) (src : UInt64Array) (hsS : src.size
       rw [i₃, hc]
       lia
 
-/-! ## The coefficients -/
-
-private theorem sum_eq_polyVal (αL : List Nat) (σ q K : Nat) (h : αL.length ≤ K) :
-    sumRange (fun i => αL.getD i 0 * 2 ^ (σ * i * q)) K = polyVal (2 ^ (σ * q)) αL := by
-  rw [polyVal_eq_sumRange _ αL K h]
-  exact sumRange_congr fun i _ => by rw [← Nat.pow_mul]; congr 2; grind
-
-/--
-The coefficients from the transforms: the forward transforms of `α` and `β`, their pointwise
-products, the inverse transform and the division by `2ᵏ` give the coefficients of `α β`, exactly
-when they are less than `F`.
--/
-public theorem fft_coef (αL βL : List Nat) (k n σ X : Nat) (hk : 1 ≤ k)
-    (hσ : σ * 2 ^ k = 2 * (64 * n)) (hlen : αL.length + βL.length ≤ 2 ^ k + 1) (hβ : βL ≠ [])
-    (hαX : ∀ a ∈ αL, a < X) (hβX : ∀ b ∈ βL, b < X) (hbits : 2 ^ k * (X * X) ≤ 2 ^ (64 * n))
-    (hαK : αL.length ≤ 2 ^ k) (hβK : βL.length ≤ 2 ^ k) (l : Nat) (hl : l < 2 ^ k) :
-    (fermat n - sumRange (fun p =>
-        sumRange (fun i => αL.getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) % fermat n *
-          (sumRange (fun i => βL.getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) % fermat n) %
-            fermat n * 2 ^ ((2 * (64 * n) - σ) * rev k p * l)) (2 ^ k) % fermat n *
-        2 ^ (64 * n - k) % fermat n) % fermat n = (polyMul αL βL).getD l 0 := by
-  have hF : fermat n = 2 ^ (64 * n) + 1 := rfl
-  have hF₀ : 0 < fermat n := by simp [fermat]
-  generalize hZ : polyMul αL βL = Z
-  have hZK : Z.length ≤ 2 ^ k := by
-    rw [← hZ]; have := length_polyMul αL βL hβ; lia
-  -- `σ 2ᵏ⁻¹ = N`, and `τ = 2 N - σ` is the inverse root.
-  have hk₁ : 2 ^ k = 2 * 2 ^ (k - 1) := by
-    rw [← Nat.pow_succ']; congr 1; lia
-  have hσN : σ * 2 ^ (k - 1) = 64 * n := by rw [hk₁] at hσ; lia
-  have hσle : σ ≤ 2 * (64 * n) := by
-    rw [← hσ]; exact Nat.le_mul_of_pos_right _ (Nat.two_pow_pos _)
-  -- The pointwise products are the values of `Z`.
-  have hP : ∀ p, MEq (fermat n)
-      (sumRange (fun i => αL.getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) % fermat n *
-        (sumRange (fun i => βL.getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) % fermat n) % fermat n)
-      (polyVal (2 ^ (σ * rev k p)) Z) := by
-    intro p
-    rw [sum_eq_polyVal _ _ _ _ hαK, sum_eq_polyVal _ _ _ _ hβK, ← hZ, polyVal_polyMul]
-    exact (MEq.mod _ _).trans (MEq.mul (MEq.mod _ _) (MEq.mod _ _))
-  -- The inverse transform, reindexed by `rev`.
-  have hV : MEq (fermat n) (sumRange (fun p =>
-      sumRange (fun i => αL.getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) % fermat n *
-        (sumRange (fun i => βL.getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) % fermat n) %
-          fermat n * 2 ^ ((2 * (64 * n) - σ) * rev k p * l)) (2 ^ k) % fermat n)
-      (2 ^ k * Z.getD l 0) := by
-    refine (MEq.mod _ _).trans ?_
-    refine (MEq.sum fun p _ => MEq.mul (hP p) (MEq.refl _ _)).trans ?_
-    rw [sumRange_rev (fun q => polyVal (2 ^ (σ * q)) Z * 2 ^ ((2 * (64 * n) - σ) * q * l)) k]
-    have e : sumRange (fun q => polyVal (2 ^ (σ * q)) Z * 2 ^ ((2 * (64 * n) - σ) * q * l))
-        (2 ^ k) = sumRange (fun j => sumRange (fun i => Z.getD i 0 * (2 ^ σ) ^ (i * j)) (2 ^ k) *
-          (2 ^ (2 * (64 * n) - σ)) ^ (j * l)) (2 ^ k) := by
-      refine sumRange_congr fun q _ => ?_
-      rw [polyVal_eq_sumRange _ Z _ hZK, ← Nat.pow_mul, Nat.mul_assoc]
-      congr 1
-      exact sumRange_congr fun i _ => by rw [← Nat.pow_mul, ← Nat.pow_mul]; congr 2; grind
-    rw [e]
-    refine inverse_mod (2 ^ σ) (2 ^ (2 * (64 * n) - σ)) (fermat n) k hk ?_ ?_ _ l hl
-    · rw [← Nat.pow_mul, hσN]; simp [fermat]
-    · rw [← Nat.pow_add, show σ + (2 * (64 * n) - σ) = 2 * (64 * n) by lia]
-      exact pow_two_N hF
-  -- Dividing by `2ᵏ`: `-2^(N - k) 2ᵏ = -2ᴺ ≡ 1`.
-  have hc : MEq (fermat n) ((fermat n - sumRange (fun p =>
-      sumRange (fun i => αL.getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) % fermat n *
-        (sumRange (fun i => βL.getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) % fermat n) %
-          fermat n * 2 ^ ((2 * (64 * n) - σ) * rev k p * l)) (2 ^ k) % fermat n *
-        2 ^ (64 * n - k) % fermat n) % fermat n) (Z.getD l 0) := by
-    have hk64 : k ≤ 64 * n := by
-      have : 2 ^ k ≤ 2 ^ (64 * n) := Nat.le_trans (Nat.le_mul_of_pos_right _ (by
-        have : 0 < X := by
-          rcases βL with _ | ⟨b, _⟩
-          · exact absurd rfl hβ
-          · exact Nat.lt_of_le_of_lt (Nat.zero_le _) (hβX b (by simp))
-        exact Nat.mul_pos this this)) hbits
-      exact (Nat.pow_le_pow_iff_right (by decide)).1 this
-    refine (MEq.mod _ _).trans ?_
-    rw [show fermat n - _ = 0 + fermat n - _ by rw [Nat.zero_add]]
-    refine (neg_eq hF _ _ (Nat.le_of_lt (Nat.mod_lt _ hF₀))).trans ?_
-    rw [Nat.zero_add]
-    refine (MEq.mul ((MEq.mod _ _).trans (MEq.mul hV (MEq.refl _ _))) (MEq.refl _ _)).trans ?_
-    rw [show 2 ^ k * Z.getD l 0 * 2 ^ (64 * n - k) = Z.getD l 0 * 2 ^ (64 * n) by
-      rw [Nat.mul_comm (2 ^ k), Nat.mul_assoc, ← Nat.pow_add,
-        show k + (64 * n - k) = 64 * n by lia]]
-    exact pow_N_pow_N hF _
-  -- Both are less than `F`.
-  have hZl : Z.getD l 0 < fermat n := by
-    have h₁ := getD_polyMul_le αL βL (X - 1) (X - 1) (fun a h => by have := hαX a h; lia)
-      (fun b h => by have := hβX b h; lia) l
-    rw [hZ] at h₁
-    have h₂ : (X - 1) * (X - 1) < X * X ∨ X = 0 := by
-      rcases Nat.eq_zero_or_pos X with e | e
-      · exact .inr e
-      · exact .inl (Nat.mul_lt_mul'' (by lia) (by lia))
-    have h₃ : αL.length * ((X - 1) * (X - 1)) ≤ 2 ^ k * (X * X) := by
-      rcases h₂ with h | h
-      · exact Nat.mul_le_mul hαK (Nat.le_of_lt h)
-      · subst h; simp
-    simp only [fermat]
-    lia
-  rw [← Nat.mod_eq_of_lt hZl]
-  exact (Nat.mod_mod _ _).symm.trans hc
-
-/-! ## Wrapped products -/
-
-/-- The cyclic fold of a polynomial modulo `x^K - 1`: coefficient `l` is `Z_l + Z_{l+K}`. -/
-@[expose] public def cyc (Z : List Nat) (K : Nat) : List Nat :=
-  (List.range K).map fun l => Z.getD l 0 + Z.getD (l + K) 0
-
-public theorem length_cyc (Z : List Nat) (K : Nat) : (cyc Z K).length = K := by simp [cyc]
-
-public theorem getD_cyc (Z : List Nat) (K l : Nat) (hl : l < K) :
-    (cyc Z K).getD l 0 = Z.getD l 0 + Z.getD (l + K) 0 := by
-  simp [cyc, hl]
-
-/-- At a `K`-th root of unity, a polynomial of degree below `2 K` has the value of its fold. -/
-public theorem polyVal_cyc (y F K : Nat) (Z : List Nat) (hy : MEq F (y ^ K) 1)
-    (hZ : Z.length ≤ 2 * K) : MEq F (polyVal y Z) (polyVal y (cyc Z K)) := by
-  rw [polyVal_eq_sumRange _ Z (K + K) (by lia), sumRange_append,
-    polyVal_eq_sumRange _ (cyc Z K) K (by rw [length_cyc]; exact Nat.le_refl _)]
-  have e : sumRange (fun i => (cyc Z K).getD i 0 * y ^ i) K =
-      sumRange (fun i => Z.getD i 0 * y ^ i) K +
-        sumRange (fun i => Z.getD (i + K) 0 * y ^ i) K := by
-    rw [← sumRange_add]
-    exact sumRange_congr fun i hi => by rw [getD_cyc _ _ _ hi, Nat.add_mul]
-  rw [e]
-  refine MEq.add (MEq.refl _ _) (MEq.sum fun i _ => ?_)
-  rw [Nat.add_comm K i, Nat.pow_add]
-  have := MEq.mul (MEq.refl F (Z.getD (i + K) 0 * y ^ i)) hy
-  rw [Nat.mul_one] at this
-  rw [← Nat.mul_assoc]
-  exact this
-
-/--
-The coefficients from the transforms when the pieces wrap around: with `K = 2ᵏ` pieces of each
-operand, the forward transforms, their pointwise products, the inverse transform and the division
-by `2ᵏ` give the coefficients of `α β` modulo `x^K - 1`, exactly when they are less than `F`.
--/
-public theorem fft_coef_cyc (αL βL : List Nat) (k n σ X : Nat) (hk : 1 ≤ k)
-    (hσ : σ * 2 ^ k = 2 * (64 * n)) (hβ : βL ≠ [])
-    (hαX : ∀ a ∈ αL, a < X) (hβX : ∀ b ∈ βL, b < X) (hbits : 2 * 2 ^ k * (X * X) ≤ 2 ^ (64 * n))
-    (hαK : αL.length ≤ 2 ^ k) (hβK : βL.length ≤ 2 ^ k) (l : Nat) (hl : l < 2 ^ k) :
-    (fermat n - sumRange (fun p =>
-        sumRange (fun i => αL.getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) % fermat n *
-          (sumRange (fun i => βL.getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) % fermat n) %
-            fermat n * 2 ^ ((2 * (64 * n) - σ) * rev k p * l)) (2 ^ k) % fermat n *
-        2 ^ (64 * n - k) % fermat n) % fermat n =
-      (polyMul αL βL).getD l 0 + (polyMul αL βL).getD (l + 2 ^ k) 0 := by
-  have hF : fermat n = 2 ^ (64 * n) + 1 := rfl
-  have hF₀ : 0 < fermat n := by simp [fermat]
-  have hZ2 : (polyMul αL βL).length ≤ 2 * 2 ^ k := by
-    have := length_polyMul αL βL hβ; lia
-  rw [← getD_cyc _ _ _ hl]
-  generalize hZ : cyc (polyMul αL βL) (2 ^ k) = Z
-  have hZK : Z.length ≤ 2 ^ k := by rw [← hZ, length_cyc]; exact Nat.le_refl _
-  have hk₁ : 2 ^ k = 2 * 2 ^ (k - 1) := by
-    rw [← Nat.pow_succ']; congr 1; lia
-  have hσN : σ * 2 ^ (k - 1) = 64 * n := by rw [hk₁] at hσ; lia
-  have hσle : σ ≤ 2 * (64 * n) := by
-    rw [← hσ]; exact Nat.le_mul_of_pos_right _ (Nat.two_pow_pos _)
-  -- The pointwise products are the values of the fold `Z`.
-  have hP : ∀ p, MEq (fermat n)
-      (sumRange (fun i => αL.getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) % fermat n *
-        (sumRange (fun i => βL.getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) % fermat n) % fermat n)
-      (polyVal (2 ^ (σ * rev k p)) Z) := by
-    intro p
-    rw [sum_eq_polyVal _ _ _ _ hαK, sum_eq_polyVal _ _ _ _ hβK, ← hZ]
-    refine ((MEq.mod _ _).trans (MEq.mul (MEq.mod _ _) (MEq.mod _ _))).trans ?_
-    rw [← polyVal_polyMul]
-    refine polyVal_cyc _ _ _ _ ?_ hZ2
-    rw [← Nat.pow_mul, show σ * rev k p * 2 ^ k = 2 * (64 * n) * rev k p by
-      rw [Nat.mul_right_comm, hσ], Nat.pow_mul]
-    have := MEq.mul (pow_two_N hF) (MEq.refl (fermat n) 1)
-    clear this
-    induction rev k p with
-    | zero => exact MEq.refl _ _
-    | succ j ih =>
-      rw [Nat.pow_succ]
-      have := MEq.mul ih (pow_two_N hF)
-      rw [Nat.one_mul] at this
-      exact this
-  -- The inverse transform, reindexed by `rev`.
-  have hV : MEq (fermat n) (sumRange (fun p =>
-      sumRange (fun i => αL.getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) % fermat n *
-        (sumRange (fun i => βL.getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) % fermat n) %
-          fermat n * 2 ^ ((2 * (64 * n) - σ) * rev k p * l)) (2 ^ k) % fermat n)
-      (2 ^ k * Z.getD l 0) := by
-    refine (MEq.mod _ _).trans ?_
-    refine (MEq.sum fun p _ => MEq.mul (hP p) (MEq.refl _ _)).trans ?_
-    rw [sumRange_rev (fun q => polyVal (2 ^ (σ * q)) Z * 2 ^ ((2 * (64 * n) - σ) * q * l)) k]
-    have e : sumRange (fun q => polyVal (2 ^ (σ * q)) Z * 2 ^ ((2 * (64 * n) - σ) * q * l))
-        (2 ^ k) = sumRange (fun j => sumRange (fun i => Z.getD i 0 * (2 ^ σ) ^ (i * j)) (2 ^ k) *
-          (2 ^ (2 * (64 * n) - σ)) ^ (j * l)) (2 ^ k) := by
-      refine sumRange_congr fun q _ => ?_
-      rw [polyVal_eq_sumRange _ Z _ hZK, ← Nat.pow_mul, Nat.mul_assoc]
-      congr 1
-      exact sumRange_congr fun i _ => by rw [← Nat.pow_mul, ← Nat.pow_mul]; congr 2; grind
-    rw [e]
-    refine inverse_mod (2 ^ σ) (2 ^ (2 * (64 * n) - σ)) (fermat n) k hk ?_ ?_ _ l hl
-    · rw [← Nat.pow_mul, hσN]; simp [fermat]
-    · rw [← Nat.pow_add, show σ + (2 * (64 * n) - σ) = 2 * (64 * n) by lia]
-      exact pow_two_N hF
-  -- Dividing by `2ᵏ`.
-  have hc : MEq (fermat n) ((fermat n - sumRange (fun p =>
-      sumRange (fun i => αL.getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) % fermat n *
-        (sumRange (fun i => βL.getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) % fermat n) %
-          fermat n * 2 ^ ((2 * (64 * n) - σ) * rev k p * l)) (2 ^ k) % fermat n *
-        2 ^ (64 * n - k) % fermat n) % fermat n) (Z.getD l 0) := by
-    have hk64 : k ≤ 64 * n := by
-      have : 2 ^ k ≤ 2 ^ (64 * n) := Nat.le_trans (Nat.le_mul_of_pos_right _ (by
-        have : 0 < X := by
-          rcases βL with _ | ⟨b, _⟩
-          · exact absurd rfl hβ
-          · exact Nat.lt_of_le_of_lt (Nat.zero_le _) (hβX b (by simp))
-        exact Nat.mul_pos this this)) (by rw [Nat.mul_assoc] at hbits; lia)
-      exact (Nat.pow_le_pow_iff_right (by decide)).1 this
-    refine (MEq.mod _ _).trans ?_
-    rw [show fermat n - _ = 0 + fermat n - _ by rw [Nat.zero_add]]
-    refine (neg_eq hF _ _ (Nat.le_of_lt (Nat.mod_lt _ hF₀))).trans ?_
-    rw [Nat.zero_add]
-    refine (MEq.mul ((MEq.mod _ _).trans (MEq.mul hV (MEq.refl _ _))) (MEq.refl _ _)).trans ?_
-    rw [show 2 ^ k * Z.getD l 0 * 2 ^ (64 * n - k) = Z.getD l 0 * 2 ^ (64 * n) by
-      rw [Nat.mul_comm (2 ^ k), Nat.mul_assoc, ← Nat.pow_add,
-        show k + (64 * n - k) = 64 * n by lia]]
-    exact pow_N_pow_N hF _
-  -- Both are less than `F`.
-  have hZl : Z.getD l 0 < fermat n := by
-    rw [← hZ, getD_cyc _ _ _ hl]
-    have h₁ := getD_polyMul_le αL βL (X - 1) (X - 1) (fun a h => by have := hαX a h; lia)
-      (fun b h => by have := hβX b h; lia)
-    have h₂ : (X - 1) * (X - 1) < X * X ∨ X = 0 := by
-      rcases Nat.eq_zero_or_pos X with e | e
-      · exact .inr e
-      · exact .inl (Nat.mul_lt_mul'' (by lia) (by lia))
-    have h₃ : αL.length * ((X - 1) * (X - 1)) ≤ 2 ^ k * (X * X) := by
-      rcases h₂ with h | h
-      · exact Nat.mul_le_mul hαK (Nat.le_of_lt h)
-      · subst h; simp
-    have := h₁ l
-    have := h₁ (l + 2 ^ k)
-    simp only [fermat]
-    lia
-  rw [← Nat.mod_eq_of_lt hZl]
-  exact (Nat.mod_mod _ _).symm.trans hc
-
 /-! ## The multiplication -/
 
 /--
@@ -1129,7 +885,8 @@ public theorem fftMulAt_spec (r a b : USlice) (k m n : Nat) (hp : FFTParams r a 
   have hc : ∀ l < 2 ^ k, coef A₇ n 0 l = (polyMul (pieces a m la) (pieces b m lb)).getD l 0 := by
     intro l hl
     rw [s₃ l (by lia) (by lia), v₃ l hl]
-    rw [← fft_coef (pieces a m la) (pieces b m lb) k n σ (2 ^ (64 * m)) hk hσ
+    rw [← fft_coef (pieces a m la) (pieces b m lb) k (64 * n) σ (2 ^ (64 * m)) (F := fermat n) rfl
+      hk hσ
       (by rw [length_pieces, length_pieces]; lia) hβne
       (fun x hx => by
         simp only [pieces, List.mem_map, List.mem_range] at hx
@@ -1378,7 +1135,8 @@ public theorem fftMulModAt_spec (r a b : USlice) (k m n : Nat) (hp : FFTModParam
       (cyc (polyMul (pieces a m la) (pieces b m lb)) (2 ^ k)).getD l 0 := by
     intro l hl
     rw [getD_cyc _ _ _ hl, s₃ l (by lia) (by lia), v₃ l hl]
-    rw [← fft_coef_cyc (pieces a m la) (pieces b m lb) k n σ (2 ^ (64 * m)) hk hσ hβne
+    rw [← fft_coef_cyc (pieces a m la) (pieces b m lb) k (64 * n) σ (2 ^ (64 * m)) (F := fermat n)
+      rfl hk hσ hβne
       (fun x hx => by
         simp only [pieces, List.mem_map, List.mem_range] at hx
         obtain ⟨i, -, rfl⟩ := hx; exact piece_lt ..)
@@ -1585,7 +1343,8 @@ public theorem fftSqrAt_spec (r a : USlice) (k m n : Nat) (hp : FFTParams r a a 
   have hc : ∀ l < 2 ^ k, coef A₇ n 0 l = (polyMul (pieces a m la) (pieces a m la)).getD l 0 := by
     intro l hl
     rw [s₃ l (by lia) (by lia), v₃ l hl]
-    rw [← fft_coef (pieces a m la) (pieces a m la) k n σ (2 ^ (64 * m)) hk hσ
+    rw [← fft_coef (pieces a m la) (pieces a m la) k (64 * n) σ (2 ^ (64 * m)) (F := fermat n) rfl
+      hk hσ
       (by rw [length_pieces]; lia) hαne
       (fun x hx => by
         simp only [pieces, List.mem_map, List.mem_range] at hx

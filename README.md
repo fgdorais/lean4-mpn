@@ -41,8 +41,9 @@ comes with Lean.
 `MPN.UIntArray` holds the general tooling: `valAt`, the value of a range of limbs; `USlice`, a
 region of an array with `USize` bounds; `foldUInPlace`, the in-place loop; and `foldUInPlace2`,
 the in-place loop that reads other windows of the array it writes. `MPN.Sum`, `MPN.NatMod`,
-`MPN.Poly` (from `main`) and `MPN.FFT.Roots` are mathematics on `Nat`: finite sums, congruences,
-polynomials and the inversion of the transform.
+`MPN.Poly`, `MPN.FFT.Roots` and `MPN.FFT.Algebra` (from `main`) are mathematics on `Nat`: finite
+sums, congruences, polynomials, the inversion of the transform, and the butterflies and
+coefficients of the transforms modulo `2ᴺ + 1`.
 
 ## Conventions
 

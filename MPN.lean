@@ -19,6 +19,7 @@ public import MPN.Mul.Toom
 public import MPN.Sqr.Basecase
 public import MPN.Sqr.Karatsuba
 public import MPN.FFT.Roots
+public import MPN.FFT.Algebra
 public import MPN.WordGcd
 public import MPN.FFT.Fermat
 public import MPN.FFT.Transform
