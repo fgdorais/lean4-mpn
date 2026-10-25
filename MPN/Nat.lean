@@ -16,6 +16,7 @@ public import MPN.MulSubMul
 public import MPN.WordGcd
 public import MPN.Generic.HGCD
 public import MPN.Generic.Radix
+public import MPN.Generic.Sqrt
 import Std.Data.String.ToNat
 import all Init.Data.Repr
 
@@ -1045,41 +1046,6 @@ decreasing_by
   simp only [UInt64.toNat_zero, UInt64.toNat_one] at *
   lia
 
-/-- `⌊√N⌋` is the `r` with `r² ≤ N < (r + 1)²`. -/
-private theorem eq_sqrt {r N : Nat} (h₁ : r * r ≤ N) (h₂ : N < (r + 1) * (r + 1)) :
-    r = _root_.Nat.sqrt N := by
-  have s₁ := Nat.sqrt_le N
-  have s₂ := Nat.lt_succ_sqrt N
-  rcases Nat.lt_trichotomy r (_root_.Nat.sqrt N) with h | h | h
-  · have := Nat.mul_self_le_mul_self (show r + 1 ≤ _root_.Nat.sqrt N by lia)
-    lia
-  · exact h
-  · have := Nat.mul_self_le_mul_self (show _root_.Nat.sqrt N + 1 ≤ r by lia)
-    simp only [Nat.succ_eq_add_one] at s₂
-    lia
-
-/-- One step of Newton's iteration stays at or above `s` when `s² ≤ N`, by AM-GM. -/
-private theorem le_newton {x s N : Nat} (hx : 0 < x) (hs : s * s ≤ N) :
-    s ≤ (x + N / x) / 2 := by
-  refine Nat.le_of_not_lt fun hlt => ?_
-  have hN : N < x * (N / x + 1) := Nat.lt_mul_div_succ N hx
-  generalize N / x = q at *
-  have h2 : x + q + 1 ≤ 2 * s := by lia
-  have h3 := Nat.mul_self_le_mul_self h2
-  -- `4 x (q + 1) ≤ (x + q + 1)²`, since their difference is a square.
-  have h4 : 4 * (x * (q + 1)) ≤ (x + q + 1) * (x + q + 1) := by
-    have e : ((x : Int) + q + 1) * ((x : Int) + q + 1) - 4 * ((x : Int) * (q + 1)) =
-        ((x : Int) - (q + 1)) * ((x : Int) - (q + 1)) := by grind
-    have hsq : 0 ≤ ((x : Int) - (q + 1)) * ((x : Int) - (q + 1)) := by
-      rcases Int.le_total 0 ((x : Int) - (q + 1)) with h | h
-      · exact Int.mul_nonneg h h
-      · exact Int.mul_nonneg_of_nonpos_of_nonpos h h
-    have h : ((4 * (x * (q + 1)) : Nat) : Int) ≤ (((x + q + 1) * (x + q + 1) : Nat) : Int) := by
-      push_cast; lia
-    exact_mod_cast h
-  have : 2 * s * (2 * s) = 4 * (s * s) := by rw [Nat.mul_mul_mul_comm]
-  lia
-
 private theorem toNat_sqrtFix (n x sq : MPN.Nat) (hsq : sq.toNat = x.toNat * x.toNat)
     (hx : n.toNat < (x.toNat + 1) * (x.toNat + 1)) :
     (sqrtFix n x sq).toNat = _root_.Nat.sqrt n.toNat := by
@@ -1116,12 +1082,12 @@ private theorem toNat_sqrtFix (n x sq : MPN.Nat) (hsq : sq.toNat = x.toNat * x.t
 AM-GM, and at most two above it; `sqrtFix` steps down to `⌊√n⌋` with one square, where checking
 the step with a second division would cost more.
 -/
-public def sqrt (n : MPN.Nat) : MPN.Nat :=
+public def sqrtNewton (n : MPN.Nat) : MPN.Nat :=
   match hn : n with
   | small a => small (_root_.Nat.sqrt a.toNat).toUInt64
   | large _ ha =>
     let k := log2 n / 4 + 1
-    let x₀ := shiftLeft (add (sqrt (shiftRight n (2 * k))) (small 1)) k
+    let x₀ := shiftLeft (add (sqrtNewton (shiftRight n (2 * k))) (small 1)) k
     let x₁ := shiftRight (add x₀ (div n x₀)) 1
     sqrtFix n x₁ (sqr x₁)
 termination_by n.toNat
@@ -1133,10 +1099,11 @@ decreasing_by
   apply Nat.one_lt_two_pow
   lia
 
-@[simp] public theorem toNat_sqrt (n : MPN.Nat) : (sqrt n).toNat = _root_.Nat.sqrt n.toNat := by
-  induction n using sqrt.induct with
+@[simp] public theorem toNat_sqrtNewton (n : MPN.Nat) :
+    (sqrtNewton n).toNat = _root_.Nat.sqrt n.toNat := by
+  induction n using sqrtNewton.induct with
   | case1 a =>
-    rw [sqrt]
+    rw [sqrtNewton]
     have ha := a.toNat_lt
     have hs : _root_.Nat.sqrt a.toNat < 2 ^ 64 := by
       have := Nat.sqrt_le a.toNat
@@ -1144,9 +1111,9 @@ decreasing_by
       lia
     simp only [toNat, Nat.toUInt64, UInt64.toNat_ofNat', Nat.mod_eq_of_lt hs]
   | case2 a ha k ih =>
-    rw [sqrt]
+    rw [sqrtNewton]
     have hx₀ :
-        0 < (shiftLeft (add (sqrt (shiftRight (large a ha) (2 * k))) (small 1)) k).toNat := by
+        0 < (shiftLeft (add (sqrtNewton (shiftRight (large a ha) (2 * k))) (small 1)) k).toNat := by
       rw [toNat_shiftLeft, toNat_add, toNat_small, UInt64.toNat_one]
       exact Nat.mul_pos (by lia) (Nat.two_pow_pos _)
     -- One Newton step stays at or above the root.
@@ -1154,6 +1121,114 @@ decreasing_by
     apply toNat_sqrtFix _ _ _ (toNat_sqr _)
     rw [toNat_shiftRight, toNat_add, toNat_div, Nat.pow_one]
     exact Nat.lt_of_lt_of_le (Nat.lt_succ_sqrt _) (Nat.mul_self_le_mul_self (Nat.succ_le_succ hge))
+
+/-! ## Square roots by Zimmermann's recursion -/
+
+/-- `toNat` of the slice of the limbs. -/
+private theorem toNat_limbs_toSlice (x : MPN.Nat) : MPN.toNat x.limbs.toSlice = x.toNat :=
+  toNat_limbs x
+
+/-- `(⌊√N⌋, N - ⌊√N⌋²)` by Newton's iteration (`sqrtNewton`), the base of Zimmermann's step. -/
+public def sqrtBase (N : UInt32Array.Slice) : UInt32Array.Slice × UInt32Array.Slice :=
+  let S := (sqrtNewton (ofLimbs (trim N.copy) (isTrimmed_trim _))).limbs.toSlice
+  (S, ops32.sub N (ops32.sqr S))
+
+private theorem sqrtBase_spec (N : UInt32Array.Slice) :
+    MPN.toNat (sqrtBase N).1 = _root_.Nat.sqrt (MPN.toNat N) ∧
+      MPN.toNat (sqrtBase N).2 =
+        MPN.toNat N - _root_.Nat.sqrt (MPN.toNat N) * _root_.Nat.sqrt (MPN.toNat N) := by
+  have hS : MPN.toNat (sqrtNewton (ofLimbs (trim N.copy) (isTrimmed_trim _))).limbs.toSlice =
+      _root_.Nat.sqrt (MPN.toNat N) := by
+    rw [toNat_limbs_toSlice, toNat_sqrtNewton, toNat_ofLimbs, toNat_trim, toNat_copy]
+  refine ⟨hS, ?_⟩
+  simp only [sqrtBase]
+  rw [← ops32_val, ops32.val_sub _ _ (by rw [ops32.val_sqr, ops32_val, hS]; exact Nat.sqrt_le _),
+    ops32.val_sqr, ops32_val, ops32_val, hS]
+
+/-- The size of the root at or below which Zimmermann's recursion takes Newton's iteration. -/
+public def sqrtBaseSize : Nat := 16
+
+/--
+`⌊√x⌋` by Zimmermann's recursion (`NatOps.sqrtRemAux`) on `N = x 4ᶜ` of `2 n` limbs with
+`β^(2n) ≤ 4 N`, then `⌊√N⌋ / 2ᶜ`.
+-/
+public def sqrtZimmermann (x : MPN.Nat) : MPN.Nat :=
+  let L := log2 x
+  let n := L / 64 + 1
+  let c := (64 * n - 1 - L) / 2
+  let S := (ops32.sqrtRemAux sqrtBase sqrtBaseSize (shiftLeft x (2 * c)).limbs.toSlice n).1
+  shiftRight (ofLimbs (trim S.copy) (isTrimmed_trim _)) c
+
+/-- `N = X 4ᶜ` has `2 n` limbs and `β^(2n) ≤ 4 N`, for the `n` and `c` of `sqrtZimmermann`. -/
+private theorem sqrtZimmermann_bounds (X : Nat) (hx : X ≠ 0) :
+    X * 2 ^ (2 * ((64 * (X.log2 / 64 + 1) - 1 - X.log2) / 2)) < 2 ^ (64 * (X.log2 / 64 + 1)) ∧
+      2 ^ (64 * (X.log2 / 64 + 1)) ≤
+        4 * (X * 2 ^ (2 * ((64 * (X.log2 / 64 + 1) - 1 - X.log2) / 2))) := by
+  have hlo : 2 ^ X.log2 ≤ X := Nat.log2_self_le hx
+  have hhi : X < 2 ^ (X.log2 + 1) := Nat.lt_log2_self
+  generalize X.log2 = L at *
+  generalize hn : L / 64 + 1 = n
+  generalize hc : (64 * n - 1 - L) / 2 = c
+  have hc₁ : 64 * n - 2 ≤ L + 2 * c := by lia
+  have hc₂ : L + 2 * c + 1 ≤ 64 * n := by lia
+  constructor
+  · calc X * 2 ^ (2 * c) < 2 ^ (L + 1) * 2 ^ (2 * c) :=
+          Nat.mul_lt_mul_of_pos_right hhi (Nat.two_pow_pos _)
+      _ = 2 ^ (L + 2 * c + 1) := by rw [← Nat.pow_add]; congr 1; lia
+      _ ≤ 2 ^ (64 * n) := Nat.pow_le_pow_right (by decide) hc₂
+  · calc 2 ^ (64 * n) ≤ 2 ^ (L + 2 * c + 2) := Nat.pow_le_pow_right (by decide) (by lia)
+      _ = 4 * (2 ^ L * 2 ^ (2 * c)) := by
+          rw [show (4 : Nat) = 2 ^ 2 by rfl, ← Nat.pow_add, ← Nat.pow_add]; congr 1; lia
+      _ ≤ 4 * (X * 2 ^ (2 * c)) := Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ hlo)
+
+private theorem toNat_sqrtZimmermann_of (x : MPN.Nat) (n c : Nat)
+    (hNlt : x.toNat * 2 ^ (2 * c) < 2 ^ (64 * n))
+    (hNge : 2 ^ (64 * n) ≤ 4 * (x.toNat * 2 ^ (2 * c))) :
+    (shiftRight (ofLimbs (trim (ops32.sqrtRemAux sqrtBase sqrtBaseSize
+      (shiftLeft x (2 * c)).limbs.toSlice n).1.copy) (isTrimmed_trim _)) c).toNat =
+      _root_.Nat.sqrt x.toNat := by
+  have hn : 1 ≤ n := by
+    refine Nat.pos_of_ne_zero fun h => ?_
+    rw [h] at hNlt hNge
+    have : x.toNat ≠ 0 := by intro h'; rw [h'] at hNge; simp at hNge
+    have := Nat.le_mul_of_pos_right x.toNat (Nat.two_pow_pos (2 * c))
+    simp at hNlt; lia
+  have hNv : ops32.val (shiftLeft x (2 * c)).limbs.toSlice = x.toNat * 2 ^ (2 * c) := by
+    rw [ops32_val, toNat_limbs_toSlice, toNat_shiftLeft]
+  have hB : ops32.B ^ (2 * n) = 2 ^ (64 * n) := by
+    rw [show ops32.B = 2 ^ 32 from rfl, ← Nat.pow_mul]; congr 1; lia
+  obtain ⟨i₃, -⟩ := ops32.sqrtRemAux_spec sqrtBase sqrtBaseSize
+    (fun N _ _ _ _ _ => by simp only [ops32_val]; exact sqrtBase_spec N)
+    ⟨2 ^ 31, by decide⟩ n _ hn (by rw [hNv, hB]; exact hNlt) (by rw [hNv, hB]; exact hNge)
+  rw [hNv, ops32_val] at i₃
+  rw [toNat_shiftRight, toNat_ofLimbs, toNat_trim, toNat_copy, i₃, sqrt_mul_four_pow]
+
+private theorem toNat_sqrtZimmermann (x : MPN.Nat) (hx : x.toNat ≠ 0) :
+    (sqrtZimmermann x).toNat = _root_.Nat.sqrt x.toNat := by
+  obtain ⟨h₁, h₂⟩ := sqrtZimmermann_bounds x.toNat hx
+  rw [← log2_eq] at h₁ h₂
+  exact toNat_sqrtZimmermann_of x _ _ h₁ h₂
+
+/-- The size of the root from which `sqrt` takes Zimmermann's recursion. -/
+public def sqrtZimmermannSize : Nat := 40
+
+/--
+`⌊√n⌋`: by Newton's iteration (`sqrtNewton`) below `2 sqrtZimmermannSize` limbs, and by
+Zimmermann's recursion (`sqrtZimmermann`) from there.
+-/
+public def sqrt (n : MPN.Nat) : MPN.Nat :=
+  match n with
+  | small _ => sqrtNewton n
+  | large a _ => if 2 * sqrtZimmermannSize ≤ a.size then sqrtZimmermann n else sqrtNewton n
+
+@[simp] public theorem toNat_sqrt (n : MPN.Nat) : (sqrt n).toNat = _root_.Nat.sqrt n.toNat := by
+  unfold sqrt
+  split
+  · exact toNat_sqrtNewton _
+  · split
+    · rename_i a ha _
+      exact toNat_sqrtZimmermann _ (by simp only [toNat]; lia)
+    · exact toNat_sqrtNewton _
 
 /-! ## Instances -/
 

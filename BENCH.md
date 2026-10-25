@@ -50,7 +50,7 @@ rather than the ratios.
 | `badd` … `bdiv` | `MPN.Nat` `+ - * /` | as above (`bdiv`: `2n` by `n`) | word fast path, then as above |
 | `bgcd` | `MPN.Nat.gcd` | `n` and `n` limbs | Lehmer with word cofactors, Euclid on words |
 | `bshl`, `bshr` | `MPN.Nat` `<<<`, `>>>` 37 | `n` limbs | one pass in place |
-| `bsqrt` | `MPN.Nat.sqrt` | `2n` limbs | Newton at growing precision |
+| `bsqrt` | `MPN.Nat.sqrt` | `2n` limbs | Newton at growing precision; Zimmermann from `2n = 80` limbs |
 | `btostr` | `toString` | `n` limbs | chunks of 9 digits, `divRem1` by `10⁹` |
 | `bofstr` | `MPN.Nat.ofString?` | the digits of `n` limbs | a fold over the characters, 9 digits per chunk |
 | `btonat` | `MPN.Nat.toNat` | `n` limbs | by halves, joined with shifts; `Nat` column: `x + 1` |
@@ -140,6 +140,7 @@ above; ratios before `15534f8` for `MPN.Nat` rows were inflated by the hashing c
 
 | date | commit | change | effect |
 |---|---|---|---|
+| 2026-10-25 | `5511cea`+ | `sqrt` by `main`'s generic Zimmermann recursion (`NatOps.sqrtRemAux` over `ops32`) from a root of `sqrtZimmermannSize = 40` limbs, with Newton's iteration (`sqrtNewton`) at or below `sqrtBaseSize = 16` limbs; `ops32` squares with `sqrLimbs` | from three alternating runs: `bsqrt` 64: 11.6 → 9.2 µs, 128: 27.9 → 15.4 µs, 256: 78.8 → 33.0 µs, 1024: 641 → 232 µs (0.81 → about 0.29 of `Nat`); within 3% up to 32. Tables not regenerated |
 | 2026-10-25 | `307a44c`+ | Division by blocks through `main`'s base-generic `NatOps.divNorm` (from `main64`'s `Num.divNorm`) on `ops32B`, the instance with the schoolbook division at the bottom, in place of `main32`'s own `Div.DC` (deleted, 614 lines); `divDC` unchanged | `div` within ±5% of the table: 256 limbs 37.3 → 39.1 µs (+5%), 1024: 329 → 325 µs, 2048: 950 → 920 µs, 4096: 2.74 → 2.61 ms (−5%); `divDC` not retuned |
 | 2026-10-25 | `1861d4d`+ | Half-gcd's base case of word matrices: `main`'s `NatOps.smallBase` with `steps32`, Lehmer's steps applied by `mulSubMul₂` and the matrix updated by the new `mulAddMul` (`a x + b y` in one pass), as on `main64`; `hgcdBase` 64 → 128 and `gcdHalf` 3072 → 1536, from sweeps (base 128 within 1–2% of 256; half-gcd from 1536 limbs 5% faster, 3072: 23%) | `bgcd` 4096 limbs 18.5 → 15.3 ms, 8192: 51.6 → 41.9 ms, 16384: 138 → 115 ms (−17%); 2048: 5.74 → 5.13 ms. With the row below, 31–35% faster from 4096 limbs than at `277bb82`; 3.9–4.7 times `Nat` from 2048 limbs (was 5.2–6.8) |
 | 2026-10-25 | `277bb82`+ | Half-gcd's base case of Lehmer's steps up to `hgcdBase = 64` limbs (was 8), from a sweep of base sizes 8 to 256 (64 and 128 within 1%, 256 slower); `gcdHalf` 4608 → 3072, where half-gcd with that base starts to win (2560: +5%, 3072: −5%, 4608: −19%) | Beyond the table: `bgcd` 4096 limbs 22.3 → 18.5 ms (−17%), 8192: 64.9 → 51.6 ms (−20%), 16384: 168 → 138 ms (−18%); 5.2–5.6 times `Nat` from 3072 limbs |

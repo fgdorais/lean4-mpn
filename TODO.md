@@ -260,6 +260,9 @@ block of the division, and `topSize` usually stops at the first limb.
     one Newton step, which is at least the root by AM-GM, then steps down while `x² > n` with one
     square (`sqrtFix`), where the iteration took a second division to stop. Faster than `Nat` up
     to 4 limbs, 1.0–2.2× behind above (from 1.6–4×).
+  - [x] square roots of a root of 40 limbs and up by `main`'s generic Zimmermann recursion
+    (`NatOps.sqrtRemAux` over `ops32`), Newton's iteration as its base up to 16 limbs:
+    `bsqrt` 20% faster at 64 limbs, 2.7× from 512 (about 0.29 of `Nat` at 1024).
   - [x] `toString`/`ofString?` (`Decimal`), like GMP's `mpn_get_str`/`mpn_set_str` below their
     thresholds: chunks of nine digits, by `divRem1` by `10⁹` one way and a fold over the
     characters the other. Equal to `Nat.repr` and `String.toNat?`, and 10–20× faster than
