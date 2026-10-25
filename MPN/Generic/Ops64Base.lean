@@ -77,37 +77,38 @@ public theorem toNat_lt_pow (x : UInt64Array) : x.toNat < (2 ^ 64) ^ x.size := b
 
 /--
 `x` without its zero limbs on top, but at least one limb: the operations of `MPN.Num` leave such
-limbs, and the generic algorithms decide by sizes. It is `x` itself when its top limb is nonzero.
+limbs, and the generic algorithms decide by sizes. It pops them, in place when `x` is not shared,
+which the fresh results of `MPN.Num` never are; it is `x` itself when its top limb is nonzero.
 -/
 public def trimA (x : UInt64Array) : UInt64Array :=
-  if fits (x.size + 1) then
-    let n := MPN.log2 x.toUSlice / 64 + 1
-    if n < x.size then Num.low x n else x
+  if h : 1 < x.size then
+    if x[x.size - 1] = 0 then trimA x.pop else x
   else x
+termination_by x.size
+decreasing_by simp only [UInt64Array.size_pop]; lia
 
 @[simp] public theorem toNat_trimA (x : UInt64Array) : (trimA x).toNat = x.toNat := by
-  unfold trimA
-  split
-  · rename_i h
-    have hS := lt_of_fits h
-    dsimp only
-    split
-    · rw [Num.toNat_low _ _ (by lia), log2_eq, toUSlice_toNat x (by lia), Nat.mod_eq_of_lt]
-      rcases Nat.eq_zero_or_pos x.toNat with h0 | h0
-      · rw [h0]; exact Nat.two_pow_pos _
-      · exact Nat.lt_of_lt_of_le Nat.lt_log2_self (Nat.pow_le_pow_right (by decide) (by lia))
-    · rfl
-  · rfl
+  induction x using trimA.induct with
+  | case1 x h₁ h₂ ih =>
+    rw [trimA, dite_eq_left h₁, ite_eq_left h₂, ih]
+    have hs : x.size = (x.size - 1) + 1 := by lia
+    rw [toNat_eq_valAt, toNat_eq_valAt, UInt64Array.size_pop, hs, UInt64Array.valAt_add,
+      UInt64Array.valAt_one, Nat.zero_add, ← hs, getElem!_eq_getElem _ _ (by lia), h₂,
+      UInt64.toNat_zero, Nat.mul_zero, Nat.add_zero]
+    exact UInt64Array.valAt_congr _ fun i _ hi => by
+      rw [getElem!_eq_getElem _ _ (by simp only [UInt64Array.size_pop]; lia),
+        getElem!_eq_getElem _ _ (by lia), UInt64Array.getElem_pop]
+  | case2 x h₁ h₂ => rw [trimA, dite_eq_left h₁, ite_eq_right h₂]
+  | case3 x h => rw [trimA, dite_eq_right h]
 
 public theorem size_trimA_le (x : UInt64Array) : (trimA x).size ≤ max x.size 1 := by
-  unfold trimA
-  split
-  · rename_i h
-    dsimp only
-    split
-    · rw [Num.size_low _ _ (by have := lt_of_fits h; lia)]; lia
-    · lia
-  · lia
+  induction x using trimA.induct with
+  | case1 x h₁ h₂ ih =>
+    rw [trimA, dite_eq_left h₁, ite_eq_left h₂]
+    simp only [UInt64Array.size_pop] at ih
+    lia
+  | case2 x h₁ h₂ => rw [trimA, dite_eq_left h₁, ite_eq_right h₂]; lia
+  | case3 x h => rw [trimA, dite_eq_right h]; lia
 
 /-! ## The instance -/
 
@@ -121,6 +122,10 @@ public theorem Num.size_one : Num.one.size = 1 := by simp [Num.one]
 /-- `x b`, by `Num.mul`. -/
 public def mul64 (x y : UInt64Array) : UInt64Array :=
   if fits (x.size + y.size + 1) then trimA (Num.mul x y) else ofNat (x.toNat * y.toNat)
+
+/-- `x²`, by `Num.sqr`. -/
+public def sqr64 (x : UInt64Array) : UInt64Array :=
+  if fits (2 * x.size + 1) then trimA (Num.sqr x) else ofNat (x.toNat * x.toNat)
 
 /-- `x + y`, by `Num.add`. -/
 public def add64 (x y : UInt64Array) : UInt64Array :=
@@ -187,6 +192,11 @@ public theorem val_divBase64 (x y : UInt64Array) (hy : y.toNat ≠ 0) :
   val_mul x y := by
     rw [mul64]; split
     · rename_i h; rw [toNat_trimA]; exact Num.toNat_mul _ _ (by have := lt_of_fits h; lia)
+    · exact toNat_ofNat _
+  sqr := sqr64
+  val_sqr x := by
+    rw [sqr64]; split
+    · rename_i h; rw [toNat_trimA]; exact Num.toNat_sqr _ (by have := lt_of_fits h; lia)
     · exact toNat_ofNat _
   add := add64
   val_add x y := by

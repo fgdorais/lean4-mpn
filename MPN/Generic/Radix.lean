@@ -136,7 +136,7 @@ theorem val_ofSmall (n : Nat) : o.val (o.ofSmall n) = n := by
 def growPows (x : α) : List α → Nat → List α
   | [], _ => []
   | p :: ps, 0 => p :: ps
-  | p :: ps, fuel + 1 => if o.le p x then growPows x (o.mul p p :: p :: ps) fuel else p :: ps
+  | p :: ps, fuel + 1 => if o.le p x then growPows x (o.sqr p :: p :: ps) fuel else p :: ps
 
 theorem isPows_growPows (x : α) : ∀ (fuel : Nat) (ps : List α), o.IsPows ps →
     o.IsPows (o.growPows x ps fuel) := by
@@ -152,7 +152,7 @@ theorem isPows_growPows (x : α) : ∀ (fuel : Nat) (ps : List α), o.IsPows ps 
       split
       · apply ih
         refine ⟨?_, h⟩
-        rw [o.val_mul, h.1, ← Nat.pow_add, List.length_cons, Nat.pow_succ, Nat.mul_two]
+        rw [o.val_sqr, h.1, ← Nat.pow_add, List.length_cons, Nat.pow_succ, Nat.mul_two]
       · exact h
 
 /-- The powers `10^(2ʲ)` up to the first above `x`, the largest first. -/
@@ -312,7 +312,7 @@ public def powsN : Nat → List α
   | k + 1 =>
     match powsN k with
     | [] => [o.ofSmall 10]
-    | p :: ps => o.mul p p :: p :: ps
+    | p :: ps => o.sqr p :: p :: ps
 
 public theorem isPows_powsN (k : Nat) : o.IsPows (o.powsN k) ∧ (o.powsN k).length = k := by
   induction k with
@@ -328,7 +328,7 @@ public theorem isPows_powsN (k : Nat) : o.IsPows (o.powsN k) ∧ (o.powsN k).len
     · rename_i p ps he
       rw [he] at h₁ h₂
       refine ⟨⟨?_, h₁⟩, by simp [h₂]⟩
-      rw [o.val_mul, h₁.1, ← Nat.pow_add, List.length_cons, Nat.pow_succ, Nat.mul_two]
+      rw [o.val_sqr, h₁.1, ← Nat.pow_add, List.length_cons, Nat.pow_succ, Nat.mul_two]
 
 variable (rbase : Array Char → Nat → Nat → α) (D : Nat) (arr : Array Char)
 

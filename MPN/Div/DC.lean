@@ -51,10 +51,10 @@ public theorem size_allOnes (s : Nat) : (allOnes s).size = s := by simp [allOnes
 `x` in at most `m` limbs, for `x < βᵐ`: itself when it has no more, its low `m` limbs otherwise
 (by `Nat` past the sizes that fit in memory, a branch that cannot run).
 -/
-def fitTo (x : UInt64Array) (m : Nat) : UInt64Array :=
+public def fitTo (x : UInt64Array) (m : Nat) : UInt64Array :=
   if x.size ≤ m then x else if fits (x.size + 1) then low x m else ofNatN x.toNat m
 
-private theorem fitTo_spec (x : UInt64Array) (m : Nat) (hv : x.toNat < 2 ^ (64 * m)) :
+public theorem fitTo_spec (x : UInt64Array) (m : Nat) (hv : x.toNat < 2 ^ (64 * m)) :
     (fitTo x m).toNat = x.toNat ∧ (fitTo x m).size ≤ m := by
   unfold fitTo
   split
