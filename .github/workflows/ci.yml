@@ -19,15 +19,10 @@ jobs:
       - name: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      # Builds the library and runs `lake test`, whose `#guard`s check results against `Nat`.
-      - name: build and test
+      # The core has no instance of `NatOps` to test with: `main32` and `main64` test it.
+      - name: build
         uses: leanprover/lean-action@f061402b660e0c34644504b324e830f2991d4865 # v1.6.1
         with:
           auto-config: false
           build: true
           build-args: "--wfail"
-          test: true
-
-      # `lake build` does not build the executables.
-      - name: build tune and bench
-        run: lake build --wfail tune bench

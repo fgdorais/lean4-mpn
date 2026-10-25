@@ -16,7 +16,7 @@ determinant `±1` keeps the greatest common divisor whatever its entries (`gcd_a
 of the matrices needs a proof of how well it reduces: the caller only checks that the numbers
 got smaller. Matrices have nonnegative entries and the sign of their determinant, and their
 determinant stays `±1` by construction, as products of elementary matrices and of the matrices
-of a base step, which the instance provides with a proof of their determinant.
+of a base case, which the instance provides with a proof of its determinant and exact relation.
 -/
 
 namespace MPN
@@ -106,7 +106,7 @@ public def applyInv (M : Mat2 α) (a b : α) : α × α :=
   (o.absDiff (o.mul M.m22 a) (o.mul M.m12 b), o.absDiff (o.mul M.m11 b) (o.mul M.m21 a))
 
 /-- A matrix of determinant `±1` keeps the greatest common divisor. -/
-private theorem gcd_unimodular (a b : Nat) (A B C D : Int)
+public theorem gcd_unimodular (a b : Nat) (A B C D : Int)
     (h : A * D - B * C = 1 ∨ A * D - B * C = -1) :
     Nat.gcd (A * a + B * b).natAbs (C * a + D * b).natAbs = Nat.gcd a b := by
   apply Nat.dvd_antisymm
@@ -360,7 +360,7 @@ The base case: steps from `step`, the instance's reduction of two short numbers 
 on their leading words, for one), applied with `applyInvC` while they make the numbers smaller and
 `b ≥ Bˢ`, at most `fuel` of them, with the product of their matrices.
 -/
-def baseLoop (step : α → α → Option (Mat2 α)) (s : Nat) (a b : α) (M : Mat2 α) :
+public def baseLoop (step : α → α → Option (Mat2 α)) (s : Nat) (a b : α) (M : Mat2 α) :
     Nat → Mat2 α × α × α
   | 0 => (M, a, b)
   | fuel + 1 =>
@@ -375,7 +375,7 @@ def baseLoop (step : α → α → Option (Mat2 α)) (s : Nat) (a b : α) (M : M
           else (M, a, b)
     else (M, a, b)
 
-theorem baseLoop_ok (step : α → α → Option (Mat2 α))
+public theorem baseLoop_ok (step : α → α → Option (Mat2 α))
     (hstep : ∀ a b S, step a b = some S → o.Unimodular S) (s : Nat) (a₀ b₀ : α) :
     ∀ fuel (a b : α) (M : Mat2 α), o.Unimodular M → o.Fwd M a₀ b₀ a b →
       o.HgcdOK a₀ b₀ (o.baseLoop step s a b M fuel) := by
@@ -398,22 +398,32 @@ theorem baseLoop_ok (step : α → α → Option (Mat2 α))
           · exact ⟨hM, hF⟩
     · exact ⟨hM, hF⟩
 
+/-- `baseLoop` from the identity matrix, as a base case for `hgcd`. -/
+public def stepBase (step : α → α → Option (Mat2 α)) (s : Nat) (a b : α) : Mat2 α × α × α :=
+  o.baseLoop step s a b o.matId (32 * o.size a)
+
+public theorem stepBase_ok (step : α → α → Option (Mat2 α))
+    (hstep : ∀ a b S, step a b = some S → o.Unimodular S) (s : Nat) (a b : α) :
+    o.HgcdOK a b (o.stepBase step s a b) :=
+  o.baseLoop_ok step hstep s a b _ a b o.matId o.unimodular_matId (o.fwd_matId a b)
+
 /--
 Half-gcd: the matrix of Euclid's steps that brings `a ≥ b`, of `n` limbs, below `Bˢ` with
-`s = ⌊n / 2⌋ + 1`, or close to it, and the numbers it brings them to. Below `T` limbs by
-`baseLoop`; above, the matrix and numbers of the top `n - s` limbs, recursively, extended to `a`
-and `b` with products by their low `s` limbs (`applySplit`), then one step of Euclid's algorithm,
-then the same for the top limbs of what is left. A matrix from top limbs that went too far for
-the full numbers is dropped. Only the determinant and the exact relation are proved (`hgcd_ok`):
-the caller checks how far the numbers came down.
+`s = ⌊n / 2⌋ + 1`, or close to it, and the numbers it brings them to. Up to `T` limbs by the
+instance's `base s a b` (`stepBase`, for one); above, the matrix and numbers of the top `n - s`
+limbs, recursively, extended to `a` and `b` with products by their low `s` limbs (`applySplit`),
+then one step of Euclid's algorithm, then the same for the top limbs of what is left. A matrix
+from top limbs that went too far for the full numbers is dropped. Only the determinant and the
+exact relation are proved (`hgcd_ok`): the caller checks how far the numbers came down.
 -/
-public def hgcd (step : α → α → Option (Mat2 α)) (T : Nat) (a b : α) : Mat2 α × α × α :=
+public def hgcd (base : Nat → α → α → Mat2 α × α × α) (T : Nat) (a b : α) :
+    Mat2 α × α × α :=
   let n := o.size a
   let s := n / 2 + 1
   if !(o.le (o.pow s) b) then (o.matId, a, b)
-  else if n ≤ T then o.baseLoop step s a b o.matId (32 * n)
+  else if n ≤ T then base s a b
   else
-    let R₁ := hgcd step T (o.hi s a) (o.hi s b)
+    let R₁ := hgcd base T (o.hi s a) (o.hi s b)
     match o.applySplit R₁.1 R₁.2.1 R₁.2.2 a b s with
     | none => (o.matId, a, b)
     | some p =>
@@ -426,7 +436,7 @@ public def hgcd (step : α → α → Option (Mat2 α)) (T : Nat) (a b : α) : M
         let m := o.size r.2.2
         if _h : n < m then (M₃, r.2.2, qr.2)
         else
-          let R₂ := hgcd step T (o.hi (2 * s - m) r.2.2) (o.hi (2 * s - m) qr.2)
+          let R₂ := hgcd base T (o.hi (2 * s - m) r.2.2) (o.hi (2 * s - m) qr.2)
           match o.applySplit R₂.1 R₂.2.1 R₂.2.2 r.2.2 qr.2 (2 * s - m) with
           | none => (M₃, r.2.2, qr.2)
           | some p₂ =>
@@ -436,9 +446,9 @@ termination_by o.size a
 decreasing_by
   all_goals rw [o.size_hi]; lia
 
-public theorem hgcd_ok (step : α → α → Option (Mat2 α))
-    (hstep : ∀ a b S, step a b = some S → o.Unimodular S) (T : Nat) (a b : α) :
-    o.HgcdOK a b (o.hgcd step T a b) := by
+public theorem hgcd_ok (base : Nat → α → α → Mat2 α × α × α)
+    (hbase : ∀ s a b, o.HgcdOK a b (base s a b)) (T : Nat) (a b : α) :
+    o.HgcdOK a b (o.hgcd base T a b) := by
   induction hn : o.size a using Nat.strongRecOn generalizing a b with
   | ind n ih =>
     unfold hgcd
@@ -446,7 +456,7 @@ public theorem hgcd_ok (step : α → α → Option (Mat2 α))
     split
     · exact ⟨o.unimodular_matId, o.fwd_matId a b⟩
     split
-    · exact o.baseLoop_ok step hstep _ _ _ _ _ _ _ o.unimodular_matId (o.fwd_matId a b)
+    · exact hbase _ a b
     rename_i hT
     have hR₁ := ih (o.size (o.hi (o.size a / 2 + 1) a)) (by rw [o.size_hi]; lia)
       (o.hi (o.size a / 2 + 1) a) (o.hi (o.size a / 2 + 1) b) rfl
@@ -456,7 +466,7 @@ public theorem hgcd_ok (step : α → α → Option (Mat2 α))
     have hF₁ := o.fwd_applySplit _ hR₁.1 _ _ a b _ hR₁.2 p hp
     have hM₂ := o.unimodular_orient _ hR₁.1 p
     have hF₂ := o.fwd_orient _ a b p hF₁
-    generalize o.orient (o.hgcd step T (o.hi (o.size a / 2 + 1) a)
+    generalize o.orient (o.hgcd base T (o.hi (o.size a / 2 + 1) a)
       (o.hi (o.size a / 2 + 1) b)).1 p = r at hM₂ hF₂
     split
     · exact ⟨hM₂, hF₂⟩
@@ -495,15 +505,15 @@ public theorem hgcd_ok (step : α → α → Option (Mat2 α))
 One reduction of `a ≥ b` for the greatest common divisor: the numbers of `hgcd`, the larger first.
 It keeps the greatest common divisor (`gcd_hgcdReduce`); the caller checks that they got smaller.
 -/
-public def hgcdReduce (step : α → α → Option (Mat2 α)) (T : Nat) (a b : α) : α × α :=
-  let p := (o.hgcd step T a b).2
+public def hgcdReduce (base : Nat → α → α → Mat2 α × α × α) (T : Nat) (a b : α) : α × α :=
+  let p := (o.hgcd base T a b).2
   if o.le p.2 p.1 then p else (p.2, p.1)
 
-public theorem gcd_hgcdReduce (step : α → α → Option (Mat2 α))
-    (hstep : ∀ a b S, step a b = some S → o.Unimodular S) (T : Nat) (a b : α) :
-    Nat.gcd (o.val (o.hgcdReduce step T a b).1) (o.val (o.hgcdReduce step T a b).2) =
+public theorem gcd_hgcdReduce (base : Nat → α → α → Mat2 α × α × α)
+    (hbase : ∀ s a b, o.HgcdOK a b (base s a b)) (T : Nat) (a b : α) :
+    Nat.gcd (o.val (o.hgcdReduce base T a b).1) (o.val (o.hgcdReduce base T a b).2) =
       Nat.gcd (o.val a) (o.val b) := by
-  obtain ⟨hM, hF⟩ := o.hgcd_ok step hstep T a b
+  obtain ⟨hM, hF⟩ := o.hgcd_ok base hbase T a b
   have h := (o.gcd_of_fwd _ hM a b _ _ hF).symm
   unfold hgcdReduce
   dsimp only

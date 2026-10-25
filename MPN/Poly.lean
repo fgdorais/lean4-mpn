@@ -4,16 +4,14 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.Limbs
 public import MPN.Sum
 
 /-!
 # Polynomials
 
 Coefficient lists of natural numbers and their values, `polyVal x cs = c₀ + x c₁ + x² c₂ + ⋯` by
-Horner's rule, of which `ofLimbs` is the case `x = 2³²`: values of sums, products (the convolution
-of the coefficients, with a bound on them) and of the even and odd parts, which the Toom
-algorithms and the FFT assemble and split their products with.
+Horner's rule: values of sums, products (the convolution of the coefficients, with a bound on
+them) and of the even and odd parts, which the FFT assembles its products with.
 -/
 
 namespace MPN
@@ -217,12 +215,5 @@ public theorem polyVal_zeros (x : Nat) (l : List Nat) (h : ∀ c ∈ l, c = 0) :
   | cons c l ih =>
     simp only [polyVal]
     rw [h c (by simp), ih (fun c hc => h c (by simp [hc])), Nat.mul_zero]
-
-/-- `ofLimbs` is the value of the limbs as coefficients at `2³²`. -/
-public theorem ofLimbs_eq_polyVal (l : List UInt32) :
-    ofLimbs l = polyVal (2 ^ 32) (l.map UInt32.toNat) := by
-  induction l with
-  | nil => rfl
-  | cons d l ih => simp [ofLimbs_cons, polyVal, ih]
 
 end MPN

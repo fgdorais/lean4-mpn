@@ -1,68 +1,27 @@
 # Lean 4 / MPN
 
-Verified arbitrary-precision natural numbers for Lean 4, stored as `UInt32` limbs in the unboxed
-arrays of [lean4-scalar-arrays](https://github.com/fgdorais/lean4-scalar-arrays). Each operation is
-proved correct against `Nat`, the specification being the value of the list of limbs. Addition and
-subtraction are linear. Multiplication uses schoolbook, Karatsuba, Toom-3, Toom-4 or Toom-6, or
-the unbalanced variants, and Schönhage–Strassen's FFT modulo `2ᴺ + 1` for the largest numbers,
-depending on the sizes, and splits very unbalanced products into nearly balanced ones; squaring uses
-the same algorithms. Division is Knuth's Algorithm D, and divide-and-conquer (Burnikel–Ziegler) for
-large divisors.
+Verified multi-precision arithmetic for Lean 4, in the style of GMP's `mpn` functions. Every
+operation is proved correct against `Nat`.
 
-`MPN.Nat` packages this as a `Nat`-like type, with a fast path on machine words below `2⁶⁴`
-and the usual instances (`+ - * / %`, comparisons, `DecidableEq`, `Hashable`, literals, shifts,
-bitwise operations, `^`, `ToString`, `Repr`), as well as `gcd`, `lcm`, `log2`, `sqrt` and
-`ofString?`: every operation is proved to agree with `Nat` through `MPN.Nat.toNat`, which is a
-bijection, and `toString` and `ofString?` with `Nat.repr` and `String.toNat?`.
+This branch is the part that does not depend on the width of a limb, which the two libraries
+build on:
 
-## Tuning
+* [`main32`](https://github.com/fgdorais/lean4-mpn/tree/main32): a GMP-free `Nat` on `UInt32`
+  limbs, `MPN.Nat`, in pure Lean with the full set of algorithms;
+* [`main64`](https://github.com/fgdorais/lean4-mpn/tree/main64): `UInt64` limbs, with the high
+  words of sums and products in inline C (`__uint128_t`), within a few times GMP's speed.
 
-Multiplication, squaring, division, the greatest common divisor and decimal strings switch
-algorithms at size thresholds collected in `MPN.Config`. The defaults were measured on one
-machine; `lake exe tune` measures them on yours in several minutes (all but `divMu`, which is off
-by default) and prints the options that set them. A project that depends on this library passes
-them with its `require`, together with `march`, which compiles the library's C code for a
-given processor:
+Both stay merged with `main`: a change to the common part is made here and merged into each.
 
-```toml
-[[require]]
-name = "lean4-mpn"
-git = "https://github.com/fgdorais/lean4-mpn"
-rev = "main"
-options = { march = "native", mulKaratsuba = "64", mulToom3 = "480", divDC = "176" }
-```
+## Modules
 
-The keys are the fields of `MPN.Config`: `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`,
-`mulToom43`, `mulToom4`, `mulToom6`, `mulFFT`, `mulUnbalanced`, `sqrBasecase`, `sqrKaratsuba`,
-`sqrToom3`, `sqrToom4`, `sqrToom6`, `sqrFFT`, `divDC`, `divMu`, `gcdHalf`, `strDC` and `parseDC`;
-an invalid value stops the build. With `march = "native"` the C compiler may use the vector
-instructions of the build machine (5–12% faster products with AVX2), and the program then runs only
-on processors that have them. Lake keeps the configuration it elaborated, so after changing the
-options, build once with `lake build -R`. In this package itself, the same options go on the
-command line: `lake build -R -K march=native`.
+| module | contents |
+|---|---|
+| `MPN.Sum` | finite sums `sumRange f n`, for column sums of products and the inverse FFT |
+| `MPN.NatMod` | congruences modulo the Fermat numbers of the FFT |
+| `MPN.Poly` | coefficient lists and their values `polyVal x cs`: sums, products, even and odd parts |
+| `MPN.Generic.Ops` | `NatOps α`: the operations of a representation of numbers at a base, with their specifications |
+| `MPN.Generic.HGCD` | half-gcd over `NatOps` (Schönhage, Möller), with the instance's base case |
+| `MPN.Generic.Radix` | decimal strings by divide and conquer over `NatOps` |
 
-## Programs
-
-Write the main file of a program that uses the library as a `module`, with a `public def main`:
-
-```lean
-module
-
-import MPN
-
-public def main : IO Unit := IO.println (MPN.Nat.ofNat (2 ^ 100))
-```
-
-`MPN.Config` imports `Lean` at compile time for its thresholds, and a main file that is not a
-`module` initializes everything its imports use at compile time too: the executable then links
-all of Lean (about 120 MB) and spends about 20 ms initializing it at startup.
-
-## Benchmark
-
-`lake exe bench` times addition, subtraction, multiplication by a limb, multiplication, squaring
-and division against the same operations on `Nat`, which Lean implements with GMP, from 1 to 4096
-limbs; the `MPN.Nat` operations are `badd`, `bsub`, `bmul`, `bdiv`, `bgcd`, `bshl`, `bshr`,
-`bsqrt`, `btostr`, `bofstr`, and the conversions `btonat` and `bofnat`. Arguments select
-operations and sizes: `lake exe bench mul div 64 256` runs only those, and `--no-nat` skips `Nat`,
-which is useful under a profiler. Current results, how to read them, and the history of
-performance changes are in [BENCH.md](BENCH.md).
+An algorithm written and proved over `NatOps` serves both libraries with only a new instance.
