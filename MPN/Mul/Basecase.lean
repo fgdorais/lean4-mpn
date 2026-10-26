@@ -546,17 +546,41 @@ public theorem addMul1LoopK_eq {β : Type} (S : Nat) (arr : UInt64Array) (rs : U
   rw [addMul1LoopK, foldUInPlaceThen_eq]
   simp only [addMul1Loop_eq_fold]
 
-/-- `mulBasecaseLoop` with `addMul1LoopK`, which allocates nothing for the carry of a row. -/
+/--
+One row of `mulBasecaseLoop` by `addMul1LoopK`: the carry goes to its limb inside the
+continuation, so that it is never boxed, and the row returns the array with its size.
+-/
+@[inline] def mulRowK (arr : UInt64Array) (rs : USize) (a b : USlice)
+    (hr : MulBound arr rs a.size.toNat b.size.toNat) (i : USize) (h : i < b.size) :
+    {arr' : UInt64Array // arr'.size = arr.size} :=
+  addMul1LoopK arr.size arr rfl (rs + i) a a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _))
+    (hr.row h) b[i] 0 0 fun arr' h' c =>
+      ⟨arr'.uset (rs + i + a.size) c (by
+          rw [h', hr.toNat_top h]
+          have := USize.lt_iff_toNat_lt.1 h
+          lia), by rw [size_uset, h']⟩
+
+private theorem mulRowK_eq (arr : UInt64Array) (rs : USize) (a b : USlice)
+    (hr : MulBound arr rs a.size.toNat b.size.toNat) (i : USize) (h : i < b.size) :
+    (mulRowK arr rs a b hr i h).1 =
+      (addMul1Loop arr (rs + i) a a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _)) (hr.row h)
+        b[i] 0 0).1.uset (rs + i + a.size)
+        (addMul1Loop arr (rs + i) a a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _)) (hr.row h)
+          b[i] 0 0).2 (by
+          rw [size_addMul1Loop, hr.toNat_top h]
+          have := USize.lt_iff_toNat_lt.1 h
+          lia) := by
+  rw [mulRowK, addMul1LoopK_eq (hk := size_addMul1Loop ..)]
+
+/--
+`mulBasecaseLoop` by `mulRowK`, which allocates nothing for the carry of a row; the rows are a
+loop here, outside the continuation.
+-/
 def mulBasecaseLoopK (arr : UInt64Array) (rs : USize) (a b : USlice)
     (hr : MulBound arr rs a.size.toNat b.size.toNat) (i : USize) : UInt64Array :=
   if h : i < b.size then
-    addMul1LoopK arr.size arr rfl (rs + i) a a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _))
-      (hr.row h) b[i] 0 0 fun arr' h' c =>
-        mulBasecaseLoopK (arr'.uset (rs + i + a.size) c (by
-            rw [h', hr.toNat_top h]
-            have := USize.lt_iff_toNat_lt.1 h
-            lia))
-          rs a b (by simp only [MulBound, size_uset, h']; exact hr) (i + 1)
+    let p := mulRowK arr rs a b hr i h
+    mulBasecaseLoopK p.1 rs a b (by simp only [MulBound, p.2]; exact hr) (i + 1)
   else
     arr
 termination_by b.size.toNat - i.toNat
@@ -572,7 +596,7 @@ private theorem mulBasecaseLoopK_eq (arr : UInt64Array) (rs : USize) (a b : USli
   | case1 arr hr i h p ih =>
     rw [mulBasecaseLoopK, mulBasecaseLoop]
     simp only [h, ↓reduceDIte]
-    rw [addMul1LoopK_eq (hk := size_addMul1Loop ..)]
+    simp only [mulRowK_eq]
     exact ih
   | case2 arr hr i h =>
     rw [mulBasecaseLoopK, mulBasecaseLoop]

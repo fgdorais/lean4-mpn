@@ -55,9 +55,11 @@ coefficients of the transforms modulo `2ᴺ + 1`.
   no hypotheses.
 - **The fast loops are proved equal to the simple ones.** Each loop is written as a plain
   recursion with `uget` and `uset`, which is what the theorems are about, and compiles, through a
-  `@[csimp]` lemma or a continuation, to `foldUInPlaceThen`. That makes the array exclusive once
-  and then stores without checks; its `implemented_by` implementation is the one piece of trusted
-  code.
+  `@[csimp]` lemma or a continuation, to `foldUInPlaceThen` or `foldUInPlace2Then`, which `@[csimp]`
+  lemmas in turn replace with lean4-scalar-arrays' in-place folds (`foldlInPlaceRangeThen`,
+  `foldlInPlace2Then`). Those make the array exclusive once and then store without checks. The
+  library has no `implemented_by` of its own; the inline C of the high words in `MPN.UInt` is the
+  only code outside Lean.
 
 ## Building
 
