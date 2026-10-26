@@ -153,7 +153,7 @@ def toNat (a : UInt64Array) : Nat := a.foldr (fun d n => n * 2 ^ 64 + d.toNat) 0
 
 def ops : List String :=
   ["add", "sub", "shl", "shr", "div1", "sbdiv", "div", "sqrt", "mulmod", "gcd", "str", "parse",
-    "mul1", "addmul1", "mul", "sqr", "comba", "kara", "toom", "kara2", "toom2", "fft", "fft2",
+    "mul1", "addmul1", "mul", "sqr", "kara", "toom", "kara2", "toom2", "fft", "fft2",
     "auto", "ksqr", "fftsqr", "toomsqr", "autosqr", "mulref"]
 
 def main (args : List String) : IO Unit := do
@@ -253,12 +253,6 @@ def main (args : List String) : IO Unit := do
         row noNat op n
           (time (fun (x y : UInt64Array) =>
             MPN.mulBasecase (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
-              y.toUSlice) checkArr a b)
-          (time (· * ·) checkNat na nb)
-      | "comba" =>
-        row noNat op n
-          (time (fun (x y : UInt64Array) =>
-            MPN.mulComba (UInt64Array.replicate (x.size + y.size) 0).toUSlice x.toUSlice
               y.toUSlice) checkArr a b)
           (time (· * ·) checkNat na nb)
       | "kara" =>

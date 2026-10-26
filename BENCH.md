@@ -12,7 +12,7 @@ for i in 1 2 3 4 5; do taskset -c 2 .lake/build/bin/bench; done > bench.txt
 scripts/bench_md.py bench.txt         # the two tables below
 ```
 
-Arguments select operations and sizes, for example `bench mul comba 4 16`, and `--no-nat` skips
+Arguments select operations and sizes, for example `bench mul kara 4 16`, and `--no-nat` skips
 `Nat`, for a profiler. Pinning the process to one core with `taskset` makes the results steadier.
 Each time is the median of five trials, and the last two columns, `±MPN` and `±Nat`, are the
 spread of those trials (sample standard deviation over mean, from `Batteries.RunningStats`).
@@ -74,7 +74,6 @@ so five runs make the tables reliable. Within one run, distrust a row whose spre
 | `autosqr` | `MPN.sqr` | `n` limbs | the FFT from `sqrFFT = 2816` limbs, `sqrToom` below |
 | `sqr` | `MPN.sqrBasecase` | `n` limbs | the cross products once by rows (`mul1`, `addMul1`), then doubled with the diagonal in one pass |
 | `ksqr` | `MPN.sqrKaratsuba` | `n` limbs | Karatsuba with three squares from 96 limbs (`sqrKaratsuba`), `sqrBasecase` below |
-| `comba` | `MPN.mulComba` | `n` by `n` limbs | schoolbook by columns into a three-word accumulator, `USize` indices |
 | `mulref` | `Bench.refMul` | `n` by `n` limbs | schoolbook by rows, a hand-written loop with `Nat` indices and the arithmetic of `addMul1`; not part of the library, kept as a control since its code does not change |
 
 ## Current results
@@ -98,7 +97,6 @@ Ratio MPN / Nat (below 1 is faster than Nat):
 | `addmul1` | 0.19 | 0.19 | 0.19 | 0.19 | 0.20 | 0.23 | 0.22 | 0.22 | 0.24 | 0.26 | 0.28 | 0.33 | 0.38 | 0.46 | 0.46 | 0.46 | 0.52 |
 | `mul` | 0.39 | 0.42 | 0.49 | 0.53 | 0.60 | 0.69 | 0.89 | 1.02 | 1.30 | 1.53 | 1.95 | 2.29 | 2.78 | 3.38 | 4.12 | 4.69 | 7.37 |
 | `sqr` | 0.33 | 0.48 | 0.55 | 0.56 | 0.61 | 0.68 | 0.73 | 0.77 | 0.86 | 0.93 | 1.12 | 1.23 | 1.49 | 1.74 | 2.08 | 2.36 | 3.74 |
-| `comba` | 0.80 | 1.33 | 1.96 | 2.40 | 3.26 | 4.08 | 4.81 | 5.10 | 5.36 | 5.25 | 5.20 | 5.06 | 4.81 | 4.91 | 5.02 | 5.17 | 6.90 |
 | `kara` | 0.44 | 0.49 | 0.57 | 0.59 | 0.65 | 0.74 | 0.94 | 1.04 | 1.32 | 1.54 | 1.96 | 2.08 | 2.29 | 2.38 | 2.56 | 2.59 | 3.11 |
 | `ksqr` | 0.33 | 0.48 | 0.54 | 0.56 | 0.62 | 0.67 | 0.74 | 0.76 | 0.87 | 0.94 | 1.11 | 1.25 | 1.33 | 1.47 | 1.54 | 1.61 | 2.00 |
 | `mulref` | 0.23 | 0.33 | 0.51 | 0.69 | 1.20 | 1.71 | 2.73 | 3.49 | 5.04 | 6.45 | 8.14 | 9.17 | 11.02 | 12.74 | 15.19 | 17.29 | 27.00 |
@@ -122,7 +120,6 @@ Time of MPN:
 | `addmul1` | 44.9 ns | 45.1 ns | 46.1 ns | 46.5 ns | 48.2 ns | 49.7 ns | 53.4 ns | 56.3 ns | 62.1 ns | 69.7 ns | 84 ns | 99.4 ns | 134 ns | 173 ns | 230 ns | 280 ns | 519 ns |
 | `mul` | 55.9 ns | 58 ns | 62.4 ns | 69.6 ns | 85.1 ns | 107 ns | 174 ns | 258 ns | 495 ns | 833 ns | 1.82 µs | 3.27 µs | 7.43 µs | 13.7 µs | 31.1 µs | 55.3 µs | 221 µs |
 | `sqr` | 59.8 ns | 65.5 ns | 69.2 ns | 73.2 ns | 86.5 ns | 105 ns | 144 ns | 195 ns | 327 ns | 509 ns | 1.04 µs | 1.79 µs | 3.99 µs | 7.01 µs | 15.7 µs | 27.9 µs | 111 µs |
-| `comba` | 115 ns | 183 ns | 251 ns | 319 ns | 463 ns | 632 ns | 948 ns | 1.3 µs | 2.03 µs | 2.89 µs | 4.85 µs | 7.24 µs | 12.9 µs | 19.9 µs | 37.8 µs | 61 µs | 207 µs |
 | `kara` | 63.3 ns | 67.1 ns | 72 ns | 77.3 ns | 92.9 ns | 114 ns | 182 ns | 265 ns | 502 ns | 838 ns | 1.83 µs | 2.97 µs | 6.08 µs | 9.61 µs | 19.3 µs | 30.3 µs | 93.2 µs |
 | `ksqr` | 60.6 ns | 65.9 ns | 69 ns | 74 ns | 87.7 ns | 104 ns | 144 ns | 195 ns | 329 ns | 509 ns | 1.04 µs | 1.79 µs | 3.59 µs | 6 µs | 11.6 µs | 19 µs | 59.3 µs |
 | `mulref` | 32.9 ns | 45.8 ns | 65.3 ns | 91.4 ns | 170 ns | 265 ns | 529 ns | 891 ns | 1.91 µs | 3.51 µs | 7.6 µs | 13.3 µs | 29.3 µs | 51.6 µs | 115 µs | 204 µs | 810 µs |

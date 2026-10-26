@@ -99,24 +99,11 @@ def checkMul (m n : Nat) : Bool :=
 
 #guard [(1, 1), (2, 1), (1, 2), (3, 3), (4, 2), (2, 5)].all fun (m, n) => checkMul m n
 
-/-- Checks `mulComba` on an `m`-limb `a` and an `n`-limb `b`. -/
-def checkComba (m n : Nat) : Bool :=
-  let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
-  let r := UInt64Array.replicate (m + n + 2) pad
-  (edges m).all fun x => (edges n).all fun y =>
-    let x := x % 2 ^ (64 * m)
-    let y := y % 2 ^ (64 * n)
-    let s := MPN.mulComba (inner r (m + n)) (limbs m x).toUSlice (limbs n y).toUSlice
-    window s 1 (m + n) == x * y && s[0]! == pad && s[m + n + 1]! == pad
-
-#guard [(0, 0), (0, 3), (3, 0), (1, 1), (2, 1), (1, 2), (3, 3), (4, 2), (2, 5), (7, 7)].all
-  fun (m, n) => checkComba m n
-
--- A window too short for the product: `mulBasecase` and `mulComba` leave it unchanged.
+-- A window too short for the product: `mulBasecase` leaves it unchanged.
 #guard
   let r := UInt64Array.replicate 5 7
   let a := (limbs 2 (2 ^ 100)).toUSlice
-  MPN.mulBasecase (inner r 3) a a == r && MPN.mulComba (inner r 3) a a == r
+  MPN.mulBasecase (inner r 3) a a == r
 
 /-! Karatsuba multiplication -/
 

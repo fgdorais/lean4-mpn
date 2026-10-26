@@ -13,7 +13,6 @@ public import MPN.Bits
 public import MPN.Div.Limb
 public import MPN.Div.Basecase
 public import MPN.Mul.Basecase
-public import MPN.Mul.Comba
 public import MPN.Mul.Karatsuba
 public import MPN.Mul.Toom
 public import MPN.Sqr.Basecase
@@ -50,7 +49,7 @@ Verified multi-precision arithmetic on `UInt64` limbs, in the style of GMP's `mp
 * `MPN.Linear`: in-place passes for the Toom methods: `± b x`, halving, exact division by 3;
 * `MPN.Bits`: shifts by any number of bits, clearing, and the base-two logarithm;
 * `MPN.Div.Limb`, `MPN.Div.Basecase`: division by a limb and schoolbook division;
-* `MPN.Mul.Basecase`, `MPN.Mul.Comba`, `MPN.Mul.Karatsuba`, `MPN.Mul.Toom`: multiplication;
+* `MPN.Mul.Basecase`, `MPN.Mul.Karatsuba`, `MPN.Mul.Toom`: multiplication;
 * `MPN.Sqr.Basecase`, `MPN.Sqr.Karatsuba`: squaring;
 * `MPN.FFT.Roots`, `MPN.FFT.Fermat`, `MPN.FFT.Transform`, `MPN.FFT.Mul`: FFT multiplication,
   from the inversion of the transform modulo `2^N + 1`, in-place residues modulo `2^(64 n) + 1`
