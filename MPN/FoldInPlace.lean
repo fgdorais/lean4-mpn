@@ -13,9 +13,9 @@ public import ScalarArray.UInt64
 lean4-scalar-arrays dropped the array folds `foldInPlace` and `foldInPlaceThen` in favor of the
 slice folds `foldlInPlace` and `foldlInPlaceThen`. This module defines the array folds again, for
 `UInt32Array` and `UInt64Array`, as the same plain loops of `set`s as before, which the proofs
-are about, and `@[csimp]` lemmas make the compiler run the slice folds in their place, on the
-slice `[start, start + len)` built from the bounds proof without checks. Nothing here is trusted:
-the in-place loop is the library's.
+are about, and `@[csimp]` lemmas make the compiler run the library's folds over the `USize` range
+`[start, start + len)` in their place (`foldlInPlaceRange`, `foldlInPlaceRangeThen`), which never
+convert the bounds to `Nat`. Nothing here is trusted: the in-place loop is the library's.
 -/
 
 open ScalarArray
@@ -89,37 +89,31 @@ public def foldInPlaceThen {β : Type v} {γ : Type w} (a : UInt32Array) (start 
 
 /-! ## The compiled folds -/
 
-/-- The slice `[start, start + len)` of `a`, without checks. -/
-@[inline, expose]
-public def rangeSlice (a : UInt32Array) (start len : Nat) (h : start + len ≤ a.size) :
-    UInt32Array.Slice :=
-  ⟨{ array := a, start, stop := start + len, start_le_stop := Nat.le_add_right _ _,
-     stop_le_array_size := h }⟩
-
-private theorem size_rangeSlice (a : UInt32Array) (start len : Nat) (h : start + len ≤ a.size) :
-    (rangeSlice a start len h).size = len := by
-  rw [Slice.size_eq]
-  show start + len - start = len
-  lia
-
 /--
-`foldInPlace` by the slice fold on `rangeSlice`, which the compiler uses in its place. The fold
-ends with the continuation `(s.array, b)`, so the slice it would return is never built.
+`foldInPlace` by lean4-scalar-arrays' fold over the `USize` range `[start, start + len)`, which the
+compiler uses in its place, without converting the bounds to `Nat`.
 -/
 @[inline, expose]
 public def foldInPlaceFast {β : Type v} (a : UInt32Array) (start len : USize) (init : β)
     (f : (k : USize) → k.toNat < len.toNat → UInt32 → β → UInt32 × β)
     (h : start.toNat + len.toNat ≤ a.size) : UInt32Array × β :=
-  (rangeSlice a start.toNat len.toNat h).foldlInPlaceThen init
-    (fun k hk => f k (by rw [size_rangeSlice] at hk; exact hk)) fun s b => (s.array, b)
+  a.foldlInPlaceRange start len h init f
 
-/-- `foldInPlaceThen` by `foldlInPlaceThen` on `rangeSlice`. -/
+/-- `foldInPlaceThen` by `foldlInPlaceRangeThen`. -/
 @[inline, expose]
 public def foldInPlaceThenFast {β : Type v} {γ : Type w} (a : UInt32Array) (start len : USize)
     (init : β) (f : (k : USize) → k.toNat < len.toNat → UInt32 → β → UInt32 × β)
     (g : UInt32Array → β → γ) (h : start.toNat + len.toNat ≤ a.size) : γ :=
-  (rangeSlice a start.toNat len.toNat h).foldlInPlaceThen init
-    (fun k hk => f k (by rw [size_rangeSlice] at hk; exact hk)) fun s b => g s.array b
+  a.foldlInPlaceRangeThen start len h init f fun a' _ b => g a' b
+
+/-- The array loop does not depend on how its start and array are written. -/
+private theorem foldInPlace_loop_congr {β : Type v} (len' : USize)
+    (f : (k : USize) → k.toNat < len'.toNat → UInt32 → β → UInt32 × β) (start start' len : Nat)
+    (a a' : UInt32Array) (hs : start = start') (ha : a = a') (h : start + len ≤ a.size)
+    (h' : start' + len ≤ a'.size) (hlen : len ≤ len'.toNat) (k : Nat) (b : β) :
+    foldInPlace.loop len' f start len a h hlen k b =
+      foldInPlace.loop len' f start' len a' h' hlen k b := by
+  subst hs ha; rfl
 
 /-- The slice loop from index `k`, up to `n = len`, is the array loop from `k`. -/
 private theorem foldlInPlace_loop_eq {β : Type v} (len' : USize)
@@ -147,14 +141,21 @@ private theorem foldlInPlace_loop_eq {β : Type v} (len' : USize)
 
 @[csimp] public theorem foldInPlace_eq_fast : @foldInPlace.{v} = @foldInPlaceFast.{v} := by
   funext β a start len init f h
-  rw [foldInPlaceFast, Slice.foldlInPlaceThen_eq]
-  exact (foldlInPlace_loop_eq len f len.toNat _ (size_rangeSlice ..) (Nat.le_refl _) _
-    (fun _ _ => rfl) 0 (rangeSlice a start.toNat len.toNat h) rfl h init).symm
+  rw [foldInPlaceFast, foldlInPlaceRange_eq]
+  have hst : (a.toSlice start.toNat (start.toNat + len.toNat)).start = start.toNat := by
+    simp only [start_toSlice]; lia
+  have hsz : (a.toSlice start.toNat (start.toNat + len.toNat)).size = len.toNat := by
+    simp only [size_toSlice]; lia
+  rw [Slice.foldlInPlace]
+  refine Eq.symm ((foldlInPlace_loop_eq len f len.toNat _ hsz (Nat.le_refl _) _ (fun _ _ => rfl) 0
+    (a.toSlice start.toNat (start.toNat + len.toNat)) rfl (by rw [hst, array_toSlice]; exact h)
+    init).trans ?_)
+  exact foldInPlace_loop_congr _ _ _ _ _ _ _ hst (array_toSlice ..) _ _ _ _ _
 
 @[csimp] public theorem foldInPlaceThen_eq_fast :
     @foldInPlaceThen.{v, w} = @foldInPlaceThenFast.{v, w} := by
   funext β γ a start len init f g h
-  rw [foldInPlaceThen, foldInPlaceThenFast, Slice.foldlInPlaceThen_eq, foldInPlace_eq_fast]
+  rw [foldInPlaceThen, foldInPlaceThenFast, foldlInPlaceRangeThen_eq, foldInPlace_eq_fast]
   rfl
 
 end ScalarArray.UInt32Array
@@ -228,37 +229,31 @@ public def foldInPlaceThen {β : Type v} {γ : Type w} (a : UInt64Array) (start 
 
 /-! ## The compiled folds -/
 
-/-- The slice `[start, start + len)` of `a`, without checks. -/
-@[inline, expose]
-public def rangeSlice (a : UInt64Array) (start len : Nat) (h : start + len ≤ a.size) :
-    UInt64Array.Slice :=
-  ⟨{ array := a, start, stop := start + len, start_le_stop := Nat.le_add_right _ _,
-     stop_le_array_size := h }⟩
-
-private theorem size_rangeSlice (a : UInt64Array) (start len : Nat) (h : start + len ≤ a.size) :
-    (rangeSlice a start len h).size = len := by
-  rw [Slice.size_eq]
-  show start + len - start = len
-  lia
-
 /--
-`foldInPlace` by the slice fold on `rangeSlice`, which the compiler uses in its place. The fold
-ends with the continuation `(s.array, b)`, so the slice it would return is never built.
+`foldInPlace` by lean4-scalar-arrays' fold over the `USize` range `[start, start + len)`, which the
+compiler uses in its place, without converting the bounds to `Nat`.
 -/
 @[inline, expose]
 public def foldInPlaceFast {β : Type v} (a : UInt64Array) (start len : USize) (init : β)
     (f : (k : USize) → k.toNat < len.toNat → UInt64 → β → UInt64 × β)
     (h : start.toNat + len.toNat ≤ a.size) : UInt64Array × β :=
-  (rangeSlice a start.toNat len.toNat h).foldlInPlaceThen init
-    (fun k hk => f k (by rw [size_rangeSlice] at hk; exact hk)) fun s b => (s.array, b)
+  a.foldlInPlaceRange start len h init f
 
-/-- `foldInPlaceThen` by `foldlInPlaceThen` on `rangeSlice`. -/
+/-- `foldInPlaceThen` by `foldlInPlaceRangeThen`. -/
 @[inline, expose]
 public def foldInPlaceThenFast {β : Type v} {γ : Type w} (a : UInt64Array) (start len : USize)
     (init : β) (f : (k : USize) → k.toNat < len.toNat → UInt64 → β → UInt64 × β)
     (g : UInt64Array → β → γ) (h : start.toNat + len.toNat ≤ a.size) : γ :=
-  (rangeSlice a start.toNat len.toNat h).foldlInPlaceThen init
-    (fun k hk => f k (by rw [size_rangeSlice] at hk; exact hk)) fun s b => g s.array b
+  a.foldlInPlaceRangeThen start len h init f fun a' _ b => g a' b
+
+/-- The array loop does not depend on how its start and array are written. -/
+private theorem foldInPlace_loop_congr {β : Type v} (len' : USize)
+    (f : (k : USize) → k.toNat < len'.toNat → UInt64 → β → UInt64 × β) (start start' len : Nat)
+    (a a' : UInt64Array) (hs : start = start') (ha : a = a') (h : start + len ≤ a.size)
+    (h' : start' + len ≤ a'.size) (hlen : len ≤ len'.toNat) (k : Nat) (b : β) :
+    foldInPlace.loop len' f start len a h hlen k b =
+      foldInPlace.loop len' f start' len a' h' hlen k b := by
+  subst hs ha; rfl
 
 /-- The slice loop from index `k`, up to `n = len`, is the array loop from `k`. -/
 private theorem foldlInPlace_loop_eq {β : Type v} (len' : USize)
@@ -286,14 +281,21 @@ private theorem foldlInPlace_loop_eq {β : Type v} (len' : USize)
 
 @[csimp] public theorem foldInPlace_eq_fast : @foldInPlace.{v} = @foldInPlaceFast.{v} := by
   funext β a start len init f h
-  rw [foldInPlaceFast, Slice.foldlInPlaceThen_eq]
-  exact (foldlInPlace_loop_eq len f len.toNat _ (size_rangeSlice ..) (Nat.le_refl _) _
-    (fun _ _ => rfl) 0 (rangeSlice a start.toNat len.toNat h) rfl h init).symm
+  rw [foldInPlaceFast, foldlInPlaceRange_eq]
+  have hst : (a.toSlice start.toNat (start.toNat + len.toNat)).start = start.toNat := by
+    simp only [start_toSlice]; lia
+  have hsz : (a.toSlice start.toNat (start.toNat + len.toNat)).size = len.toNat := by
+    simp only [size_toSlice]; lia
+  rw [Slice.foldlInPlace]
+  refine Eq.symm ((foldlInPlace_loop_eq len f len.toNat _ hsz (Nat.le_refl _) _ (fun _ _ => rfl) 0
+    (a.toSlice start.toNat (start.toNat + len.toNat)) rfl (by rw [hst, array_toSlice]; exact h)
+    init).trans ?_)
+  exact foldInPlace_loop_congr _ _ _ _ _ _ _ hst (array_toSlice ..) _ _ _ _ _
 
 @[csimp] public theorem foldInPlaceThen_eq_fast :
     @foldInPlaceThen.{v, w} = @foldInPlaceThenFast.{v, w} := by
   funext β γ a start len init f g h
-  rw [foldInPlaceThen, foldInPlaceThenFast, Slice.foldlInPlaceThen_eq, foldInPlace_eq_fast]
+  rw [foldInPlaceThen, foldInPlaceThenFast, foldlInPlaceRangeThen_eq, foldInPlace_eq_fast]
   rfl
 
 end ScalarArray.UInt64Array
