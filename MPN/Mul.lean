@@ -9,7 +9,7 @@ public import MPN.Mul.Karatsuba
 public import MPN.Mul.Unbalanced
 public import MPN.Mul.Toom3
 public import MPN.Mul.Toom6
-public import MPN.Mul.FFTMul
+public import MPN.FFT.Mul
 public import MPN.Config
 
 /-!

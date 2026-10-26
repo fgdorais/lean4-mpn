@@ -29,8 +29,11 @@ public import MPN.Mul.Toom3
 public import MPN.Mul.Toom4
 public import MPN.Mul.Toom6
 public import MPN.FFT.Roots
-public import MPN.Mul.Fermat
-public import MPN.Mul.FFTMul
+public import MPN.UIntArray
+public import MPN.AddSub
+public import MPN.FFT.Fermat
+public import MPN.FFT.Transform
+public import MPN.FFT.Mul
 public import MPN.Config
 public import MPN.Mul
 public import MPN.Sqr.Basecase

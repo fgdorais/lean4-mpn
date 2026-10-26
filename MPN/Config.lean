@@ -72,7 +72,7 @@ public structure Config where
   The size of the shorter operand from which multiplication uses the FFT when the longer one is
   less than twice as long.
   -/
-  mulFFT : Nat := 36864
+  mulFFT : Nat := 14336
   /--
   The size of the shorter operand from which multiplication splits a longer operand that is at
   least twice as long, instead of using schoolbook. It only matters above `mulKaratsuba`, since the
@@ -98,7 +98,7 @@ public structure Config where
   /-- Toom-6 needs at least `32` limbs for its split. -/
   thirtytwo_le_sqrToom6 : 32 ≤ sqrToom6 := by decide
   /-- The size from which squaring uses the FFT. -/
-  sqrFFT : Nat := 26624
+  sqrFFT : Nat := 12288
   /-- The size of the divisor from which division computes its quotient in blocks of half the
   divisor, with recursive divisions, instead of one limb at a time. -/
   divDC : Nat := 176

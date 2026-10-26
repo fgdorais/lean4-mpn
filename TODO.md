@@ -178,6 +178,12 @@ block of the division, and `topSize` usually stops at the first limb.
   passes and as many arrays per butterfly; in-place residue operations brought the crossover
   from about 48k to 18k limbs. GMP's `√2` trick does not apply: `n` is set by the size of the
   coefficients, not by the order of the roots.
+- [x] **The flat-array FFT from `main64`** (`FFT.Fermat`, `FFT.Transform`, `FFT.Mul`,
+  2026-10-26): residues as windows of one array, both transforms in place with one scratch window,
+  and the algebra shared with `main64` in `main`'s `FFT.Algebra`; it replaces `Mul.Fermat` and
+  `Mul.FFTMul`. `fftK` is the least `k` with `4ᵏ ≥ 5 T` (one less than `main64`'s at 64-bit
+  limbs), and the FFT runs from 14336 limbs (12288 for squares, Zen 3). `mul` 65536 limbs:
+  38.1 → 29.4 ms, squares 25.7 → 18.9 ms.
 - [x] **A base-generic layer and division by a reciprocal** (`Generic.Ops`, `Generic.Barrett`,
   2026-10-19): `NatOps` bundles whole-number operations at a base `B` with their value-level
   specifications, and `ops32` instantiates it on 32-bit limbs; algorithms over it carry over to

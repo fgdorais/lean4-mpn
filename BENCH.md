@@ -43,8 +43,8 @@ rather than the ratios.
 |---|---|---|---|
 | `add`, `sub` | `add`, `sub` on limbs | `n` and `n` limbs | linear, one pass |
 | `mul1` | `mul1` | `n` limbs times a limb | linear, one pass |
-| `mul` | `mulLimbs` | `n` by `n` limbs | schoolbook by rows into wide accumulators (Comba below 16 limbs in all), Karatsuba from 112, Toom-4 from 608 (Toom-3 from 640 when Toom-4 is set higher), Toom-6 from 1792; Toom-4 by 3 from 272 between 6:5 and 15:8, Toom-3 by 2 from 192 between 4:3 and 15:8 below that, Toom-4 by 2 from 304 up to 2:1; the FFT from 36864 (beyond the table) |
-| `sqr` | `sqr` | `n` limbs | schoolbook square by rows into wide accumulators (Comba's square below 16 limbs), Karatsuba from 160, Toom-4 from 832 (Toom-3 from 944 when Toom-4 is set higher), Toom-6 from 2496, the FFT from 26624 (beyond the table) |
+| `mul` | `mulLimbs` | `n` by `n` limbs | schoolbook by rows into wide accumulators (Comba below 16 limbs in all), Karatsuba from 112, Toom-4 from 608 (Toom-3 from 640 when Toom-4 is set higher), Toom-6 from 1792; Toom-4 by 3 from 272 between 6:5 and 15:8, Toom-3 by 2 from 192 between 4:3 and 15:8 below that, Toom-4 by 2 from 304 up to 2:1; the FFT from 14336 (beyond the table) |
+| `sqr` | `sqr` | `n` limbs | schoolbook square by rows into wide accumulators (Comba's square below 16 limbs), Karatsuba from 160, Toom-4 from 832 (Toom-3 from 944 when Toom-4 is set higher), Toom-6 from 2496, the FFT from 12288 (beyond the table) |
 | `div` | `div`, the quotient | `2n` by `n` limbs | `divRem1`, `divRem2`, Algorithm D, Burnikel–Ziegler from 176 (`main`'s `NatOps.divNorm`) |
 | `shr` | `shiftRight` by 37 bits | `n` limbs | one pass in place |
 | `badd` … `bdiv` | `MPN.Nat` `+ - * /` | as above (`bdiv`: `2n` by `n`) | word fast path, then as above |
@@ -115,8 +115,7 @@ Time of MPN:
   2.0–3.3×. 32-bit limbs need 4× as many limb products as GMP's 64-bit limbs, and Lean has no
   64 × 64 → 128-bit multiply; the schoolbook rows make up for part of it by vectorizing, two
   limb products per instruction with SSE2. Beyond the table,
-  Toom-6 from 1792 limbs (2496 for squares) and the FFT from 36864 (26624 for squares), 29%
-  faster than Toom-4 at 65536.
+  Toom-6 from 1792 limbs (2496 for squares) and the FFT from 14336 (12288 for squares).
 - **Division** is 6.2–8.2× behind from 64 limbs up, about 1.5× multiplication's gap: GMP divides
   `2n` by `n` limbs for about the cost of one `n × n` product, and this library for 2.4 of its
   own. Small `MPN.Nat` divisions still pay a fixed cost (normalization, several arrays): 1.8–3.3×
@@ -140,6 +139,7 @@ above; ratios before `15534f8` for `MPN.Nat` rows were inflated by the hashing c
 
 | date | commit | change | effect |
 |---|---|---|---|
+| 2026-10-26 | `38a3dd2`+ | The FFT from `main64`: one flat array of windows for both transforms (`MPN.FFT.Fermat`, `Transform`, `Mul`, with `MPN.UIntArray` and `MPN.AddSub` on 32-bit limbs), the shared algebra of `main`'s `MPN.FFT.Algebra`, and the pointwise products by the dispatcher through callbacks; it replaces `Mul.Fermat` and `Mul.FFTMul`. `fftK`: the least `k` with `4ᵏ ≥ 5 T` (a sweep of `k = 5…12`, best everywhere from 12288 limbs); `mulFFT` 36864 → 14336, `sqrFFT` 26624 → 12288 (re-tuned) | Beyond the table, against `38a3dd2`, fastest of three: `mul` 16384 limbs 6.34 → 5.76 ms (−9%), 32768: 16.3 → 13.4 ms (−18%), 65536: 38.1 → 29.4 ms (−23%), 131072: −21%; `sqr` 12288: −9%, 16384: 4.46 → 3.80 ms (−15%), 32768: 11.4 → 8.54 ms (−25%), 65536: 25.7 → 18.9 ms (−27%); 8192 and below unchanged |
 | 2026-10-26 | `db8a4a9`+ | lean4-scalar-arrays 49cf1b1 → 187dcd4; the array folds of `MPN.FoldInPlace` compile to the library's folds over a `USize` range (`foldlInPlaceRange`, `foldlInPlaceRangeThen`) instead of the slice folds, without converting the bounds to `Nat` | from three alternating runs on the same library: `mul`, `sqr`, `bmul` 6–15% faster from 16 limbs, `div` and `bdiv` up to 6% at 1024; `add` 1–5% faster; `badd`, `bsub` 7–15% slower at 4 to 64 limbs (7–8 ns) and `sub` 9% at 1 limb, with no array copied (gdb on `lean_copy_sarray`), likely code layout |
 | 2026-10-25 | `5114449`+ | `gcd2` from `main64`: Euclid's algorithm on pairs of words (steps `a - q b` with `q = ⌊a₁ / (b₁ + 1)⌋`, the products by `mulWide`, the last remainder in words by `rem2`) when both numbers are below `2⁹⁶`, before Lehmer's algorithm (`gcdSmall`) | from three alternating runs: `bgcd` 802 → 466 ns at 3 limbs (−42%), within 2% elsewhere. At 4 limbs it was 3% slower than Lehmer's algorithm, and finishing Lehmer's numbers with it made 5 to 8 limbs 8–16% slower, so it is not used there |
 | 2026-10-25 | `5511cea`+ | `sqrt` by `main`'s generic Zimmermann recursion (`NatOps.sqrtRemAux` over `ops32`) from a root of `sqrtZimmermannSize = 40` limbs, with Newton's iteration (`sqrtNewton`) at or below `sqrtBaseSize = 16` limbs; `ops32` squares with `sqrLimbs` | from three alternating runs: `bsqrt` 64: 11.6 → 9.2 µs, 128: 27.9 → 15.4 µs, 256: 78.8 → 33.0 µs, 1024: 641 → 232 µs (0.81 → about 0.29 of `Nat`); within 3% up to 32. Tables not regenerated |
