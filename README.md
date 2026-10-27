@@ -25,7 +25,7 @@ comes with Lean.
 | `MPN.Div.Limb` | `divRem1`: division by a limb, with `UInt64.div2` (128 by 64 bits) | `mpn_divrem_1` |
 | `MPN.Div.Basecase` | `divRem`: schoolbook division (Algorithm D) with normalization, `qEst` never too small and `addBack` | `mpn_tdiv_qr`, `mpn_sbpi1_div_qr` |
 | `MPN.Num` | whole arrays as numbers: `add`, `sub`, `mul`, `sqr`, `shl`, `shr`, `low`, `lt`, `divMod`, each returning a new array | |
-| `MPN.Div.DC` | `Num.divNorm`: divide-and-conquer division (Burnikel and Ziegler) on `MPN.Num`; `Num.divMod` from `divDC = 512` limbs | `mpn_dcpi1_div_qr` |
+| `MPN.Div.DC` | `Num.divMod`: divide-and-conquer division (`main`'s `NatOps.divNorm`, Burnikel and Ziegler) from `divDC = 512` limbs, and Barrett's division with Newton's reciprocal (`main`'s `NatOps.divMu`) from `divMu = 16384` | `mpn_dcpi1_div_qr`, `mpn_mu_div_qr` |
 | `MPN.Generic.*` | shared with `main32` through `main`: `NatOps` (whole-number operations at any base), half-gcd (`HGCD`), decimal strings by divide and conquer (`Radix`); `Ops64` is the 64-bit instance on `MPN.Num` | `mpn_hgcd`, `mpn_get_str`, `mpn_set_str` |
 | `MPN.Lehmer`, `MPN.Gcd` | `mulSubMul` (`a x - b y` in one pass), `mulAddMul` (`a x + b y`); `Num.gcd`: Euclid's algorithm on pairs of words (`gcd2`) up to two limbs, Lehmer's algorithm, and half-gcd with its own base case | `mpn_gcd_22`, `mpn_hgcd_mul_matrix1_vector`, `mpn_hgcd_matrix_mul_1`, `mpn_gcd` |
 | `MPN.Decimal` | `Num.toDecimal`, `Num.ofDecimal?`: chunks of 19 digits, divide and conquer on long numbers | `mpn_get_str`, `mpn_set_str` |
@@ -93,7 +93,7 @@ options = { march = "native", mulKaratsuba = "48", divDC = "384" }
 
 The keys are the fields of `MPN.Config`: `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`,
 `mulToom43`, `mulToom4`, `mulToom6`, `mulFFT`, `mulFFTUnbal`, `mulFFTMin`, `mulUnbalanced`,
-`mulChunkMax`, `sqrKaratsuba`, `sqrToom3`, `sqrToom4`, `sqrToom6`, `sqrFFT`, `divDC`, `gcdHalf`,
+`mulChunkMax`, `sqrKaratsuba`, `sqrToom3`, `sqrToom4`, `sqrToom6`, `sqrFFT`, `divDC`, `divMu`, `gcdHalf`,
 `strDC` and `parseDC`; an invalid value
 stops the build. Lake keeps the configuration it elaborated, so after changing the options, build
 once with `lake build -R`. In this package itself, the same options go on the command line:

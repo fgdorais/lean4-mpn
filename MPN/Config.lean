@@ -118,6 +118,11 @@ public structure Config where
   divisor, with recursive divisions (Burnikel and Ziegler), instead of the schoolbook method.
   -/
   divDC : Nat := 512
+  /--
+  The size of the divisor from which division uses Barrett's method with Newton's reciprocal,
+  inside divide and conquer (so from `divDC` on).
+  -/
+  divMu : Nat := 16384
   /-- The size of the smaller number from which the greatest common divisor uses half-gcd. -/
   gcdHalf : Nat := 1024
   /-- The size from which decimal strings are written by divide and conquer. -/
@@ -224,6 +229,11 @@ public meta register_option mpn.div.dcThreshold : Nat := {
   descr := "the size of the divisor, in limbs, from which division uses divide and conquer"
 }
 
+public meta register_option mpn.div.muThreshold : Nat := {
+  defValue := ({} : Config).divMu
+  descr := "the size of the divisor, in limbs, from which division uses Barrett's method"
+}
+
 public meta register_option mpn.gcd.halfThreshold : Nat := {
   defValue := ({} : Config).gcdHalf
   descr := "the size of the smaller number, in limbs, from which gcd uses half-gcd"
@@ -286,6 +296,7 @@ elab "mpn_config%" : term => do
     throwError "mpn.sqr.toom6Threshold must be at least 32, but it is {sqrToom6}"
   let sqrFFT := mpn.sqr.fftThreshold.get opts
   let divDC := mpn.div.dcThreshold.get opts
+  let divMu := mpn.div.muThreshold.get opts
   let gcdHalf := mpn.gcd.halfThreshold.get opts
   let strDC := mpn.str.dcThreshold.get opts
   let parseDC := mpn.str.parseDCThreshold.get opts
@@ -307,6 +318,7 @@ elab "mpn_config%" : term => do
   let sqrToom6Stx := quote sqrToom6
   let sqrFFTStx := quote sqrFFT
   let divDCStx := quote divDC
+  let divMuStx := quote divMu
   let gcdHalfStx := quote gcdHalf
   let strDCStx := quote strDC
   let parseDCStx := quote parseDC
@@ -328,6 +340,7 @@ elab "mpn_config%" : term => do
                  sqrToom6 := $sqrToom6Stx
                  sqrFFT := $sqrFFTStx
                  divDC := $divDCStx
+                 divMu := $divMuStx
                  gcdHalf := $gcdHalfStx
                  strDC := $strDCStx
                  parseDC := $parseDCStx } : Config))

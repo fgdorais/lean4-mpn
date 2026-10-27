@@ -279,6 +279,22 @@ def checkNumDiv (m n : Nat) : Bool :=
 #guard [(10, 3), (300, 100), (1000, 333), (1100, 512), (2000, 1000), (700, 512),
   (4000, 1100)].all fun (m, n) => checkNumDiv m n
 
+/--
+Checks `ops64B.divMu`, Barrett's division with Newton's reciprocal that `Num.divMod` uses from
+`divMu` limbs, on an `m`-limb `x` and an `n`-limb `y`, against `Nat`: normalized divisors, as
+`Num.divMod` passes, and others, which the checks of `fixQuot` correct.
+-/
+def checkDivMu (m n : Nat) : Bool :=
+  [randomLimbs m 43, 2 ^ (64 * m) - 1].all fun x =>
+    [randomLimbs n 44 ||| 2 ^ (64 * n - 1), 2 ^ (64 * n) - 1, 2 ^ (64 * n - 1),
+      2 ^ (64 * (n - 1)) + 1].all fun y =>
+      let (q, r) := MPN.ops64B.divMu (limbs m x) (limbs n y)
+      q.toNat == x / y && r.toNat == x % y
+
+-- The reciprocal by the slow division (up to 4 limbs), by Newton's iteration, and in blocks.
+#guard [(8, 3), (9, 5), (40, 20), (100, 33), (300, 101), (64, 64), (200, 7)].all fun (m, n) =>
+  checkDivMu m n
+
 /-- Checks `Num.mulModB` (`2ᵏ` pieces of `m` limbs) and `Num.modB` against `Nat`. -/
 def checkMulMod (k m na nb : Nat) : Bool :=
   let M := 2 ^ (64 * (m * 2 ^ k)) - 1
