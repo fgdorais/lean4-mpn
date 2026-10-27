@@ -7,6 +7,7 @@ module
 public import ScalarArray.UInt32
 public import ScalarArray.UInt64
 public import MPN.UInt
+public import MPN.LimbArray
 
 /-!
 # Limb arrays
@@ -19,57 +20,45 @@ open ScalarArray
 
 /-! ## `UInt64Array` -/
 
+/-- Arrays of 64-bit limbs, for the limb-width-independent parts of `main`. -/
+public instance limbArray64 : MPN.LimbArray UInt64Array UInt64 where
+  w := 64
+  w_pos := by decide
+  size a := a.size
+  get a i := a[i]!
+  val x := x.toNat
+  val_lt x := x.toNat_lt
+
 namespace ScalarArray.UInt64Array
 
 /--
 The natural number whose little-endian base `2⁶⁴` limbs are `a[lo], …, a[lo + n - 1]`, where
 the limbs past the end of `a` are zero.
 -/
-public def valAt (a : UInt64Array) (lo : Nat) : Nat → Nat
-  | 0 => 0
-  | n + 1 => a[lo]!.toNat + 2 ^ 64 * a.valAt (lo + 1) n
+@[expose] public def valAt (a : UInt64Array) (lo n : Nat) : Nat := MPN.LimbArray.valAt a lo n
 
-@[simp] public theorem valAt_zero (a : UInt64Array) (lo : Nat) : a.valAt lo 0 = 0 := by
-  rw [valAt]
+@[simp] public theorem valAt_zero (a : UInt64Array) (lo : Nat) : a.valAt lo 0 = 0 :=
+  MPN.LimbArray.valAt_zero a lo
 
 public theorem valAt_succ (a : UInt64Array) (lo n : Nat) :
-    a.valAt lo (n + 1) = a[lo]!.toNat + 2 ^ 64 * a.valAt (lo + 1) n := by
-  rw [valAt]
+    a.valAt lo (n + 1) = a[lo]!.toNat + 2 ^ 64 * a.valAt (lo + 1) n :=
+  MPN.LimbArray.valAt_succ a lo n
 
 @[simp] public theorem valAt_one (a : UInt64Array) (lo : Nat) : a.valAt lo 1 = a[lo]!.toNat := by
   simp [valAt_succ]
 
-public theorem valAt_lt (a : UInt64Array) (lo n : Nat) : a.valAt lo n < 2 ^ (64 * n) := by
-  induction n generalizing lo with
-  | zero => simp
-  | succ n ih =>
-    have h₁ := ih (lo + 1)
-    have h₂ := a[lo]!.toNat_lt
-    rw [valAt_succ, Nat.mul_succ, Nat.pow_add]
-    generalize a.valAt _ n = v at *
-    generalize 2 ^ (64 * n) = P at *
-    lia
+public theorem valAt_lt (a : UInt64Array) (lo n : Nat) : a.valAt lo n < 2 ^ (64 * n) :=
+  MPN.LimbArray.valAt_lt a lo n
 
 /-- `valAt` only depends on the limbs it reads. -/
-public theorem valAt_congr {a b : UInt64Array} {lo : Nat} :
-    (n : Nat) → (∀ i, lo ≤ i → i < lo + n → a[i]! = b[i]!) → a.valAt lo n = b.valAt lo n
-  | 0, _ => by simp
-  | n + 1, h => by
-    rw [valAt_succ, valAt_succ, h lo (by lia) (by lia),
-      valAt_congr n fun i h₁ h₂ => h i (by lia) (by lia)]
+public theorem valAt_congr {a b : UInt64Array} {lo : Nat} (n : Nat)
+    (h : ∀ i, lo ≤ i → i < lo + n → a[i]! = b[i]!) : a.valAt lo n = b.valAt lo n :=
+  MPN.LimbArray.valAt_congr n h
 
 /-- Splits `valAt` into its low `m` limbs and the `k` limbs above them. -/
 public theorem valAt_add (a : UInt64Array) (lo m k : Nat) :
-    a.valAt lo (m + k) = a.valAt lo m + 2 ^ (64 * m) * a.valAt (lo + m) k := by
-  induction m generalizing lo with
-  | zero => simp
-  | succ m ih =>
-    rw [Nat.add_right_comm, valAt_succ, valAt_succ, ih, Nat.add_assoc lo, Nat.add_comm 1 m,
-      Nat.mul_succ, Nat.pow_add]
-    generalize a.valAt _ m = X
-    generalize a.valAt _ k = Y
-    generalize 2 ^ (64 * m) = P
-    grind
+    a.valAt lo (m + k) = a.valAt lo m + 2 ^ (64 * m) * a.valAt (lo + m) k :=
+  MPN.LimbArray.valAt_add a lo m k
 
 /-- The natural number whose little-endian base `2⁶⁴` limbs are the elements of `a`. -/
 public def toNat (a : UInt64Array) : Nat := a.valAt 0 a.size
@@ -362,9 +351,8 @@ public theorem USlice.toNat_slice (s : USlice) {i j : USize} (hij : i.toNat ≤ 
 
 /-- The low `m` of `n` limbs of a value: its residue modulo `2^(64 m)`. -/
 public theorem valAt_mod (a : UInt64Array) (lo : Nat) {m n : Nat} (h : m ≤ n) :
-    a.valAt lo m = a.valAt lo n % 2 ^ (64 * m) := by
-  obtain ⟨k, rfl⟩ : ∃ k, n = m + k := ⟨n - m, by lia⟩
-  rw [valAt_add, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (valAt_lt ..)]
+    a.valAt lo m = a.valAt lo n % 2 ^ (64 * m) :=
+  MPN.LimbArray.valAt_mod a lo h
 
 /-- The same bounds on another array of the same size, such as the result of writing to `s`. -/
 @[inline, expose] public def USlice.reseat (s : USlice) (arr : UInt64Array)

@@ -37,13 +37,14 @@ comes with Lean.
 | `MPN.Sqr.Basecase` | `sqrBasecase` | `mpn_sqr_basecase` |
 | `MPN.Sqr.Karatsuba` | `sqrKaratsuba`, from `sqrKaratsuba = 96` limbs | `mpn_kara_sqr_n` |
 
-`MPN.UIntArray` holds the general tooling: `valAt`, the value of a range of limbs; `USlice`, a
-region of an array with `USize` bounds; `foldUInPlace`, the in-place loop; and `foldUInPlace2`,
-the in-place loop that reads other windows of the array it writes. `MPN.Sum`, `MPN.NatMod`,
-`MPN.Poly`, `MPN.FFT.Roots` and `MPN.FFT.Algebra` (from `main`) are mathematics on `Nat`: finite
-sums, congruences, polynomials, the inversion of the transform, and the butterflies and
-coefficients of the transforms modulo `2ᴺ + 1`. `MPN.FFT.Windows` (also from `main`) holds the
-transforms and their proofs for any limb width, over the class `WinOps` of residue operations.
+`MPN.UIntArray` holds the general tooling: the instance `limbArray64` of `main`'s `LimbArray`,
+whose `valAt` is the value of a range of limbs; `USlice`, a region of an array with `USize`
+bounds; `foldUInPlace`, the in-place loop; and `foldUInPlace2`, the in-place loop that reads other
+windows of the array it writes. `MPN.Sum`, `MPN.NatMod`, `MPN.Poly`, `MPN.FFT.Roots` and
+`MPN.FFT.Algebra` (from `main`) are mathematics on `Nat`: finite sums, congruences, polynomials,
+the inversion of the transform, and the butterflies and coefficients of the transforms modulo
+`2ᴺ + 1`. `MPN.FFT.Windows` (also from `main`) holds the transforms and their proofs for any limb
+width, over the class `WinOps` of residue operations.
 
 ## Conventions
 

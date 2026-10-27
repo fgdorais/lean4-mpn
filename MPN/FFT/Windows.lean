@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN.FFT.Algebra
+public import MPN.LimbArray
 
 /-!
 # The transforms over residue operations
@@ -34,48 +35,68 @@ namespace MPN.FFT
 
 public theorem fermatW_pos (w n : Nat) : 0 < fermatW w n := Nat.succ_pos _
 
+namespace WinOps
+
+/-- The value of the window of `n + 1` limbs at `o`. -/
+public abbrev win {A L : Type} [LimbArray A L] (a : A) (n o : Nat) : Nat :=
+  LimbArray.valAt a o (n + 1)
+
+/-- A window whose limbs are unchanged keeps its value. -/
+public theorem win_congr {A L : Type} [LimbArray A L] {a a' : A} {n o : Nat}
+    (h : ∀ i, o ≤ i → i < o + n + 1 → LimbArray.get a' i = LimbArray.get a i) :
+    win a' n o = win a n o :=
+  LimbArray.valAt_congr _ fun i h₁ h₂ => h i h₁ (by lia)
+
+/-- A window disjoint from the one an operation writes keeps its value. -/
+public theorem win_of_untouched {A L : Type} [LimbArray A L] {a a' : A} {n d o : Nat}
+    (u : ∀ i, (i < d ∨ d + n + 1 ≤ i) → LimbArray.get a' i = LimbArray.get a i)
+    (h : o + n + 1 ≤ d ∨ d + n + 1 ≤ o) : win a' n o = win a n o :=
+  win_congr fun i h₁ h₂ => u i (by lia)
+
+end WinOps
+
 /--
-The residue operations modulo `2^(w n) + 1` on windows of `n + 1` limbs of arrays `A` of limbs
-`L` of `w` bits, with their specifications: each writes the window at `d`, leaves the other
-limbs as they are, and reads windows disjoint from it or equal to it.
+The residue operations modulo `2^(w n) + 1` on windows of `n + 1` limbs of arrays of limbs, with
+their specifications: each writes the window at `d`, leaves the other limbs as they are, and
+reads windows disjoint from it or equal to it.
 -/
-public class WinOps (A : Type) (L : outParam Type) where
-  /-- The width of a limb in bits. -/
-  w : Nat
-  w_pos : 0 < w
-  /-- The number of limbs of an array. -/
-  size : A → Nat
-  /-- Limb `i` of an array. -/
-  get : A → Nat → L
-  /-- The value of the window of `n + 1` limbs at `o`. -/
-  win : A → Nat → Nat → Nat
+public class WinOps (A : Type) (L : outParam Type) [LimbArray A L] where
   /-- `(x - y) % F` into the window at `d`: `subMod arr n d x y`. -/
   subMod : A → Nat → Nat → Nat → Nat → A
   /-- `(x + y) % F` into the window at `d`: `addMod arr n d x y`. -/
   addMod : A → Nat → Nat → Nat → Nat → A
   /-- `t 2ᵉ % F` into the window at `d`: `mulPow2 arr n d t e`. -/
   mulPow2 : A → Nat → Nat → Nat → Nat → A
-  win_congr : ∀ {a a' : A} {n o : Nat}, (∀ i, o ≤ i → i < o + n + 1 → get a' i = get a i) →
-    win a' n o = win a n o
-  subMod_spec : ∀ (arr : A) (n d x y : Nat), size arr < USize.size → d + n + 1 ≤ size arr →
-    x + n + 1 ≤ size arr → y + n + 1 ≤ size arr → 1 ≤ n → (d ≤ x ∨ x + n + 1 ≤ d) →
-    (d ≤ y ∨ y + n + 1 ≤ d) → win arr n x < fermatW w n → win arr n y < fermatW w n →
-    size (subMod arr n d x y) = size arr ∧
-      (∀ i, (i < d ∨ d + n + 1 ≤ i) → get (subMod arr n d x y) i = get arr i) ∧
-      win (subMod arr n d x y) n d =
-        (win arr n x + fermatW w n - win arr n y) % fermatW w n
-  addMod_spec : ∀ (arr : A) (n d x y : Nat), size arr < USize.size → d + n + 1 ≤ size arr →
-    x + n + 1 ≤ size arr → y + n + 1 ≤ size arr → 1 ≤ n → (d ≤ x ∨ x + n + 1 ≤ d) →
-    (d ≤ y ∨ y + n + 1 ≤ d) → win arr n x < fermatW w n → win arr n y < fermatW w n →
-    size (addMod arr n d x y) = size arr ∧
-      (∀ i, (i < d ∨ d + n + 1 ≤ i) → get (addMod arr n d x y) i = get arr i) ∧
-      win (addMod arr n d x y) n d = (win arr n x + win arr n y) % fermatW w n
-  mulPow2_spec : ∀ (arr : A) (n d t e : Nat), size arr < USize.size → d + n + 1 ≤ size arr →
-    t + n + 1 ≤ size arr → 1 ≤ n → e < w * n → e < USize.size →
-    (d + n + 1 ≤ t ∨ t + n + 1 ≤ d) → win arr n t < fermatW w n →
-    size (mulPow2 arr n d t e) = size arr ∧
-      (∀ i, (i < d ∨ d + n + 1 ≤ i) → get (mulPow2 arr n d t e) i = get arr i) ∧
-      win (mulPow2 arr n d t e) n d = win arr n t * 2 ^ e % fermatW w n
+  subMod_spec : ∀ (arr : A) (n d x y : Nat), LimbArray.size arr < USize.size →
+    d + n + 1 ≤ LimbArray.size arr → x + n + 1 ≤ LimbArray.size arr →
+    y + n + 1 ≤ LimbArray.size arr → 1 ≤ n → (d ≤ x ∨ x + n + 1 ≤ d) → (d ≤ y ∨ y + n + 1 ≤ d) →
+    WinOps.win arr n x < fermatW (LimbArray.w A) n →
+    WinOps.win arr n y < fermatW (LimbArray.w A) n →
+    LimbArray.size (subMod arr n d x y) = LimbArray.size arr ∧
+      (∀ i, (i < d ∨ d + n + 1 ≤ i) →
+        LimbArray.get (subMod arr n d x y) i = LimbArray.get arr i) ∧
+      WinOps.win (subMod arr n d x y) n d =
+        (WinOps.win arr n x + fermatW (LimbArray.w A) n - WinOps.win arr n y) %
+          fermatW (LimbArray.w A) n
+  addMod_spec : ∀ (arr : A) (n d x y : Nat), LimbArray.size arr < USize.size →
+    d + n + 1 ≤ LimbArray.size arr → x + n + 1 ≤ LimbArray.size arr →
+    y + n + 1 ≤ LimbArray.size arr → 1 ≤ n → (d ≤ x ∨ x + n + 1 ≤ d) → (d ≤ y ∨ y + n + 1 ≤ d) →
+    WinOps.win arr n x < fermatW (LimbArray.w A) n →
+    WinOps.win arr n y < fermatW (LimbArray.w A) n →
+    LimbArray.size (addMod arr n d x y) = LimbArray.size arr ∧
+      (∀ i, (i < d ∨ d + n + 1 ≤ i) →
+        LimbArray.get (addMod arr n d x y) i = LimbArray.get arr i) ∧
+      WinOps.win (addMod arr n d x y) n d =
+        (WinOps.win arr n x + WinOps.win arr n y) % fermatW (LimbArray.w A) n
+  mulPow2_spec : ∀ (arr : A) (n d t e : Nat), LimbArray.size arr < USize.size →
+    d + n + 1 ≤ LimbArray.size arr → t + n + 1 ≤ LimbArray.size arr → 1 ≤ n →
+    e < LimbArray.w A * n → e < USize.size → (d + n + 1 ≤ t ∨ t + n + 1 ≤ d) →
+    WinOps.win arr n t < fermatW (LimbArray.w A) n →
+    LimbArray.size (mulPow2 arr n d t e) = LimbArray.size arr ∧
+      (∀ i, (i < d ∨ d + n + 1 ≤ i) →
+        LimbArray.get (mulPow2 arr n d t e) i = LimbArray.get arr i) ∧
+      WinOps.win (mulPow2 arr n d t e) n d =
+        WinOps.win arr n t * 2 ^ e % fermatW (LimbArray.w A) n
 
 /-! ## Windows in blocks -/
 
@@ -97,13 +118,7 @@ public theorem win_in (o n p L : Nat) (h : p < L) : o + p * (n + 1) + n + 1 ≤ 
 
 namespace WinOps
 
-variable {A L : Type} [R : WinOps A L]
-
-/-- A window disjoint from the one an operation writes keeps its value. -/
-public theorem win_of_untouched {a a' : A} {n d o : Nat}
-    (u : ∀ i, (i < d ∨ d + n + 1 ≤ i) → R.get a' i = R.get a i) (h : o + n + 1 ≤ d ∨ d + n + 1 ≤ o) :
-    R.win a' n o = R.win a n o :=
-  R.win_congr fun i h₁ h₂ => u i (by lia)
+variable {A L : Type} [LA : LimbArray A L] [R : WinOps A L]
 
 /-! ## Butterflies -/
 
@@ -111,37 +126,38 @@ public theorem win_of_untouched {a a' : A} {n d o : Nat}
 @[expose, specialize] public def fwdBfly (arr : A) (n x y t e : Nat) : A :=
   R.mulPow2 (R.addMod (R.subMod arr n t x y) n x x y) n y t e
 
-/-- R.Three disjoint windows of `n + 1` limbs within an array whose indices do not overflow. -/
+/-- Three disjoint windows of `n + 1` limbs within an array whose indices do not overflow. -/
 public abbrev Three (arr : A) (n x y t : Nat) : Prop :=
-  R.size arr < USize.size ∧ x + n + 1 ≤ R.size arr ∧ y + n + 1 ≤ R.size arr ∧ t + n + 1 ≤ R.size arr ∧
+  LA.size arr < USize.size ∧ x + n + 1 ≤ LA.size arr ∧ y + n + 1 ≤ LA.size arr ∧
+    t + n + 1 ≤ LA.size arr ∧
     (x + n + 1 ≤ y ∨ y + n + 1 ≤ x) ∧ (x + n + 1 ≤ t ∨ t + n + 1 ≤ x) ∧
     (y + n + 1 ≤ t ∨ t + n + 1 ≤ y)
 
-public theorem fwdBfly_spec (arr : A) (n x y t e : Nat) (h : R.Three arr n x y t)
-    (hn : 1 ≤ n) (he : e < R.w * n) (heS : e < USize.size)
-    (hX : R.win arr n x < fermatW R.w n) (hY : R.win arr n y < fermatW R.w n) :
-    R.size (R.fwdBfly arr n x y t e) = R.size arr ∧
+public theorem fwdBfly_spec (arr : A) (n x y t e : Nat) (h : Three arr n x y t)
+    (hn : 1 ≤ n) (he : e < LA.w * n) (heS : e < USize.size)
+    (hX : win arr n x < fermatW LA.w n) (hY : win arr n y < fermatW LA.w n) :
+    LA.size (R.fwdBfly arr n x y t e) = LA.size arr ∧
       (∀ i, (i < x ∨ x + n + 1 ≤ i) → (i < y ∨ y + n + 1 ≤ i) → (i < t ∨ t + n + 1 ≤ i) →
-        R.get (R.fwdBfly arr n x y t e) i = R.get arr i) ∧
-      R.win (R.fwdBfly arr n x y t e) n x = (R.win arr n x + R.win arr n y) % fermatW R.w n ∧
-      R.win (R.fwdBfly arr n x y t e) n y =
-        (R.win arr n x + fermatW R.w n - R.win arr n y) % fermatW R.w n * 2 ^ e % fermatW R.w n := by
+        LA.get (R.fwdBfly arr n x y t e) i = LA.get arr i) ∧
+      win (R.fwdBfly arr n x y t e) n x = (win arr n x + win arr n y) % fermatW LA.w n ∧
+      win (R.fwdBfly arr n x y t e) n y =
+        (win arr n x + fermatW LA.w n - win arr n y) % fermatW LA.w n * 2 ^ e % fermatW LA.w n := by
   obtain ⟨hS, hx, hy, ht, hxy, hxt, hyt⟩ := h
-  have hF : 0 < fermatW R.w n := fermatW_pos R.w n
+  have hF : 0 < fermatW LA.w n := fermatW_pos LA.w n
   rw [fwdBfly]
   obtain ⟨s₁, u₁, v₁⟩ := R.subMod_spec arr n t x y hS ht hx hy hn (by lia) (by lia) hX hY
   generalize R.subMod arr n t x y = a₁ at *
-  have x₁ := R.win_of_untouched u₁ (o := x) (by lia)
-  have y₁ := R.win_of_untouched u₁ (o := y) (by lia)
+  have x₁ := win_of_untouched u₁ (o := x) (by lia)
+  have y₁ := win_of_untouched u₁ (o := y) (by lia)
   obtain ⟨s₂, u₂, v₂⟩ := R.addMod_spec a₁ n x x y (by lia) (by lia) (by lia) (by lia) hn
     (by lia) (by lia) (by rw [x₁]; exact hX) (by rw [y₁]; exact hY)
   generalize R.addMod a₁ n x x y = a₂ at *
-  have t₂ := R.win_of_untouched u₂ (o := t) (by lia)
-  have y₂ := R.win_of_untouched u₂ (o := y) (by lia)
+  have t₂ := win_of_untouched u₂ (o := t) (by lia)
+  have y₂ := win_of_untouched u₂ (o := y) (by lia)
   obtain ⟨s₃, u₃, v₃⟩ := R.mulPow2_spec a₂ n y t e (by lia) (by lia) (by lia) hn he heS (by lia)
     (by rw [t₂, v₁]; exact Nat.mod_lt _ hF)
   generalize R.mulPow2 a₂ n y t e = a₃ at *
-  have x₃ := R.win_of_untouched u₃ (o := x) (by lia)
+  have x₃ := win_of_untouched u₃ (o := x) (by lia)
   refine ⟨by rw [s₃, s₂, s₁], fun i h₁ h₂ h₃ => by rw [u₃ i h₂, u₂ i h₁, u₁ i h₃], ?_, ?_⟩
   · rw [x₃, v₂, x₁, y₁]
   · rw [v₃, t₂, v₁]
@@ -155,21 +171,22 @@ The inverse butterfly: `(x, y) ↦ (x + y, x - y)` for `j = 0`, and otherwise
   else R.subMod (R.addMod (R.mulPow2 arr n t y e) n y x t) n x x t
 
 public theorem invBfly_spec (arr : A) (n x y t e : Nat) (first : Bool)
-    (h : R.Three arr n x y t) (hn : 1 ≤ n) (he : e < R.w * n) (heS : e < USize.size)
-    (hX : R.win arr n x < fermatW R.w n) (hY : R.win arr n y < fermatW R.w n) :
-    R.size (R.invBfly arr n x y t e first) = R.size arr ∧
+    (h : Three arr n x y t) (hn : 1 ≤ n) (he : e < LA.w * n) (heS : e < USize.size)
+    (hX : win arr n x < fermatW LA.w n) (hY : win arr n y < fermatW LA.w n) :
+    LA.size (R.invBfly arr n x y t e first) = LA.size arr ∧
       (∀ i, (i < x ∨ x + n + 1 ≤ i) → (i < y ∨ y + n + 1 ≤ i) → (i < t ∨ t + n + 1 ≤ i) →
-        R.get (R.invBfly arr n x y t e first) i = R.get arr i) ∧
-      R.win (R.invBfly arr n x y t e first) n x =
-        (if first then (R.win arr n x + R.win arr n y) % fermatW R.w n
-        else (R.win arr n x + fermatW R.w n - R.win arr n y * 2 ^ e % fermatW R.w n) % fermatW R.w n) ∧
-      R.win (R.invBfly arr n x y t e first) n y =
-        (if first then (R.win arr n x + fermatW R.w n - R.win arr n y) % fermatW R.w n
-        else (R.win arr n x + R.win arr n y * 2 ^ e % fermatW R.w n) % fermatW R.w n) := by
+        LA.get (R.invBfly arr n x y t e first) i = LA.get arr i) ∧
+      win (R.invBfly arr n x y t e first) n x =
+        (if first then (win arr n x + win arr n y) % fermatW LA.w n
+        else (win arr n x + fermatW LA.w n - win arr n y * 2 ^ e % fermatW LA.w n) %
+          fermatW LA.w n) ∧
+      win (R.invBfly arr n x y t e first) n y =
+        (if first then (win arr n x + fermatW LA.w n - win arr n y) % fermatW LA.w n
+        else (win arr n x + win arr n y * 2 ^ e % fermatW LA.w n) % fermatW LA.w n) := by
   obtain ⟨hS, hx, hy, ht, hxy, hxt, hyt⟩ := h
-  have hF : 0 < fermatW R.w n := fermatW_pos R.w n
-  have hY' : R.win arr n y % fermatW R.w n = R.win arr n y := Nat.mod_eq_of_lt hY
-  have e0 : 0 < R.w * n := by lia
+  have hF : 0 < fermatW LA.w n := fermatW_pos LA.w n
+  have hY' : win arr n y % fermatW LA.w n = win arr n y := Nat.mod_eq_of_lt hY
+  have e0 : 0 < LA.w * n := by lia
   obtain ⟨s₁, u₁, v₁⟩ := R.mulPow2_spec arr n t y (if first then 0 else e) hS ht hy hn
     (by split <;> lia) (by split <;> lia) (by lia) hY
   have hsplit : R.invBfly arr n x y t e first = if first
@@ -178,20 +195,20 @@ public theorem invBfly_spec (arr : A) (n x y t e : Nat) (first : Bool)
     rw [invBfly]; split <;> simp_all
   rw [hsplit]
   generalize R.mulPow2 arr n t y (if first then 0 else e) = a₁ at *
-  have x₁ := R.win_of_untouched u₁ (o := x) (by lia)
-  have hT : R.win a₁ n t < fermatW R.w n := by rw [v₁]; exact Nat.mod_lt _ hF
+  have x₁ := win_of_untouched u₁ (o := x) (by lia)
+  have hT : win a₁ n t < fermatW LA.w n := by rw [v₁]; exact Nat.mod_lt _ hF
   cases first with
   | true =>
     simp only [↓reduceIte, Nat.pow_zero, Nat.mul_one, hY'] at v₁ ⊢
     obtain ⟨s₂, u₂, v₂⟩ := R.subMod_spec a₁ n y x t (by lia) (by lia) (by lia) (by lia) hn
       (by lia) (by lia) (by rw [x₁]; exact hX) hT
     generalize R.subMod a₁ n y x t = a₂ at *
-    have x₂ := R.win_of_untouched u₂ (o := x) (by lia)
-    have t₂ := R.win_of_untouched u₂ (o := t) (by lia)
+    have x₂ := win_of_untouched u₂ (o := x) (by lia)
+    have t₂ := win_of_untouched u₂ (o := t) (by lia)
     obtain ⟨s₃, u₃, v₃⟩ := R.addMod_spec a₂ n x x t (by lia) (by lia) (by lia) (by lia) hn
       (by lia) (by lia) (by rw [x₂, x₁]; exact hX) (by rw [t₂]; exact hT)
     generalize R.addMod a₂ n x x t = a₃ at *
-    have y₃ := R.win_of_untouched u₃ (o := y) (by lia)
+    have y₃ := win_of_untouched u₃ (o := y) (by lia)
     refine ⟨by rw [s₃, s₂, s₁], fun i h₁ h₂ h₃ => by rw [u₃ i h₁, u₂ i h₂, u₁ i h₃], ?_, ?_⟩
     · rw [v₃, x₂, x₁, t₂, v₁]
     · rw [y₃, v₂, x₁, v₁]
@@ -200,12 +217,12 @@ public theorem invBfly_spec (arr : A) (n x y t e : Nat) (first : Bool)
     obtain ⟨s₂, u₂, v₂⟩ := R.addMod_spec a₁ n y x t (by lia) (by lia) (by lia) (by lia) hn
       (by lia) (by lia) (by rw [x₁]; exact hX) hT
     generalize R.addMod a₁ n y x t = a₂ at *
-    have x₂ := R.win_of_untouched u₂ (o := x) (by lia)
-    have t₂ := R.win_of_untouched u₂ (o := t) (by lia)
+    have x₂ := win_of_untouched u₂ (o := x) (by lia)
+    have t₂ := win_of_untouched u₂ (o := t) (by lia)
     obtain ⟨s₃, u₃, v₃⟩ := R.subMod_spec a₂ n x x t (by lia) (by lia) (by lia) (by lia) hn
       (by lia) (by lia) (by rw [x₂, x₁]; exact hX) (by rw [t₂]; exact hT)
     generalize R.subMod a₂ n x x t = a₃ at *
-    have y₃ := R.win_of_untouched u₃ (o := y) (by lia)
+    have y₃ := win_of_untouched u₃ (o := y) (by lia)
     refine ⟨by rw [s₃, s₂, s₁], fun i h₁ h₂ h₃ => by rw [u₃ i h₁, u₂ i h₂, u₁ i h₃], ?_, ?_⟩
     · rw [v₃, x₂, x₁, t₂, v₁]
     · rw [y₃, v₂, x₁, v₁]
@@ -213,7 +230,7 @@ public theorem invBfly_spec (arr : A) (n x y t e : Nat) (first : Bool)
 /-! ## Blocks of windows -/
 
 /-- The value of window `p` of the block at `o`, the windows of `n + 1` limbs one after another. -/
-public abbrev coef (arr : A) (n o p : Nat) : Nat := R.win arr n (o + p * (n + 1))
+public abbrev coef (arr : A) (n o p : Nat) : Nat := win arr n (o + p * (n + 1))
 
 /-- The butterflies of the forward transform, from `j` on, `cnt` of them. -/
 @[expose, specialize] public def fwdLoop (n o h σ t : Nat) : A → Nat → Nat → A
@@ -224,25 +241,26 @@ public abbrev coef (arr : A) (n o p : Nat) : Nat := R.win arr n (o + p * (n + 1)
 
 /-- The bounds of a block of `L` windows at `o` and of a scratch window at `t`, disjoint from it. -/
 public abbrev Block (arr : A) (n o L t : Nat) : Prop :=
-  R.size arr < USize.size ∧ o + L * (n + 1) ≤ R.size arr ∧ t + n + 1 ≤ R.size arr ∧
+  LA.size arr < USize.size ∧ o + L * (n + 1) ≤ LA.size arr ∧ t + n + 1 ≤ LA.size arr ∧
     (t + n + 1 ≤ o ∨ o + L * (n + 1) ≤ t)
 
 set_option maxHeartbeats 400000 in
-public theorem fwdLoop_spec (n o h σ t : Nat) (hn : 1 ≤ n) (hσ : σ * h = R.w * n)
-    (hw : R.w * n < USize.size) (cnt : Nat) :
-    ∀ arr j, j + cnt = h → R.Block arr n o (h + h) t →
-      (∀ p < h + h, R.coef arr n o p < fermatW R.w n) →
-      R.size (R.fwdLoop n o h σ t arr j cnt) = R.size arr ∧
+public theorem fwdLoop_spec (n o h σ t : Nat) (hn : 1 ≤ n) (hσ : σ * h = LA.w * n)
+    (hw : LA.w * n < USize.size) (cnt : Nat) :
+    ∀ arr j, j + cnt = h → Block arr n o (h + h) t →
+      (∀ p < h + h, coef arr n o p < fermatW LA.w n) →
+      LA.size (R.fwdLoop n o h σ t arr j cnt) = LA.size arr ∧
       (∀ i, (i < o ∨ o + (h + h) * (n + 1) ≤ i) → (i < t ∨ t + n + 1 ≤ i) →
-        R.get (R.fwdLoop n o h σ t arr j cnt) i = R.get arr i) ∧
+        LA.get (R.fwdLoop n o h σ t arr j cnt) i = LA.get arr i) ∧
       (∀ p < h + h, (p < j ∨ (h ≤ p ∧ p < h + j)) →
-        R.coef (R.fwdLoop n o h σ t arr j cnt) n o p = R.coef arr n o p) ∧
+        coef (R.fwdLoop n o h σ t arr j cnt) n o p = coef arr n o p) ∧
       (∀ p, j ≤ p → p < h →
-        R.coef (R.fwdLoop n o h σ t arr j cnt) n o p =
-            (R.coef arr n o p + R.coef arr n o (h + p)) % fermatW R.w n ∧
-          R.coef (R.fwdLoop n o h σ t arr j cnt) n o (h + p) =
-            (R.coef arr n o p + fermatW R.w n - R.coef arr n o (h + p)) % fermatW R.w n * 2 ^ (σ * p) %
-              fermatW R.w n) := by
+        coef (R.fwdLoop n o h σ t arr j cnt) n o p =
+            (coef arr n o p + coef arr n o (h + p)) % fermatW LA.w n ∧
+          coef (R.fwdLoop n o h σ t arr j cnt) n o (h + p) =
+            (coef arr n o p + fermatW LA.w n - coef arr n o (h + p)) % fermatW LA.w n *
+              2 ^ (σ * p) %
+              fermatW LA.w n) := by
   induction cnt with
   | zero =>
     intro arr j hj _ _
@@ -250,32 +268,32 @@ public theorem fwdLoop_spec (n o h σ t : Nat) (hn : 1 ≤ n) (hσ : σ * h = R.
   | succ cnt ih =>
     intro arr j hj hb hv
     obtain ⟨hS, hB, ht, htd⟩ := hb
-    have hF : 0 < fermatW R.w n := fermatW_pos R.w n
+    have hF : 0 < fermatW LA.w n := fermatW_pos LA.w n
     have hjh : j < h := by lia
     have hxy := step_le (w := n + 1) (show j + 1 ≤ h + j by lia)
     have hyB := win_in o n (h + j) (h + h) (by lia)
     have hσ₀ : 0 < σ := by
       rcases Nat.eq_zero_or_pos σ with e | e
-      · rw [e, Nat.zero_mul] at hσ; have := Nat.mul_pos R.w_pos hn; lia
+      · rw [e, Nat.zero_mul] at hσ; have := Nat.mul_pos LA.w_pos hn; lia
       · exact e
-    have he : σ * j < R.w * n := by rw [← hσ]; exact Nat.mul_lt_mul_of_pos_left hjh hσ₀
+    have he : σ * j < LA.w * n := by rw [← hσ]; exact Nat.mul_lt_mul_of_pos_left hjh hσ₀
     obtain ⟨b₁, b₂, b₃, b₄⟩ := R.fwdBfly_spec arr n (o + j * (n + 1)) (o + (h + j) * (n + 1)) t
       (σ * j) ⟨hS, by lia, by lia, ht, by lia, by lia, by lia⟩ hn he (by lia)
       (hv j (by lia)) (hv (h + j) (by lia))
     rw [fwdLoop]
     generalize R.fwdBfly arr n (o + j * (n + 1)) (o + (h + j) * (n + 1)) t (σ * j) = a₁ at *
-    have hc : ∀ p < h + h, p ≠ j → p ≠ h + j → R.coef a₁ n o p = R.coef arr n o p := by
+    have hc : ∀ p < h + h, p ≠ j → p ≠ h + j → coef a₁ n o p = coef arr n o p := by
       intro p hp h₁ h₂
       have d₁ := win_disj o n p j h₁
       have d₂ := win_disj o n p (h + j) h₂
       have d₃ := win_in o n p (h + h) hp
-      exact R.win_congr fun i _ _ => b₂ i (by lia) (by lia) (by lia)
-    have hv₁ : ∀ p < h + h, R.coef a₁ n o p < fermatW R.w n := by
+      exact win_congr fun i _ _ => b₂ i (by lia) (by lia) (by lia)
+    have hv₁ : ∀ p < h + h, coef a₁ n o p < fermatW LA.w n := by
       intro p hp
       by_cases e₁ : p = j
-      · subst e₁; show R.win a₁ n _ < _; rw [b₃]; exact Nat.mod_lt _ hF
+      · subst e₁; show win a₁ n _ < _; rw [b₃]; exact Nat.mod_lt _ hF
       by_cases e₂ : p = h + j
-      · subst e₂; show R.win a₁ n _ < _; rw [b₄]; exact Nat.mod_lt _ hF
+      · subst e₂; show win a₁ n _ < _; rw [b₄]; exact Nat.mod_lt _ hF
       rw [hc p hp e₁ e₂]; exact hv p hp
     obtain ⟨i₁, i₂, i₃, i₄⟩ := ih a₁ (j + 1) (by lia) ⟨by lia, by lia, by lia, htd⟩ hv₁
     refine ⟨i₁.trans b₁, fun i h₁ h₂ => ?_, fun p hp hpj => ?_, fun p h₁ h₂ => ?_⟩
@@ -305,14 +323,14 @@ of the two halves, then the transforms of each half with the root `2^(2 σ)`.
     let a := fwd n t m a o (2 * σ)
     fwd n t m a (o + 2 ^ m * (n + 1)) (2 * σ)
 
-public theorem fwd_spec (n t : Nat) (hn : 1 ≤ n) (hw : R.w * n < USize.size) (m : Nat) :
-    ∀ arr o σ, σ * 2 ^ m = 2 * (R.w * n) → R.Block arr n o (2 ^ m) t →
-      (∀ p < 2 ^ m, R.coef arr n o p < fermatW R.w n) →
-      R.size (R.fwd n t m arr o σ) = R.size arr ∧
+public theorem fwd_spec (n t : Nat) (hn : 1 ≤ n) (hw : LA.w * n < USize.size) (m : Nat) :
+    ∀ arr o σ, σ * 2 ^ m = 2 * (LA.w * n) → Block arr n o (2 ^ m) t →
+      (∀ p < 2 ^ m, coef arr n o p < fermatW LA.w n) →
+      LA.size (R.fwd n t m arr o σ) = LA.size arr ∧
       (∀ i, (i < o ∨ o + 2 ^ m * (n + 1) ≤ i) → (i < t ∨ t + n + 1 ≤ i) →
-        R.get (R.fwd n t m arr o σ) i = R.get arr i) ∧
-      (∀ p < 2 ^ m, R.coef (R.fwd n t m arr o σ) n o p =
-        sumRange (fun i => R.coef arr n o i * 2 ^ (σ * i * rev m p)) (2 ^ m) % fermatW R.w n) := by
+        LA.get (R.fwd n t m arr o σ) i = LA.get arr i) ∧
+      (∀ p < 2 ^ m, coef (R.fwd n t m arr o σ) n o p =
+        sumRange (fun i => coef arr n o i * 2 ^ (σ * i * rev m p)) (2 ^ m) % fermatW LA.w n) := by
   induction m with
   | zero =>
     intro arr o σ _ _ hv
@@ -325,16 +343,16 @@ public theorem fwd_spec (n t : Nat) (hn : 1 ≤ n) (hw : R.w * n < USize.size) (
   | succ m ih =>
     intro arr o σ hσ hb hv
     obtain ⟨hS, hB, ht, htd⟩ := hb
-    have hF : 0 < fermatW R.w n := fermatW_pos R.w n
+    have hF : 0 < fermatW LA.w n := fermatW_pos LA.w n
     have h2 : 2 ^ (m + 1) = 2 ^ m + 2 ^ m := by rw [Nat.pow_succ]; lia
     rw [h2] at hB htd hv ⊢
-    have hσ' : σ * 2 ^ m = R.w * n := by rw [h2] at hσ; lia
+    have hσ' : σ * 2 ^ m = LA.w * n := by rw [h2] at hσ; lia
     simp only [fwd]
     -- The butterflies.
     obtain ⟨l₁, l₂, -, l₄⟩ := R.fwdLoop_spec n o (2 ^ m) σ t hn hσ' hw (2 ^ m) arr 0 (by lia)
       ⟨hS, hB, ht, htd⟩ hv
     generalize R.fwdLoop n o (2 ^ m) σ t arr 0 (2 ^ m) = a₁ at *
-    have hv₁ : ∀ p < 2 ^ m + 2 ^ m, R.coef a₁ n o p < fermatW R.w n := by
+    have hv₁ : ∀ p < 2 ^ m + 2 ^ m, coef a₁ n o p < fermatW LA.w n := by
       intro p hp
       rcases Nat.lt_or_ge p (2 ^ m) with e | e
       · rw [(l₄ p (by lia) e).1]; exact Nat.mod_lt _ hF
@@ -348,11 +366,11 @@ public theorem fwd_spec (n t : Nat) (hn : 1 ≤ n) (hw : R.w * n < USize.size) (
     -- The second half.
     have hoff : ∀ p, o + 2 ^ m * (n + 1) + p * (n + 1) = o + (2 ^ m + p) * (n + 1) := by
       intro p; rw [Nat.add_mul]; lia
-    have hv₂ : ∀ p < 2 ^ m, R.coef a₂ n (o + 2 ^ m * (n + 1)) p < fermatW R.w n := by
+    have hv₂ : ∀ p < 2 ^ m, coef a₂ n (o + 2 ^ m * (n + 1)) p < fermatW LA.w n := by
       intro p hp
       have d := win_in o n (2 ^ m + p) (2 ^ m + 2 ^ m) (by lia)
-      show R.win a₂ n _ < _
-      rw [hoff, R.win_congr fun i _ _ => f₂ i (by lia) (by lia)]
+      show win a₂ n _ < _
+      rw [hoff, win_congr fun i _ _ => f₂ i (by lia) (by lia)]
       exact hv₁ _ (by lia)
     obtain ⟨g₁, g₂, g₃⟩ := ih a₂ (o + 2 ^ m * (n + 1)) (2 * σ) (by rw [Nat.mul_assoc, hσ'])
       ⟨by lia, by lia, by lia, by lia⟩ hv₂
@@ -362,25 +380,27 @@ public theorem fwd_spec (n t : Nat) (hn : 1 ≤ n) (hw : R.w * n < USize.size) (
     · rcases Nat.lt_or_ge p (2 ^ m) with e | e
       · -- An even output, from the first half.
         have d := win_in o n p (2 ^ m) e
-        show R.win a₃ n _ = _
-        rw [R.win_congr fun i _ _ => g₂ i (by lia) (by lia)]
-        show R.coef a₂ n o p = _
+        show win a₃ n _ = _
+        rw [win_congr fun i _ _ => g₂ i (by lia) (by lia)]
+        show coef a₂ n o p = _
         rw [f₃ p e, rev_succ_lo m p e]
-        rw [sumRange_congr (g := fun i => (R.coef arr n o i + R.coef arr n o (2 ^ m + i)) % fermatW R.w n *
+        rw [sumRange_congr (g := fun i =>
+          (coef arr n o i + coef arr n o (2 ^ m + i)) % fermatW LA.w n *
           2 ^ (2 * σ * i * rev m p)) fun i hi => by rw [(l₄ i (by lia) hi).1]]
         exact fwd_even rfl _ σ (2 ^ m) (rev m p) hσ'
       · -- An odd output, from the second half.
         obtain ⟨p', rfl⟩ : ∃ p', p = 2 ^ m + p' := ⟨p - 2 ^ m, by lia⟩
-        show R.win a₃ n _ = _
+        show win a₃ n _ = _
         rw [← hoff]
-        show R.coef a₃ n (o + 2 ^ m * (n + 1)) p' = _
+        show coef a₃ n (o + 2 ^ m * (n + 1)) p' = _
         rw [g₃ p' (by lia), rev_succ_hi m p']
-        rw [sumRange_congr (g := fun i => (R.coef arr n o i + fermatW R.w n - R.coef arr n o (2 ^ m + i)) %
-          fermatW R.w n * 2 ^ (σ * i) % fermatW R.w n * 2 ^ (2 * σ * i * rev m p')) fun i hi => by
+        rw [sumRange_congr (g := fun i =>
+          (coef arr n o i + fermatW LA.w n - coef arr n o (2 ^ m + i)) %
+          fermatW LA.w n * 2 ^ (σ * i) % fermatW LA.w n * 2 ^ (2 * σ * i * rev m p')) fun i hi => by
             have d := win_in o n (2 ^ m + i) (2 ^ m + 2 ^ m) (by lia)
-            show R.win a₂ n _ * _ = _
-            rw [hoff, R.win_congr fun k _ _ => f₂ k (by lia) (by lia)]
-            show R.coef a₁ n o (2 ^ m + i) * _ = _
+            show win a₂ n _ * _ = _
+            rw [hoff, win_congr fun k _ _ => f₂ k (by lia) (by lia)]
+            show coef a₁ n o (2 ^ m + i) * _ = _
             rw [(l₄ i (by lia) hi).2]]
         exact fwd_odd rfl _ σ (2 ^ m) (rev m p') hσ' fun i hi => Nat.le_of_lt (hv _ (by lia))
 
@@ -391,29 +411,30 @@ public theorem fwd_spec (n t : Nat) (hn : 1 ≤ n) (hw : R.w * n < USize.size) (
   | arr, _, 0 => arr
   | arr, j, cnt + 1 =>
     invLoop n o h σ t (R.invBfly arr n (o + j * (n + 1)) (o + (h + j) * (n + 1)) t
-      (if j = 0 then 0 else R.w * n - σ * j) (j == 0)) (j + 1) cnt
+      (if j = 0 then 0 else LA.w * n - σ * j) (j == 0)) (j + 1) cnt
 
 set_option maxHeartbeats 400000 in
-public theorem invLoop_spec (n o h σ t : Nat) (hn : 1 ≤ n) (hσ : σ * h = R.w * n)
-    (hw : R.w * n < USize.size) (cnt : Nat) :
-    ∀ arr j, j + cnt = h → R.Block arr n o (h + h) t →
-      (∀ p < h + h, R.coef arr n o p < fermatW R.w n) →
-      R.size (R.invLoop n o h σ t arr j cnt) = R.size arr ∧
+public theorem invLoop_spec (n o h σ t : Nat) (hn : 1 ≤ n) (hσ : σ * h = LA.w * n)
+    (hw : LA.w * n < USize.size) (cnt : Nat) :
+    ∀ arr j, j + cnt = h → Block arr n o (h + h) t →
+      (∀ p < h + h, coef arr n o p < fermatW LA.w n) →
+      LA.size (R.invLoop n o h σ t arr j cnt) = LA.size arr ∧
       (∀ i, (i < o ∨ o + (h + h) * (n + 1) ≤ i) → (i < t ∨ t + n + 1 ≤ i) →
-        R.get (R.invLoop n o h σ t arr j cnt) i = R.get arr i) ∧
+        LA.get (R.invLoop n o h σ t arr j cnt) i = LA.get arr i) ∧
       (∀ p < h + h, (p < j ∨ (h ≤ p ∧ p < h + j)) →
-        R.coef (R.invLoop n o h σ t arr j cnt) n o p = R.coef arr n o p) ∧
+        coef (R.invLoop n o h σ t arr j cnt) n o p = coef arr n o p) ∧
       (∀ p, j ≤ p → p < h →
-        R.coef (R.invLoop n o h σ t arr j cnt) n o p =
-            (if (p == 0) = true then (R.coef arr n o p + R.coef arr n o (h + p)) % fermatW R.w n
-            else (R.coef arr n o p + fermatW R.w n -
-              R.coef arr n o (h + p) * 2 ^ (if p = 0 then 0 else R.w * n - σ * p) % fermatW R.w n) %
-                fermatW R.w n) ∧
-          R.coef (R.invLoop n o h σ t arr j cnt) n o (h + p) =
-            (if (p == 0) = true then (R.coef arr n o p + fermatW R.w n - R.coef arr n o (h + p)) % fermatW R.w n
-            else (R.coef arr n o p +
-              R.coef arr n o (h + p) * 2 ^ (if p = 0 then 0 else R.w * n - σ * p) % fermatW R.w n) %
-                fermatW R.w n)) := by
+        coef (R.invLoop n o h σ t arr j cnt) n o p =
+            (if (p == 0) = true then (coef arr n o p + coef arr n o (h + p)) % fermatW LA.w n
+            else (coef arr n o p + fermatW LA.w n -
+              coef arr n o (h + p) * 2 ^ (if p = 0 then 0 else LA.w * n - σ * p) % fermatW LA.w n) %
+                fermatW LA.w n) ∧
+          coef (R.invLoop n o h σ t arr j cnt) n o (h + p) =
+            (if (p == 0) = true then
+              (coef arr n o p + fermatW LA.w n - coef arr n o (h + p)) % fermatW LA.w n
+            else (coef arr n o p +
+              coef arr n o (h + p) * 2 ^ (if p = 0 then 0 else LA.w * n - σ * p) % fermatW LA.w n) %
+                fermatW LA.w n)) := by
   induction cnt with
   | zero =>
     intro arr j hj _ _
@@ -421,39 +442,39 @@ public theorem invLoop_spec (n o h σ t : Nat) (hn : 1 ≤ n) (hσ : σ * h = R.
   | succ cnt ih =>
     intro arr j hj hb hv
     obtain ⟨hS, hB, ht, htd⟩ := hb
-    have hF : 0 < fermatW R.w n := fermatW_pos R.w n
+    have hF : 0 < fermatW LA.w n := fermatW_pos LA.w n
     have hjh : j < h := by lia
     have hxy := step_le (w := n + 1) (show j + 1 ≤ h + j by lia)
     have hyB := win_in o n (h + j) (h + h) (by lia)
     have hσ₀ : 0 < σ := by
       rcases Nat.eq_zero_or_pos σ with e | e
-      · rw [e, Nat.zero_mul] at hσ; have := Nat.mul_pos R.w_pos hn; lia
+      · rw [e, Nat.zero_mul] at hσ; have := Nat.mul_pos LA.w_pos hn; lia
       · exact e
-    have he : (if j = 0 then 0 else R.w * n - σ * j) < R.w * n := by
-      have := Nat.mul_pos R.w_pos hn
+    have he : (if j = 0 then 0 else LA.w * n - σ * j) < LA.w * n := by
+      have := Nat.mul_pos LA.w_pos hn
       split
       · lia
       · have : 0 < σ * j := Nat.mul_pos hσ₀ (by lia)
         lia
     obtain ⟨b₁, b₂, b₃, b₄⟩ := R.invBfly_spec arr n (o + j * (n + 1)) (o + (h + j) * (n + 1)) t
-      (if j = 0 then 0 else R.w * n - σ * j) (j == 0)
+      (if j = 0 then 0 else LA.w * n - σ * j) (j == 0)
       ⟨hS, by lia, by lia, ht, by lia, by lia, by lia⟩
       hn he (by lia) (hv j (by lia)) (hv (h + j) (by lia))
     rw [invLoop]
     generalize R.invBfly arr n (o + j * (n + 1)) (o + (h + j) * (n + 1)) t
-      (if j = 0 then 0 else R.w * n - σ * j) (j == 0) = a₁ at *
-    have hc : ∀ p < h + h, p ≠ j → p ≠ h + j → R.coef a₁ n o p = R.coef arr n o p := by
+      (if j = 0 then 0 else LA.w * n - σ * j) (j == 0) = a₁ at *
+    have hc : ∀ p < h + h, p ≠ j → p ≠ h + j → coef a₁ n o p = coef arr n o p := by
       intro p hp h₁ h₂
       have d₁ := win_disj o n p j h₁
       have d₂ := win_disj o n p (h + j) h₂
       have d₃ := win_in o n p (h + h) hp
-      exact R.win_congr fun i _ _ => b₂ i (by lia) (by lia) (by lia)
-    have hv₁ : ∀ p < h + h, R.coef a₁ n o p < fermatW R.w n := by
+      exact win_congr fun i _ _ => b₂ i (by lia) (by lia) (by lia)
+    have hv₁ : ∀ p < h + h, coef a₁ n o p < fermatW LA.w n := by
       intro p hp
       by_cases e₁ : p = j
-      · subst e₁; show R.win a₁ n _ < _; rw [b₃]; split <;> exact Nat.mod_lt _ hF
+      · subst e₁; show win a₁ n _ < _; rw [b₃]; split <;> exact Nat.mod_lt _ hF
       by_cases e₂ : p = h + j
-      · subst e₂; show R.win a₁ n _ < _; rw [b₄]; split <;> exact Nat.mod_lt _ hF
+      · subst e₂; show win a₁ n _ < _; rw [b₄]; split <;> exact Nat.mod_lt _ hF
       rw [hc p hp e₁ e₂]; exact hv p hp
     obtain ⟨i₁, i₂, i₃, i₄⟩ := ih a₁ (j + 1) (by lia) ⟨by lia, by lia, by lia, htd⟩ hv₁
     refine ⟨i₁.trans b₁, fun i h₁ h₂ => ?_, fun p hp hpj => ?_, fun p h₁ h₂ => ?_⟩
@@ -484,15 +505,15 @@ transforms of each half, then the butterflies.
     R.invLoop n o (2 ^ m) σ t a 0 (2 ^ m)
 
 set_option maxHeartbeats 400000 in
-public theorem inv_spec (n t : Nat) (hn : 1 ≤ n) (hw : R.w * n < USize.size) (m : Nat) :
-    ∀ arr o σ, σ * 2 ^ m = 2 * (R.w * n) → R.Block arr n o (2 ^ m) t →
-      (∀ p < 2 ^ m, R.coef arr n o p < fermatW R.w n) →
-      R.size (R.inv n t m arr o σ) = R.size arr ∧
+public theorem inv_spec (n t : Nat) (hn : 1 ≤ n) (hw : LA.w * n < USize.size) (m : Nat) :
+    ∀ arr o σ, σ * 2 ^ m = 2 * (LA.w * n) → Block arr n o (2 ^ m) t →
+      (∀ p < 2 ^ m, coef arr n o p < fermatW LA.w n) →
+      LA.size (R.inv n t m arr o σ) = LA.size arr ∧
       (∀ i, (i < o ∨ o + 2 ^ m * (n + 1) ≤ i) → (i < t ∨ t + n + 1 ≤ i) →
-        R.get (R.inv n t m arr o σ) i = R.get arr i) ∧
-      (∀ l < 2 ^ m, R.coef (R.inv n t m arr o σ) n o l =
-        sumRange (fun p => R.coef arr n o p * 2 ^ ((2 * (R.w * n) - σ) * rev m p * l)) (2 ^ m) %
-          fermatW R.w n) := by
+        LA.get (R.inv n t m arr o σ) i = LA.get arr i) ∧
+      (∀ l < 2 ^ m, coef (R.inv n t m arr o σ) n o l =
+        sumRange (fun p => coef arr n o p * 2 ^ ((2 * (LA.w * n) - σ) * rev m p * l)) (2 ^ m) %
+          fermatW LA.w n) := by
   induction m with
   | zero =>
     intro arr o σ _ _ hv
@@ -505,10 +526,10 @@ public theorem inv_spec (n t : Nat) (hn : 1 ≤ n) (hw : R.w * n < USize.size) (
   | succ m ih =>
     intro arr o σ hσ hb hv
     obtain ⟨hS, hB, ht, htd⟩ := hb
-    have hF : 0 < fermatW R.w n := fermatW_pos R.w n
+    have hF : 0 < fermatW LA.w n := fermatW_pos LA.w n
     have h2 : 2 ^ (m + 1) = 2 ^ m + 2 ^ m := by rw [Nat.pow_succ]; lia
     rw [h2] at hB htd hv ⊢
-    have hσ' : σ * 2 ^ m = R.w * n := by rw [h2] at hσ; lia
+    have hσ' : σ * 2 ^ m = LA.w * n := by rw [h2] at hσ; lia
     have hm₀ : 1 ≤ 2 ^ m := Nat.one_le_two_pow
     simp only [inv]
     have hmid := Nat.mul_le_mul_right (n + 1) (show 2 ^ m ≤ 2 ^ m + 2 ^ m by lia)
@@ -519,31 +540,31 @@ public theorem inv_spec (n t : Nat) (hn : 1 ≤ n) (hw : R.w * n < USize.size) (
       by lia⟩ (fun p hp => hv p (by lia))
     generalize R.inv n t m arr o (2 * σ) = a₁ at *
     -- The second half.
-    have hu₁ : ∀ p < 2 ^ m, R.coef a₁ n (o + 2 ^ m * (n + 1)) p = R.coef arr n o (2 ^ m + p) := by
+    have hu₁ : ∀ p < 2 ^ m, coef a₁ n (o + 2 ^ m * (n + 1)) p = coef arr n o (2 ^ m + p) := by
       intro p hp
       have d := win_in o n (2 ^ m + p) (2 ^ m + 2 ^ m) (by lia)
-      show R.win a₁ n _ = R.win arr n _
-      rw [hoff, R.win_congr fun i _ _ => f₂ i (by lia) (by lia)]
+      show win a₁ n _ = win arr n _
+      rw [hoff, win_congr fun i _ _ => f₂ i (by lia) (by lia)]
     obtain ⟨g₁, g₂, g₃⟩ := ih a₁ (o + 2 ^ m * (n + 1)) (2 * σ) (by rw [Nat.mul_assoc, hσ'])
       ⟨by lia, by lia, by lia, by lia⟩ (fun p hp => by rw [hu₁ p hp]; exact hv _ (by lia))
     generalize R.inv n t m a₁ (o + 2 ^ m * (n + 1)) (2 * σ) = a₂ at *
     -- The halves, as transforms.
-    have hA : ∀ l < 2 ^ m, R.coef a₂ n o l = sumRange (fun p => R.coef arr n o p *
-        2 ^ ((2 * (R.w * n) - 2 * σ) * rev m p * l)) (2 ^ m) % fermatW R.w n := by
+    have hA : ∀ l < 2 ^ m, coef a₂ n o l = sumRange (fun p => coef arr n o p *
+        2 ^ ((2 * (LA.w * n) - 2 * σ) * rev m p * l)) (2 ^ m) % fermatW LA.w n := by
       intro l hl
       have d := win_in o n l (2 ^ m) hl
-      show R.win a₂ n _ = _
-      rw [R.win_congr fun i _ _ => g₂ i (by lia) (by lia)]
+      show win a₂ n _ = _
+      rw [win_congr fun i _ _ => g₂ i (by lia) (by lia)]
       exact f₃ l hl
-    have hBv : ∀ l < 2 ^ m, R.coef a₂ n o (2 ^ m + l) = sumRange (fun p => R.coef arr n o (2 ^ m + p) *
-        2 ^ ((2 * (R.w * n) - 2 * σ) * rev m p * l)) (2 ^ m) % fermatW R.w n := by
+    have hBv : ∀ l < 2 ^ m, coef a₂ n o (2 ^ m + l) = sumRange (fun p => coef arr n o (2 ^ m + p) *
+        2 ^ ((2 * (LA.w * n) - 2 * σ) * rev m p * l)) (2 ^ m) % fermatW LA.w n := by
       intro l hl
-      show R.win a₂ n _ = _
+      show win a₂ n _ = _
       rw [← hoff]
-      show R.coef a₂ n (o + 2 ^ m * (n + 1)) l = _
+      show coef a₂ n (o + 2 ^ m * (n + 1)) l = _
       rw [g₃ l hl]
-      exact congrArg (· % fermatW R.w n) (sumRange_congr fun p hp => by rw [hu₁ p hp])
-    have hv₂ : ∀ p < 2 ^ m + 2 ^ m, R.coef a₂ n o p < fermatW R.w n := by
+      exact congrArg (· % fermatW LA.w n) (sumRange_congr fun p hp => by rw [hu₁ p hp])
+    have hv₂ : ∀ p < 2 ^ m + 2 ^ m, coef a₂ n o p < fermatW LA.w n := by
       intro p hp
       rcases Nat.lt_or_ge p (2 ^ m) with e | e
       · rw [hA p e]; exact Nat.mod_lt _ hF
@@ -557,34 +578,36 @@ public theorem inv_spec (n t : Nat) (hn : 1 ≤ n) (hw : R.w * n < USize.size) (
     · rw [l₂ i h₁ h₂, g₂ i (by lia) h₂, f₂ i (by lia) h₂]
     -- Each output is congruent to the sum, and reduced.
     have hσle : σ ≤ σ * 2 ^ m := Nat.le_mul_of_pos_right σ hm₀
-    have hτ : 2 * (R.w * n) - σ + σ = 2 * (R.w * n) := by lia
-    have hτ' : 2 * (R.w * n) - 2 * σ + 2 * σ = 2 * (R.w * n) := by lia
-    have hsplit : ∀ l', sumRange (fun p => R.coef arr n o p *
-        2 ^ ((2 * (R.w * n) - σ) * rev (m + 1) p * l')) (2 ^ m + 2 ^ m) =
-          sumRange (fun p => R.coef arr n o p * 2 ^ ((2 * (R.w * n) - σ) *
-          (2 * rev m p) * l')) (2 ^ m) + sumRange (fun p => R.coef arr n o (2 ^ m + p) *
-          2 ^ ((2 * (R.w * n) - σ) * (2 * rev m p + 1) * l')) (2 ^ m) := by
+    have hτ : 2 * (LA.w * n) - σ + σ = 2 * (LA.w * n) := by lia
+    have hτ' : 2 * (LA.w * n) - 2 * σ + 2 * σ = 2 * (LA.w * n) := by lia
+    have hsplit : ∀ l', sumRange (fun p => coef arr n o p *
+        2 ^ ((2 * (LA.w * n) - σ) * rev (m + 1) p * l')) (2 ^ m + 2 ^ m) =
+          sumRange (fun p => coef arr n o p * 2 ^ ((2 * (LA.w * n) - σ) *
+          (2 * rev m p) * l')) (2 ^ m) + sumRange (fun p => coef arr n o (2 ^ m + p) *
+          2 ^ ((2 * (LA.w * n) - σ) * (2 * rev m p + 1) * l')) (2 ^ m) := by
       intro l'
       rw [sumRange_append]
       congr 1
       · exact sumRange_congr fun p hp => by rw [rev_succ_lo m p hp]
       · exact sumRange_congr fun p hp => by rw [rev_succ_hi m p]
-    have hred : ∀ {c S}, c < fermatW R.w n → MEq (fermatW R.w n) c S → c = S % fermatW R.w n :=
+    have hred : ∀ {c S}, c < fermatW LA.w n → MEq (fermatW LA.w n) c S → c = S % fermatW LA.w n :=
       fun hc h => (Nat.mod_eq_of_lt hc).symm.trans h
-    have hMA : ∀ l < 2 ^ m, MEq (fermatW R.w n) (R.coef a₂ n o l) (sumRange (fun p => R.coef arr n o p *
-        2 ^ ((2 * (R.w * n) - 2 * σ) * rev m p * l)) (2 ^ m)) := fun l hl => by
+    have hMA : ∀ l < 2 ^ m, MEq (fermatW LA.w n) (coef a₂ n o l) (sumRange (fun p =>
+        coef arr n o p *
+        2 ^ ((2 * (LA.w * n) - 2 * σ) * rev m p * l)) (2 ^ m)) := fun l hl => by
       rw [hA l hl]; exact MEq.mod _ _
-    have hMB : ∀ l < 2 ^ m, MEq (fermatW R.w n) (R.coef a₂ n o (2 ^ m + l)) (sumRange (fun p =>
-        R.coef arr n o (2 ^ m + p) * 2 ^ ((2 * (R.w * n) - 2 * σ) * rev m p * l)) (2 ^ m)) :=
+    have hMB : ∀ l < 2 ^ m, MEq (fermatW LA.w n) (coef a₂ n o (2 ^ m + l)) (sumRange (fun p =>
+        coef arr n o (2 ^ m + p) * 2 ^ ((2 * (LA.w * n) - 2 * σ) * rev m p * l)) (2 ^ m)) :=
       fun l hl => by rw [hBv l hl]; exact MEq.mod _ _
     -- The exponent of a twiddle, `τ l ≡ e + N`.
-    have hexp : ∀ l₁, l₁ + 1 < 2 ^ m → (2 * (R.w * n) - σ) * (l₁ + 1) =
-        (R.w * n - σ * (l₁ + 1)) + R.w * n + 2 * (R.w * n) * l₁ := by
+    have hexp : ∀ l₁, l₁ + 1 < 2 ^ m → (2 * (LA.w * n) - σ) * (l₁ + 1) =
+        (LA.w * n - σ * (l₁ + 1)) + LA.w * n + 2 * (LA.w * n) * l₁ := by
       intro l₁ hl₁
       have h₁ : σ * (l₁ + 1) ≤ σ * 2 ^ m := Nat.mul_le_mul_left σ (by lia)
       rw [Nat.sub_mul]
       lia
-    have hcl : ∀ l < 2 ^ m, R.coef a₃ n o l < fermatW R.w n ∧ R.coef a₃ n o (2 ^ m + l) < fermatW R.w n := by
+    have hcl : ∀ l < 2 ^ m,
+        coef a₃ n o l < fermatW LA.w n ∧ coef a₃ n o (2 ^ m + l) < fermatW LA.w n := by
       intro l hl
       obtain ⟨k₁, k₂⟩ := l₄ l (by lia) hl
       rw [k₁, k₂]
