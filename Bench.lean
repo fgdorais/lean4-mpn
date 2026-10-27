@@ -167,9 +167,9 @@ def main (args : List String) : IO Unit := do
     for n in sizes do
       let a := sample n 1
       let b := sample n 2
-      let (na, nb) := (toNat a, toNat b)
+      let (na, nb) := if noNat then (0, 0) else (toNat a, toNat b)
       let s := sample (n + 1) 3
-      let ns := toNat s
+      let ns := if noNat then 0 else toNat s
       match op with
       | "add" =>
         row noNat op n
@@ -221,7 +221,7 @@ def main (args : List String) : IO Unit := do
           (time (fun (x _ : UInt64Array) => MPN.Num.toDecimal x) (fun s => s.length.toUInt64) a a)
           (time (fun x _ => Nat.repr x) (fun s => s.length.toUInt64) na na)
       | "parse" =>
-        let str := Nat.repr na
+        let str := MPN.Num.toDecimal a
         row noNat op n
           (time (fun (s _ : String) => MPN.Num.ofDecimal? s)
             (fun o => match o with | some x => checkArr x | none => 0) str str)

@@ -13,7 +13,7 @@ scripts/bench_md.py bench.txt         # the two tables below
 ```
 
 Arguments select operations and sizes, for example `bench mul kara 4 16`, and `--no-nat` skips
-`Nat`, for a profiler. Pinning the process to one core with `taskset` makes the results steadier.
+`Nat`, and the conversions of the operands to it, for a profiler. Pinning the process to one core with `taskset` makes the results steadier.
 Each time is the median of five trials, and the last two columns, `±MPN` and `±Nat`, are the
 spread of those trials (sample standard deviation over mean, from `Batteries.RunningStats`).
 
