@@ -129,15 +129,9 @@ public theorem win_of_untouched {a a' : UInt32Array} {n d o : Nat}
 
 /-- The residue operations of `MPN.FFT.Fermat`, guarded, for the transforms of `WinOps`. -/
 public instance winOps32 : WinOps UInt32Array UInt32 where
-  w := 32
-  w_pos := by decide
-  size a := a.size
-  get a i := a[i]!
-  win a n o := a.valAt o (n + 1)
   subMod := subModG
   addMod := addModG
   mulPow2 := mulPow2G
-  win_congr h := win_congr h
   subMod_spec := subModG_spec
   addMod_spec := addModG_spec
   mulPow2_spec := mulPow2G_spec
