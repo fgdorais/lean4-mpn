@@ -16,7 +16,7 @@ for limbs of any width: congruences (`MEq`), the reversal of the bits of an inde
 identities of the butterflies of the forward transform by decimation in frequency and of the
 inverse one by decimation in time, and the coefficients that the transforms give (`fft_coef`),
 also when the pieces of the operands wrap around, for products modulo `x^K - 1` (`fft_coef_cyc`).
-The transforms themselves, on residues in windows of limbs, are on `main32` and `main64`.
+The transforms themselves, on residues in windows of limbs, are in `MPN.FFT.Windows`.
 -/
 
 namespace MPN.FFT

@@ -11,6 +11,7 @@ public import MPN.NatMod
 public import MPN.ListIndex
 public import MPN.Poly
 public import MPN.FFT.Algebra
+public import MPN.FFT.Windows
 public import MPN.WordGcd
 public import MPN.Assemble
 public import MPN.UInt
