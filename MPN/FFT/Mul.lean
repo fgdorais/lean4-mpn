@@ -5,20 +5,18 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN.FFT.Transform
-public import MPN.FFT.Roots
-public import MPN.Poly
+public import MPN.FFT.Product
 public import MPN.Mul.Toom
 public import MPN.Sqr.Karatsuba
 
 /-!
 # FFT multiplication
 
-Schönhage–Strassen multiplication of `a` by `b` on one flat array: their pieces of `m` limbs are
-loaded into two blocks of `K = 2ᵏ` windows of `n + 1` limbs, transformed modulo `F = 2^(64 n) + 1`
-with the root `2^σ`, `σ = 128 n / K`, multiplied pointwise, by `mulToom` and a reduction
-modulo `F`, and transformed back. Divided by `K`, the windows are the coefficients of the product
-of the polynomials of the pieces, which are less than `F` when `K 2^(128 m) ≤ 2^(64 n)`, so they
-are exact; their sum at `2^(64 m)` is `a b`.
+Schönhage–Strassen multiplication on 64-bit limbs: `main`'s `MPN.FFT.Product` on the instance
+`fftOps64` of `FFTOps`, whose operations are the in-place loops of `MPN.AddSub` and
+`MPN.FFT.Fermat` with `Nat` offsets, with `mulToom` and `sqrKaratsuba` for the pointwise products.
+`fftMulAt`, `fftMulModAt` and `fftSqrAt` take `USlice`s; `fftMul`, `fftSqr` and the dispatchers
+`MPN.mul` and `MPN.sqr` choose the parameters.
 -/
 
 open ScalarArray UInt64Array
@@ -48,58 +46,49 @@ public theorem sl_spec (arr : UInt64Array) (o len : Nat) (h : o + len ≤ arr.si
   rw [USlice.toNat_eq_valAt, hsz, sl, hst, ho]
   rfl
 
-/-! ## Pieces -/
+/-! ## Pieces of slices -/
 
 /-- Piece `i` of `a`: its limbs `i m` to `i m + m - 1`, or fewer at the end. -/
 @[expose] public def piece (a : USlice) (m i : Nat) : Nat :=
-  a.array.valAt (a.start.toNat + i * m) (min m (a.size.toNat - i * m))
+  FFTOps.piece a.array a.start.toNat a.size.toNat m i
 
 /-- The first `L` pieces of `a`. -/
-@[expose] public def pieces (a : USlice) (m L : Nat) : List Nat := (List.range L).map (piece a m)
-
-public theorem piece_lt (a : USlice) (m i : Nat) : piece a m i < 2 ^ (64 * m) :=
-  Nat.lt_of_lt_of_le (valAt_lt ..) (Nat.pow_le_pow_right (by decide) (by lia))
-
-private theorem polyVal_pieces_from (a : USlice) (m : Nat) (L : Nat) :
-    ∀ i, polyVal (2 ^ (64 * m)) ((List.range L).map fun j => piece a m (i + j)) =
-      a.array.valAt (a.start.toNat + i * m) (min (L * m) (a.size.toNat - i * m)) := by
-  induction L with
-  | zero => intro i; simp [polyVal]
-  | succ L ih =>
-    intro i
-    rw [List.range_succ_eq_map, List.map_cons, List.map_map, polyVal]
-    have e : ((fun j => piece a m (i + j)) ∘ Nat.succ) = fun j => piece a m ((i + 1) + j) := by
-      funext j; simp only [Function.comp, Nat.succ_eq_add_one]; congr 1; lia
-    rw [e, ih (i + 1), Nat.add_zero, piece]
-    -- Split the limbs of the pieces `i` to `i + L` after the first.
-    rcases Nat.le_total (a.size.toNat - i * m) m with h | h
-    · rw [Nat.min_eq_right h, show a.size.toNat - (i + 1) * m = 0 by rw [Nat.add_mul]; lia,
-        Nat.min_zero, valAt_zero, Nat.mul_zero, Nat.add_zero,
-        Nat.min_eq_right (show a.size.toNat - i * m ≤ (L + 1) * m by rw [Nat.add_mul]; lia)]
-    · rw [Nat.min_eq_left h, show (L + 1) * m = m + L * m by rw [Nat.add_mul]; lia,
-        show min (m + L * m) (a.size.toNat - i * m) = m + min (L * m) (a.size.toNat - (i + 1) * m)
-          by rw [Nat.add_mul]; lia, UInt64Array.valAt_add,
-        show a.start.toNat + i * m + m = a.start.toNat + (i + 1) * m by rw [Nat.add_mul]; lia]
+@[expose] public def pieces (a : USlice) (m L : Nat) : List Nat :=
+  FFTOps.pieces a.array a.start.toNat a.size.toNat m L
 
 /-- The pieces of `a` are its digits in base `2^(64 m)`. -/
 public theorem polyVal_pieces (a : USlice) (m L : Nat) (hL : a.size.toNat ≤ L * m) :
     polyVal (2 ^ (64 * m)) (pieces a m L) = a.toNat := by
-  have := polyVal_pieces_from a m L 0
-  simp only [Nat.zero_add, Nat.zero_mul, Nat.add_zero, Nat.sub_zero,
-    Nat.min_eq_right hL] at this
-  rw [pieces, this, USlice.toNat_eq_valAt]
+  rw [USlice.toNat_eq_valAt]
+  exact FFTOps.polyVal_pieces a.array a.start.toNat a.size.toNat m L hL
 
-public theorem length_pieces (a : USlice) (m L : Nat) : (pieces a m L).length = L := by
-  simp [pieces]
+public theorem length_pieces (a : USlice) (m L : Nat) : (pieces a m L).length = L :=
+  FFTOps.length_pieces ..
 
 public theorem getD_pieces (a : USlice) (m L i : Nat) :
-    (pieces a m L).getD i 0 = if i < L then piece a m i else 0 := by
-  rw [pieces, List.getD_eq_getElem?_getD, List.getElem?_map]
-  split
-  · rename_i h; simp [h]
-  · rename_i h; simp [h]
+    (pieces a m L).getD i 0 = if i < L then piece a m i else 0 :=
+  FFTOps.getD_pieces ..
 
-/-! ## Loading the pieces -/
+/-- The slice of piece `i` of `a`. -/
+public def pieceSl (a : USlice) (m i : Nat) : USlice :=
+  sl a.array (a.start.toNat + min (i * m) a.size.toNat) (min m (a.size.toNat - i * m))
+
+public theorem pieceSl_spec (a : USlice) (m i : Nat) (hS : a.array.size < USize.size) :
+    (pieceSl a m i).size.toNat = min m (a.size.toNat - i * m) ∧
+      (pieceSl a m i).toNat = piece a m i := by
+  have := a.toNat_size
+  have := a.stop_le_size
+  have := USize.le_iff_toNat_le.1 a.start_le_stop
+  obtain ⟨-, -, s₃, s₄⟩ := sl_spec a.array (a.start.toNat + min (i * m) a.size.toNat)
+    (min m (a.size.toNat - i * m)) (by lia) hS
+  refine ⟨s₃, ?_⟩
+  rw [pieceSl, s₄]
+  show _ = a.array.valAt (a.start.toNat + i * m) (min m (a.size.toNat - i * m))
+  rcases Nat.le_total (i * m) a.size.toNat with h | h
+  · rw [Nat.min_eq_left h]
+  · rw [show a.size.toNat - i * m = 0 by lia, Nat.min_zero, valAt_zero, valAt_zero]
+
+/-! ## The operations of `FFTOps` -/
 
 /-- Adds `b` to the limbs `o` to `o + len - 1` of `arr`, with the carry out. -/
 public def addAt (arr : UInt64Array) (o len : Nat) (b : USlice) : UInt64Array × UInt64 :=
@@ -118,78 +107,6 @@ public theorem addAt_spec (arr : UInt64Array) (o len : Nat) (b : USlice) (h : o 
   · have := valAt_addInto (sl arr o len) b 0 hb'
     rw [s₂, s₃, s₁, UInt64.toNat_zero, Nat.add_zero] at this
     exact this
-
-/-- The slice of piece `i` of `a`. -/
-public def pieceSl (a : USlice) (m i : Nat) : USlice :=
-  sl a.array (a.start.toNat + min (i * m) a.size.toNat) (min m (a.size.toNat - i * m))
-
-public theorem pieceSl_spec (a : USlice) (m i : Nat) (hS : a.array.size < USize.size) :
-    (pieceSl a m i).size.toNat = min m (a.size.toNat - i * m) ∧
-      (pieceSl a m i).toNat = piece a m i := by
-  have := a.toNat_size
-  have := a.stop_le_size
-  have := USize.le_iff_toNat_le.1 a.start_le_stop
-  obtain ⟨-, -, s₃, s₄⟩ := sl_spec a.array (a.start.toNat + min (i * m) a.size.toNat)
-    (min m (a.size.toNat - i * m)) (by lia) hS
-  refine ⟨s₃, ?_⟩
-  rw [pieceSl, s₄, piece]
-  rcases Nat.le_total (i * m) a.size.toNat with h | h
-  · rw [Nat.min_eq_left h]
-  · rw [show a.size.toNat - i * m = 0 by lia, Nat.min_zero, valAt_zero, valAt_zero]
-
-/-- Loads pieces `i` to `i + cnt - 1` of `a` into the windows of the block at `o`. -/
-public def loadLoop (o n m : Nat) (a : USlice) : UInt64Array → Nat → Nat → UInt64Array
-  | arr, _, 0 => arr
-  | arr, i, cnt + 1 =>
-    loadLoop o n m a (addAt arr (o + i * (n + 1)) (n + 1) (pieceSl a m i)).1 (i + 1) cnt
-
-public theorem loadLoop_spec (o n m : Nat) (a : USlice) (hm : m ≤ n + 1)
-    (haS : a.array.size < USize.size) (cnt : Nat) :
-    ∀ arr i, arr.size < USize.size → o + (i + cnt) * (n + 1) ≤ arr.size →
-      (∀ p, i ≤ p → p < i + cnt → coef arr n o p = 0) →
-      (loadLoop o n m a arr i cnt).size = arr.size ∧
-      (∀ j, (j < o + i * (n + 1) ∨ o + (i + cnt) * (n + 1) ≤ j) →
-        (loadLoop o n m a arr i cnt)[j]! = arr[j]!) ∧
-      (∀ p, i ≤ p → p < i + cnt → coef (loadLoop o n m a arr i cnt) n o p = piece a m p) := by
-  induction cnt with
-  | zero => intro arr i _ _ _; exact ⟨rfl, fun _ _ => rfl, fun p h₁ h₂ => absurd h₂ (by lia)⟩
-  | succ cnt ih =>
-    intro arr i hS hB hz
-    have hw := Nat.mul_le_mul_right (n + 1) (show i + 1 ≤ i + (cnt + 1) by lia)
-    rw [Nat.add_mul, Nat.one_mul] at hw
-    obtain ⟨p₁, p₂⟩ := pieceSl_spec a m i haS
-    obtain ⟨a₁, a₂, a₃⟩ := addAt_spec arr (o + i * (n + 1)) (n + 1) (pieceSl a m i) (by lia) hS
-      (by rw [p₁]; lia)
-    rw [loadLoop]
-    generalize addAt arr (o + i * (n + 1)) (n + 1) (pieceSl a m i) = q at *
-    obtain ⟨i₁, i₂, i₃⟩ := ih q.1 (i + 1) (by lia) (by rw [a₁]; lia) fun p h₁ h₂ => by
-      have d := Nat.mul_le_mul_right (n + 1) h₁
-      rw [Nat.add_mul, Nat.one_mul] at d
-      rw [← hz p (by lia) (by lia)]
-      exact win_congr fun j _ _ => a₂ j (by lia)
-    have hq : coef q.1 n o i = piece a m i := by
-      have h₀ := hz i (Nat.le_refl _) (by lia)
-      have hlt := piece_lt a m i
-      have hX : 2 ^ (64 * m) ≤ 2 ^ (64 * (n + 1)) := Nat.pow_le_pow_right (by decide) (by lia)
-      have hc : q.2.toNat = 0 := by
-        rcases Nat.eq_zero_or_pos q.2.toNat with e | e
-        · exact e
-        · have := Nat.mul_le_mul_left (2 ^ (64 * (n + 1))) e
-          simp only [coef, win] at h₀
-          lia
-      simp only [coef, win] at h₀ ⊢
-      rw [hc, Nat.mul_zero, Nat.add_zero, h₀, p₂, Nat.zero_add] at a₃
-      exact a₃
-    refine ⟨i₁.trans a₁, fun j hj => ?_, fun p h₁ h₂ => ?_⟩
-    · rw [i₂ j (by rw [Nat.add_mul, Nat.one_mul]; lia), a₂ j (by lia)]
-    · by_cases e : p = i
-      · subst e
-        rw [← hq]
-        have d := Nat.mul_le_mul_right (n + 1) (Nat.le_refl (p + 1))
-        exact win_congr fun j _ _ => i₂ j (by rw [Nat.add_mul, Nat.one_mul]; lia)
-      · exact i₃ p (by lia) (by lia)
-
-/-! ## Pointwise products -/
 
 /-- `normAt` with `Nat` offsets, which checks its bounds. -/
 public def normG (arr : UInt64Array) (n d : Nat) : UInt64Array :=
@@ -337,209 +254,6 @@ public theorem reduceAt_spec (arr : UInt64Array) (n d : Nat) (P : UInt64Array)
     generalize 2 ^ (64 * n) = Bn at *
     rw [reduce_eq hs₂ hc₁ hhi hq', Nat.add_mul_mod_self_left]
 
-/--
-The pointwise products of windows `p` to `p + cnt - 1` of the blocks at `oA` and `oB`, into the
-first, through the array `P` of `2 n + 2` limbs.
--/
-public def pointLoop (cfg : Config) (n oA oB : Nat) :
-    UInt64Array → UInt64Array → Nat → Nat → UInt64Array
-  | arr, _, _, 0 => arr
-  | arr, P, p, cnt + 1 =>
-    let P := mulToom cfg P.toUSlice (sl arr (oA + p * (n + 1)) (n + 1))
-      (sl arr (oB + p * (n + 1)) (n + 1))
-    pointLoop cfg n oA oB (reduceAt arr n (oA + p * (n + 1)) P) P (p + 1) cnt
-
-public theorem pointLoop_spec (n oA oB : Nat) (hn : 1 ≤ n) (cnt : Nat) :
-    ∀ arr P p, P.size = 2 * n + 2 → P.size < USize.size → arr.size < USize.size →
-      oA + (p + cnt) * (n + 1) ≤ oB → oB + (p + cnt) * (n + 1) ≤ arr.size →
-      (∀ q, p ≤ q → q < p + cnt → coef arr n oA q < fermat n ∧ coef arr n oB q < fermat n) →
-      (pointLoop cfg n oA oB arr P p cnt).size = arr.size ∧
-      (∀ j, (j < oA + p * (n + 1) ∨ oA + (p + cnt) * (n + 1) ≤ j) →
-        (pointLoop cfg n oA oB arr P p cnt)[j]! = arr[j]!) ∧
-      (∀ q, p ≤ q → q < p + cnt →
-        coef (pointLoop cfg n oA oB arr P p cnt) n oA q =
-          coef arr n oA q * coef arr n oB q % fermat n) := by
-  induction cnt with
-  | zero =>
-    intro arr P p _ _ _ _ _ _
-    exact ⟨rfl, fun _ _ => rfl, fun q h₁ h₂ => absurd h₂ (by lia)⟩
-  | succ cnt ih =>
-    intro arr P p hP hPS hS hAB hB hv
-    have hw := Nat.mul_le_mul_right (n + 1) (show p + 1 ≤ p + (cnt + 1) by lia)
-    rw [Nat.add_mul, Nat.one_mul] at hw
-    obtain ⟨x₁, x₂, x₃, x₄⟩ := sl_spec arr (oA + p * (n + 1)) (n + 1) (by lia) hS
-    obtain ⟨y₁, y₂, y₃, y₄⟩ := sl_spec arr (oB + p * (n + 1)) (n + 1) (by lia) hS
-    have hPs := size_toUSlice P hPS
-    have hx₀ : 0 < (sl arr (oA + p * (n + 1)) (n + 1)).size :=
-      USize.lt_iff_toNat_lt.2 (by rw [x₃, USize.toNat_zero]; lia)
-    have hy₀ : 0 < (sl arr (oB + p * (n + 1)) (n + 1)).size :=
-      USize.lt_iff_toNat_lt.2 (by rw [y₃, USize.toNat_zero]; lia)
-    have m₁ := size_mulToom cfg P.toUSlice (sl arr (oA + p * (n + 1)) (n + 1))
-      (sl arr (oB + p * (n + 1)) (n + 1))
-    have m₂ := valAt_mulToom cfg P.toUSlice (sl arr (oA + p * (n + 1)) (n + 1))
-      (sl arr (oB + p * (n + 1)) (n + 1)) hx₀ hy₀ (by rw [x₃, y₃, hPs]; lia)
-    rw [x₃, y₃, x₄, y₄, start_toUSlice, USize.toNat_zero, show n + 1 + (n + 1) = 2 * n + 2 by lia]
-      at m₂
-    rw [array_toUSlice] at m₁
-    rw [pointLoop]
-    generalize mulToom cfg P.toUSlice (sl arr (oA + p * (n + 1)) (n + 1))
-      (sl arr (oB + p * (n + 1)) (n + 1)) = P' at *
-    obtain ⟨hvA, hvB⟩ := hv p (Nat.le_refl _) (by lia)
-    simp only [coef, win, fermat] at hvA hvB
-    obtain ⟨r₁, r₂, r₃⟩ := reduceAt_spec arr n (oA + p * (n + 1)) P' hS (by lia) hn (by rw [m₁, hP])
-      (by rw [m₁]; exact hPS) (by rw [m₂]; exact Nat.mul_le_mul (by lia) (by lia))
-    generalize reduceAt arr n (oA + p * (n + 1)) P' = a₁ at *
-    have hu : ∀ q, p + 1 ≤ q → q < p + (cnt + 1) →
-        coef a₁ n oA q = coef arr n oA q ∧ coef a₁ n oB q = coef arr n oB q := by
-      intro q h₁ h₂
-      have d := Nat.mul_le_mul_right (n + 1) h₁
-      have d' := Nat.mul_le_mul_right (n + 1) (show q + 1 ≤ p + (cnt + 1) by lia)
-      rw [Nat.add_mul, Nat.one_mul] at d d'
-      exact ⟨win_congr fun j _ _ => r₂ j (by lia), win_congr fun j _ _ => r₂ j (by lia)⟩
-    obtain ⟨i₁, i₂, i₃⟩ := ih a₁ P' (p + 1) (by rw [m₁, hP]) (by rw [m₁]; exact hPS)
-      (by rw [r₁]; exact hS) (by lia) (by rw [r₁]; lia) fun q h₁ h₂ => by
-        rw [(hu q h₁ (by lia)).1, (hu q h₁ (by lia)).2]; exact hv q (by lia) (by lia)
-    refine ⟨i₁.trans r₁, fun j hj => ?_, fun q h₁ h₂ => ?_⟩
-    · rw [i₂ j (by rw [Nat.add_mul, Nat.one_mul]; lia), r₂ j (by lia)]
-    · by_cases e : q = p
-      · subst e
-        have : coef (pointLoop cfg n oA oB a₁ P' (q + 1) cnt) n oA q = coef a₁ n oA q :=
-          win_congr fun j _ _ => i₂ j (by lia)
-        rw [this]
-        exact r₃.trans (by rw [m₂])
-      · rw [i₃ q (by lia) (by lia), (hu q (by lia) h₂).1, (hu q (by lia) h₂).2]
-
-/--
-The pointwise squares of windows `p` to `p + cnt - 1` of the block at `oA`, through the array `P`
-of `2 n + 2` limbs.
--/
-public def pointSqrLoop (cfg : Config) (n oA : Nat) :
-    UInt64Array → UInt64Array → Nat → Nat → UInt64Array
-  | arr, _, _, 0 => arr
-  | arr, P, p, cnt + 1 =>
-    let P := sqrKaratsuba cfg P.toUSlice (sl arr (oA + p * (n + 1)) (n + 1))
-    pointSqrLoop cfg n oA (reduceAt arr n (oA + p * (n + 1)) P) P (p + 1) cnt
-
-public theorem pointSqrLoop_spec (n oA : Nat) (hn : 1 ≤ n) (cnt : Nat) :
-    ∀ arr P p, P.size = 2 * n + 2 → P.size < USize.size → arr.size < USize.size →
-      oA + (p + cnt) * (n + 1) ≤ arr.size →
-      (∀ q, p ≤ q → q < p + cnt → coef arr n oA q < fermat n) →
-      (pointSqrLoop cfg n oA arr P p cnt).size = arr.size ∧
-      (∀ j, (j < oA + p * (n + 1) ∨ oA + (p + cnt) * (n + 1) ≤ j) →
-        (pointSqrLoop cfg n oA arr P p cnt)[j]! = arr[j]!) ∧
-      (∀ q, p ≤ q → q < p + cnt →
-        coef (pointSqrLoop cfg n oA arr P p cnt) n oA q =
-          coef arr n oA q * coef arr n oA q % fermat n) := by
-  induction cnt with
-  | zero =>
-    intro arr P p _ _ _ _ _
-    exact ⟨rfl, fun _ _ => rfl, fun q h₁ h₂ => absurd h₂ (by lia)⟩
-  | succ cnt ih =>
-    intro arr P p hP hPS hS hB hv
-    have hw := Nat.mul_le_mul_right (n + 1) (show p + 1 ≤ p + (cnt + 1) by lia)
-    rw [Nat.add_mul, Nat.one_mul] at hw
-    obtain ⟨x₁, x₂, x₃, x₄⟩ := sl_spec arr (oA + p * (n + 1)) (n + 1) (by lia) hS
-    have hPs := size_toUSlice P hPS
-    have hx₀ : 0 < (sl arr (oA + p * (n + 1)) (n + 1)).size :=
-      USize.lt_iff_toNat_lt.2 (by rw [x₃, USize.toNat_zero]; lia)
-    have m₁ := size_sqrKaratsuba cfg P.toUSlice (sl arr (oA + p * (n + 1)) (n + 1))
-    have m₂ := valAt_sqrKaratsuba cfg P.toUSlice (sl arr (oA + p * (n + 1)) (n + 1)) hx₀
-      (by rw [x₃, hPs]; lia)
-    rw [x₃, x₄, start_toUSlice, USize.toNat_zero, show 2 * (n + 1) = 2 * n + 2 by lia] at m₂
-    rw [array_toUSlice] at m₁
-    rw [pointSqrLoop]
-    generalize sqrKaratsuba cfg P.toUSlice (sl arr (oA + p * (n + 1)) (n + 1)) = P' at *
-    have hvA := hv p (Nat.le_refl _) (by lia)
-    simp only [coef, win, fermat] at hvA
-    obtain ⟨r₁, r₂, r₃⟩ := reduceAt_spec arr n (oA + p * (n + 1)) P' hS (by lia) hn (by rw [m₁, hP])
-      (by rw [m₁]; exact hPS) (by rw [m₂]; exact Nat.mul_le_mul (by lia) (by lia))
-    generalize reduceAt arr n (oA + p * (n + 1)) P' = a₁ at *
-    have hu : ∀ q, p + 1 ≤ q → q < p + (cnt + 1) → coef a₁ n oA q = coef arr n oA q := by
-      intro q h₁ h₂
-      have d := Nat.mul_le_mul_right (n + 1) h₁
-      have d' := Nat.mul_le_mul_right (n + 1) (show q + 1 ≤ p + (cnt + 1) by lia)
-      rw [Nat.add_mul, Nat.one_mul] at d d'
-      exact win_congr fun j _ _ => r₂ j (by lia)
-    obtain ⟨i₁, i₂, i₃⟩ := ih a₁ P' (p + 1) (by rw [m₁, hP]) (by rw [m₁]; exact hPS)
-      (by rw [r₁]; exact hS) (by rw [r₁]; lia) fun q h₁ h₂ => by
-        rw [hu q h₁ (by lia)]; exact hv q (by lia) (by lia)
-    refine ⟨i₁.trans r₁, fun j hj => ?_, fun q h₁ h₂ => ?_⟩
-    · rw [i₂ j (by rw [Nat.add_mul, Nat.one_mul]; lia), r₂ j (by lia)]
-    · by_cases e : q = p
-      · subst e
-        have : coef (pointSqrLoop cfg n oA a₁ P' (q + 1) cnt) n oA q = coef a₁ n oA q :=
-          win_congr fun j _ _ => i₂ j (by lia)
-        rw [this]
-        exact r₃.trans (by rw [m₂])
-      · rw [i₃ q (by lia) (by lia), hu q (by lia) h₂]
-
-/-! ## Scaling -/
-
-/--
-Divides windows `l` to `l + cnt - 1` of the block at `o` by `2ᵏ`, modulo `F`: multiplies them by
-`2^(N - k)` into the scratch window `t`, then subtracts that from the zero window `z`, since
-`2^(-k) ≡ -2^(N - k)`.
--/
-public def scaleLoop (n o t z k : Nat) : UInt64Array → Nat → Nat → UInt64Array
-  | arr, _, 0 => arr
-  | arr, l, cnt + 1 =>
-    scaleLoop n o t z k (subModG (mulPow2G arr n t (o + l * (n + 1)) (64 * n - k)) n
-      (o + l * (n + 1)) z t) (l + 1) cnt
-
-public theorem scaleLoop_spec (n o t z k : Nat) (hn : 1 ≤ n) (hk : 1 ≤ k)
-    (h64 : 64 * n < USize.size) (cnt : Nat) :
-    ∀ arr l, arr.size < USize.size → o + (l + cnt) * (n + 1) ≤ arr.size →
-      t + n + 1 ≤ arr.size → z + n + 1 ≤ arr.size →
-      (t + n + 1 ≤ o + l * (n + 1) ∨ o + (l + cnt) * (n + 1) ≤ t) →
-      (z + n + 1 ≤ o + l * (n + 1) ∨ o + (l + cnt) * (n + 1) ≤ z) →
-      (t + n + 1 ≤ z ∨ z + n + 1 ≤ t) → win arr n z = 0 →
-      (∀ q, l ≤ q → q < l + cnt → coef arr n o q < fermat n) →
-      (scaleLoop n o t z k arr l cnt).size = arr.size ∧
-      (∀ j, (j < o + l * (n + 1) ∨ o + (l + cnt) * (n + 1) ≤ j) → (j < t ∨ t + n + 1 ≤ j) →
-        (scaleLoop n o t z k arr l cnt)[j]! = arr[j]!) ∧
-      (∀ q, l ≤ q → q < l + cnt → coef (scaleLoop n o t z k arr l cnt) n o q =
-        (fermat n - coef arr n o q * 2 ^ (64 * n - k) % fermat n) % fermat n) := by
-  induction cnt with
-  | zero =>
-    intro arr l _ _ _ _ _ _ _ _ _
-    exact ⟨rfl, fun _ _ _ => rfl, fun q h₁ h₂ => absurd h₂ (by lia)⟩
-  | succ cnt ih =>
-    intro arr l hS hB ht hz htd hzd htz hz0 hv
-    rw [scaleLoop]
-    have hF : 0 < fermat n := by simp [fermat]
-    have hw := Nat.mul_le_mul_right (n + 1) (show l + 1 ≤ l + (cnt + 1) by lia)
-    rw [Nat.add_mul, Nat.one_mul] at hw
-    obtain ⟨m₁, m₂, m₃⟩ := mulPow2G_spec arr n t (o + l * (n + 1)) (64 * n - k) hS ht (by lia) hn
-      (by lia) (by lia) (by lia) (hv l (Nat.le_refl _) (by lia))
-    generalize mulPow2G arr n t (o + l * (n + 1)) (64 * n - k) = a₁ at *
-    have z₁ := win_of_untouched m₂ (o := z) (by lia)
-    have x₁ := win_of_untouched m₂ (o := o + l * (n + 1)) (by lia)
-    obtain ⟨s₁, s₂, s₃⟩ := subModG_spec a₁ n (o + l * (n + 1)) z t (by lia) (by lia) (by lia)
-      (by lia) hn (by lia) (by lia) (by rw [z₁, hz0]; exact hF) (by rw [m₃]; exact Nat.mod_lt _ hF)
-    generalize subModG a₁ n (o + l * (n + 1)) z t = a₂ at *
-    have hu : ∀ q, l + 1 ≤ q → q < l + (cnt + 1) → coef a₂ n o q = coef arr n o q := by
-      intro q h₁ h₂
-      have d := Nat.mul_le_mul_right (n + 1) h₁
-      have d' := Nat.mul_le_mul_right (n + 1) (show q + 1 ≤ l + (cnt + 1) by lia)
-      rw [Nat.add_mul, Nat.one_mul] at d d'
-      show win a₂ n _ = win arr n _
-      rw [win_of_untouched s₂ (by lia), win_of_untouched m₂ (by lia)]
-    have z₂ := win_of_untouched s₂ (o := z) (by lia)
-    obtain ⟨i₁, i₂, i₃⟩ := ih a₂ (l + 1) (by lia) (by lia) (by lia) (by lia) (by lia) (by lia) htz
-      (by rw [z₂, z₁, hz0]) fun q h₁ h₂ => by rw [hu q h₁ (by lia)]; exact hv q (by lia) (by lia)
-    refine ⟨by rw [i₁, s₁, m₁], fun j h₁ h₂ => ?_, fun q h₁ h₂ => ?_⟩
-    · rw [i₂ j (by lia) h₂, s₂ j (by lia), m₂ j h₂]
-    · by_cases e : q = l
-      · subst e
-        have : coef (scaleLoop n o t z k a₂ (q + 1) cnt) n o q = coef a₂ n o q :=
-          win_congr fun j _ _ => i₂ j (by lia) (by lia)
-        rw [this]
-        show win a₂ n _ = _
-        rw [s₃, z₁, hz0, Nat.zero_add, m₃]
-      · rw [i₃ q (by lia) (by lia), hu q (by lia) h₂]
-
-/-! ## Recombination -/
-
 /-- The algebra of `addCoef`: the carry out of the region is zero. -/
 private theorem add_coef_eq {L₀ W R W' R' V c c' Po Pl Pr : Nat}
     (hw : W' + Pl * c = W + V) (hr : R' + Pr * c' = R + c)
@@ -641,86 +355,117 @@ public theorem addCoef_spec (arr : UInt64Array) (o T off : Nat) (src : UInt64Arr
   rw [hsplitT, hsplit2, ← Nat.mul_assoc, hreg arr] at hV
   exact add_coef_eq a₃ i₃ hV
 
-/--
-Adds windows `l` to `l + cnt - 1` of the block at `oA` of `src`, the coefficients, to the region
-of `T` limbs at `o` of `arr`, window `i` from limb `i m` on.
--/
-public def recLoop (T m n oA : Nat) (src : UInt64Array) : UInt64Array → Nat → Nat → Nat →
-    UInt64Array
-  | arr, _, _, 0 => arr
-  | arr, o, l, cnt + 1 =>
-    recLoop T m n oA src
-      (if l * m ≤ T then addCoef arr o T (l * m) src (oA + l * (n + 1)) (n + 1) else arr) o (l + 1)
-      cnt
+/-- `addAt` of a range of `src`, when it does not carry out. -/
+public def addRangeG (arr : UInt64Array) (o len : Nat) (src : UInt64Array) (so slen : Nat) :
+    UInt64Array :=
+  (addAt arr o len (sl src so slen)).1
 
-public theorem recLoop_spec (T m n oA : Nat) (src : UInt64Array) (hsS : src.size < USize.size)
-    (cnt : Nat) :
-    ∀ arr o l, arr.size < USize.size → o + T ≤ arr.size → oA + (l + cnt) * (n + 1) ≤ src.size →
-      arr.valAt o T + sumRange (fun i => 2 ^ (64 * ((l + i) * m)) * coef src n oA (l + i)) cnt <
-        2 ^ (64 * T) →
-      (recLoop T m n oA src arr o l cnt).size = arr.size ∧
-      (∀ j, (j < o ∨ o + T ≤ j) → (recLoop T m n oA src arr o l cnt)[j]! = arr[j]!) ∧
-      (recLoop T m n oA src arr o l cnt).valAt o T = arr.valAt o T +
-        sumRange (fun i => 2 ^ (64 * ((l + i) * m)) * coef src n oA (l + i)) cnt := by
-  induction cnt with
-  | zero => intro arr o l _ _ _ _; exact ⟨rfl, fun _ _ => rfl, by simp [recLoop]⟩
-  | succ cnt ih =>
-    intro arr o l hS hT hsrc hsum
-    rw [sumRange_succ_left] at hsum ⊢
-    simp only [Nat.add_zero] at hsum ⊢
-    have hw := Nat.mul_le_mul_right (n + 1) (show l + 1 ≤ l + (cnt + 1) by lia)
-    rw [Nat.add_mul, Nat.one_mul] at hw
-    have hs' : sumRange (fun i => 2 ^ (64 * ((l + (i + 1)) * m)) * coef src n oA (l + (i + 1)))
-        cnt = sumRange (fun i => 2 ^ (64 * ((l + 1 + i) * m)) * coef src n oA (l + 1 + i)) cnt :=
-      sumRange_congr fun i _ => by rw [show l + (i + 1) = l + 1 + i by lia]
-    rw [hs'] at hsum ⊢
-    rw [recLoop]
-    split
-    · rename_i hl
-      obtain ⟨c₁, c₂, c₃⟩ := addCoef_spec arr o T (l * m) src (oA + l * (n + 1)) (n + 1) hS hT hl
-        hsS (by lia) (by simp only [coef, win] at hsum; lia)
-      generalize addCoef arr o T (l * m) src (oA + l * (n + 1)) (n + 1) = a₁ at *
-      obtain ⟨i₁, i₂, i₃⟩ := ih a₁ o (l + 1) (by lia) (by lia) (by lia)
-        (by rw [c₃]; simp only [coef, win] at hsum ⊢; lia)
-      refine ⟨i₁.trans c₁, fun j hj => by rw [i₂ j hj, c₂ j hj], ?_⟩
-      rw [i₃, c₃]
-      simp only [coef, win]
-      lia
-    · rename_i hl
-      -- The coefficient starts past the region, so it is zero.
-      have hc : coef src n oA l = 0 := by
-        rcases Nat.eq_zero_or_pos (coef src n oA l) with h | h
-        · exact h
-        · have := Nat.mul_le_mul_left (2 ^ (64 * (l * m))) h
-          have : 2 ^ (64 * T) ≤ 2 ^ (64 * (l * m)) := Nat.pow_le_pow_right (by decide) (by lia)
-          lia
-      obtain ⟨i₁, i₂, i₃⟩ := ih arr o (l + 1) hS hT (by lia) (by rw [hc] at hsum; lia)
-      refine ⟨i₁, i₂, ?_⟩
-      rw [i₃, hc]
-      lia
+public theorem addRangeG_spec (arr : UInt64Array) (o len : Nat) (src : UInt64Array) (so slen : Nat)
+    (hS : arr.size < USize.size) (h : o + len ≤ arr.size) (hsS : src.size < USize.size)
+    (hs : so + slen ≤ src.size) (hl : slen ≤ len)
+    (hV : arr.valAt o len + src.valAt so slen < 2 ^ (64 * len)) :
+    (addRangeG arr o len src so slen).size = arr.size ∧
+      (∀ i, (i < o ∨ o + len ≤ i) → (addRangeG arr o len src so slen)[i]! = arr[i]!) ∧
+      (addRangeG arr o len src so slen).valAt o len = arr.valAt o len + src.valAt so slen := by
+  obtain ⟨-, -, b₃, b₄⟩ := sl_spec src so slen hs hsS
+  obtain ⟨a₁, a₂, a₃⟩ := addAt_spec arr o len (sl src so slen) h hS (by rw [b₃]; exact hl)
+  rw [b₄] at a₃
+  have hc : (addAt arr o len (sl src so slen)).2.toNat = 0 := by
+    rcases Nat.eq_zero_or_pos (addAt arr o len (sl src so slen)).2.toNat with e | e
+    · exact e
+    · have := Nat.mul_le_mul_left (2 ^ (64 * len)) e; lia
+  rw [hc, Nat.mul_zero, Nat.add_zero] at a₃
+  exact ⟨a₁, a₂, a₃⟩
+
+/-- `zeroInto` with `Nat` offsets. -/
+public def zeroRangeG (arr : UInt64Array) (o len : Nat) : UInt64Array := zeroInto (sl arr o len)
+
+public theorem zeroRangeG_spec (arr : UInt64Array) (o len : Nat) (hS : arr.size < USize.size)
+    (h : o + len ≤ arr.size) :
+    (zeroRangeG arr o len).size = arr.size ∧
+      (∀ i, (i < o ∨ o + len ≤ i) → (zeroRangeG arr o len)[i]! = arr[i]!) ∧
+      (zeroRangeG arr o len).valAt o len = 0 := by
+  obtain ⟨s₁, s₂, s₃, -⟩ := sl_spec arr o len h hS
+  obtain ⟨z₁, z₂, z₃⟩ := zeroInto_spec (sl arr o len)
+  rw [s₁, s₂, s₃] at *
+  exact ⟨z₁, z₂, z₃⟩
+
+/-! ## The instance -/
+
+/-- The operations of `FFTOps` on 64-bit limbs. -/
+public instance fftOps64 : FFTOps UInt64Array UInt64 where
+  zeros n := UInt64Array.replicate n 0
+  size_zeros n := by simp [LimbArray.size]
+  val_get_zeros n i := by
+    have := valAt_replicate_zero n i 1
+    rwa [valAt_one] at this
+  addRange := addRangeG
+  addRange_spec := addRangeG_spec
+  reduce := reduceAt
+  reduce_spec := reduceAt_spec
+  addCoef := addCoef
+  addCoef_spec := addCoef_spec
+  zeroRange := zeroRangeG
+  zeroRange_spec := zeroRangeG_spec
+
+/-- The pointwise products of the FFT: `mulToom` into `P`. -/
+public def mulP64 (cfg : Config) (P arr : UInt64Array) (x y n : Nat) : UInt64Array :=
+  mulToom cfg P.toUSlice (sl arr x (n + 1)) (sl arr y (n + 1))
+
+public theorem isMulP64 (n : Nat) : FFTOps.IsMulP (mulP64 cfg) n := by
+  intro P arr x y hP hPS hS hx hy
+  change P.size = _ at hP; change P.size < _ at hPS; change arr.size < _ at hS
+  change _ ≤ arr.size at hx hy
+  obtain ⟨-, -, x₃, x₄⟩ := sl_spec arr x (n + 1) hx hS
+  obtain ⟨-, -, y₃, y₄⟩ := sl_spec arr y (n + 1) hy hS
+  have hPs := size_toUSlice P hPS
+  have hx₀ : 0 < (sl arr x (n + 1)).size :=
+    USize.lt_iff_toNat_lt.2 (by rw [x₃, USize.toNat_zero]; lia)
+  have hy₀ : 0 < (sl arr y (n + 1)).size :=
+    USize.lt_iff_toNat_lt.2 (by rw [y₃, USize.toNat_zero]; lia)
+  have m₁ := size_mulToom cfg P.toUSlice (sl arr x (n + 1)) (sl arr y (n + 1))
+  have m₂ := valAt_mulToom cfg P.toUSlice (sl arr x (n + 1)) (sl arr y (n + 1)) hx₀ hy₀
+    (by rw [x₃, y₃, hPs]; lia)
+  rw [x₃, y₃, x₄, y₄, start_toUSlice, USize.toNat_zero, show n + 1 + (n + 1) = 2 * n + 2 by lia]
+    at m₂
+  rw [array_toUSlice] at m₁
+  exact ⟨m₁.trans hP, m₂⟩
+
+/-- The pointwise squares of the FFT: `sqrKaratsuba` into `P`. -/
+public def sqrP64 (cfg : Config) (P arr : UInt64Array) (x n : Nat) : UInt64Array :=
+  sqrKaratsuba cfg P.toUSlice (sl arr x (n + 1))
+
+public theorem isSqrP64 (n : Nat) : FFTOps.IsSqrP (sqrP64 cfg) n := by
+  intro P arr x hP hPS hS hx
+  change P.size = _ at hP; change P.size < _ at hPS; change arr.size < _ at hS
+  change _ ≤ arr.size at hx
+  obtain ⟨-, -, x₃, x₄⟩ := sl_spec arr x (n + 1) hx hS
+  have hPs := size_toUSlice P hPS
+  have hx₀ : 0 < (sl arr x (n + 1)).size :=
+    USize.lt_iff_toNat_lt.2 (by rw [x₃, USize.toNat_zero]; lia)
+  have m₁ := size_sqrKaratsuba cfg P.toUSlice (sl arr x (n + 1))
+  have m₂ := valAt_sqrKaratsuba cfg P.toUSlice (sl arr x (n + 1)) hx₀ (by rw [x₃, hPs]; lia)
+  rw [x₃, x₄, start_toUSlice, USize.toNat_zero, show 2 * (n + 1) = 2 * n + 2 by lia] at m₂
+  rw [array_toUSlice] at m₁
+  exact ⟨m₁.trans hP, m₂⟩
+
+/-- The limbs of a slice are within its array. -/
+private theorem sliceBound (a : USlice) :
+    a.start.toNat + a.size.toNat ≤ a.array.size := by
+  have := a.toNat_size
+  have := a.stop_le_size
+  have := USize.le_iff_toNat_le.1 a.start_le_stop
+  lia
 
 /-! ## The multiplication -/
 
 /--
 `a b` into the first `a.size + b.size` limbs of `r`, with `K = 2ᵏ` windows of `n + 1` limbs for
-the pieces of `m` limbs of each operand. The layout of the flat array: the block of `a` at `0`,
-the block of `b` at `K (n + 1)`, the scratch window, and a zero window.
+the pieces of `m` limbs of each operand: `FFTOps.fftMulAt`.
 -/
 public def fftMulAt (cfg : Config) (r a b : USlice) (k m n : Nat) : UInt64Array :=
-  let K := 2 ^ k
-  let oB := K * (n + 1)
-  let t := 2 * K * (n + 1)
-  let z := t + (n + 1)
-  let σ := 2 * (64 * n) / K
-  let FA := loadLoop 0 n m a (UInt64Array.replicate (z + (n + 1)) 0) 0 K
-  let FA := loadLoop oB n m b FA 0 K
-  let FA := fwd n t k FA 0 σ
-  let FA := fwd n t k FA oB σ
-  let FA := pointLoop cfg n 0 oB FA (UInt64Array.replicate (2 * n + 2) 0) 0 K
-  let FA := inv n t k FA 0 σ
-  let FA := scaleLoop n 0 t z k FA 0 K
-  recLoop (a.size.toNat + b.size.toNat) m n 0 FA
-    (zeroInto (r.slice 0 (a.size + b.size))) r.start.toNat 0 K
+  FFTOps.fftMulAt (mulP64 cfg) r.array r.start.toNat a.array a.start.toNat a.size.toNat b.array
+    b.start.toNat b.size.toNat k m n
 
 /-- The parameters of `fftMulAt` for which it computes `a b`. -/
 public structure FFTParams (r a b : USlice) (k m n : Nat) : Prop where
@@ -740,236 +485,36 @@ public structure FFTParams (r a b : USlice) (k m n : Nat) : Prop where
   hbS : b.array.size < USize.size
   hrS : r.array.size < USize.size
 
-public theorem piece_eq_zero (a : USlice) (m i : Nat) (h : a.size.toNat ≤ i * m) :
-    piece a m i = 0 := by
-  rw [piece, show a.size.toNat - i * m = 0 by lia, Nat.min_zero, valAt_zero]
+private theorem FFTParams.gen {r a b : USlice} {k m n : Nat} (hp : FFTParams r a b k m n) :
+    FFTOps.FFTParams r.array r.start.toNat a.array a.start.toNat a.size.toNat b.array
+      b.start.toNat b.size.toNat k m n := by
+  obtain ⟨hk, hn, hm, hmn, hdiv, ha, hb, hpc, hbits, hr, hS, h64, haS, hbS, hrS⟩ := hp
+  have := sliceBound r
+  have hb₂ : 2 ^ k * 2 ^ (64 * m + 64 * m) ≤ 2 ^ (64 * n) := by
+    rw [show 64 * m + 64 * m = 128 * m by lia]; exact hbits
+  exact ⟨hk, hn, hm, hmn, hdiv, ha, hb, hpc, hb₂,
+    by show _ ≤ r.array.size; lia, hS, h64, haS, hbS, hrS, sliceBound a, sliceBound b⟩
 
-/-- Enough pieces of `m` limbs to cover `x` limbs. -/
-private theorem cover (x m : Nat) (hm : 1 ≤ m) : x ≤ (x + m - 1) / m * m := by
-  have h₁ := Nat.div_add_mod (x + m - 1) m
-  have h₂ := Nat.mod_lt (x + m - 1) (show 0 < m by lia)
-  rw [Nat.mul_comm] at h₁
-  lia
-
-private theorem coef_pieces (a : USlice) (m L K i : Nat) (hL : a.size.toNat ≤ L * m) :
-    (if i < K then piece a m i else 0) = (pieces a m L).getD i 0 ∨ K ≤ i := by
-  rcases Nat.lt_or_ge i K with h | h
-  · left
-    rw [ite_eq_left h, getD_pieces]
-    split
-    · rfl
-    · rename_i h'
-      exact piece_eq_zero a m i (Nat.le_trans hL (Nat.mul_le_mul_right m (by lia)))
-  · exact .inr h
-
-set_option maxHeartbeats 800000 in
 public theorem fftMulAt_spec (r a b : USlice) (k m n : Nat) (hp : FFTParams r a b k m n) :
     (fftMulAt cfg r a b k m n).size = r.array.size ∧
       (∀ i, (i < r.start.toNat ∨ r.start.toNat + a.size.toNat + b.size.toNat ≤ i) →
         (fftMulAt cfg r a b k m n)[i]! = r.array[i]!) ∧
       (fftMulAt cfg r a b k m n).valAt r.start.toNat (a.size.toNat + b.size.toNat) =
         a.toNat * b.toNat := by
-  obtain ⟨hk, hn, hm, hmn, hdiv, ha, hb, hpc, hbits, hr, hS, h64, haS, hbS, hrS⟩ := hp
-  have hF₀ : 0 < fermat n := by simp [fermat]
-  have hK1 : 2 ≤ 2 ^ k := by
-    have := Nat.pow_le_pow_right (show 0 < 2 by decide) hk; simpa using this
-  have hσ : 2 * (64 * n) / 2 ^ k * 2 ^ k = 2 * (64 * n) :=
-    Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hdiv)
-  dsimp only [fftMulAt]
-  generalize 2 * (64 * n) / 2 ^ k = σ at *
-  -- The layout.
-  have hw := Nat.mul_le_mul_right (n + 1) (show 2 ^ k ≤ 2 * 2 ^ k by lia)
-  have hsz : (UInt64Array.replicate (2 * 2 ^ k * (n + 1) + (n + 1) + (n + 1)) 0).size =
-      2 * 2 ^ k * (n + 1) + (n + 1) + (n + 1) := by simp
-  have hSz : 2 * 2 ^ k * (n + 1) + (n + 1) + (n + 1) < USize.size := by
-    rw [show 2 * 2 ^ k * (n + 1) + (n + 1) + (n + 1) = (2 * 2 ^ k + 2) * (n + 1) by
-      rw [Nat.add_mul]; lia]
-    exact hS
-  have hBB : 2 ^ k * (n + 1) + 2 ^ k * (n + 1) = 2 * 2 ^ k * (n + 1) := by rw [Nat.mul_assoc]; lia
-  generalize hS₀ : 2 * 2 ^ k * (n + 1) + (n + 1) + (n + 1) = S at *
-  -- Loading `a`.
-  obtain ⟨l₁, l₂, l₃⟩ := loadLoop_spec 0 n m a (by lia) haS (2 ^ k)
-    (UInt64Array.replicate S 0) 0 (by rw [hsz]; exact hSz) (by rw [hsz]; lia)
-    (fun p _ _ => valAt_replicate_zero ..)
-  generalize loadLoop 0 n m a (UInt64Array.replicate S 0) 0 (2 ^ k) = A₁ at *
-  rw [hsz] at l₁
-  -- Loading `b`.
-  obtain ⟨m₁, m₂, m₃⟩ := loadLoop_spec (2 ^ k * (n + 1)) n m b (by lia) hbS (2 ^ k) A₁ 0
-    (by rw [l₁]; exact hSz) (by rw [l₁]; lia) (fun p _ hp => by
-      have := win_in (2 ^ k * (n + 1)) n p (2 ^ k) (by lia)
-      show win A₁ n _ = 0
-      rw [win_congr fun j _ _ => l₂ j (by lia)]
-      exact valAt_replicate_zero ..)
-  generalize loadLoop (2 ^ k * (n + 1)) n m b A₁ 0 (2 ^ k) = A₂ at *
-  rw [l₁] at m₁
-  have cA : ∀ p < 2 ^ k, coef A₂ n 0 p = piece a m p := by
-    intro p hp
-    have := win_in 0 n p (2 ^ k) hp
-    rw [← l₃ p (by lia) (by lia)]
-    exact win_congr fun j _ _ => m₂ j (by lia)
-  have cB : ∀ p < 2 ^ k, coef A₂ n (2 ^ k * (n + 1)) p = piece b m p :=
-    fun p hp => m₃ p (by lia) (by lia)
-  have hXF : 2 ^ (64 * m) < fermat n := by
-    simp only [fermat]
-    have : 2 ^ (64 * m) ≤ 2 ^ (64 * n) := Nat.pow_le_pow_right (by decide) (by lia)
-    lia
-  -- The forward transforms.
-  obtain ⟨f₁, f₂, f₃⟩ := fwd_spec n (2 * 2 ^ k * (n + 1)) hn h64 k A₂ 0 σ hσ
-    ⟨by rw [m₁]; exact hSz, by rw [m₁]; lia, by rw [m₁]; lia, by lia⟩
-    (fun p hp => by rw [cA p hp]; exact Nat.lt_trans (piece_lt ..) hXF)
-  generalize fwd n (2 * 2 ^ k * (n + 1)) k A₂ 0 σ = A₃ at *
-  have cB₃ : ∀ p < 2 ^ k, coef A₃ n (2 ^ k * (n + 1)) p = piece b m p := by
-    intro p hp
-    have := win_in (2 ^ k * (n + 1)) n p (2 ^ k) hp
-    rw [← cB p hp]
-    exact win_congr fun j _ _ => f₂ j (by lia) (by lia)
-  obtain ⟨g₁, g₂, g₃⟩ := fwd_spec n (2 * 2 ^ k * (n + 1)) hn h64 k A₃ (2 ^ k * (n + 1)) σ hσ
-    ⟨by rw [f₁, m₁]; exact hSz, by rw [f₁, m₁]; lia, by rw [f₁, m₁]; lia, by lia⟩
-    (fun p hp => by rw [cB₃ p hp]; exact Nat.lt_trans (piece_lt ..) hXF)
-  generalize fwd n (2 * 2 ^ k * (n + 1)) k A₃ (2 ^ k * (n + 1)) σ = A₄ at *
-  have cA₄ : ∀ p < 2 ^ k, coef A₄ n 0 p = coef A₃ n 0 p := by
-    intro p hp
-    have := win_in 0 n p (2 ^ k) hp
-    exact win_congr fun j _ _ => g₂ j (by lia) (by lia)
-  -- The pointwise products.
-  obtain ⟨p₁, p₂, p₃⟩ := pointLoop_spec cfg n 0 (2 ^ k * (n + 1)) hn (2 ^ k) A₄
-    (UInt64Array.replicate (2 * n + 2) 0) 0 (by simp) (by simp; lia) (by rw [g₁, f₁, m₁]; exact hSz)
-    (by lia) (by rw [g₁, f₁, m₁]; lia) (fun q _ hq => by
-      rw [cA₄ q (by lia), f₃ q (by lia), g₃ q (by lia)]
-      exact ⟨Nat.mod_lt _ hF₀, Nat.mod_lt _ hF₀⟩)
-  generalize pointLoop cfg n 0 (2 ^ k * (n + 1)) A₄ (UInt64Array.replicate (2 * n + 2) 0) 0
-    (2 ^ k) =
-    A₅ at *
-  -- The inverse transform.
-  obtain ⟨v₁, v₂, v₃⟩ := inv_spec n (2 * 2 ^ k * (n + 1)) hn h64 k A₅ 0 σ hσ
-    ⟨by rw [p₁, g₁, f₁, m₁]; exact hSz, by rw [p₁, g₁, f₁, m₁]; lia, by rw [p₁, g₁, f₁, m₁]; lia,
-      by lia⟩ (fun q hq => by rw [p₃ q (by lia) (by lia)]; exact Nat.mod_lt _ hF₀)
-  generalize inv n (2 * 2 ^ k * (n + 1)) k A₅ 0 σ = A₆ at *
-  -- The zero window is untouched.
-  have hz : win A₆ n (2 * 2 ^ k * (n + 1) + (n + 1)) = 0 := by
-    have : win A₆ n (2 * 2 ^ k * (n + 1) + (n + 1)) =
-        win (UInt64Array.replicate S 0) n (2 * 2 ^ k * (n + 1) + (n + 1)) :=
-      win_congr fun j _ _ => by
-        rw [v₂ j (by lia) (by lia), p₂ j (by lia), g₂ j (by lia) (by lia), f₂ j (by lia) (by lia),
-          m₂ j (by lia), l₂ j (by lia)]
-    rw [this]
-    exact valAt_replicate_zero ..
-  -- The division by `2ᵏ`.
-  have hsz₆ : A₆.size = S := by rw [v₁, p₁, g₁, f₁, m₁]
-  obtain ⟨s₁, -, s₃⟩ := scaleLoop_spec n 0 (2 * 2 ^ k * (n + 1)) (2 * 2 ^ k * (n + 1) + (n + 1)) k
-    hn hk h64 (2 ^ k) A₆ 0 (by rw [hsz₆]; exact hSz) (by rw [hsz₆]; lia) (by rw [hsz₆]; lia)
-    (by rw [hsz₆]; lia) (by lia) (by lia) (by lia) hz
-    (fun q _ hq => by rw [v₃ q (by lia)]; exact Nat.mod_lt _ hF₀)
-  generalize scaleLoop n 0 (2 * 2 ^ k * (n + 1)) (2 * 2 ^ k * (n + 1) + (n + 1)) k A₆ 0 (2 ^ k) =
-    A₇ at *
-  -- The coefficients are those of the product of the pieces.
-  have hla := cover a.size.toNat m hm
-  have hlb := cover b.size.toNat m hm
-  have hla₁ : 1 ≤ (a.size.toNat + m - 1) / m := (Nat.le_div_iff_mul_le (by lia)).2 (by lia)
-  have hlb₁ : 1 ≤ (b.size.toNat + m - 1) / m := (Nat.le_div_iff_mul_le (by lia)).2 (by lia)
-  generalize (a.size.toNat + m - 1) / m = la at *
-  generalize (b.size.toNat + m - 1) / m = lb at *
-  have hαL : ∀ i < 2 ^ k, coef A₂ n 0 i = (pieces a m la).getD i 0 := fun i hi => by
-    rw [cA i hi]
-    rcases coef_pieces a m la (2 ^ k) i hla with h | h
-    · rw [← h, ite_eq_left hi]
-    · lia
-  have hβL : ∀ i < 2 ^ k, coef A₂ n (2 ^ k * (n + 1)) i = (pieces b m lb).getD i 0 :=
-    fun i hi => by
-      rw [cB i hi]
-      rcases coef_pieces b m lb (2 ^ k) i hlb with h | h
-      · rw [← h, ite_eq_left hi]
-      · lia
-  have hβne : pieces b m lb ≠ [] := by
-    intro h; have := congrArg List.length h; rw [length_pieces] at this; simp at this; lia
-  have hc : ∀ l < 2 ^ k, coef A₇ n 0 l = (polyMul (pieces a m la) (pieces b m lb)).getD l 0 := by
-    intro l hl
-    rw [s₃ l (by lia) (by lia), v₃ l hl]
-    rw [← fft_coef (pieces a m la) (pieces b m lb) k (64 * n) σ (2 ^ (64 * m)) (F := fermat n) rfl
-      hk hσ
-      (by rw [length_pieces, length_pieces]; lia) hβne
-      (fun x hx => by
-        simp only [pieces, List.mem_map, List.mem_range] at hx
-        obtain ⟨i, -, rfl⟩ := hx; exact piece_lt ..)
-      (fun x hx => by
-        simp only [pieces, List.mem_map, List.mem_range] at hx
-        obtain ⟨i, -, rfl⟩ := hx; exact piece_lt ..)
-      (by rw [← Nat.pow_add, show 64 * m + 64 * m = 128 * m by lia]; exact hbits)
-      (by rw [length_pieces]; lia) (by rw [length_pieces]; lia) l hl]
-    have hα : ∀ q, sumRange (fun i => coef A₂ n 0 i * 2 ^ (σ * i * rev k q)) (2 ^ k) =
-        sumRange (fun i => (pieces a m la).getD i 0 * 2 ^ (σ * i * rev k q)) (2 ^ k) :=
-      fun q => sumRange_congr fun i hi => by rw [hαL i hi]
-    have hβ : ∀ q, sumRange (fun i => coef A₃ n (2 ^ k * (n + 1)) i * 2 ^ (σ * i * rev k q))
-        (2 ^ k) = sumRange (fun i => (pieces b m lb).getD i 0 * 2 ^ (σ * i * rev k q)) (2 ^ k) :=
-      fun q => sumRange_congr fun i hi => by rw [cB₃ i hi, ← cB i hi, hβL i hi]
-    have hsum : sumRange (fun p => coef A₅ n 0 p * 2 ^ ((2 * (64 * n) - σ) * rev k p * l))
-        (2 ^ k) = sumRange (fun p =>
-          sumRange (fun i => (pieces a m la).getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) %
-            fermat n * (sumRange (fun i => (pieces b m lb).getD i 0 * 2 ^ (σ * i * rev k p))
-              (2 ^ k) % fermat n) % fermat n * 2 ^ ((2 * (64 * n) - σ) * rev k p * l)) (2 ^ k) :=
-      sumRange_congr fun q hq => by
-        rw [p₃ q (by lia) (by lia), cA₄ q hq, f₃ q hq, g₃ q hq, hα, hβ]
-    rw [hsum]
-  -- The value of the coefficients at `2^(64 m)`.
-  generalize hZ : polyMul (pieces a m la) (pieces b m lb) = Z at hc
-  have hZK : Z.length ≤ 2 ^ k := by
-    rw [← hZ]; have := length_polyMul (pieces a m la) (pieces b m lb) hβne
-    rw [length_pieces, length_pieces] at this; lia
-  have hab : sumRange (fun i => 2 ^ (64 * ((0 + i) * m)) * coef A₇ n 0 (0 + i)) (2 ^ k) =
-      a.toNat * b.toNat := by
-    rw [← polyVal_pieces a m la hla, ← polyVal_pieces b m lb hlb, ← polyVal_polyMul, hZ,
-      polyVal_eq_sumRange _ Z _ hZK]
-    exact sumRange_congr fun i hi => by
-      rw [Nat.zero_add, hc i hi, Nat.mul_comm, ← Nat.pow_mul]; congr 2; lia
-  have hablt : a.toNat * b.toNat < 2 ^ (64 * (a.size.toNat + b.size.toNat)) := by
-    rw [Nat.mul_add, Nat.pow_add]
-    have h₁ : a.toNat < 2 ^ (64 * a.size.toNat) := by rw [USlice.toNat_eq_valAt]; exact valAt_lt ..
-    have h₂ : b.toNat < 2 ^ (64 * b.size.toNat) := by rw [USlice.toNat_eq_valAt]; exact valAt_lt ..
-    exact Nat.mul_lt_mul'' h₁ h₂
-  -- Zeroing the result, and adding the coefficients.
-  have hT : (a.size + b.size).toNat = a.size.toNat + b.size.toNat :=
-    USize.toNat_add_of_lt (by have := r.size.toNat_lt_size; lia)
-  have hrs := r.toNat_size
-  have hrst := r.stop_le_size
-  have hrle := USize.le_iff_toNat_le.1 r.start_le_stop
-  have e₁ := r.start_slice (i := 0) (j := a.size + b.size) (by simp) (by rw [hT]; exact hr)
-  have e₂ := r.size_slice (i := 0) (j := a.size + b.size) (by simp) (by rw [hT]; exact hr)
-  rw [USize.toNat_zero, Nat.add_zero] at e₁
-  rw [USize.toNat_zero, Nat.sub_zero, hT] at e₂
-  obtain ⟨z₁, z₂, z₃⟩ := zeroInto_spec (r.slice 0 (a.size + b.size))
-  simp only [USlice.array_slice, e₁, e₂] at z₁ z₂ z₃
-  generalize zeroInto (r.slice 0 (a.size + b.size)) = R₀ at *
-  have hsz₇ : A₇.size = S := by rw [s₁, hsz₆]
-  obtain ⟨c₁, c₂, c₃⟩ := recLoop_spec (a.size.toNat + b.size.toNat) m n 0 A₇
-    (by rw [hsz₇]; exact hSz) (2 ^ k) R₀ r.start.toNat 0 (by rw [z₁]; exact hrS) (by rw [z₁]; lia)
-    (by rw [hsz₇]; lia) (by rw [z₃, Nat.zero_add, hab]; exact hablt)
-  refine ⟨by rw [c₁, z₁], fun i hi => ?_, ?_⟩
-  · rw [c₂ i (by lia), z₂ i (by lia)]
-  · rw [c₃, z₃, Nat.zero_add, hab]
+  obtain ⟨h₁, h₂, h₃⟩ := FFTOps.fftMulAt_spec (mulP64 cfg) _ _ _ _ _ _ _ _ k m n hp.gen
+    (isMulP64 cfg n)
+  rw [USlice.toNat_eq_valAt, USlice.toNat_eq_valAt]
+  exact ⟨h₁, fun i hi => h₂ i (by lia), h₃⟩
 
 /-! ## The product modulo `β^N - 1` -/
 
 /--
-`a b` modulo `2^(64 N) - 1`, for `N = m 2ᵏ`, into the first `N + n + 1` limbs of `r`, like
-`fftMulAt` but with the pieces of each operand wrapping around: `K = 2ᵏ` pieces of `m` limbs of
-each, the cyclic convolution of the transforms, and the coefficients added at `2^(64 m)`, whose
-sum is `≡ a b` modulo `2^(64 N) - 1` since `2^(64 m K) ≡ 1`. Like GMP's `mpn_mulmod_bnm1`, it
-costs about half a product of the same operands.
+`a b` modulo `2^(64 N) - 1`, for `N = m 2ᵏ`, into the first `N + n + 1` limbs of `r`:
+`FFTOps.fftMulModAt`, at about half the cost of a product of the same operands.
 -/
 public def fftMulModAt (cfg : Config) (r a b : USlice) (k m n : Nat) : UInt64Array :=
-  let K := 2 ^ k
-  let oB := K * (n + 1)
-  let t := 2 * K * (n + 1)
-  let z := t + (n + 1)
-  let σ := 2 * (64 * n) / K
-  let FA := loadLoop 0 n m a (UInt64Array.replicate (z + (n + 1)) 0) 0 K
-  let FA := loadLoop oB n m b FA 0 K
-  let FA := fwd n t k FA 0 σ
-  let FA := fwd n t k FA oB σ
-  let FA := pointLoop cfg n 0 oB FA (UInt64Array.replicate (2 * n + 2) 0) 0 K
-  let FA := inv n t k FA 0 σ
-  let FA := scaleLoop n 0 t z k FA 0 K
-  recLoop (m * K + n + 1) m n 0 FA (zeroInto (r.slice 0 (m * K + n + 1).toUSize)) r.start.toNat 0 K
+  FFTOps.fftMulModAt (mulP64 cfg) r.array r.start.toNat a.array a.start.toNat a.size.toNat b.array
+    b.start.toNat b.size.toNat k m n
 
 /-- The parameters of `fftMulModAt` for which it computes `a b` modulo `2^(64 m 2ᵏ) - 1`. -/
 public structure FFTModParams (r a b : USlice) (k m n : Nat) : Prop where
@@ -990,23 +535,17 @@ public structure FFTModParams (r a b : USlice) (k m n : Nat) : Prop where
   hbS : b.array.size < USize.size
   hrS : r.array.size < USize.size
 
-/-- A geometric bound: `∑_{i<K} c_i Xⁱ < (C + 1) X^K` for `c_i ≤ C` and `X ≥ 2`. -/
-private theorem sum_pow_lt (c : Nat → Nat) (C X K : Nat) (hX : 2 ≤ X) (hc : ∀ i < K, c i ≤ C) :
-    sumRange (fun i => X ^ i * c i) K < (C + 1) * X ^ K := by
-  induction K with
-  | zero => simp [sumRange]
-  | succ K ih =>
-    rw [sumRange_succ]
-    have h₁ := ih fun i hi => hc i (by lia)
-    have h₂ := Nat.mul_le_mul_left (X ^ K) (hc K (by lia))
-    have h₃ : (C + 1) * X ^ K + X ^ K * C ≤ (C + 1) * X ^ (K + 1) := by
-      rw [Nat.pow_succ]
-      have := Nat.mul_le_mul_left ((C + 1) * X ^ K) hX
-      rw [Nat.mul_comm (X ^ K) C]
-      lia
-    lia
+private theorem FFTModParams.gen {r a b : USlice} {k m n : Nat}
+    (hp : FFTModParams r a b k m n) :
+    FFTOps.FFTModParams r.array r.start.toNat a.array a.start.toNat a.size.toNat b.array
+      b.start.toNat b.size.toNat k m n := by
+  obtain ⟨hk, hn, hm, hmn, hdiv, ha, hb, hla, hlb, hbits, hr, hS, h64, haS, hbS, hrS⟩ := hp
+  have := sliceBound r
+  have hb₂ : 2 * 2 ^ k * 2 ^ (64 * m + 64 * m) ≤ 2 ^ (64 * n) := by
+    rw [show 64 * m + 64 * m = 128 * m by lia]; exact hbits
+  exact ⟨hk, hn, hm, hmn, hdiv, ha, hb, hla, hlb, hb₂, by show _ ≤ r.array.size; lia, hS,
+    h64, haS, hbS, hrS, sliceBound a, sliceBound b⟩
 
-set_option maxHeartbeats 800000 in
 public theorem fftMulModAt_spec (r a b : USlice) (k m n : Nat) (hp : FFTModParams r a b k m n) :
     (fftMulModAt cfg r a b k m n).size = r.array.size ∧
       (∀ i, (i < r.start.toNat ∨ r.start.toNat + (m * 2 ^ k + n + 1) ≤ i) →
@@ -1014,217 +553,10 @@ public theorem fftMulModAt_spec (r a b : USlice) (k m n : Nat) (hp : FFTModParam
       (fftMulModAt cfg r a b k m n).valAt r.start.toNat (m * 2 ^ k + n + 1) %
           (2 ^ (64 * (m * 2 ^ k)) - 1) =
         a.toNat * b.toNat % (2 ^ (64 * (m * 2 ^ k)) - 1) := by
-  obtain ⟨hk, hn, hm, hmn, hdiv, ha, hb, hpa, hpb, hbits, hr, hS, h64, haS, hbS, hrS⟩ := hp
-  have hF₀ : 0 < fermat n := by simp [fermat]
-  have hK1 : 2 ≤ 2 ^ k := by
-    have := Nat.pow_le_pow_right (show 0 < 2 by decide) hk; simpa using this
-  have hσ : 2 * (64 * n) / 2 ^ k * 2 ^ k = 2 * (64 * n) :=
-    Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hdiv)
-  dsimp only [fftMulModAt]
-  generalize 2 * (64 * n) / 2 ^ k = σ at *
-  -- The layout.
-  have hw := Nat.mul_le_mul_right (n + 1) (show 2 ^ k ≤ 2 * 2 ^ k by lia)
-  have hsz : (UInt64Array.replicate (2 * 2 ^ k * (n + 1) + (n + 1) + (n + 1)) 0).size =
-      2 * 2 ^ k * (n + 1) + (n + 1) + (n + 1) := by simp
-  have hSz : 2 * 2 ^ k * (n + 1) + (n + 1) + (n + 1) < USize.size := by
-    rw [show 2 * 2 ^ k * (n + 1) + (n + 1) + (n + 1) = (2 * 2 ^ k + 2) * (n + 1) by
-      rw [Nat.add_mul]; lia]
-    exact hS
-  have hBB : 2 ^ k * (n + 1) + 2 ^ k * (n + 1) = 2 * 2 ^ k * (n + 1) := by rw [Nat.mul_assoc]; lia
-  generalize hS₀ : 2 * 2 ^ k * (n + 1) + (n + 1) + (n + 1) = S at *
-  -- Loading `a`.
-  obtain ⟨l₁, l₂, l₃⟩ := loadLoop_spec 0 n m a (by lia) haS (2 ^ k)
-    (UInt64Array.replicate S 0) 0 (by rw [hsz]; exact hSz) (by rw [hsz]; lia)
-    (fun p _ _ => valAt_replicate_zero ..)
-  generalize loadLoop 0 n m a (UInt64Array.replicate S 0) 0 (2 ^ k) = A₁ at *
-  rw [hsz] at l₁
-  -- Loading `b`.
-  obtain ⟨m₁, m₂, m₃⟩ := loadLoop_spec (2 ^ k * (n + 1)) n m b (by lia) hbS (2 ^ k) A₁ 0
-    (by rw [l₁]; exact hSz) (by rw [l₁]; lia) (fun p _ hp => by
-      have := win_in (2 ^ k * (n + 1)) n p (2 ^ k) (by lia)
-      show win A₁ n _ = 0
-      rw [win_congr fun j _ _ => l₂ j (by lia)]
-      exact valAt_replicate_zero ..)
-  generalize loadLoop (2 ^ k * (n + 1)) n m b A₁ 0 (2 ^ k) = A₂ at *
-  rw [l₁] at m₁
-  have cA : ∀ p < 2 ^ k, coef A₂ n 0 p = piece a m p := by
-    intro p hp
-    have := win_in 0 n p (2 ^ k) hp
-    rw [← l₃ p (by lia) (by lia)]
-    exact win_congr fun j _ _ => m₂ j (by lia)
-  have cB : ∀ p < 2 ^ k, coef A₂ n (2 ^ k * (n + 1)) p = piece b m p :=
-    fun p hp => m₃ p (by lia) (by lia)
-  have hXF : 2 ^ (64 * m) < fermat n := by
-    simp only [fermat]
-    have : 2 ^ (64 * m) ≤ 2 ^ (64 * n) := Nat.pow_le_pow_right (by decide) (by lia)
-    lia
-  -- The forward transforms.
-  obtain ⟨f₁, f₂, f₃⟩ := fwd_spec n (2 * 2 ^ k * (n + 1)) hn h64 k A₂ 0 σ hσ
-    ⟨by rw [m₁]; exact hSz, by rw [m₁]; lia, by rw [m₁]; lia, by lia⟩
-    (fun p hp => by rw [cA p hp]; exact Nat.lt_trans (piece_lt ..) hXF)
-  generalize fwd n (2 * 2 ^ k * (n + 1)) k A₂ 0 σ = A₃ at *
-  have cB₃ : ∀ p < 2 ^ k, coef A₃ n (2 ^ k * (n + 1)) p = piece b m p := by
-    intro p hp
-    have := win_in (2 ^ k * (n + 1)) n p (2 ^ k) hp
-    rw [← cB p hp]
-    exact win_congr fun j _ _ => f₂ j (by lia) (by lia)
-  obtain ⟨g₁, g₂, g₃⟩ := fwd_spec n (2 * 2 ^ k * (n + 1)) hn h64 k A₃ (2 ^ k * (n + 1)) σ hσ
-    ⟨by rw [f₁, m₁]; exact hSz, by rw [f₁, m₁]; lia, by rw [f₁, m₁]; lia, by lia⟩
-    (fun p hp => by rw [cB₃ p hp]; exact Nat.lt_trans (piece_lt ..) hXF)
-  generalize fwd n (2 * 2 ^ k * (n + 1)) k A₃ (2 ^ k * (n + 1)) σ = A₄ at *
-  have cA₄ : ∀ p < 2 ^ k, coef A₄ n 0 p = coef A₃ n 0 p := by
-    intro p hp
-    have := win_in 0 n p (2 ^ k) hp
-    exact win_congr fun j _ _ => g₂ j (by lia) (by lia)
-  -- The pointwise products.
-  obtain ⟨p₁, p₂, p₃⟩ := pointLoop_spec cfg n 0 (2 ^ k * (n + 1)) hn (2 ^ k) A₄
-    (UInt64Array.replicate (2 * n + 2) 0) 0 (by simp) (by simp; lia) (by rw [g₁, f₁, m₁]; exact hSz)
-    (by lia) (by rw [g₁, f₁, m₁]; lia) (fun q _ hq => by
-      rw [cA₄ q (by lia), f₃ q (by lia), g₃ q (by lia)]
-      exact ⟨Nat.mod_lt _ hF₀, Nat.mod_lt _ hF₀⟩)
-  generalize pointLoop cfg n 0 (2 ^ k * (n + 1)) A₄ (UInt64Array.replicate (2 * n + 2) 0) 0
-    (2 ^ k) =
-    A₅ at *
-  -- The inverse transform.
-  obtain ⟨v₁, v₂, v₃⟩ := inv_spec n (2 * 2 ^ k * (n + 1)) hn h64 k A₅ 0 σ hσ
-    ⟨by rw [p₁, g₁, f₁, m₁]; exact hSz, by rw [p₁, g₁, f₁, m₁]; lia, by rw [p₁, g₁, f₁, m₁]; lia,
-      by lia⟩ (fun q hq => by rw [p₃ q (by lia) (by lia)]; exact Nat.mod_lt _ hF₀)
-  generalize inv n (2 * 2 ^ k * (n + 1)) k A₅ 0 σ = A₆ at *
-  -- The zero window is untouched.
-  have hz : win A₆ n (2 * 2 ^ k * (n + 1) + (n + 1)) = 0 := by
-    have : win A₆ n (2 * 2 ^ k * (n + 1) + (n + 1)) =
-        win (UInt64Array.replicate S 0) n (2 * 2 ^ k * (n + 1) + (n + 1)) :=
-      win_congr fun j _ _ => by
-        rw [v₂ j (by lia) (by lia), p₂ j (by lia), g₂ j (by lia) (by lia), f₂ j (by lia) (by lia),
-          m₂ j (by lia), l₂ j (by lia)]
-    rw [this]
-    exact valAt_replicate_zero ..
-  -- The division by `2ᵏ`.
-  have hsz₆ : A₆.size = S := by rw [v₁, p₁, g₁, f₁, m₁]
-  obtain ⟨s₁, -, s₃⟩ := scaleLoop_spec n 0 (2 * 2 ^ k * (n + 1)) (2 * 2 ^ k * (n + 1) + (n + 1)) k
-    hn hk h64 (2 ^ k) A₆ 0 (by rw [hsz₆]; exact hSz) (by rw [hsz₆]; lia) (by rw [hsz₆]; lia)
-    (by rw [hsz₆]; lia) (by lia) (by lia) (by lia) hz
-    (fun q _ hq => by rw [v₃ q (by lia)]; exact Nat.mod_lt _ hF₀)
-  generalize scaleLoop n 0 (2 * 2 ^ k * (n + 1)) (2 * 2 ^ k * (n + 1) + (n + 1)) k A₆ 0 (2 ^ k) =
-    A₇ at *
-  -- The coefficients are those of the product of the pieces.
-  have hla := cover a.size.toNat m hm
-  have hlb := cover b.size.toNat m hm
-  have hla₁ : 1 ≤ (a.size.toNat + m - 1) / m := (Nat.le_div_iff_mul_le (by lia)).2 (by lia)
-  have hlb₁ : 1 ≤ (b.size.toNat + m - 1) / m := (Nat.le_div_iff_mul_le (by lia)).2 (by lia)
-  have hlaK : (a.size.toNat + m - 1) / m ≤ 2 ^ k :=
-    (Nat.div_le_iff_le_mul_add_pred (by lia)).2 (by rw [Nat.mul_comm] at hpa; lia)
-  have hlbK : (b.size.toNat + m - 1) / m ≤ 2 ^ k :=
-    (Nat.div_le_iff_le_mul_add_pred (by lia)).2 (by rw [Nat.mul_comm] at hpb; lia)
-  generalize (a.size.toNat + m - 1) / m = la at *
-  generalize (b.size.toNat + m - 1) / m = lb at *
-  have hαL : ∀ i < 2 ^ k, coef A₂ n 0 i = (pieces a m la).getD i 0 := fun i hi => by
-    rw [cA i hi]
-    rcases coef_pieces a m la (2 ^ k) i hla with h | h
-    · rw [← h, ite_eq_left hi]
-    · lia
-  have hβL : ∀ i < 2 ^ k, coef A₂ n (2 ^ k * (n + 1)) i = (pieces b m lb).getD i 0 :=
-    fun i hi => by
-      rw [cB i hi]
-      rcases coef_pieces b m lb (2 ^ k) i hlb with h | h
-      · rw [← h, ite_eq_left hi]
-      · lia
-  have hβne : pieces b m lb ≠ [] := by
-    intro h; have := congrArg List.length h; rw [length_pieces] at this; simp at this; lia
-  have hc : ∀ l < 2 ^ k, coef A₇ n 0 l =
-      (cyc (polyMul (pieces a m la) (pieces b m lb)) (2 ^ k)).getD l 0 := by
-    intro l hl
-    rw [getD_cyc _ _ _ hl, s₃ l (by lia) (by lia), v₃ l hl]
-    rw [← fft_coef_cyc (pieces a m la) (pieces b m lb) k (64 * n) σ (2 ^ (64 * m)) (F := fermat n)
-      rfl hk hσ hβne
-      (fun x hx => by
-        simp only [pieces, List.mem_map, List.mem_range] at hx
-        obtain ⟨i, -, rfl⟩ := hx; exact piece_lt ..)
-      (fun x hx => by
-        simp only [pieces, List.mem_map, List.mem_range] at hx
-        obtain ⟨i, -, rfl⟩ := hx; exact piece_lt ..)
-      (by rw [← Nat.pow_add, show 64 * m + 64 * m = 128 * m by lia]; exact hbits)
-      (by rw [length_pieces]; lia) (by rw [length_pieces]; lia) l hl]
-    have hα : ∀ q, sumRange (fun i => coef A₂ n 0 i * 2 ^ (σ * i * rev k q)) (2 ^ k) =
-        sumRange (fun i => (pieces a m la).getD i 0 * 2 ^ (σ * i * rev k q)) (2 ^ k) :=
-      fun q => sumRange_congr fun i hi => by rw [hαL i hi]
-    have hβ : ∀ q, sumRange (fun i => coef A₃ n (2 ^ k * (n + 1)) i * 2 ^ (σ * i * rev k q))
-        (2 ^ k) = sumRange (fun i => (pieces b m lb).getD i 0 * 2 ^ (σ * i * rev k q)) (2 ^ k) :=
-      fun q => sumRange_congr fun i hi => by rw [cB₃ i hi, ← cB i hi, hβL i hi]
-    have hsum : sumRange (fun p => coef A₅ n 0 p * 2 ^ ((2 * (64 * n) - σ) * rev k p * l))
-        (2 ^ k) = sumRange (fun p =>
-          sumRange (fun i => (pieces a m la).getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) %
-            fermat n * (sumRange (fun i => (pieces b m lb).getD i 0 * 2 ^ (σ * i * rev k p))
-              (2 ^ k) % fermat n) % fermat n * 2 ^ ((2 * (64 * n) - σ) * rev k p * l)) (2 ^ k) :=
-      sumRange_congr fun q hq => by
-        rw [p₃ q (by lia) (by lia), cA₄ q hq, f₃ q hq, g₃ q hq, hα, hβ]
-    rw [hsum]
-  have hcF : ∀ l < 2 ^ k, coef A₇ n 0 l ≤ 2 ^ (64 * n) := by
-    intro l hl
-    rw [s₃ l (by lia) (by lia)]
-    exact Nat.le_of_lt_succ (Nat.mod_lt _ hF₀)
-  -- The value of the coefficients at `X = 2^(64 m)`, modulo `X^K - 1`.
-  generalize hZ : polyMul (pieces a m la) (pieces b m lb) = Z at hc
-  have hZ2 : Z.length ≤ 2 * 2 ^ k := by
-    rw [← hZ]; have := length_polyMul (pieces a m la) (pieces b m lb) hβne
-    rw [length_pieces, length_pieces] at this; lia
-  have hval : sumRange (fun i => 2 ^ (64 * ((0 + i) * m)) * coef A₇ n 0 (0 + i)) (2 ^ k) =
-      polyVal (2 ^ (64 * m)) (cyc Z (2 ^ k)) := by
-    rw [polyVal_eq_sumRange _ _ (2 ^ k) (by rw [length_cyc]; exact Nat.le_refl _)]
-    exact sumRange_congr fun i hi => by
-      rw [Nat.zero_add, hc i hi, Nat.mul_comm, ← Nat.pow_mul]; congr 2; lia
-  have hM : MEq (2 ^ (64 * (m * 2 ^ k)) - 1) ((2 ^ (64 * m)) ^ 2 ^ k) 1 := by
-    rw [← Nat.pow_mul, show 64 * m * 2 ^ k = 64 * (m * 2 ^ k) by lia]
-    have : 1 ≤ 2 ^ (64 * (m * 2 ^ k)) := Nat.one_le_two_pow
-    show _ % _ = _ % _
-    rw [show 2 ^ (64 * (m * 2 ^ k)) = (2 ^ (64 * (m * 2 ^ k)) - 1) + 1 by lia,
-      Nat.add_sub_cancel, Nat.add_mod_left]
-  have hab : MEq (2 ^ (64 * (m * 2 ^ k)) - 1) (a.toNat * b.toNat)
-      (polyVal (2 ^ (64 * m)) (cyc Z (2 ^ k))) := by
-    rw [← polyVal_pieces a m la hla, ← polyVal_pieces b m lb hlb, ← polyVal_polyMul, hZ]
-    exact polyVal_cyc _ _ _ _ hM hZ2
-  have hlt : sumRange (fun i => 2 ^ (64 * ((0 + i) * m)) * coef A₇ n 0 (0 + i)) (2 ^ k) <
-      2 ^ (64 * (m * 2 ^ k + n + 1)) := by
-    have h₁ := sum_pow_lt (fun i => coef A₇ n 0 i) (2 ^ (64 * n)) (2 ^ (64 * m)) (2 ^ k)
-      (Nat.le_trans (by decide) (Nat.pow_le_pow_right (by decide) (by lia : 1 ≤ 64 * m))) hcF
-    have e : sumRange (fun i => 2 ^ (64 * ((0 + i) * m)) * coef A₇ n 0 (0 + i)) (2 ^ k) =
-        sumRange (fun i => (2 ^ (64 * m)) ^ i * coef A₇ n 0 i) (2 ^ k) :=
-      sumRange_congr fun i _ => by rw [Nat.zero_add, ← Nat.pow_mul]; congr 2; lia
-    rw [e]
-    refine Nat.lt_of_lt_of_le h₁ ?_
-    have : 2 ^ (64 * n) + 1 ≤ 2 ^ (64 * n + 64) := by
-      rw [Nat.pow_add]
-      have := Nat.two_pow_pos (64 * n)
-      have : 2 ≤ 2 ^ 64 := by decide
-      have := Nat.mul_le_mul_left (2 ^ (64 * n)) this
-      lia
-    calc (2 ^ (64 * n) + 1) * (2 ^ (64 * m)) ^ 2 ^ k
-        ≤ 2 ^ (64 * n + 64) * (2 ^ (64 * m)) ^ 2 ^ k := Nat.mul_le_mul_right _ this
-      _ = 2 ^ (64 * (m * 2 ^ k + n + 1)) := by
-          rw [← Nat.pow_mul, ← Nat.pow_add]; congr 1; lia
-  -- Zeroing the result, and adding the coefficients.
-  have hT : (m * 2 ^ k + n + 1).toUSize.toNat = m * 2 ^ k + n + 1 :=
-    USize.toNat_ofNat_of_lt' (by have := r.size.toNat_lt_size; lia)
-  have hrs := r.toNat_size
-  have hrst := r.stop_le_size
-  have hrle := USize.le_iff_toNat_le.1 r.start_le_stop
-  have e₁ := r.start_slice (i := 0) (j := (m * 2 ^ k + n + 1).toUSize) (by simp)
-    (by rw [hT]; exact hr)
-  have e₂ := r.size_slice (i := 0) (j := (m * 2 ^ k + n + 1).toUSize) (by simp)
-    (by rw [hT]; exact hr)
-  rw [USize.toNat_zero, Nat.add_zero] at e₁
-  rw [USize.toNat_zero, Nat.sub_zero, hT] at e₂
-  obtain ⟨z₁, z₂, z₃⟩ := zeroInto_spec (r.slice 0 (m * 2 ^ k + n + 1).toUSize)
-  simp only [USlice.array_slice, e₁, e₂, Nat.add_zero] at z₁ z₂ z₃
-  generalize zeroInto (r.slice 0 (m * 2 ^ k + n + 1).toUSize) = R₀ at *
-  have hsz₇ : A₇.size = S := by rw [s₁, hsz₆]
-  obtain ⟨c₁, c₂, c₃⟩ := recLoop_spec (m * 2 ^ k + n + 1) m n 0 A₇
-    (by rw [hsz₇]; exact hSz) (2 ^ k) R₀ r.start.toNat 0 (by rw [z₁]; exact hrS) (by rw [z₁]; lia)
-    (by rw [hsz₇]; lia) (by rw [z₃, Nat.zero_add]; exact hlt)
-  refine ⟨by rw [c₁, z₁], fun i hi => ?_, ?_⟩
-  · rw [c₂ i (by lia), z₂ i (by lia)]
-  · rw [c₃, z₃, Nat.zero_add, hval]
-    exact hab.symm
+  obtain ⟨h₁, h₂, h₃⟩ := FFTOps.fftMulModAt_spec (mulP64 cfg) _ _ _ _ _ _ _ _ k m n hp.gen
+    (isMulP64 cfg n)
+  rw [USlice.toNat_eq_valAt, USlice.toNat_eq_valAt]
+  exact ⟨h₁, h₂, h₃⟩
 
 /-- The conditions of `FFTModParams`, decidably, with `k + 1 + 128 m ≤ 64 n` for the bound. -/
 public abbrev FFTModCheck (r a b : USlice) (k m n : Nat) : Prop :=
@@ -1249,156 +581,22 @@ public def fftModN (k m : Nat) : Nat :=
 /-! ## Squaring -/
 
 /--
-`a²` into the first `2 a.size` limbs of `r`, like `fftMulAt r a a` with one forward transform and
-squares for the pointwise products: the block of `a` at `0`, the scratch window and a zero window.
+`a²` into the first `2 a.size` limbs of `r`, with one forward transform and squares for the
+pointwise products: `FFTOps.fftSqrAt`.
 -/
 public def fftSqrAt (cfg : Config) (r a : USlice) (k m n : Nat) : UInt64Array :=
-  let K := 2 ^ k
-  let t := K * (n + 1)
-  let z := t + (n + 1)
-  let σ := 2 * (64 * n) / K
-  let FA := loadLoop 0 n m a (UInt64Array.replicate (z + (n + 1)) 0) 0 K
-  let FA := fwd n t k FA 0 σ
-  let FA := pointSqrLoop cfg n 0 FA (UInt64Array.replicate (2 * n + 2) 0) 0 K
-  let FA := inv n t k FA 0 σ
-  let FA := scaleLoop n 0 t z k FA 0 K
-  recLoop (a.size.toNat + a.size.toNat) m n 0 FA
-    (zeroInto (r.slice 0 (a.size + a.size))) r.start.toNat 0 K
+  FFTOps.fftSqrAt (sqrP64 cfg) r.array r.start.toNat a.array a.start.toNat a.size.toNat k m n
 
-set_option maxHeartbeats 800000 in
 public theorem fftSqrAt_spec (r a : USlice) (k m n : Nat) (hp : FFTParams r a a k m n) :
     (fftSqrAt cfg r a k m n).size = r.array.size ∧
       (∀ i, (i < r.start.toNat ∨ r.start.toNat + a.size.toNat + a.size.toNat ≤ i) →
         (fftSqrAt cfg r a k m n)[i]! = r.array[i]!) ∧
       (fftSqrAt cfg r a k m n).valAt r.start.toNat (a.size.toNat + a.size.toNat) =
         a.toNat * a.toNat := by
-  obtain ⟨hk, hn, hm, hmn, hdiv, ha, -, hpc, hbits, hr, hS, h64, haS, -, hrS⟩ := hp
-  have hF₀ : 0 < fermat n := by simp [fermat]
-  have hK1 : 2 ≤ 2 ^ k := by
-    have := Nat.pow_le_pow_right (show 0 < 2 by decide) hk; simpa using this
-  have hσ : 2 * (64 * n) / 2 ^ k * 2 ^ k = 2 * (64 * n) :=
-    Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hdiv)
-  dsimp only [fftSqrAt]
-  generalize 2 * (64 * n) / 2 ^ k = σ at *
-  -- The layout.
-  have hsz : (UInt64Array.replicate (2 ^ k * (n + 1) + (n + 1) + (n + 1)) 0).size =
-      2 ^ k * (n + 1) + (n + 1) + (n + 1) := by simp
-  have hSz : 2 ^ k * (n + 1) + (n + 1) + (n + 1) < USize.size := by
-    have : 2 ^ k * (n + 1) + (n + 1) + (n + 1) ≤ (2 * 2 ^ k + 2) * (n + 1) := by
-      rw [Nat.add_mul, Nat.mul_assoc]; lia
-    lia
-  generalize hS₀ : 2 ^ k * (n + 1) + (n + 1) + (n + 1) = S at *
-  -- Loading `a`.
-  obtain ⟨l₁, l₂, l₃⟩ := loadLoop_spec 0 n m a (by lia) haS (2 ^ k)
-    (UInt64Array.replicate S 0) 0 (by rw [hsz]; exact hSz) (by rw [hsz]; lia)
-    (fun p _ _ => valAt_replicate_zero ..)
-  generalize loadLoop 0 n m a (UInt64Array.replicate S 0) 0 (2 ^ k) = A₂ at *
-  rw [hsz] at l₁
-  have cA : ∀ p < 2 ^ k, coef A₂ n 0 p = piece a m p := fun p hp => l₃ p (by lia) (by lia)
-  have hXF : 2 ^ (64 * m) < fermat n := by
-    simp only [fermat]
-    have : 2 ^ (64 * m) ≤ 2 ^ (64 * n) := Nat.pow_le_pow_right (by decide) (by lia)
-    lia
-  -- The forward transform.
-  obtain ⟨f₁, f₂, f₃⟩ := fwd_spec n (2 ^ k * (n + 1)) hn h64 k A₂ 0 σ hσ
-    ⟨by rw [l₁]; exact hSz, by rw [l₁]; lia, by rw [l₁]; lia, by lia⟩
-    (fun p hp => by rw [cA p hp]; exact Nat.lt_trans (piece_lt ..) hXF)
-  generalize fwd n (2 ^ k * (n + 1)) k A₂ 0 σ = A₄ at *
-  -- The pointwise squares.
-  obtain ⟨p₁, p₂, p₃⟩ := pointSqrLoop_spec cfg n 0 hn (2 ^ k) A₄
-    (UInt64Array.replicate (2 * n + 2) 0) 0 (by simp) (by simp; lia) (by rw [f₁, l₁]; exact hSz)
-    (by rw [f₁, l₁]; lia) (fun q _ hq => by rw [f₃ q (by lia)]; exact Nat.mod_lt _ hF₀)
-  generalize pointSqrLoop cfg n 0 A₄ (UInt64Array.replicate (2 * n + 2) 0) 0 (2 ^ k) = A₅ at *
-  -- The inverse transform.
-  obtain ⟨v₁, v₂, v₃⟩ := inv_spec n (2 ^ k * (n + 1)) hn h64 k A₅ 0 σ hσ
-    ⟨by rw [p₁, f₁, l₁]; exact hSz, by rw [p₁, f₁, l₁]; lia, by rw [p₁, f₁, l₁]; lia,
-      by lia⟩ (fun q hq => by rw [p₃ q (by lia) (by lia)]; exact Nat.mod_lt _ hF₀)
-  generalize inv n (2 ^ k * (n + 1)) k A₅ 0 σ = A₆ at *
-  -- The zero window is untouched.
-  have hz : win A₆ n (2 ^ k * (n + 1) + (n + 1)) = 0 := by
-    have : win A₆ n (2 ^ k * (n + 1) + (n + 1)) =
-        win (UInt64Array.replicate S 0) n (2 ^ k * (n + 1) + (n + 1)) :=
-      win_congr fun j _ _ => by
-        rw [v₂ j (by lia) (by lia), p₂ j (by lia), f₂ j (by lia) (by lia), l₂ j (by lia)]
-    rw [this]
-    exact valAt_replicate_zero ..
-  -- The division by `2ᵏ`.
-  have hsz₆ : A₆.size = S := by rw [v₁, p₁, f₁, l₁]
-  obtain ⟨s₁, -, s₃⟩ := scaleLoop_spec n 0 (2 ^ k * (n + 1)) (2 ^ k * (n + 1) + (n + 1)) k
-    hn hk h64 (2 ^ k) A₆ 0 (by rw [hsz₆]; exact hSz) (by rw [hsz₆]; lia) (by rw [hsz₆]; lia)
-    (by rw [hsz₆]; lia) (by lia) (by lia) (by lia) hz
-    (fun q _ hq => by rw [v₃ q (by lia)]; exact Nat.mod_lt _ hF₀)
-  generalize scaleLoop n 0 (2 ^ k * (n + 1)) (2 ^ k * (n + 1) + (n + 1)) k A₆ 0 (2 ^ k) = A₇ at *
-  -- The coefficients are those of the square of the pieces.
-  have hla := cover a.size.toNat m hm
-  have hla₁ : 1 ≤ (a.size.toNat + m - 1) / m := (Nat.le_div_iff_mul_le (by lia)).2 (by lia)
-  generalize (a.size.toNat + m - 1) / m = la at *
-  have hαL : ∀ i < 2 ^ k, coef A₂ n 0 i = (pieces a m la).getD i 0 := fun i hi => by
-    rw [cA i hi]
-    rcases coef_pieces a m la (2 ^ k) i hla with h | h
-    · rw [← h, ite_eq_left hi]
-    · lia
-  have hαne : pieces a m la ≠ [] := by
-    intro h; have := congrArg List.length h; rw [length_pieces] at this; simp at this; lia
-  have hc : ∀ l < 2 ^ k, coef A₇ n 0 l = (polyMul (pieces a m la) (pieces a m la)).getD l 0 := by
-    intro l hl
-    rw [s₃ l (by lia) (by lia), v₃ l hl]
-    rw [← fft_coef (pieces a m la) (pieces a m la) k (64 * n) σ (2 ^ (64 * m)) (F := fermat n) rfl
-      hk hσ
-      (by rw [length_pieces]; lia) hαne
-      (fun x hx => by
-        simp only [pieces, List.mem_map, List.mem_range] at hx
-        obtain ⟨i, -, rfl⟩ := hx; exact piece_lt ..)
-      (fun x hx => by
-        simp only [pieces, List.mem_map, List.mem_range] at hx
-        obtain ⟨i, -, rfl⟩ := hx; exact piece_lt ..)
-      (by rw [← Nat.pow_add, show 64 * m + 64 * m = 128 * m by lia]; exact hbits)
-      (by rw [length_pieces]; lia) (by rw [length_pieces]; lia) l hl]
-    have hα : ∀ q, sumRange (fun i => coef A₂ n 0 i * 2 ^ (σ * i * rev k q)) (2 ^ k) =
-        sumRange (fun i => (pieces a m la).getD i 0 * 2 ^ (σ * i * rev k q)) (2 ^ k) :=
-      fun q => sumRange_congr fun i hi => by rw [hαL i hi]
-    have hsum : sumRange (fun p => coef A₅ n 0 p * 2 ^ ((2 * (64 * n) - σ) * rev k p * l))
-        (2 ^ k) = sumRange (fun p =>
-          sumRange (fun i => (pieces a m la).getD i 0 * 2 ^ (σ * i * rev k p)) (2 ^ k) %
-            fermat n * (sumRange (fun i => (pieces a m la).getD i 0 * 2 ^ (σ * i * rev k p))
-              (2 ^ k) % fermat n) % fermat n * 2 ^ ((2 * (64 * n) - σ) * rev k p * l)) (2 ^ k) :=
-      sumRange_congr fun q hq => by
-        rw [p₃ q (by lia) (by lia), f₃ q hq, hα]
-    rw [hsum]
-  -- The value of the coefficients at `2^(64 m)`.
-  generalize hZ : polyMul (pieces a m la) (pieces a m la) = Z at hc
-  have hZK : Z.length ≤ 2 ^ k := by
-    rw [← hZ]; have := length_polyMul (pieces a m la) (pieces a m la) hαne
-    rw [length_pieces] at this; lia
-  have hab : sumRange (fun i => 2 ^ (64 * ((0 + i) * m)) * coef A₇ n 0 (0 + i)) (2 ^ k) =
-      a.toNat * a.toNat := by
-    rw [← polyVal_pieces a m la hla, ← polyVal_polyMul, hZ, polyVal_eq_sumRange _ Z _ hZK]
-    exact sumRange_congr fun i hi => by
-      rw [Nat.zero_add, hc i hi, Nat.mul_comm, ← Nat.pow_mul]; congr 2; lia
-  have hablt : a.toNat * a.toNat < 2 ^ (64 * (a.size.toNat + a.size.toNat)) := by
-    rw [Nat.mul_add, Nat.pow_add]
-    have h₁ : a.toNat < 2 ^ (64 * a.size.toNat) := by rw [USlice.toNat_eq_valAt]; exact valAt_lt ..
-    exact Nat.mul_lt_mul'' h₁ h₁
-  -- Zeroing the result, and adding the coefficients.
-  have hT : (a.size + a.size).toNat = a.size.toNat + a.size.toNat :=
-    USize.toNat_add_of_lt (by have := r.size.toNat_lt_size; lia)
-  have hrs := r.toNat_size
-  have hrst := r.stop_le_size
-  have hrle := USize.le_iff_toNat_le.1 r.start_le_stop
-  have e₁ := r.start_slice (i := 0) (j := a.size + a.size) (by simp) (by rw [hT]; exact hr)
-  have e₂ := r.size_slice (i := 0) (j := a.size + a.size) (by simp) (by rw [hT]; exact hr)
-  rw [USize.toNat_zero, Nat.add_zero] at e₁
-  rw [USize.toNat_zero, Nat.sub_zero, hT] at e₂
-  obtain ⟨z₁, z₂, z₃⟩ := zeroInto_spec (r.slice 0 (a.size + a.size))
-  simp only [USlice.array_slice, e₁, e₂] at z₁ z₂ z₃
-  generalize zeroInto (r.slice 0 (a.size + a.size)) = R₀ at *
-  have hsz₇ : A₇.size = S := by rw [s₁, hsz₆]
-  obtain ⟨c₁, c₂, c₃⟩ := recLoop_spec (a.size.toNat + a.size.toNat) m n 0 A₇
-    (by rw [hsz₇]; exact hSz) (2 ^ k) R₀ r.start.toNat 0 (by rw [z₁]; exact hrS) (by rw [z₁]; lia)
-    (by rw [hsz₇]; lia) (by rw [z₃, Nat.zero_add, hab]; exact hablt)
-  refine ⟨by rw [c₁, z₁], fun i hi => ?_, ?_⟩
-  · rw [c₂ i (by lia), z₂ i (by lia)]
-  · rw [c₃, z₃, Nat.zero_add, hab]
+  obtain ⟨h₁, h₂, h₃⟩ := FFTOps.fftSqrAt_spec (sqrP64 cfg) _ _ _ _ _ k m n hp.gen
+    (isSqrP64 cfg n)
+  rw [USlice.toNat_eq_valAt]
+  exact ⟨h₁, fun i hi => h₂ i (by lia), h₃⟩
 
 /-! ## The parameters -/
 
