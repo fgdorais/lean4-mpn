@@ -24,6 +24,7 @@ Both stay merged with `main`: a change to the common part is made here and merge
 | `MPN.FFT.Roots` | the inversion of the FFT's transform modulo a Fermat number, on natural numbers |
 | `MPN.FFT.Algebra` | the algebra of the transforms modulo `2ᴺ + 1` for any `N`: bit reversal, the butterflies, and the coefficients they give (`fft_coef`, and `fft_coef_cyc` for products modulo `x^K - 1`) |
 | `MPN.FFT.Windows` | the forward and inverse transforms with their proofs, in place on windows of `n + 1` limbs of one array, over the class `WinOps` of residue operations modulo `2^(w n) + 1` on a `LimbArray`, for limbs of any width `w` |
+| `MPN.FFT.Product` | Schönhage–Strassen products, products modulo `2^(w N) - 1` and squares on one flat array, with their proofs, over `WinOps` and the class `FFTOps` of the other in-place operations, the pointwise products an argument |
 | `MPN.WordGcd` | Euclid's algorithm on words, and the runs of Lehmer's steps on leading words |
 | `MPN.Generic.Ops` | `NatOps α`: the operations of a representation of numbers at a base, with their specifications |
 | `MPN.Generic.Barrett` | division by a reciprocal from Newton's iteration over `NatOps`, every estimate checked |

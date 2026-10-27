@@ -11,6 +11,7 @@ public import MPN.FFT.Roots
 public import MPN.FFT.Algebra
 public import MPN.LimbArray
 public import MPN.FFT.Windows
+public import MPN.FFT.Product
 public import MPN.WordGcd
 public import MPN.Generic.Ops
 public import MPN.Generic.Barrett
