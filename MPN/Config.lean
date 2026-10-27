@@ -122,7 +122,7 @@ public structure Config where
   The size of the divisor from which division uses Barrett's method with Newton's reciprocal,
   inside divide and conquer (so from `divDC` on).
   -/
-  divMu : Nat := 16384
+  divMu : Nat := 10240
   /-- The size of the smaller number from which the greatest common divisor uses half-gcd. -/
   gcdHalf : Nat := 1024
   /-- The size from which decimal strings are written by divide and conquer. -/

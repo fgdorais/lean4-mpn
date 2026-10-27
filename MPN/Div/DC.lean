@@ -81,7 +81,7 @@ public def divMod (a b : UInt64Array) : UInt64Array × UInt64Array :=
     let c := 63 - L % 64
     let U := low (shl a c) (a.size + 1)
     let V := low (shl b c) nb
-    let r := if config.divMu ≤ nb then ops64B.divMu U V
+    let r := if config.divMu ≤ nb then ops64B.divMuW U V
       else ops64B.divNorm divBase64 config.divDC U V nb (a.size + 1 - nb)
     (fitTo r.1 (a.size + 1), fitTo (shr (fitTo r.2 nb) c) (max a.size b.size))
   else divModBase a b
@@ -136,7 +136,7 @@ private theorem divMod_dc (a b : UInt64Array) (hb : 0 < b.toNat)
             apply Nat.mul_le_mul_right
             exact Nat.le_trans (Nat.pow_le_pow_right (by decide) (by lia)) hlo
     have hb₀' : 0 < b.toNat * 2 ^ c := Nat.mul_pos hb (Nat.two_pow_pos _)
-    have hr : ∀ r, r = (if config.divMu ≤ nb then ops64B.divMu (low (shl a c) (a.size + 1))
+    have hr : ∀ r, r = (if config.divMu ≤ nb then ops64B.divMuW (low (shl a c) (a.size + 1))
           (low (shl b c) nb)
         else ops64B.divNorm divBase64 config.divDC (low (shl a c) (a.size + 1)) (low (shl b c) nb)
           nb (a.size + 1 - nb)) →
@@ -145,7 +145,7 @@ private theorem divMod_dc (a b : UInt64Array) (hb : 0 < b.toNat)
       intro r e
       subst e
       split
-      · obtain ⟨r₃, r₄⟩ := ops64B.divMu_spec (low (shl a c) (a.size + 1)) (low (shl b c) nb)
+      · obtain ⟨r₃, r₄⟩ := ops64B.divMuW_spec (low (shl a c) (a.size + 1)) (low (shl b c) nb)
           (by simp only [ops64B_val]; rw [hVv]; exact hb₀')
         simp only [ops64B_val] at r₃ r₄
         rw [hUv, hVv] at r₃ r₄
@@ -162,7 +162,7 @@ private theorem divMod_dc (a b : UInt64Array) (hb : 0 < b.toNat)
     obtain ⟨r₃, r₄⟩ := hr _ rfl
     rw [Nat.mul_div_mul_right _ _ (Nat.two_pow_pos _)] at r₃
     rw [Nat.mul_mod_mul_right] at r₄
-    generalize (if config.divMu ≤ nb then ops64B.divMu (low (shl a c) (a.size + 1))
+    generalize (if config.divMu ≤ nb then ops64B.divMuW (low (shl a c) (a.size + 1))
           (low (shl b c) nb)
         else ops64B.divNorm divBase64 config.divDC (low (shl a c) (a.size + 1)) (low (shl b c) nb)
           nb (a.size + 1 - nb)) = r at r₃ r₄

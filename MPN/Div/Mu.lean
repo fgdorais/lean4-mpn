@@ -11,41 +11,12 @@ public import MPN.Div.DC
 
 Barrett's division with a reciprocal from Newton's iteration, like GMP's `mpn_mu_div_qr`, on
 `MPN.Num`. The remainders, which are known to be small, are computed modulo `β^N - 1` with the
-wrapped product of the FFT (`mulModB`), at about half the cost of a full product.
+wrapped product of the FFT (`Num.mulModB`), at about half the cost of a full product.
 -/
 
 open ScalarArray UInt64Array
 
 namespace MPN.Num
-
-/-! ## Products modulo `β^N - 1` -/
-
-/--
-`a b` modulo `2^(64 N) - 1` for `N = m 2ᵏ`, up to a multiple: by `fftMulModAt` with `2ᵏ` pieces of
-`m` limbs, or by `mul` when the parameters do not suit the sizes.
--/
-public def mulModB (a b : UInt64Array) (k m : Nat) : UInt64Array :=
-  let n := FFT.fftModN k m
-  let r := UInt64Array.replicate (m * 2 ^ k + n + 1) 0
-  if FFT.FFTModCheck r.toUSlice a.toUSlice b.toUSlice k m n then
-    FFT.fftMulModAt config r.toUSlice a.toUSlice b.toUSlice k m n
-  else mul a b
-
-public theorem toNat_mulModB (a b : UInt64Array) (k m : Nat)
-    (hU : a.size + b.size < USize.size) :
-    (mulModB a b k m).toNat % (2 ^ (64 * (m * 2 ^ k)) - 1) =
-      a.toNat * b.toNat % (2 ^ (64 * (m * 2 ^ k)) - 1) := by
-  unfold mulModB
-  dsimp only
-  split
-  · rename_i h
-    have hrS := h.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2
-    obtain ⟨-, -, e⟩ := FFT.fftMulModAt_spec config _ _ _ k m _ h.params
-    obtain ⟨s₁, -, -⟩ := FFT.fftMulModAt_spec config _ _ _ k m _ h.params
-    rw [toUSlice_toNat a (by lia), toUSlice_toNat b (by lia)] at e
-    rw [toNat_eq_valAt, s₁]
-    simpa using e
-  · rw [toNat_mul _ _ hU]
 
 /-- One fold modulo `β^N - 1`: the low `N` limbs plus the rest, since `β^N ≡ 1`. -/
 public def foldB (x : UInt64Array) (N : Nat) : UInt64Array := add (low x N) (shr x (64 * N))

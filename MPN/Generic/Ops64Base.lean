@@ -123,6 +123,41 @@ public theorem Num.size_one : Num.one.size = 1 := by simp [Num.one]
 public def mul64 (x y : UInt64Array) : UInt64Array :=
   if fits (x.size + y.size + 1) then trimA (Num.mul x y) else ofNat (x.toNat * y.toNat)
 
+/-- The size of the modulus of `mulMod64 n`: `n` rounded up to a multiple of `2ᵏ`, `k = fftK n`. -/
+@[expose] public def modSize64 (n : Nat) : Nat :=
+  (n + 2 ^ FFT.fftK n - 1) / 2 ^ FFT.fftK n * 2 ^ FFT.fftK n
+
+public theorem le_modSize64 (n : Nat) : n ≤ modSize64 n := by
+  rw [modSize64]
+  have h₀ : 0 < 2 ^ FFT.fftK n := Nat.two_pow_pos _
+  generalize 2 ^ FFT.fftK n = P at *
+  have h₁ := Nat.div_add_mod (n + P - 1) P
+  have h₂ := Nat.mod_lt (n + P - 1) h₀
+  rw [Nat.mul_comm] at h₁
+  lia
+
+/--
+`x y` modulo `2^(64 modSize64 n) - 1`, up to a multiple: by `Num.mulModB` when the product is
+longer than the modulus, and otherwise by `Num.mul`, since it would not wrap.
+-/
+public def mulMod64 (n : Nat) (x y : UInt64Array) : UInt64Array :=
+  if fits (x.size + y.size + 1) then
+    if x.size + y.size ≤ modSize64 n then Num.mul x y
+    else Num.mulModB x y (FFT.fftK n) ((n + 2 ^ FFT.fftK n - 1) / 2 ^ FFT.fftK n)
+  else ofNat (x.toNat * y.toNat)
+
+public theorem val_mulMod64 (n : Nat) (x y : UInt64Array) :
+    (mulMod64 n x y).toNat % ((2 ^ 64) ^ modSize64 n - 1) =
+      x.toNat * y.toNat % ((2 ^ 64) ^ modSize64 n - 1) := by
+  rw [mulMod64]
+  split
+  · rename_i h
+    split
+    · rw [Num.toNat_mul _ _ (by have := lt_of_fits h; lia)]
+    · rw [modSize64, ← Nat.pow_mul]
+      exact Num.toNat_mulModB _ _ _ _ (by have := lt_of_fits h; lia)
+  · rw [toNat_ofNat]
+
 /-- `x²`, by `Num.sqr`. -/
 public def sqr64 (x : UInt64Array) : UInt64Array :=
   if fits (2 * x.size + 1) then trimA (Num.sqr x) else ofNat (x.toNat * x.toNat)
@@ -240,6 +275,10 @@ public theorem val_divBase64 (x y : UInt64Array) (hy : y.toNat ≠ 0) :
   val_pow k := by rw [pow64, val_shl64, Num.toNat_one, Nat.one_mul]
   one := Num.one
   val_one := Num.toNat_one
+  mulModSize := modSize64
+  le_mulModSize := le_modSize64
+  mulMod := mulMod64
+  val_mulMod := val_mulMod64
   divRem := div
   val_divRem := hdiv
 
