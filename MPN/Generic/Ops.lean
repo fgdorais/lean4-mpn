@@ -55,6 +55,19 @@ public structure NatOps (α : Type) where
   val_pow (k : Nat) : val (pow k) = B ^ k
   one : α
   val_one : val one = 1
+  /--
+  The size of the modulus of `mulMod n`, at least `n`: `mulMod n x y` is `x y` modulo
+  `B ^ mulModSize n - 1`.
+  -/
+  mulModSize : Nat → Nat
+  le_mulModSize (n : Nat) : n ≤ mulModSize n
+  /--
+  `x y` modulo `B ^ mulModSize n - 1`, up to a multiple of it, which a wrapped product, like the
+  FFT's, computes faster than `mul`.
+  -/
+  mulMod : Nat → α → α → α
+  val_mulMod (n : Nat) (x y : α) :
+    val (mulMod n x y) % (B ^ mulModSize n - 1) = val x * val y % (B ^ mulModSize n - 1)
   /-- `(x / y, x % y)` by a slow algorithm, the fallback of the fast ones. -/
   divRem : α → α → α × α
   val_divRem (x y : α) : val y ≠ 0 →
