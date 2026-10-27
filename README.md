@@ -32,7 +32,7 @@ comes with Lean.
 | `MPN.Sqrt` | `sqrtRem`: Zimmermann's Karatsuba square root, Newton's iteration on a double word (`sqrt2`) at the bottom | `mpn_sqrtrem`, `mpn_dc_sqrtrem` |
 | `MPN.Mul.Toom` | `mulToom`: Toom-6 from `mulToom6 = 768` limbs, Toom-4 from `mulToom4 = 600` and Toom-4 by 3 from `mulToom43 = 600` limbs, Toom-3 from `mulToom3 = 384`, Toom-3 by 2 from `mulToom32 = 176` and Toom-4 by 2 from `mulToom42 = 88` limbs, by the shape; `sqrToom`: the Toom-6 square from 1152 limbs, the Toom-4 square from 1000, the Toom-3 square from 600 | `mpn_toom6h_mul`, `mpn_toom44_mul`, `mpn_toom43_mul`, `mpn_toom33_mul`, `mpn_toom32_mul`, `mpn_toom42_mul`, `mpn_toom6_sqr`, `mpn_toom4_sqr`, `mpn_toom3_sqr` |
 | `MPN.FFT.Fermat` | in place on windows of one array, modulo `2^(64 n) + 1`: `normAt`, `addModAt`, `subModAt`, `mulPow2At` | `mpn_fft_add_modF`, `mpn_fft_sub_modF`, `mpn_fft_mul_2exp_modF` |
-| `MPN.FFT.Transform` | `fwd`, `inv`: the transforms of length `2ᵏ`, in place | `mpn_fft_fft`, `mpn_fft_fftinv` |
+| `MPN.FFT.Transform` | `fwd`, `inv`: the transforms of length `2ᵏ`, in place, by `main`'s `MPN.FFT.Windows` on the instance `winOps64` | `mpn_fft_fft`, `mpn_fft_fftinv` |
 | `MPN.FFT.Mul` | `fftMul`, `fftSqr`: Schönhage–Strassen with `2ᵏ` pieces; `MPN.mul` and `MPN.sqr`, which split unbalanced products into pieces (`mulChunked`) and choose the FFT from `mulFFT = 4096` limbs in the larger operand and `sqrFFT = 2816` limbs, and `mulToom` or `sqrToom` below | `mpn_mul_fft`, `mpn_mul`, `mpn_sqr` |
 | `MPN.Sqr.Basecase` | `sqrBasecase` | `mpn_sqr_basecase` |
 | `MPN.Sqr.Karatsuba` | `sqrKaratsuba`, from `sqrKaratsuba = 96` limbs | `mpn_kara_sqr_n` |
@@ -42,7 +42,8 @@ region of an array with `USize` bounds; `foldUInPlace`, the in-place loop; and `
 the in-place loop that reads other windows of the array it writes. `MPN.Sum`, `MPN.NatMod`,
 `MPN.Poly`, `MPN.FFT.Roots` and `MPN.FFT.Algebra` (from `main`) are mathematics on `Nat`: finite
 sums, congruences, polynomials, the inversion of the transform, and the butterflies and
-coefficients of the transforms modulo `2ᴺ + 1`.
+coefficients of the transforms modulo `2ᴺ + 1`. `MPN.FFT.Windows` (also from `main`) holds the
+transforms and their proofs for any limb width, over the class `WinOps` of residue operations.
 
 ## Conventions
 
