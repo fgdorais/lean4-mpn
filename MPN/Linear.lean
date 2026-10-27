@@ -486,44 +486,6 @@ public theorem valAt_divExact5Into (r : USlice)
       r.array.valAt r.start.toNat r.size.toNat / 5 :=
   valAt_divExactInto _ _ _ (by decide) (by decide) h
 
-/-- Divides the limbs of `r` by `7` in place. -/
-public def divExact7Into (r : USlice) : UInt64Array × UInt64 :=
-  divExactInto r 7 0x6DB6DB6DB6DB6DB7
-
-@[simp] public theorem size_divExact7Into (r : USlice) :
-    (divExact7Into r).1.size = r.array.size := size_divExactInto ..
-
-/-- `divExact7Into` leaves the limbs of `r` outside the slice unchanged. -/
-public theorem getElem!_divExact7Into (r : USlice) (i : Nat)
-    (hi : i < r.start.toNat ∨ r.start.toNat + r.size.toNat ≤ i) :
-    (divExact7Into r).1[i]! = r.array[i]! := getElem!_divExactInto _ _ _ (by decide) i hi
-
-public theorem valAt_divExact7Into (r : USlice)
-    (h : r.array.valAt r.start.toNat r.size.toNat % 7 = 0) :
-    (divExact7Into r).1.valAt r.start.toNat r.size.toNat =
-      r.array.valAt r.start.toNat r.size.toNat / 7 :=
-  valAt_divExactInto _ _ _ (by decide) (by decide) h
-
-/-- Divides the limbs of `r` by `9` in place. -/
-public def divExact9Into (r : USlice) : UInt64Array × UInt64 :=
-  divExactInto r 9 0x8E38E38E38E38E39
-
-@[simp] public theorem size_divExact9Into (r : USlice) :
-    (divExact9Into r).1.size = r.array.size := size_divExactInto ..
-
-/-- `divExact9Into` leaves the limbs of `r` outside the slice unchanged. -/
-public theorem getElem!_divExact9Into (r : USlice) (i : Nat)
-    (hi : i < r.start.toNat ∨ r.start.toNat + r.size.toNat ≤ i) :
-    (divExact9Into r).1[i]! = r.array[i]! := getElem!_divExactInto _ _ _ (by decide) i hi
-
-public theorem valAt_divExact9Into (r : USlice)
-    (h : r.array.valAt r.start.toNat r.size.toNat % 9 = 0) :
-    (divExact9Into r).1.valAt r.start.toNat r.size.toNat =
-      r.array.valAt r.start.toNat r.size.toNat / 9 :=
-  valAt_divExactInto _ _ _ (by decide) (by decide) h
-
-/-! ## Right shifts -/
-
 /-- One limb of `rshiftInto`: `x >> s` with the low `s` bits `c` of the limb above. -/
 private theorem rshift_step (x c s m : UInt64) (hs₀ : 0 < s.toNat) (hs : s.toNat < 64)
     (hm : m.toNat = 2 ^ s.toNat - 1) (hc : c.toNat < 2 ^ s.toNat) :

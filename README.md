@@ -20,7 +20,7 @@ comes with Lean.
 | `MPN.AddSub` | `addN`, `subN`; `add1`, `sub1`; `add`, `sub`; in place: `addInto`, `subInto` | `mpn_add_n`, `mpn_add_1`, `mpn_add`, … |
 | `MPN.Mul.Basecase` | `mul1`, `addMul1`, `mulBasecase` | `mpn_mul_1`, `mpn_addmul_1`, `mpn_mul_basecase` |
 | `MPN.Mul.Karatsuba` | `mulKaratsuba`, from `mulKaratsuba = 64` limbs | `mpn_kara_mul_n` |
-| `MPN.Linear` | in place: `addMulInto`, `subMulInto`, `shl63Into` (halving), `rshiftInto`, `divExactInto` (by odd constants: `divExact3Into`, `divExact5Into`, `divExact7Into`, `divExact9Into`) | `mpn_addmul_1`, `mpn_rshift`, `mpn_divexact_by3`, `mpn_divexact_1` |
+| `MPN.Linear` | in place: `addMulInto`, `subMulInto`, `shl63Into` (halving), `rshiftInto`, `divExactInto` (by odd constants: `divExact3Into`, `divExact5Into`) | `mpn_addmul_1`, `mpn_rshift`, `mpn_divexact_by3`, `mpn_divexact_1` |
 | `MPN.Bits` | `lshift`, `rshift` (by `0 < s < 64`), `shiftLeft`, `shiftRight` (by any number of bits), `zeroInto`, `log2` | `mpn_lshift`, `mpn_rshift`, `mpn_zero`, `mpn_sizeinbase` |
 | `MPN.Div.Limb` | `divRem1`: division by a limb, with `UInt64.div2` (128 by 64 bits) | `mpn_divrem_1` |
 | `MPN.Div.Basecase` | `divRem`: schoolbook division (Algorithm D) with normalization, `qEst` never too small and `addBack` | `mpn_tdiv_qr`, `mpn_sbpi1_div_qr` |

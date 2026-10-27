@@ -392,14 +392,6 @@ private theorem div5W (w : UInt64Array) (hw : w.size = L) {W R : Nat} (hW : w.va
   obtain ⟨s₁, s₂⟩ := div5_whole hL w hw (by rw [hW, h]; simp)
   exact ⟨s₁, by rw [s₂, hW, h]; lia⟩
 
-private theorem div7W (w : UInt64Array) (hw : w.size = L) {W R : Nat} (hW : w.valAt 0 L = W)
-    (h : W = 7 * R) :
-    (divExact7Into w.toUSlice).1.size = L ∧ (divExact7Into w.toUSlice).1.valAt 0 L = R := by
-  obtain ⟨h₁, h₂, h₃⟩ := whole hL w hw
-  have := valAt_divExact7Into w.toUSlice (by rw [h₁, h₂, h₃, hW, h]; simp)
-  rw [h₁, h₂, h₃, hW, h] at this
-  exact ⟨by rw [size_divExact7Into, h₃, hw], by rw [this]; lia⟩
-
 /-- An exact division by an odd `d`, with `dinv` its inverse modulo `2⁶⁴`. -/
 private theorem divW (w : UInt64Array) (hw : w.size = L) (d dinv : UInt64)
     (hd : d.toNat * dinv.toNat % 2 ^ 64 = 1) (hd₁ : d.toNat % 2 = 1) {D W R : Nat}
@@ -412,14 +404,6 @@ private theorem divW (w : UInt64Array) (hw : w.size = L) (d dinv : UInt64)
     (by rw [h₁, h₂, h₃, hW, h, hD]; simp)
   rw [h₁, h₂, h₃, hW, h, hD] at this
   exact ⟨by rw [size_divExactInto, h₃, hw], by rw [this]; exact Nat.mul_div_cancel_left _ hD0⟩
-
-private theorem div9W (w : UInt64Array) (hw : w.size = L) {W R : Nat} (hW : w.valAt 0 L = W)
-    (h : W = 9 * R) :
-    (divExact9Into w.toUSlice).1.size = L ∧ (divExact9Into w.toUSlice).1.valAt 0 L = R := by
-  obtain ⟨h₁, h₂, h₃⟩ := whole hL w hw
-  have := valAt_divExact9Into w.toUSlice (by rw [h₁, h₂, h₃, hW, h]; simp)
-  rw [h₁, h₂, h₃, hW, h] at this
-  exact ⟨by rw [size_divExact9Into, h₃, hw], by rw [this]; lia⟩
 
 end Steps
 
