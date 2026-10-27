@@ -281,14 +281,14 @@ public theorem loadLoop_spec (o n m : Nat) (a : A) (as al : Nat) (hm : m ≤ n +
 `mulP P arr x y n` is the product of the windows of `n + 1` limbs at `x` and `y` of `arr`, on
 `2 n + 2` limbs, possibly in the array `P` of that size.
 -/
-public def IsMulP (mulP : A → A → Nat → Nat → Nat → A) (n : Nat) : Prop :=
+@[expose] public def IsMulP (mulP : A → A → Nat → Nat → Nat → A) (n : Nat) : Prop :=
   ∀ P arr x y, LA.size P = 2 * n + 2 → LA.size P < USize.size → LA.size arr < USize.size →
     x + n + 1 ≤ LA.size arr → y + n + 1 ≤ LA.size arr →
     LA.size (mulP P arr x y n) = 2 * n + 2 ∧
       valAt (mulP P arr x y n) 0 (2 * n + 2) = win arr n x * win arr n y
 
 /-- `sqrP P arr x n` is the square of the window of `n + 1` limbs at `x` of `arr`. -/
-public def IsSqrP (sqrP : A → A → Nat → Nat → A) (n : Nat) : Prop :=
+@[expose] public def IsSqrP (sqrP : A → A → Nat → Nat → A) (n : Nat) : Prop :=
   ∀ P arr x, LA.size P = 2 * n + 2 → LA.size P < USize.size → LA.size arr < USize.size →
     x + n + 1 ≤ LA.size arr →
     LA.size (sqrP P arr x n) = 2 * n + 2 ∧
