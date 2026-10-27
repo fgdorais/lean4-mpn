@@ -252,6 +252,15 @@ public theorem val_divBase32 (u v : UInt32Array.Slice) (hv : toNat v ≠ 0) :
   val_pow k := toNat_pow k
   one := ((UInt32Array.replicate 0 0).push 1).toSlice
   val_one := by rw [toNat_pow, Nat.pow_zero]
+  -- No wrapped product on 32-bit limbs yet: the product itself, which does not wrap.
+  mulModSize n := n
+  le_mulModSize _ := Nat.le_refl _
+  mulMod _ x y :=
+    let r := (mulLimbs x y).toSlice
+    r.slice 0 (topSize r)
+  val_mulMod _ x y := by
+    show toNat ((mulLimbs x y).toSlice.slice 0 (topSize _)) % _ = _
+    rw [toNat_slice_topSize, isMul_mulLimbs.toNat_eq x y]
   divRem := div
   val_divRem := hdiv
 
