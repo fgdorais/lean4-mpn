@@ -177,7 +177,7 @@ private theorem rowLoop_spec (b : UInt32Array.Slice) (has : b.array.size < USize
         (acc[base + j] + ((x.toUInt64 * b[j].toUInt64) &&& 0xFFFFFFFF) + c) (by simpa using hk)
       rw [UInt64Array.toList_set]
       have hgl : acc.toList[base + j]'(by simpa using hk) = acc[base + j] := by
-        simp [← UInt64Array.toList_data]
+        simp [← UInt64Array.toList_toArray]
       rw [hgl, hv] at hset
       have hdrop := ofLimbs_drop_copy b j hjb
       have hpow : 2 ^ (32 * (base + (j + 1))) = 2 ^ (32 * (base + j)) * 2 ^ 32 := by
@@ -189,7 +189,7 @@ private theorem rowLoop_spec (b : UInt32Array.Slice) (has : b.array.size < USize
 
 public theorem getElem_toList64 (a : UInt64Array) (k : Nat) (h : k < a.toList.length) :
     a.toList[k] = a[k]'(by simpa using h) := by
-  simp [← UInt64Array.toList_data]
+  simp [← UInt64Array.toList_toArray]
 
 private theorem uset64_eq_set (a : UInt64Array) (i : USize) (v : UInt64) (h) :
     a.uset i v h = a.set i.toNat v h := by
@@ -241,7 +241,7 @@ public theorem addRow_spec (b : UInt32Array.Slice) (arr : UInt32Array) (harr)
       ∀ v ∈ (addRow b arr harr has sb nb hsb hnb x acc base h).toList, v.toNat ≤ M + 2 ^ 33 := by
   subst harr hsb hnb
   have hall : ∀ k (hk : k < acc.size), acc[k].toNat ≤ M := fun k hk =>
-    hall' _ (List.mem_iff_getElem.2 ⟨k, by simpa using hk, by simp [← UInt64Array.toList_data]⟩)
+    hall' _ (List.mem_iff_getElem.2 ⟨k, by simpa using hk, by simp [← UInt64Array.toList_toArray]⟩)
   have hbs := slice_size_lt b has
   have hnb : b.size.toUSize.toNat = b.size := toNat_toUSize hbs
   have ht : (base + b.size.toUSize).toNat = base.toNat + b.size := by
@@ -274,7 +274,7 @@ public theorem addRow_spec (b : UInt32Array.Slice) (arr : UInt32Array) (harr)
   · have hset := accVal_set R.1.toList (base.toNat + b.size) (R.1[base.toNat + b.size] + R.2)
       (by simpa using htR)
     have hgl : R.1.toList[base.toNat + b.size]'(by simpa using htR) = R.1[base.toNat + b.size] := by
-      simp [← UInt64Array.toList_data]
+      simp [← UInt64Array.toList_toArray]
     rw [hgl, hv] at hset
     rw [UInt64Array.toList_set]
     simp only [Nat.add_zero, List.drop_zero, UInt32.toNat_toUInt64] at h₂
@@ -505,7 +505,7 @@ public theorem rowsMul_spec (a b : UInt32Array.Slice) (h : RowsOK a b) :
   have ha31 : a.size < 2 ^ 31 := by have := h.2.1; lia
   have hrep : (UInt64Array.replicate (a.size + b.size) 0).toList =
       List.replicate (a.size + b.size) 0 := by
-    simp [← UInt64Array.toList_data]
+    simp [← UInt64Array.toList_toArray]
   obtain ⟨hs, hv, hbd⟩ := rowsLoop_spec a b ha hb hab ha31 h.1 _ _ _ _ rfl rfl rfl rfl a.size 0
     (UInt64Array.replicate (a.size + b.size) 0) (by simp) (by simp) (Nat.zero_le _)
     (by intro v hv; rw [hrep] at hv; rw [(List.mem_replicate.1 hv).2]; simp)

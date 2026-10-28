@@ -663,7 +663,7 @@ public theorem sqrRowsMul_spec (a : UInt32Array.Slice) (h : SqrRowsOK a) :
   have ha30 : a.size < 2 ^ 30 := by have := h.2.1; lia
   have hrep : (UInt64Array.replicate (2 * a.size) 0).toList =
       List.replicate (2 * a.size) 0 := by
-    simp [← UInt64Array.toList_data]
+    simp [← UInt64Array.toList_toArray]
   obtain ⟨hs, hv, hbd⟩ := sqrRowsAcc_spec a ha hn ha30 _ _ rfl rfl a.size 0
     (UInt64Array.replicate (2 * a.size) 0) (by simp) (by simp) (Nat.zero_le _)
     (by intro v hv; rw [hrep] at hv; rw [(List.mem_replicate.1 hv).2]; simp)

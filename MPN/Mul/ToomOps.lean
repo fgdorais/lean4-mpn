@@ -581,8 +581,8 @@ public instance toomOps32 : ToomOps UInt32Array UInt32 where
   size_zeros n := by simp [LimbArray.size]
   val_get_zeros n i := by
     show (UInt32Array.replicate n 0)[i]!.toNat = 0
-    rw [UInt32Array.getElem!_eq_getElem!_data]
-    simp only [UInt32Array.data_replicate]
+    rw [UInt32Array.getElem!_eq_getElem!_toArray]
+    simp only [UInt32Array.toArray_replicate]
     by_cases hi : i < n
     · simp [hi]
     · simp [hi]; rfl

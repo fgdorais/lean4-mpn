@@ -31,15 +31,15 @@ public instance limbArray32 : MPN.LimbArray UInt32Array UInt32 where
   size_set a i v := UInt32Array.size_set! ..
   get_set_ne a i v j h := by
     show (a.set! i _)[j]! = a[j]!
-    rw [UInt32Array.getElem!_eq_getElem!_data, UInt32Array.getElem!_eq_getElem!_data,
-      UInt32Array.data_set!]
-    have := a.size_data
+    rw [UInt32Array.getElem!_eq_getElem!_toArray, UInt32Array.getElem!_eq_getElem!_toArray,
+      UInt32Array.toArray_set!]
+    have := a.size_toArray
     grind
   val_get_set_self a i v h := by
     show (a.set! i _)[i]!.toNat = _
-    rw [UInt32Array.getElem!_eq_getElem!_data, UInt32Array.data_set!]
-    have := a.size_data
-    have : (a.data.set! i (UInt32.ofNat v))[i]! = UInt32.ofNat v := by grind
+    rw [UInt32Array.getElem!_eq_getElem!_toArray, UInt32Array.toArray_set!]
+    have := a.size_toArray
+    have : (a.toArray.set! i (UInt32.ofNat v))[i]! = UInt32.ofNat v := by grind
     rw [this, UInt32.toNat_ofNat']
 
 namespace ScalarArray.UInt32Array
@@ -75,13 +75,13 @@ public theorem valAt_add (a : UInt32Array) (lo m k : Nat) :
 
 public theorem getElem!_eq_getElem (a : UInt32Array) (i : Nat) (h : i < a.size) :
     a[i]! = a[i] := by
-  rw [getElem!_eq_getElem!_data, getElem_eq_getElem_data]
+  rw [getElem!_eq_getElem!_toArray, getElem_eq_getElem_toArray]
   simp [h]
 
 public theorem getElem!_set! (a : UInt32Array) (i j : Nat) (v : UInt32) :
     (a.set! i v)[j]! = if i = j ∧ i < a.size then v else a[j]! := by
-  rw [getElem!_eq_getElem!_data, getElem!_eq_getElem!_data, data_set!]
-  have := a.size_data
+  rw [getElem!_eq_getElem!_toArray, getElem!_eq_getElem!_toArray, toArray_set!]
+  have := a.size_toArray
   grind
 
 @[simp] public theorem getElem!_set!_self (a : UInt32Array) (i : Nat) (v : UInt32)
@@ -120,8 +120,8 @@ public theorem _root_.USize.min_le_right (a b : USize) : min a b ≤ b :=
 
 public theorem getElem!_uset (a : UInt32Array) (i : USize) (v : UInt32) (h : i.toNat < a.size)
     (j : Nat) : (a.uset i v h)[j]! = if i.toNat = j then v else a[j]! := by
-  rw [getElem!_eq_getElem!_data, getElem!_eq_getElem!_data, data_uset]
-  have := a.size_data
+  rw [getElem!_eq_getElem!_toArray, getElem!_eq_getElem!_toArray, toArray_uset]
+  have := a.size_toArray
   grind
 
 /-! ### Slices with `USize` bounds -/
