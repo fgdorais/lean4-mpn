@@ -97,7 +97,9 @@ def checkMul (m n : Nat) : Bool :=
     p[0]! == pad && p[m + 1]! == pad && q[0]! == pad && q[m + 1]! == pad &&
     s[0]! == pad && s[m + n + 1]! == pad
 
-#guard [(1, 1), (2, 1), (1, 2), (3, 3), (4, 2), (2, 5)].all fun (m, n) => checkMul m n
+-- `mulBasecase` adds the rows after the first two at a time: even and odd counts of them.
+#guard [(1, 1), (2, 1), (1, 2), (3, 3), (4, 2), (2, 5), (5, 4), (3, 6), (8, 7), (1, 7)].all
+  fun (m, n) => checkMul m n
 
 -- A window too short for the product: `mulBasecase` leaves it unchanged.
 #guard
