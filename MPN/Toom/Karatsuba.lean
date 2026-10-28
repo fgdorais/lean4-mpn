@@ -32,7 +32,7 @@ variable {A L : Type} [LA : LimbArray A L] [R : ToomOps A L]
 /-- Writes `x y` into the `xl + yl` limbs of `d` from `o` on, by Karatsuba's method. -/
 @[expose, specialize] public def mulKaratsuba (cfg : Config) (d : A) (o : Nat) (x : A)
     (xo xl : Nat) (y : A) (yo yl : Nat) : A :=
-  if h : cfg.mulKaratsuba ≤ xl ∧ yl ≤ xl ∧ xl - xl / 2 < yl then
+  if _h : cfg.mulKaratsuba ≤ xl ∧ yl ≤ xl ∧ xl - xl / 2 < yl then
     let k := xl - xl / 2
     let sx := R.sum x xo k x (xo + k) (xl - k)
     let sy := R.sum y yo k y (yo + k) (yl - k)
@@ -48,7 +48,7 @@ decreasing_by all_goals have := cfg.four_le_mulKaratsuba; lia
 /-- Writes `x²` into the `2 xl` limbs of `d` from `o` on, by Karatsuba's method. -/
 @[expose, specialize] public def sqrKaratsuba (cfg : Config) (d : A) (o : Nat) (x : A)
     (xo xl : Nat) : A :=
-  if h : cfg.sqrKaratsuba ≤ xl then
+  if _h : cfg.sqrKaratsuba ≤ xl then
     let k := xl - xl / 2
     let sx := R.sum x xo k x (xo + k) (xl - k)
     let d₁ := sqrKaratsuba cfg d o x xo k
@@ -62,6 +62,7 @@ decreasing_by all_goals have := cfg.four_le_sqrKaratsuba; lia
 
 /-! ## Correctness -/
 
+omit R in
 /-- The value of `xl` limbs split at `k`. -/
 public theorem valAt_split (x : A) (xo xl k : Nat) (hk : k ≤ xl) :
     valAt x xo xl = valAt x xo k + 2 ^ (LA.w * k) * valAt x (xo + k) (xl - k) := by
@@ -73,7 +74,7 @@ One step of Karatsuba's method: `z₀` and `z₂` in their windows of `d₂` and
 sums in `z` give `x y` in the window of `n` limbs.
 -/
 private theorem mid_step (d₂ z : A) (o k n X₀ X₁ Y₀ Y₁ : Nat) (hn : o + n ≤ LA.size d₂)
-    (hkn : k + k ≤ n) (h₀ : valAt d₂ o (k + k) = X₀ * Y₀)
+    (_hkn : k + k ≤ n) (h₀ : valAt d₂ o (k + k) = X₀ * Y₀)
     (h₂ : valAt d₂ (o + (k + k)) (n - (k + k)) = X₁ * Y₁)
     (hz : valAt z 0 (k + k + 2) = (X₀ + X₁) * (Y₀ + Y₁))
     (hlt : (X₀ + 2 ^ (LA.w * k) * X₁) * (Y₀ + 2 ^ (LA.w * k) * Y₁) < 2 ^ (LA.w * n)) :

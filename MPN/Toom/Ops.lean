@@ -59,6 +59,8 @@ specifications. `D` is the value of the window written before the operation and 
 the window read.
 -/
 public class ToomOps (A : Type) (L : outParam Type) [LimbArray A L] where
+  /-- The limbs have at least 32 bits, for the multipliers of the interpolations, up to `9¹⁰`. -/
+  w_ge : 32 ≤ LimbArray.w A
   /-- An array of `n` zero limbs. -/
   zeros : Nat → A
   size_zeros : ∀ n, LimbArray.size (zeros n) = n

@@ -14,6 +14,11 @@ public import MPN.FFT.Windows
 public import MPN.FFT.Product
 public import MPN.Toom.Ops
 public import MPN.Toom.Karatsuba
+public import MPN.Toom.Steps
+public import MPN.Toom.Interp
+public import MPN.Toom.Toom
+public import MPN.Toom.Methods
+public import MPN.Toom.Mul
 public import MPN.WordGcd
 public import MPN.Generic.Ops
 public import MPN.Generic.Barrett
