@@ -23,9 +23,13 @@ the quality of `μ` only decides how fast they are met.
 `divMuW` saves part of the remainder's product. When `d μ ≤ B²ⁿ < d (μ + 5)` for a normalized `d`,
 the remainder `x - q d` is less than `7 d`, so it is its residue modulo `B^N - 1` for `N > n`, which
 `mulMod`, a wrapped product, computes faster (`barrettW`). That bound on `μ` is checked rather than
-assumed: `recipW` makes the last Newton step itself, and the size of its error term
-`e = B^(n+h) - d μₕ` bounds the error of the result whatever `μₕ` (`recipW_spec`). When the check
-fails, `divMuW` is `divMu`.
+assumed: `recipG` makes every Newton step with a wrapped product `d μₕ`, whose error term
+`e = B^(n+h) - d μₕ` is less than `Bⁿ⁺¹` when `μₕ` is good, hence exact modulo `B^N - 1`; the
+step then checks its own result (`recipG_spec`). When a check fails, `divMuW` is `divMu`.
+
+`divQMuW` computes the quotient alone. Barrett's estimate of the quotient of `x B`, one limb more,
+decides `⌊x / d⌋` without the last block's remainder unless its last limb is within 7 of `B`
+(`divQBlocksW`); then it divides as `divMuW`.
 -/
 
 namespace MPN
@@ -310,6 +314,124 @@ private theorem sub_of_mod {a b M : Nat} (hba : b ≤ a) (hlt : a - b < M) :
     subst this
     rw [Nat.mul_add, Nat.mul_one]; lia
 
+/-- The top limbs of a normalized number are normalized, at an even base. -/
+private theorem norm_hi {P n k d : Nat} (hP2 : P % 2 = 0) (hP : 2 ≤ P) (hk : k < n)
+    (hnorm : P ^ n ≤ 2 * d) : P ^ (n - k) ≤ 2 * (d / P ^ k) := by
+  have hK : 0 < P ^ k := Nat.pow_pos (by lia)
+  have hsplit : P ^ n = P ^ (n - k) * P ^ k := by rw [← Nat.pow_add]; congr 1; lia
+  have hd := Nat.lt_mul_div_succ d hK
+  have h₁ : P ^ (n - k) * P ^ k < (2 * (d / P ^ k) + 2) * P ^ k := by
+    have := Nat.mul_lt_mul_of_pos_left hd (show 0 < 2 by decide)
+    rw [hsplit] at hnorm
+    rw [Nat.add_mul, Nat.mul_assoc, Nat.mul_comm (d / P ^ k)]
+    lia
+  have h₂ : P ^ (n - k) < 2 * (d / P ^ k) + 2 := Nat.lt_of_mul_lt_mul_right h₁
+  -- `P ^ (n - k)` is even, and so is `2 (d / P ^ k)`.
+  have hev : P ^ (n - k) % 2 = 0 := by
+    rw [show n - k = (n - k - 1) + 1 by lia, Nat.pow_succ, Nat.mul_mod, hP2, Nat.mul_zero]
+  lia
+
+/--
+The a priori bound of the Newton step: when `μₕ` is good for the top `h` limbs `d / Bᵏ` of `d`,
+the error term `B^(n+h) - d μₕ` is less than `Bⁿ⁺¹` either way.
+-/
+private theorem newton_apriori {P n k h d μh : Nat} (hP : 8 ≤ P) (hkh : k + h = n)
+    (hd : d < P ^ n) (hnormh : P ^ h ≤ 2 * (d / P ^ k)) (hA : d / P ^ k * μh ≤ P ^ (2 * h))
+    (hB : P ^ (2 * h) < d / P ^ k * (μh + 5)) :
+    d * μh < P ^ (n + h) + P ^ (n + 1) ∧ P ^ (n + h) < d * μh + P ^ (n + 1) := by
+  have hK : 0 < P ^ k := Nat.pow_pos (by lia)
+  have hDP : d / P ^ k < P ^ h := by
+    have hn : P ^ n = P ^ h * P ^ k := by rw [← Nat.pow_add]; congr 1; lia
+    exact Nat.div_lt_of_lt_mul (by rw [Nat.mul_comm, ← hn]; exact hd)
+  have hdm := Nat.div_add_mod d (P ^ k)
+  have hlo := Nat.mod_lt d hK
+  generalize d / P ^ k = D at *
+  generalize d % P ^ k = l at *
+  subst hdm
+  have hQ : P ^ (n + h) = P ^ (2 * h) * P ^ k := by rw [← Nat.pow_add]; congr 1; lia
+  have hn : P ^ n = P ^ h * P ^ k := by rw [← Nat.pow_add]; congr 1; lia
+  have hn1 : P ^ (n + 1) = P ^ n * P := by rw [Nat.pow_succ]
+  -- `μₕ ≤ 2 Bʰ`, from `D μₕ ≤ B²ʰ` and `Bʰ ≤ 2 D`.
+  have hμ : μh ≤ 2 * P ^ h := by
+    have h₁ : P ^ h * μh ≤ 2 * P ^ (2 * h) := by
+      have := Nat.mul_le_mul_right μh hnormh
+      lia
+    have h₂ : P ^ (2 * h) = P ^ h * P ^ h := by rw [← Nat.pow_add]; congr 1; lia
+    rw [h₂] at h₁
+    have h₃ : P ^ h * μh ≤ P ^ h * (2 * P ^ h) := by lia
+    exact Nat.le_of_mul_le_mul_left h₃ (Nat.pow_pos (by lia))
+  rw [hQ, hn1, hn]
+  constructor
+  · -- `(D Bᵏ + l) μₕ < B²ʰ Bᵏ + Bʰ Bᵏ P`.
+    have h₁ : D * μh * P ^ k ≤ P ^ (2 * h) * P ^ k := Nat.mul_le_mul_right _ hA
+    have h₂ : l * μh < P ^ k * (2 * P ^ h) + 1 := by
+      have := Nat.mul_le_mul (Nat.le_of_lt hlo) hμ; lia
+    have h₃ : l * μh ≤ P ^ k * (2 * P ^ h) := by
+      rcases Nat.eq_zero_or_pos μh with h0 | h0
+      · rw [h0]; simp
+      · have := Nat.mul_lt_mul_of_pos_right hlo h0
+        have := Nat.mul_le_mul_left (P ^ k) hμ
+        lia
+    have h₄ : P ^ k * (2 * P ^ h) < P ^ h * P ^ k * P := by
+      have := Nat.mul_le_mul_left (P ^ h * P ^ k) (show 3 ≤ P by lia)
+      have hp : 0 < P ^ h * P ^ k := Nat.mul_pos (Nat.pow_pos (by lia)) hK
+      lia
+    have e : (P ^ k * D + l) * μh = D * μh * P ^ k + l * μh := by grind
+    rw [e]
+    lia
+  · -- `B²ʰ Bᵏ < D μₕ Bᵏ + 5 D Bᵏ ≤ (D Bᵏ + l) μₕ + Bⁿ⁺¹`.
+    have h₁ : P ^ (2 * h) * P ^ k < (D * μh + 5 * D) * P ^ k := by
+      have := Nat.mul_lt_mul_of_pos_right hB hK
+      rw [show D * (μh + 5) = D * μh + 5 * D by grind] at this
+      exact this
+    have h₂ : 5 * D * P ^ k < P ^ h * P ^ k * P := by
+      have := Nat.mul_lt_mul_of_pos_right hDP hK
+      have := Nat.mul_le_mul_left (P ^ h * P ^ k) (show 5 ≤ P by lia)
+      lia
+    have e : (D * μh + 5 * D) * P ^ k = D * μh * P ^ k + 5 * D * P ^ k := by grind
+    have e₂ : (P ^ k * D + l) * μh = D * μh * P ^ k + l * μh := by grind
+    rw [e₂]
+    lia
+
+/--
+A difference from residues modulo `M`, when it is less than `M` either way: `a - b` when `b ≤ a`,
+and the complement of `b - a` to `M` otherwise.
+-/
+private theorem sub_res {a b M : Nat} (hM : 0 < M) (h₁ : a < b + M) (h₂ : b < a + M) :
+    (b ≤ a → (if b % M ≤ a % M then a % M - b % M else a % M + M - b % M) = a - b) ∧
+      (a < b → (if b % M ≤ a % M then a % M - b % M else a % M + M - b % M) + (b - a) = M) := by
+  have ha := Nat.div_add_mod a M
+  have hb := Nat.div_add_mod b M
+  have hra := Nat.mod_lt a hM
+  have hrb := Nat.mod_lt b hM
+  generalize a / M = qa at *
+  generalize b / M = qb at *
+  generalize a % M = ra at *
+  generalize b % M = rb at *
+  subst ha hb
+  -- The quotients differ by at most one.
+  have hq₁ : qa ≤ qb + 1 := by
+    rcases Nat.lt_or_ge (qb + 1) qa with h | h
+    · have := Nat.mul_le_mul_left M (show qb + 2 ≤ qa by lia)
+      rw [Nat.mul_add] at this; lia
+    · exact h
+  have hq₂ : qb ≤ qa + 1 := by
+    rcases Nat.lt_or_ge (qa + 1) qb with h | h
+    · have := Nat.mul_le_mul_left M (show qa + 2 ≤ qb by lia)
+      rw [Nat.mul_add] at this; lia
+    · exact h
+  rcases Nat.lt_trichotomy qa qb with hq | hq | hq
+  · have : qb = qa + 1 := by lia
+    subst this
+    rw [Nat.mul_add, Nat.mul_one] at *
+    constructor <;> intro <;> split <;> lia
+  · subst hq
+    constructor <;> intro <;> split <;> lia
+  · have : qa = qb + 1 := by lia
+    subst this
+    rw [Nat.mul_add, Nat.mul_one] at *
+    constructor <;> intro <;> split <;> lia
+
 namespace NatOps
 
 variable {α : Type} (o : NatOps α)
@@ -554,10 +676,10 @@ public theorem divMu_spec (a d : α) (hd : 0 < o.val d) :
 When the reciprocal is good, `d μ ≤ B²ⁿ < d (μ + 5)` for a normalized `d`, Barrett's estimate is at
 most 6 below the quotient, so that the remainder `x - q d` is less than `7 d`: it is then its
 residue modulo `B^N - 1` for `N > n`, and `mulMod` computes `q d` modulo `B^N - 1` faster than the
-product. Whether the reciprocal is good is checked rather than proved: `recipW` makes the last
-Newton step of `recip` itself, whose error term `e = B^(n+h) - d μₕ` shows how good its result is,
-whatever `μₕ`; when `|e| < Bⁿ⁺¹`, the step gives `d μ ≤ B²ⁿ < d (μ + 5)`. Otherwise `divMuW` falls
-back on `divMu`.
+product. Whether the reciprocal is good is checked rather than proved: each Newton step of
+`recipG`, whose error term `e = B^(n+h) - d μₕ` shows how good its result is, gives
+`d μ ≤ B²ⁿ < d (μ + 5)` when `|e| < Bⁿ⁺¹`, and it checks that bound. Otherwise `divMuW` falls back
+on `divMu`.
 -/
 
 /-- `x mod (B^N - 1)`: folds while `x ≥ Bᴺ`, at most `fuel` times before the slow division. -/
@@ -600,87 +722,176 @@ theorem val_foldM (N : Nat) (hN : 1 ≤ N) :
         rw [o.le_iff, o.val_pow_sub_one] at hlt'
         rw [Nat.mod_eq_of_lt (by lia)]
 
-/--
-The reciprocal of the `n`-limb `d`, less one, by the last Newton step of `recip` from `recip` of
-the top `h = ⌈n / 2⌉ + 1` limbs of `d`, and whether the step's error term
-`e = B^(n+h) - d μₕ` is below `Bⁿ⁺¹` and its subtractions are exact.
--/
-public def recipW (d : α) : α × Bool :=
-  let n := o.size d
-  let h := (n + 1) / 2 + 1
-  let k := n - h
-  let μₕ := o.recip (o.hi k d)
-  let Q := o.pow (n + h)
-  let p := o.mul d μₕ
-  if o.le p Q then
-    let e := o.sub Q p
-    let μ := o.add (o.shl k μₕ) (o.hi (h + 2) (o.mul μₕ (o.hi (h - 2) e)))
-    (o.sub μ o.one, !o.le (o.pow (n + 1)) e && o.le o.one μ)
-  else
-    let e := o.sub p Q
-    let c := o.add (o.hi (h + 2) (o.mul μₕ (o.hi (h - 2) e))) o.one
-    (o.sub (o.sub (o.shl k μₕ) c) o.one,
-      !o.le (o.pow (n + 1)) e && o.le (o.add c o.one) (o.shl k μₕ))
-
 theorem le_false {x y : α} (h : o.le x y = false) : o.val y < o.val x := by
   have := o.le_iff x y
   rw [h] at this
   lia
 
-public theorem recipW_spec (d : α) (hn : 2 ≤ o.size d)
-    (hnorm : o.B ^ o.size d ≤ 2 * o.val d) (hok : (o.recipW d).2 = true) :
-    o.val d * o.val (o.recipW d).1 ≤ o.B ^ (2 * o.size d) ∧
-      o.B ^ (2 * o.size d) < o.val d * (o.val (o.recipW d).1 + 5) := by
-  have hB : 2 ≤ o.B := o.one_lt_B
-  unfold recipW at hok ⊢
+/--
+The reciprocal of the `n`-limb `d`, less one, by Newton's iteration as in `recip`, with every
+step checked with its error term, and whether all the checks hold. Since the steps
+below are good, the error term `e = B^(n+h) - d μₕ` of each step is less than `Bⁿ⁺¹` either way
+(`newton_apriori`), so it is the residue of `B^(n+h) - d μₕ` modulo `B^N - 1` for
+`N = mulModSize (n + 2)`, read from either side: `d μₕ` is a wrapped product, `mulMod`, about the
+cost of an `n`-limb product instead of an `n` by `h` one.
+-/
+public def recipG (d : α) : α × Bool :=
+  let n := o.size d
+  if n ≤ 4 then ((o.divRem (o.pow (2 * n)) d).1, true)
+  else
+    let h := (n + 1) / 2 + 1
+    let k := n - h
+    let r := recipG (o.hi k d)
+    let μₕ := r.1
+    let N := o.mulModSize (n + 2)
+    let M := o.sub (o.pow N) o.one
+    let pw := o.foldM N 4 (o.mulMod (n + 2) d μₕ)
+    let qw := o.foldM N 4 (o.pow (n + h))
+    let s := if o.le pw qw then o.sub qw pw else o.sub (o.add qw M) pw
+    if o.le (o.pow (n + 1)) s then
+      -- `d μₕ > B^(n+h)`, by `M - s`.
+      let e := o.sub M s
+      let c := o.add (o.hi (h + 2) (o.mul μₕ (o.hi (h - 2) e))) o.one
+      (o.sub (o.sub (o.shl k μₕ) c) o.one, r.2 && o.le (o.add c o.one) (o.shl k μₕ))
+    else
+      -- `d μₕ ≤ B^(n+h)`, by `s`.
+      let μ := o.add (o.shl k μₕ) (o.hi (h + 2) (o.mul μₕ (o.hi (h - 2) s)))
+      (o.sub μ o.one, r.2 && o.le o.one μ)
+termination_by o.size d
+decreasing_by rw [o.size_hi]; lia
+
+public theorem recipG_spec (hB : 8 ≤ o.B) (hB2 : o.B % 2 = 0) :
+    ∀ N (d : α), o.size d = N → o.B ^ o.size d ≤ 2 * o.val d → (o.recipG d).2 = true →
+      o.val d * o.val (o.recipG d).1 ≤ o.B ^ (2 * o.size d) ∧
+        o.B ^ (2 * o.size d) < o.val d * (o.val (o.recipG d).1 + 5) := by
+  intro N
+  induction N using Nat.strongRecOn with
+  | _ N ih =>
+  intro d hN hnorm hok
+  have hB1 : 2 ≤ o.B := by lia
+  unfold recipG at hok ⊢
   generalize hsz : o.size d = n at *
+  subst hN
   dsimp only at hok ⊢
-  generalize o.recip (o.hi (n - ((n + 1) / 2 + 1)) d) = μₕ at hok ⊢
-  have hkh : n - ((n + 1) / 2 + 1) + ((n + 1) / 2 + 1) = n := by lia
-  generalize hh : (n + 1) / 2 + 1 = h at hkh hok ⊢
-  generalize hk : n - h = k at hkh hok ⊢
-  have h2 : n + 2 ≤ 2 * h := by lia
-  have hh2 : 2 ≤ h := by lia
-  by_cases hle : o.le (o.mul d μₕ) (o.pow (n + h)) = true
-  · simp only [hle, ↓reduceIte, Bool.and_eq_true, Bool.not_eq_true'] at hok ⊢
-    obtain ⟨hok₁, hok₂⟩ := hok
-    rw [o.le_iff, o.val_mul, o.val_pow] at hle
-    have hsub := o.val_sub (o.pow (n + h)) (o.mul d μₕ) (by rw [o.val_mul, o.val_pow]; exact hle)
-    rw [o.val_mul, o.val_pow] at hsub
-    have he := o.le_false hok₁
-    rw [hsub, o.val_pow] at he
-    rw [o.le_iff, o.val_one] at hok₂
-    rw [o.val_sub _ _ (by rw [o.val_one]; exact hok₂), o.val_one]
-    simp only [o.val_add, o.val_shl, o.val_hi, o.val_mul, hsub] at hok₂ ⊢
-    obtain ⟨p₁, p₂⟩ := newton_pos (d := o.val d) (μh := o.val μₕ)
-      (e := o.B ^ (n + h) - o.val d * o.val μₕ) hB hkh h2 hh2 hnorm (by lia) he
-    generalize o.val μₕ * o.B ^ k + o.val μₕ * ((o.B ^ (n + h) - o.val d * o.val μₕ) /
-      o.B ^ (h - 2)) / o.B ^ (h + 2) = μ at p₁ p₂ hok₂
-    refine ⟨Nat.le_trans (Nat.mul_le_mul_left _ (Nat.sub_le _ _)) p₁, ?_⟩
-    rw [show μ - 1 + 5 = μ + 4 by lia]
-    exact p₂
-  · simp only [Bool.not_eq_true] at hle
-    simp only [hle, Bool.false_eq_true, ↓reduceIte, Bool.and_eq_true, Bool.not_eq_true'] at hok ⊢
-    obtain ⟨hok₁, hok₂⟩ := hok
-    have hlt := o.le_false hle
-    rw [o.val_mul, o.val_pow] at hlt
-    have hsub := o.val_sub (o.mul d μₕ) (o.pow (n + h)) (by rw [o.val_mul, o.val_pow]; lia)
-    rw [o.val_mul, o.val_pow] at hsub
-    have he := o.le_false hok₁
-    rw [hsub, o.val_pow] at he
-    rw [o.le_iff] at hok₂
-    simp only [o.val_add, o.val_one, o.val_shl, o.val_hi, o.val_mul, hsub] at hok₂
-    have hc : o.val (o.add (o.hi (h + 2) (o.mul μₕ (o.hi (h - 2) (o.sub (o.mul d μₕ)
-        (o.pow (n + h)))))) o.one) ≤ o.val (o.shl k μₕ) := by
-      simp only [o.val_add, o.val_one, o.val_shl, o.val_hi, o.val_mul, hsub]; lia
-    rw [o.val_sub _ _ (by
+  split
+  · -- The slow division.
+    have hd0 : 0 < o.val d := by
+      have : 1 ≤ o.B ^ n := Nat.one_le_pow _ _ (by lia)
+      lia
+    obtain ⟨h₁, -⟩ := o.val_divRem (o.pow (2 * n)) d (by lia)
+    rw [h₁, o.val_pow]
+    exact ⟨Nat.mul_div_le _ _, Nat.lt_of_lt_of_le (Nat.lt_mul_div_succ _ hd0)
+      (Nat.mul_le_mul_left _ (by lia))⟩
+  · rename_i hn4
+    simp only [hn4, ↓reduceIte] at hok
+    have hkh : n - ((n + 1) / 2 + 1) + ((n + 1) / 2 + 1) = n := by lia
+    generalize hh : (n + 1) / 2 + 1 = h at hkh hok ⊢
+    generalize hk : n - h = k at hkh hok ⊢
+    have h2 : n + 2 ≤ 2 * h := by lia
+    have hh2 : 2 ≤ h := by lia
+    have hk1 : 1 ≤ k := by lia
+    -- The step below is good.
+    have hsh : o.size (o.hi k d) = h := by rw [o.size_hi]; lia
+    have hok₀ : (o.recipG (o.hi k d)).2 = true := by
+      cases hr : (o.recipG (o.hi k d)).2
+      · simp [apply_ite Prod.snd, hr] at hok
+      · rfl
+    have hnormh : o.B ^ h ≤ 2 * (o.val d / o.B ^ k) := by
+      have := norm_hi hB2 hB1 (show k < n by lia) hnorm
+      rwa [show n - k = h by lia] at this
+    obtain ⟨gA, gB⟩ := ih h (by lia) (o.hi k d) hsh (by rw [hsh, o.val_hi]; exact hnormh) hok₀
+    rw [hsh, o.val_hi] at gA gB
+    generalize o.recipG (o.hi k d) = r at hok hok₀ gA gB ⊢
+    generalize hμ : r.1 = μₕ at hok ⊢
+    rw [hμ] at gA gB
+    obtain ⟨a₁, a₂⟩ := newton_apriori (d := o.val d) (μh := o.val μₕ) hB hkh
+      (by have := o.val_lt d; rwa [hsz] at this) hnormh gA gB
+    -- The residues.
+    have hN := o.le_mulModSize (n + 2)
+    generalize hNs : o.mulModSize (n + 2) = Nm at *
+    have hMv := o.val_pow_sub_one Nm
+    generalize hM : o.sub (o.pow Nm) o.one = M at *
+    have hM8 : 2 * o.B ^ (n + 1) < o.val M := by
+      have h₁ : o.B ^ (n + 1) * 8 ≤ o.B ^ (n + 2) := by
+        rw [show n + 2 = n + 1 + 1 by lia, Nat.pow_succ]; exact Nat.mul_le_mul_left _ hB
+      have h₂ : o.B ^ (n + 2) ≤ o.B ^ Nm := Nat.pow_le_pow_right (by lia) hN
+      have : o.B ^ (n + 1) > 0 := Nat.pow_pos (by lia)
+      lia
+    have hpw : o.val (o.foldM Nm 4 (o.mulMod (n + 2) d μₕ)) = o.val d * o.val μₕ % o.val M := by
+      rw [o.val_foldM _ (by lia), ← hNs, o.val_mulMod, hNs, hMv]
+    have hqw : o.val (o.foldM Nm 4 (o.pow (n + h))) = o.B ^ (n + h) % o.val M := by
+      rw [o.val_foldM _ (by lia), o.val_pow, hMv]
+    generalize o.foldM Nm 4 (o.mulMod (n + 2) d μₕ) = pw at *
+    generalize o.foldM Nm 4 (o.pow (n + h)) = qw at *
+    have hM0 : 0 < o.val M := by have : 0 < o.B ^ (n + 1) := Nat.pow_pos (by lia); lia
+    obtain ⟨r₁, r₂⟩ := sub_res (a := o.B ^ (n + h)) (b := o.val d * o.val μₕ) hM0 (by lia) (by lia)
+    have hs : o.val (if o.le pw qw then o.sub qw pw else o.sub (o.add qw M) pw) =
+        if o.val d * o.val μₕ % o.val M ≤ o.B ^ (n + h) % o.val M then
+          o.B ^ (n + h) % o.val M - o.val d * o.val μₕ % o.val M
+        else o.B ^ (n + h) % o.val M + o.val M - o.val d * o.val μₕ % o.val M := by
+      split
+      · rename_i hle
+        rw [o.le_iff, hpw, hqw] at hle
+        rw [o.val_sub _ _ (by rw [hpw, hqw]; exact hle), hpw, hqw, ite_eq_left_iff.2 (by
+          intro h; exact absurd hle h)]
+      · rename_i hle
+        have hlt := o.le_false (by simpa using hle)
+        rw [hpw, hqw] at hlt
+        have hmod := Nat.mod_lt (o.val d * o.val μₕ) hM0
+        rw [o.val_sub _ _ (by rw [o.val_add, hpw, hqw]; lia), o.val_add, hpw, hqw,
+          ite_eq_right_iff.2 (by intro h; lia)]
+    generalize hsv : (if o.le pw qw then o.sub qw pw else o.sub (o.add qw M) pw) = s at *
+    generalize (if o.val d * o.val μₕ % o.val M ≤ o.B ^ (n + h) % o.val M then
+          o.B ^ (n + h) % o.val M - o.val d * o.val μₕ % o.val M
+        else o.B ^ (n + h) % o.val M + o.val M - o.val d * o.val μₕ % o.val M) = S at r₁ r₂ hs
+    split
+    · -- `d μₕ > B^(n+h)`.
+      rename_i hge
+      simp only [hge, ↓reduceIte] at hok
+      rw [o.le_iff, o.val_pow] at hge
+      have hgt : o.B ^ (n + h) < o.val d * o.val μₕ := by
+        rcases Nat.lt_or_ge (o.B ^ (n + h)) (o.val d * o.val μₕ) with h' | h'
+        · exact h'
+        · have := r₁ h'; lia
+      have hS := r₂ hgt
+      simp only [Bool.and_eq_true] at hok
+      obtain ⟨-, hok₂⟩ := hok
+      have hev : o.val (o.sub M s) = o.val d * o.val μₕ - o.B ^ (n + h) := by
+        rw [o.val_sub _ _ (by lia)]; lia
+      rw [o.le_iff] at hok₂
+      simp only [o.val_add, o.val_one, o.val_shl, o.val_hi, o.val_mul, hev] at hok₂
+      have hc : o.val (o.add (o.hi (h + 2) (o.mul μₕ (o.hi (h - 2) (o.sub M s)))) o.one) ≤
+          o.val (o.shl k μₕ) := by
+        simp only [o.val_add, o.val_one, o.val_shl, o.val_hi, o.val_mul, hev]; lia
+      rw [o.val_sub _ _ (by
+        rw [o.val_sub _ _ hc]
+        simp only [o.val_add, o.val_one, o.val_shl, o.val_hi, o.val_mul, hev]; lia)]
       rw [o.val_sub _ _ hc]
-      simp only [o.val_add, o.val_one, o.val_shl, o.val_hi, o.val_mul, hsub]; lia)]
-    rw [o.val_sub _ _ hc]
-    simp only [o.val_add, o.val_one, o.val_shl, o.val_hi, o.val_mul, hsub]
-    have := newton_neg (d := o.val d) (μh := o.val μₕ)
-      (e := o.val d * o.val μₕ - o.B ^ (n + h)) hB hkh h2 hh2 hnorm (by lia) he (by lia)
-    exact this
+      simp only [o.val_add, o.val_one, o.val_shl, o.val_hi, o.val_mul, hev]
+      exact newton_neg (d := o.val d) (μh := o.val μₕ)
+        (e := o.val d * o.val μₕ - o.B ^ (n + h)) hB1 hkh h2 hh2 hnorm (by lia) (by lia) (by lia)
+    · -- `d μₕ ≤ B^(n+h)`.
+      rename_i hlt
+      simp only [hlt, Bool.false_eq_true, ↓reduceIte] at hok
+      have hlt' := o.le_false (by simpa using hlt)
+      rw [o.val_pow] at hlt'
+      have hle : o.val d * o.val μₕ ≤ o.B ^ (n + h) := by
+        rcases Nat.lt_or_ge (o.B ^ (n + h)) (o.val d * o.val μₕ) with h' | h'
+        · have := r₂ h'; lia
+        · exact h'
+      have hS := r₁ hle
+      simp only [Bool.and_eq_true] at hok
+      obtain ⟨-, hok₂⟩ := hok
+      rw [o.le_iff, o.val_one] at hok₂
+      rw [o.val_sub _ _ (by rw [o.val_one]; exact hok₂), o.val_one]
+      simp only [o.val_add, o.val_shl, o.val_hi, o.val_mul, hs, hS] at hok₂ ⊢
+      obtain ⟨p₁, p₂⟩ := newton_pos (d := o.val d) (μh := o.val μₕ)
+        (e := o.B ^ (n + h) - o.val d * o.val μₕ) hB1 hkh h2 hh2 hnorm (by lia) (by lia)
+      generalize o.val μₕ * o.B ^ k + o.val μₕ * ((o.B ^ (n + h) - o.val d * o.val μₕ) /
+        o.B ^ (h - 2)) / o.B ^ (h + 2) = μ at p₁ p₂ hok₂
+      refine ⟨Nat.le_trans (Nat.mul_le_mul_left _ (Nat.sub_le _ _)) p₁, ?_⟩
+      rw [show μ - 1 + 5 = μ + 4 by lia]
+      exact p₂
 
 /--
 Barrett's step for `x < B²ⁿ` by the `n`-limb `d` with the reciprocal `μ`, like `barrettStep`, but
@@ -799,15 +1010,115 @@ public theorem divBlocksW_spec (d μ : α) (n : Nat) (hn : 0 < n) (hB : 8 ≤ o.
       generalize o.val d = D at *
       grind
 
+/-! ## The quotient alone
+
+Barrett's estimate of the quotient of `a B` is at most 6 below it, so its last limb decides the
+quotient of `a` unless it is within 6 of `B`: then the estimate and the quotient of `a B` have the
+same limbs above the last. The quotient of `a` comes without the remainder of the last block, and
+its product, except in that rare case.
+-/
+
+/-- `7` as a number. -/
+def seven : α := o.add (o.add (o.add o.one o.one) (o.add o.one o.one)) (o.add (o.add o.one o.one) o.one)
+
+theorem val_seven : o.val o.seven = 7 := by simp only [seven, o.val_add, o.val_one]
+
+/-- Dropping the last limb of an estimate at most 6 below, when its last limb is not near `B`. -/
+private theorem div_stable {q y P : Nat} (h₁ : q ≤ y) (h₂ : y ≤ q + 6) (h₃ : q % P + 6 < P) :
+    y / P = q / P := by
+  have hP : 0 < P := by lia
+  have hq := Nat.div_add_mod q P
+  have hy : y = P * (q / P) + (q % P + (y - q)) := by lia
+  rw [hy, Nat.add_comm, Nat.add_mul_div_left _ _ hP, Nat.div_eq_of_lt (by lia), Nat.zero_add]
+
+/--
+The quotient of `a` by the `n`-limb `d` with the reciprocal `μ`, from Barrett's estimate of the
+quotient of `a B`, the blocks above the last by `divBlocksW`, and whether the estimate's last limb
+decides it.
+-/
+public def divQBlocksW (d μ : α) (n : Nat) (hn : 0 < n) (a : α) : α × Bool :=
+  let a' := o.shl 1 a
+  let qt := if o.size a' ≤ 2 * n then o.hi (n + 1) (o.mul (o.hi (n - 1) a') μ)
+    else
+      let t := o.divBlocksW d μ n hn (o.hi n a')
+      let x := o.add (o.shl n t.2) (o.lo n a')
+      o.add (o.shl n t.1) (o.hi (n + 1) (o.mul (o.hi (n - 1) x) μ))
+  (o.hi 1 qt, o.le (o.add (o.lo 1 qt) o.seven) (o.pow 1))
+
+public theorem divQBlocksW_spec (d μ : α) (n : Nat) (hn : 0 < n) (hB : 8 ≤ o.B)
+    (hd : o.val d < o.B ^ n) (hnorm : o.B ^ n ≤ 2 * o.val d)
+    (hA : o.val d * o.val μ ≤ o.B ^ (2 * n)) (hμ : o.B ^ (2 * n) < o.val d * (o.val μ + 5))
+    (a : α) (hok : (o.divQBlocksW d μ n hn a).2 = true) :
+    o.val (o.divQBlocksW d μ n hn a).1 = o.val a / o.val d := by
+  have hBn : 0 < o.B ^ n := Nat.pow_pos (by lia)
+  have hd0 : 0 < o.val d := by lia
+  unfold divQBlocksW at hok ⊢
+  dsimp only at hok ⊢
+  -- The estimate is at most 6 below the quotient of `a B`.
+  have hY : ∀ qt : α, (o.val qt ≤ o.val a * o.B / o.val d ∧ o.val a * o.B / o.val d ≤ o.val qt + 6) →
+      o.le (o.add (o.lo 1 qt) o.seven) (o.pow 1) = true →
+      o.val (o.hi 1 qt) = o.val a / o.val d := by
+    intro qt ⟨y₁, y₂⟩ hc
+    rw [o.le_iff, o.val_add, o.val_lo, o.val_seven, o.val_pow, Nat.pow_one] at hc
+    rw [o.val_hi, Nat.pow_one, ← div_stable y₁ y₂ (by lia), Nat.div_div_eq_div_mul,
+      Nat.mul_div_mul_right _ _ (by lia)]
+  apply hY _ ?_ hok
+  have hval : o.val (o.shl 1 a) = o.val a * o.B := by rw [o.val_shl, Nat.pow_one]
+  -- The quotient of `x` from its estimate.
+  have hq : ∀ x : α, o.val x < o.B ^ (2 * n) →
+      o.val (o.hi (n + 1) (o.mul (o.hi (n - 1) x) μ)) ≤ o.val x / o.val d ∧
+        o.val x / o.val d ≤ o.val (o.hi (n + 1) (o.mul (o.hi (n - 1) x) μ)) + 6 := by
+    intro x hx
+    obtain ⟨b₁, b₂⟩ := barrett_bound (show 2 ≤ o.B by lia) (by lia) hnorm hA hμ hx
+    rw [o.val_hi, o.val_mul, o.val_hi]
+    generalize o.val x / o.B ^ (n - 1) * o.val μ / o.B ^ (n + 1) = q at *
+    refine ⟨(Nat.le_div_iff_mul_le hd0).2 b₁, ?_⟩
+    have := (Nat.div_lt_iff_lt_mul hd0).2 b₂
+    lia
+  split
+  · rename_i hsz
+    rw [← hval]
+    exact hq _ (Nat.lt_of_lt_of_le (o.val_lt _) (Nat.pow_le_pow_right (by lia) hsz))
+  · rename_i hsz
+    obtain ⟨ht₁, ht₂⟩ := o.divBlocksW_spec d μ n hn hB hd hnorm hA hμ (o.hi n (o.shl 1 a))
+    generalize o.divBlocksW d μ n hn (o.hi n (o.shl 1 a)) = t at ht₁ ht₂
+    have hblk : o.val (o.add (o.shl n t.2) (o.lo n (o.shl 1 a))) < o.B ^ (2 * n) := by
+      rw [o.val_add, o.val_shl, o.val_lo]
+      have h₁ := Nat.mod_lt (o.val (o.shl 1 a)) hBn
+      have h₂ : (o.val t.2 + 1) * o.B ^ n ≤ o.val d * o.B ^ n := Nat.mul_le_mul_right _ ht₂
+      have h₃ : o.val d * o.B ^ n ≤ o.B ^ n * o.B ^ n := Nat.mul_le_mul_right _ (Nat.le_of_lt hd)
+      rw [show 2 * n = n + n by lia, Nat.pow_add]
+      rw [Nat.add_mul, Nat.one_mul] at h₂
+      lia
+    obtain ⟨q₁, q₂⟩ := hq _ hblk
+    rw [o.val_add, o.val_shl, o.val_lo] at q₁ q₂
+    rw [o.val_add, o.val_shl]
+    rw [o.val_hi] at ht₁
+    -- `a B = Bⁿ (T₁ d + T₂) + L`, and its quotient is `Bⁿ T₁` plus that of `T₂ Bⁿ + L`.
+    have hsplit := Nat.div_add_mod (o.val (o.shl 1 a)) (o.B ^ n)
+    rw [hval] at hsplit ht₁ q₁ q₂
+    generalize o.val a * o.B / o.B ^ n = A at hsplit ht₁
+    generalize o.val a * o.B % o.B ^ n = Lw at hsplit q₁ q₂
+    generalize hX : o.val a * o.B = X at *
+    have hX' : X = o.val t.1 * o.B ^ n * o.val d + (o.val t.2 * o.B ^ n + Lw) := by
+      rw [← hsplit, ht₁]; grind
+    have hdiv : X / o.val d = o.val t.1 * o.B ^ n + (o.val t.2 * o.B ^ n + Lw) / o.val d := by
+      rw [hX', Nat.add_comm, Nat.add_mul_div_right _ _ hd0, Nat.add_comm]
+    rw [hdiv]
+    generalize (o.val t.2 * o.B ^ n + Lw) / o.val d = Y at *
+    generalize o.val (o.hi (n + 1) (o.mul (o.hi (n - 1) (o.add (o.shl n t.2) (o.lo n (o.shl 1 a))))
+      μ)) = Q at *
+    constructor <;> lia
+
 /--
 `(a / d, a % d)` by Barrett's division with wrapped remainders (`divBlocksW`) when `d` is
-normalized, `Bⁿ ≤ 2 d`, and `recipW` checks its reciprocal; otherwise by `divMu`.
+normalized, `Bⁿ ≤ 2 d`, at an even base, and the checks of `recipG` hold; otherwise by `divMu`.
 -/
 public def divMuW (a d : α) : α × α :=
   let n := o.size d
   if hn : 2 ≤ n then
-    let m := o.recipW d
-    if 8 ≤ o.B ∧ o.le (o.pow n) (o.add d d) = true ∧ m.2 = true then
+    let m := o.recipG d
+    if 8 ≤ o.B ∧ o.B % 2 = 0 ∧ o.le (o.pow n) (o.add d d) = true ∧ m.2 = true then
       o.divBlocksW d m.1 n (by lia) a
     else o.divMu a d
   else o.divMu a d
@@ -820,17 +1131,51 @@ public theorem divMuW_spec (a d : α) (hd : 0 < o.val d) :
   · rename_i hn
     split
     · rename_i hc
-      obtain ⟨hB, hnorm, hok⟩ := hc
+      obtain ⟨hB, hB2, hnorm, hok⟩ := hc
       rw [o.le_iff, o.val_pow, o.val_add] at hnorm
-      obtain ⟨hA, hμ⟩ := o.recipW_spec d hn (by lia) hok
-      obtain ⟨h₁, h₂⟩ := o.divBlocksW_spec d (o.recipW d).1 (o.size d) (by lia) hB (o.val_lt d)
+      obtain ⟨hA, hμ⟩ := o.recipG_spec hB hB2 _ d rfl (by lia) hok
+      obtain ⟨h₁, h₂⟩ := o.divBlocksW_spec d (o.recipG d).1 (o.size d) (by lia) hB (o.val_lt d)
         (by lia) hA hμ a
-      generalize o.divBlocksW d (o.recipW d).1 (o.size d) _ a = r at h₁ h₂
+      generalize o.divBlocksW d (o.recipG d).1 (o.size d) _ a = r at h₁ h₂
       refine ⟨?_, ?_⟩
       · rw [h₁, Nat.add_comm, Nat.add_mul_div_right _ _ hd, Nat.div_eq_of_lt h₂, Nat.zero_add]
       · rw [h₁, Nat.add_comm, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt h₂]
     · exact o.divMu_spec a d hd
   · exact o.divMu_spec a d hd
+
+/--
+`a / d` by Barrett's division as in `divMuW`, without the remainder of the last block when the
+estimate decides the quotient (`divQBlocksW`), and otherwise by `divMuW`'s blocks.
+-/
+public def divQMuW (a d : α) : α :=
+  let n := o.size d
+  if hn : 2 ≤ n then
+    let m := o.recipG d
+    if 8 ≤ o.B ∧ o.B % 2 = 0 ∧ o.le (o.pow n) (o.add d d) = true ∧ m.2 = true then
+      let r := o.divQBlocksW d m.1 n (by lia) a
+      if r.2 then r.1 else (o.divBlocksW d m.1 n (by lia) a).1
+    else (o.divMu a d).1
+  else (o.divMu a d).1
+
+public theorem divQMuW_spec (a d : α) (hd : 0 < o.val d) :
+    o.val (o.divQMuW a d) = o.val a / o.val d := by
+  unfold divQMuW
+  dsimp only
+  split
+  · rename_i hn
+    split
+    · rename_i hc
+      obtain ⟨hB, hB2, hnorm, hok⟩ := hc
+      rw [o.le_iff, o.val_pow, o.val_add] at hnorm
+      obtain ⟨hA, hμ⟩ := o.recipG_spec hB hB2 _ d rfl (by lia) hok
+      split
+      · rename_i hr
+        exact o.divQBlocksW_spec d _ _ _ hB (o.val_lt d) (by lia) hA hμ a hr
+      · obtain ⟨h₁, h₂⟩ := o.divBlocksW_spec d (o.recipG d).1 (o.size d) (by lia) hB (o.val_lt d)
+          (by lia) hA hμ a
+        rw [h₁, Nat.add_comm, Nat.add_mul_div_right _ _ hd, Nat.div_eq_of_lt h₂, Nat.zero_add]
+    · exact (o.divMu_spec a d hd).1
+  · exact (o.divMu_spec a d hd).1
 
 end NatOps
 
