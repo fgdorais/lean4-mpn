@@ -28,6 +28,11 @@ public class LimbArray (A : Type) (L : outParam Type) where
   /-- The value of a limb. -/
   val : L → Nat
   val_lt : ∀ x, val x < 2 ^ w
+  /-- Sets limb `i` of an array to `v % 2ʷ`, if `i` is within it. -/
+  set : A → Nat → Nat → A
+  size_set : ∀ a i v, size (set a i v) = size a
+  get_set_ne : ∀ a i v j, j ≠ i → get (set a i v) j = get a j
+  val_get_set_self : ∀ a i v, i < size a → val (get (set a i v) i) = v % 2 ^ w
 
 namespace LimbArray
 
@@ -100,6 +105,36 @@ public theorem valAt_eq_zero {a : A} {lo : Nat} :
   | n + 1, h => by
     rw [valAt_succ, h lo (by lia) (by lia), valAt_eq_zero n fun i h₁ h₂ => h i (by lia) (by lia)]
     simp
+
+/-! ## Writing a value -/
+
+/--
+Writes `v % 2^(w len)` into the `len` limbs of `a` from `o` on, limb by limb. The branches use it
+as the fallback of their in-place operations, which never runs.
+-/
+@[expose] public def writeNat (a : A) (o : Nat) : Nat → Nat → A
+  | 0, _ => a
+  | len + 1, v => writeNat (R.set a o v) (o + 1) len (v / 2 ^ R.w)
+
+public theorem size_writeNat (a : A) (o len v : Nat) : R.size (writeNat a o len v) = R.size a := by
+  induction len generalizing a o v with
+  | zero => rfl
+  | succ len ih => rw [writeNat, ih, R.size_set]
+
+public theorem get_writeNat (a : A) (o len v i : Nat) (h : i < o ∨ o + len ≤ i) :
+    R.get (writeNat a o len v) i = R.get a i := by
+  induction len generalizing a o v with
+  | zero => rfl
+  | succ len ih => rw [writeNat, ih _ _ _ (by lia), R.get_set_ne _ _ _ _ (by lia)]
+
+public theorem valAt_writeNat (a : A) (o len v : Nat) (h : o + len ≤ R.size a) :
+    valAt (writeNat a o len v) o len = v % 2 ^ (R.w * len) := by
+  induction len generalizing a o v with
+  | zero => simp [Nat.mod_one]
+  | succ len ih =>
+    rw [writeNat, valAt_succ, get_writeNat _ _ _ _ _ (by lia), R.val_get_set_self _ _ _ (by lia),
+      ih _ _ _ (by rw [R.size_set]; lia), Nat.mul_succ, Nat.pow_add, Nat.mul_comm (2 ^ (R.w * len)),
+      Nat.mod_mul]
 
 end LimbArray
 
