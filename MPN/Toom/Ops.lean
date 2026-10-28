@@ -141,29 +141,73 @@ public class ToomOps (A : Type) (L : outParam Type) [LimbArray A L] where
     Writes (sqrBase d o x xo xl) d o (xl + xl) ∧
       valAt (sqrBase d o x xo xl) o (xl + xl) = valAt x xo xl * valAt x xo xl
 
-/-- The thresholds of the methods, in limbs of the smaller operand. -/
+/--
+The thresholds of the methods, in limbs. The branches' configurations extend it, with their
+defaults.
+-/
 public structure Config where
+  /-- The size of the larger operand from which multiplication uses Karatsuba. -/
   mulKaratsuba : Nat
+  /-- Karatsuba needs at least `4` limbs to make its products smaller. -/
   four_le_mulKaratsuba : 4 ≤ mulKaratsuba
+  /--
+  The size of the smaller operand from which multiplication uses Toom-3, Toom-3 by 2 or Toom-4 by 2,
+  by the shape of the operands, instead of Karatsuba.
+  -/
   mulToom3 : Nat
+  /-- The Toom methods need at least `12` limbs for their splits. -/
   twelve_le_mulToom3 : 12 ≤ mulToom3
+  /--
+  The size of the smaller operand from which multiplication uses Toom-3 by 2 when the larger one
+  is between three halves and three times as long (three pieces by two).
+  -/
   mulToom32 : Nat
+  /-- Toom-3 by 2 needs at least `12` limbs for its split. -/
   twelve_le_mulToom32 : 12 ≤ mulToom32
+  /--
+  The size of the smaller operand from which multiplication uses Toom-4 by 2 when the larger one
+  is between two and four times as long (four pieces by two), where Toom-3 by 2 does not apply.
+  -/
   mulToom42 : Nat
+  /-- Toom-4 by 2 needs at least `12` limbs for its split. -/
   twelve_le_mulToom42 : 12 ≤ mulToom42
+  /--
+  The size of the smaller operand from which multiplication uses Toom-4 or Toom-4 by 3, by the
+  shape of the operands.
+  -/
   mulToom4 : Nat
+  /-- Toom-4 needs at least `32` limbs for its split. -/
   thirtytwo_le_mulToom4 : 32 ≤ mulToom4
+  /--
+  The size of the smaller operand from which multiplication uses Toom-4 by 3 when the larger one
+  is between four thirds and twice as long (four pieces by three).
+  -/
   mulToom43 : Nat
+  /-- Toom-4 by 3 needs at least `32` limbs for its split. -/
   thirtytwo_le_mulToom43 : 32 ≤ mulToom43
+  /--
+  The size of the smaller operand from which multiplication uses Toom-6 when the larger one is less
+  than six fifths as long.
+  -/
   mulToom6 : Nat
+  /-- Toom-6 needs at least `32` limbs for its split. -/
   thirtytwo_le_mulToom6 : 32 ≤ mulToom6
+  /-- The size from which squaring uses Karatsuba instead of the schoolbook square. -/
   sqrKaratsuba : Nat
+  /-- Karatsuba needs at least `4` limbs to make its squares smaller. -/
   four_le_sqrKaratsuba : 4 ≤ sqrKaratsuba
+  /-- The size from which squaring uses Toom-3 instead of Karatsuba. -/
   sqrToom3 : Nat
+  /-- Toom-3 needs at least `12` limbs for its split. -/
   twelve_le_sqrToom3 : 12 ≤ sqrToom3
+  /-- The size from which squaring uses Toom-4 instead of Toom-3, from `sqrToom3` on. -/
   sqrToom4 : Nat
+  /-- Toom-4 needs at least `32` limbs for its split. -/
   thirtytwo_le_sqrToom4 : 32 ≤ sqrToom4
+  /-- The size from which squaring uses Toom-6 instead of Toom-4, from `sqrToom3` on. -/
   sqrToom6 : Nat
+  /-- Toom-6 needs at least `32` limbs for its split. -/
   thirtytwo_le_sqrToom6 : 32 ≤ sqrToom6
+  deriving Repr
 
 end MPN.Toom
