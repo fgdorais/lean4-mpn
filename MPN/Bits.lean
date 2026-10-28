@@ -90,7 +90,7 @@ public theorem valAt_replicate_zero (n lo m : Nat) :
   | zero => simp
   | succ m ih =>
     rw [valAt_succ, ih]
-    rw [getElem!_eq_getElem!_data, data_replicate]
+    rw [getElem!_eq_getElem!_toArray, toArray_replicate]
     by_cases h : lo < n
     · simp [h]
     · simp [h]; rfl

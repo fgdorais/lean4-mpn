@@ -5,7 +5,6 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 import MPN
-import Batteries.Data.RunningStats
 
 /-!
 # Benchmark
@@ -15,7 +14,7 @@ Lean implements with GMP, on pseudorandom operands of 64-bit limbs. Pinning it t
 example with `taskset -c 2`, gives steadier results.
 
 Each time is the median of five trials. The last two columns are the spread of the trials of each
-side, their sample standard deviation relative to their mean (`Batteries.RunningStats`), which
+side, their sample standard deviation relative to their mean, which
 tells how far to trust a difference between two runs.
 
 `bench [--no-nat] [op…] [size…]` selects the operations and the sizes, in limbs; `--no-nat` skips
@@ -73,11 +72,15 @@ def sample (n seed : Nat) : UInt64Array := Id.run do
 /-- The median time in nanoseconds of a set of trials, and their running statistics. -/
 structure Timing where
   median : Float
-  stats : Batteries.RunningStats
+  /-- The times of the trials. -/
+  samples : Array Float
 
 /-- The sample standard deviation of the trials relative to their mean. -/
 def Timing.spread (t : Timing) : Float :=
-  if t.stats.mean > 0 then t.stats.sampleStandardDeviation / t.stats.mean else 0
+  let n := t.samples.size.toFloat
+  let mean := t.samples.foldl (· + ·) 0 / n
+  let var := t.samples.foldl (fun s x => s + (x - mean) ^ 2) 0 / (n - 1)
+  if mean > 0 ∧ 1 < n then var.sqrt / mean else 0
 
 /-- The time of `f a b` in nanoseconds, over trials of at least `minNs` each. -/
 def time {α β : Type} (f : α → α → β) (check : β → UInt64) (a b : α) (trials := 5)
@@ -95,8 +98,7 @@ def time {α β : Type} (f : α → α → β) (check : β → UInt64) (a b : α
     let _ ← IO.lazyPure fun _ => repeatOp f check a b reps
     let t₁ ← IO.monoNanosNow
     samples := samples.push ((t₁ - t₀).toFloat / reps.toFloat)
-  let stats := samples.foldl (fun s x => s.push x) ({} : Batteries.RunningStats)
-  return { median := (samples.qsort (· < ·))[trials / 2]!, stats }
+  return { median := (samples.qsort (· < ·))[trials / 2]!, samples }
 
 /-- O(1), like `checkNat`: hashing the result would add a pass over its limbs to the time. -/
 def checkArr (r : UInt64Array) : UInt64 := r.size.toUInt64 + r[0]!

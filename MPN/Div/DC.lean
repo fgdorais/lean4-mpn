@@ -32,7 +32,7 @@ private theorem valAt_allOnes (s lo m : Nat) (h : lo + m ≤ s) :
   | zero => simp
   | succ m ih =>
     have hx : (allOnes s)[lo]!.toNat = 2 ^ 64 - 1 := by
-      rw [allOnes, getElem!_eq_getElem!_data, data_replicate]
+      rw [allOnes, getElem!_eq_getElem!_toArray, toArray_replicate]
       simp [show lo < s by lia]
     rw [valAt_succ, ih (lo + 1) (by lia), hx]
     have := Nat.one_le_two_pow (n := 64 * m)

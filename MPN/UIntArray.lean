@@ -32,15 +32,15 @@ public instance limbArray64 : MPN.LimbArray UInt64Array UInt64 where
   size_set a i v := UInt64Array.size_set! ..
   get_set_ne a i v j h := by
     show (a.set! i _)[j]! = a[j]!
-    rw [UInt64Array.getElem!_eq_getElem!_data, UInt64Array.getElem!_eq_getElem!_data,
-      UInt64Array.data_set!]
-    have := a.size_data
+    rw [UInt64Array.getElem!_eq_getElem!_toArray, UInt64Array.getElem!_eq_getElem!_toArray,
+      UInt64Array.toArray_set!]
+    have := a.size_toArray
     grind
   val_get_set_self a i v h := by
     show (a.set! i _)[i]!.toNat = _
-    rw [UInt64Array.getElem!_eq_getElem!_data, UInt64Array.data_set!]
-    have := a.size_data
-    have : (a.data.set! i (UInt64.ofNat v))[i]! = UInt64.ofNat v := by grind
+    rw [UInt64Array.getElem!_eq_getElem!_toArray, UInt64Array.toArray_set!]
+    have := a.size_toArray
+    have : (a.toArray.set! i (UInt64.ofNat v))[i]! = UInt64.ofNat v := by grind
     rw [this, UInt64.toNat_ofNat']
 
 namespace ScalarArray.UInt64Array
@@ -82,13 +82,13 @@ public theorem toNat_eq_valAt (a : UInt64Array) : a.toNat = a.valAt 0 a.size := 
 
 public theorem getElem!_eq_getElem (a : UInt64Array) (i : Nat) (h : i < a.size) :
     a[i]! = a[i] := by
-  rw [getElem!_eq_getElem!_data, getElem_eq_getElem_data]
+  rw [getElem!_eq_getElem!_toArray, getElem_eq_getElem_toArray]
   simp [h]
 
 public theorem getElem!_set! (a : UInt64Array) (i j : Nat) (v : UInt64) :
     (a.set! i v)[j]! = if i = j ∧ i < a.size then v else a[j]! := by
-  rw [getElem!_eq_getElem!_data, getElem!_eq_getElem!_data, data_set!]
-  have := a.size_data
+  rw [getElem!_eq_getElem!_toArray, getElem!_eq_getElem!_toArray, toArray_set!]
+  have := a.size_toArray
   grind
 
 @[simp] public theorem getElem!_set!_self (a : UInt64Array) (i : Nat) (v : UInt64)
@@ -134,8 +134,8 @@ public theorem _root_.USize.min_le_right (a b : USize) : min a b ≤ b :=
 
 public theorem getElem!_uset (a : UInt64Array) (i : USize) (v : UInt64) (h : i.toNat < a.size)
     (j : Nat) : (a.uset i v h)[j]! = if i.toNat = j then v else a[j]! := by
-  rw [getElem!_eq_getElem!_data, getElem!_eq_getElem!_data, data_uset]
-  have := a.size_data
+  rw [getElem!_eq_getElem!_toArray, getElem!_eq_getElem!_toArray, toArray_uset]
+  have := a.size_toArray
   grind
 
 /-! ### Slices with `USize` bounds -/
