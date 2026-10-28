@@ -19,7 +19,7 @@ comes with Lean.
 | `MPN.Config` | `Config`: the size thresholds of the algorithms; `config`, the library's, from its build options | GMP's `gmp-mparam.h` |
 | `MPN.AddSub` | `addN`, `subN`; `add1`, `sub1`; `add`, `sub`; in place: `addInto`, `subInto` | `mpn_add_n`, `mpn_add_1`, `mpn_add`, … |
 | `MPN.Mul.Basecase` | `mul1`, `addMul1`, `mulBasecase` | `mpn_mul_1`, `mpn_addmul_1`, `mpn_mul_basecase` |
-| `MPN.Mul.Karatsuba` | `mulKaratsuba`, from `mulKaratsuba = 64` limbs | `mpn_kara_mul_n` |
+| `MPN.Mul.Karatsuba` | `mulKaratsuba`, from `mulKaratsuba = 64` limbs, by `main`'s `MPN.Toom.mulKaratsuba` on the instance `toomOps64` (`MPN.Mul.ToomOps`) of the in-place passes, products below the thresholds and Karatsuba's middle term (`MPN.Mul.KaratsubaMid`) | `mpn_kara_mul_n` |
 | `MPN.Linear` | in place: `addMulInto`, `subMulInto`, `shl63Into` (halving), `rshiftInto`, `divExactInto` (by odd constants: `divExact3Into`, `divExact5Into`) | `mpn_addmul_1`, `mpn_rshift`, `mpn_divexact_by3`, `mpn_divexact_1` |
 | `MPN.Bits` | `lshift`, `rshift` (by `0 < s < 64`), `shiftLeft`, `shiftRight` (by any number of bits), `zeroInto`, `log2` | `mpn_lshift`, `mpn_rshift`, `mpn_zero`, `mpn_sizeinbase` |
 | `MPN.Div.Limb` | `divRem1`: division by a limb, with `UInt64.div2` (128 by 64 bits) | `mpn_divrem_1` |
@@ -30,12 +30,12 @@ comes with Lean.
 | `MPN.Lehmer`, `MPN.Gcd` | `mulSubMul` (`a x - b y` in one pass), `mulAddMul` (`a x + b y`); `Num.gcd`: Euclid's algorithm on pairs of words (`gcd2`) up to two limbs, Lehmer's algorithm, and half-gcd with its own base case | `mpn_gcd_22`, `mpn_hgcd_mul_matrix1_vector`, `mpn_hgcd_matrix_mul_1`, `mpn_gcd` |
 | `MPN.Decimal` | `Num.toDecimal`, `Num.ofDecimal?`: chunks of 19 digits, divide and conquer on long numbers | `mpn_get_str`, `mpn_set_str` |
 | `MPN.Sqrt` | `sqrtRem`: Zimmermann's Karatsuba square root, Newton's iteration on a double word (`sqrt2`) at the bottom | `mpn_sqrtrem`, `mpn_dc_sqrtrem` |
-| `MPN.Mul.Toom` | `mulToom`: Toom-6 from `mulToom6 = 768` limbs, Toom-4 from `mulToom4 = 600` and Toom-4 by 3 from `mulToom43 = 600` limbs, Toom-3 from `mulToom3 = 384`, Toom-3 by 2 from `mulToom32 = 176` and Toom-4 by 2 from `mulToom42 = 88` limbs, by the shape; `sqrToom`: the Toom-6 square from 1152 limbs, the Toom-4 square from 1000, the Toom-3 square from 600 | `mpn_toom6h_mul`, `mpn_toom44_mul`, `mpn_toom43_mul`, `mpn_toom33_mul`, `mpn_toom32_mul`, `mpn_toom42_mul`, `mpn_toom6_sqr`, `mpn_toom4_sqr`, `mpn_toom3_sqr` |
+| `MPN.Mul.Toom` | by `main`'s `MPN.Toom.mulToom` and `MPN.Toom.sqrToom` on `toomOps64`; `mulToom`: Toom-6 from `mulToom6 = 768` limbs, Toom-4 from `mulToom4 = 600` and Toom-4 by 3 from `mulToom43 = 600` limbs, Toom-3 from `mulToom3 = 384`, Toom-3 by 2 from `mulToom32 = 176` and Toom-4 by 2 from `mulToom42 = 88` limbs, by the shape; `sqrToom`: the Toom-6 square from 1152 limbs, the Toom-4 square from 1000, the Toom-3 square from 600 | `mpn_toom6h_mul`, `mpn_toom44_mul`, `mpn_toom43_mul`, `mpn_toom33_mul`, `mpn_toom32_mul`, `mpn_toom42_mul`, `mpn_toom6_sqr`, `mpn_toom4_sqr`, `mpn_toom3_sqr` |
 | `MPN.FFT.Fermat` | in place on windows of one array, modulo `2^(64 n) + 1`: `normAt`, `addModAt`, `subModAt`, `mulPow2At` | `mpn_fft_add_modF`, `mpn_fft_sub_modF`, `mpn_fft_mul_2exp_modF` |
 | `MPN.FFT.Transform` | `fwd`, `inv`: the transforms of length `2ᵏ`, in place, by `main`'s `MPN.FFT.Windows` on the instance `winOps64` | `mpn_fft_fft`, `mpn_fft_fftinv` |
 | `MPN.FFT.Mul` | `fftMul`, `fftSqr`: Schönhage–Strassen with `2ᵏ` pieces; `MPN.mul` and `MPN.sqr`, which split unbalanced products into pieces (`mulChunked`) and choose the FFT from `mulFFT = 4096` limbs in the larger operand and `sqrFFT = 2816` limbs, and `mulToom` or `sqrToom` below | `mpn_mul_fft`, `mpn_mul`, `mpn_sqr` |
 | `MPN.Sqr.Basecase` | `sqrBasecase` | `mpn_sqr_basecase` |
-| `MPN.Sqr.Karatsuba` | `sqrKaratsuba`, from `sqrKaratsuba = 96` limbs | `mpn_kara_sqr_n` |
+| `MPN.Sqr.Karatsuba` | `sqrKaratsuba`, from `sqrKaratsuba = 96` limbs, by `main`'s `MPN.Toom.sqrKaratsuba` | `mpn_kara_sqr_n` |
 
 `MPN.UIntArray` holds the general tooling: the instance `limbArray64` of `main`'s `LimbArray`,
 whose `valAt` is the value of a range of limbs; `USlice`, a region of an array with `USize`

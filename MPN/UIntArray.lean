@@ -28,6 +28,20 @@ public instance limbArray64 : MPN.LimbArray UInt64Array UInt64 where
   get a i := a[i]!
   val x := x.toNat
   val_lt x := x.toNat_lt
+  set a i v := a.set! i (UInt64.ofNat v)
+  size_set a i v := UInt64Array.size_set! ..
+  get_set_ne a i v j h := by
+    show (a.set! i _)[j]! = a[j]!
+    rw [UInt64Array.getElem!_eq_getElem!_data, UInt64Array.getElem!_eq_getElem!_data,
+      UInt64Array.data_set!]
+    have := a.size_data
+    grind
+  val_get_set_self a i v h := by
+    show (a.set! i _)[i]!.toNat = _
+    rw [UInt64Array.getElem!_eq_getElem!_data, UInt64Array.data_set!]
+    have := a.size_data
+    have : (a.data.set! i (UInt64.ofNat v))[i]! = UInt64.ofNat v := by grind
+    rw [this, UInt64.toNat_ofNat']
 
 namespace ScalarArray.UInt64Array
 
