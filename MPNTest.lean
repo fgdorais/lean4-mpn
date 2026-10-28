@@ -274,7 +274,7 @@ def checkNumDiv (m n : Nat) : Bool :=
   [randomLimbs m 41, 2 ^ (64 * m) - 1].all fun x =>
     [randomLimbs n 42, 2 ^ (64 * n) - 1, 2 ^ (64 * (n - 1)) + 1, 2 ^ (64 * n - 1)].all fun y =>
       let (q, r) := MPN.Num.divMod (limbs m x) (limbs n y)
-      q.toNat == x / y && r.toNat == x % y
+      q.toNat == x / y && r.toNat == x % y && (MPN.Num.div (limbs m x) (limbs n y)).toNat == x / y
 
 -- Below `divDC`, at it, and recursing: digits of `⌊n / 2⌋` limbs and a shorter top digit,
 -- and digits that recurse once more (`1100 / 2 ≥ 512`).
@@ -282,10 +282,10 @@ def checkNumDiv (m n : Nat) : Bool :=
   (4000, 1100)].all fun (m, n) => checkNumDiv m n
 
 /--
-Checks `ops64B.divMu` and `ops64B.divMuW`, Barrett's division with Newton's reciprocal, the second
-with wrapped remainders, which `Num.divMod` uses from `divMu` limbs, on an `m`-limb `x` and an
-`n`-limb `y`, against `Nat`: normalized divisors, as `Num.divMod` passes, and others, on which
-`divMuW` falls back on `divMu`.
+Checks `ops64B.divMu`, `ops64B.divMuW` and `ops64B.divQMuW`, Barrett's division with Newton's
+reciprocal, the others with wrapped remainders, which `Num.divMod` and `Num.div` use from `divMu`
+and `divQMu` limbs, on an `m`-limb `x` and an `n`-limb `y`, against `Nat`: normalized divisors, as
+`Num.divMod` passes, and others, on which `divMuW` falls back on `divMu`.
 -/
 def checkDivMu (m n : Nat) : Bool :=
   [randomLimbs m 43, 2 ^ (64 * m) - 1].all fun x =>
@@ -293,7 +293,11 @@ def checkDivMu (m n : Nat) : Bool :=
       2 ^ (64 * (n - 1)) + 1].all fun y =>
       let (q, r) := MPN.ops64B.divMu (limbs m x) (limbs n y)
       let (q', r') := MPN.ops64B.divMuW (limbs m x) (limbs n y)
-      q.toNat == x / y && r.toNat == x % y && q'.toNat == x / y && r'.toNat == x % y
+      -- Just below a multiple of `y`, the estimate of the quotient alone does not decide.
+      let x' := x / y * y - 1
+      q.toNat == x / y && r.toNat == x % y && q'.toNat == x / y && r'.toNat == x % y &&
+        (MPN.ops64B.divQMuW (limbs m x) (limbs n y)).toNat == x / y &&
+        (MPN.ops64B.divQMuW (limbs m x') (limbs n y)).toNat == x' / y
 
 -- The reciprocal by the slow division (up to 4 limbs), by Newton's iteration, and in blocks.
 #guard [(8, 3), (9, 5), (40, 20), (100, 33), (300, 101), (64, 64), (200, 7)].all fun (m, n) =>

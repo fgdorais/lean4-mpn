@@ -196,4 +196,56 @@ public theorem size_divMod (a b : UInt64Array) (hb : 0 < b.toNat)
     (divMod a b).1.size ≤ a.size + 1 ∧ (divMod a b).2.size ≤ max a.size b.size :=
   (divMod_dc a b hb hU).2.2
 
+/--
+`a / b`, for `0 < b`: from `config.divQMu` limbs of `b`, by Barrett's division of the normalized
+`a` and `b` without the last remainder when the estimate decides (`NatOps.divQMuW`); otherwise
+the quotient of `divMod`.
+-/
+public def div (a b : UInt64Array) : UInt64Array :=
+  let L := MPN.log2 b.toUSlice
+  let nb := L / 64 + 1
+  if config.divQMu ≤ nb ∧ 8 * a.size + 48 < USize.size then
+    let c := 63 - L % 64
+    fitTo (ops64B.divQMuW (low (shl a c) (a.size + 1)) (low (shl b c) nb)) (a.size + 1)
+  else (divMod a b).1
+
+public theorem toNat_div (a b : UInt64Array) (hb : 0 < b.toNat)
+    (hU : a.size + b.size + 1 < USize.size) : (div a b).toNat = a.toNat / b.toNat := by
+  have hL : MPN.log2 b.toUSlice = _root_.Nat.log2 b.toNat := by
+    rw [log2_eq, toUSlice_toNat b (by lia)]
+  unfold div
+  dsimp only
+  rw [hL]
+  split
+  · rename_i h
+    generalize hl : _root_.Nat.log2 b.toNat = L at h ⊢
+    have hb₀ : b.toNat ≠ 0 := by lia
+    have hhi : b.toNat < 2 ^ (L + 1) := by rw [← hl]; exact Nat.lt_log2_self
+    have hA : a.toNat < 2 ^ (64 * a.size) := by rw [toNat_eq_valAt]; exact valAt_lt ..
+    generalize hnb' : L / 64 + 1 = nb at h ⊢
+    generalize hc : 63 - L % 64 = c
+    have hLc : L + c + 1 = 64 * nb := by lia
+    have hc64 : c < 64 := by lia
+    have hVlt : b.toNat * 2 ^ c < 2 ^ (64 * nb) :=
+      calc b.toNat * 2 ^ c < 2 ^ (L + 1) * 2 ^ c :=
+            Nat.mul_lt_mul_of_pos_right hhi (Nat.two_pow_pos _)
+        _ = 2 ^ (64 * nb) := by rw [← Nat.pow_add, ← hLc]; congr 1; lia
+    have hVv : (low (shl b c) nb).toNat = b.toNat * 2 ^ c := by
+      rw [toNat_low _ _ (by rw [size_shl]; lia), toNat_shl _ _ (by lia), Nat.mod_eq_of_lt hVlt]
+    have hUv : (low (shl a c) (a.size + 1)).toNat = a.toNat * 2 ^ c := by
+      rw [toNat_low _ _ (by rw [size_shl]; lia), toNat_shl _ _ (by lia), Nat.mod_eq_of_lt]
+      calc a.toNat * 2 ^ c < 2 ^ (64 * a.size) * 2 ^ 64 :=
+            Nat.mul_lt_mul_of_lt_of_le hA (Nat.pow_le_pow_right (by decide) (by lia))
+              (Nat.two_pow_pos _)
+        _ = 2 ^ (64 * (a.size + 1)) := by rw [← Nat.pow_add]; congr 1
+    have hq := ops64B.divQMuW_spec (low (shl a c) (a.size + 1)) (low (shl b c) nb)
+      (by simp only [ops64B_val]; rw [hVv]; exact Nat.mul_pos hb (Nat.two_pow_pos _))
+    simp only [ops64B_val] at hq
+    rw [hUv, hVv, Nat.mul_div_mul_right _ _ (Nat.two_pow_pos _)] at hq
+    have hqa : a.toNat / b.toNat < 2 ^ (64 * (a.size + 1)) :=
+      Nat.lt_of_le_of_lt (Nat.div_le_self _ _)
+        (Nat.lt_of_lt_of_le hA (Nat.pow_le_pow_right (by decide) (by lia)))
+    rw [(fitTo_spec _ (a.size + 1) (by rw [hq]; exact hqa)).1, hq]
+  · exact (toNat_divMod a b hb hU).1
+
 end MPN.Num
