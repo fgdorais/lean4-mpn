@@ -5,6 +5,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public meta import Lean
+public import MPN.Toom.Ops
+public meta import MPN.Toom.Ops
 
 /-!
 # Configuration
@@ -24,50 +26,29 @@ machine prints the thresholds for that machine and the options that set them.
 namespace MPN
 
 /-- The size thresholds, in limbs, at which the arithmetic switches algorithms. -/
-public structure Config where
-  /-- The size of the shorter operand from which multiplication uses Karatsuba. -/
-  mulKaratsuba : Nat := 112
-  /-- Karatsuba needs at least `4` limbs to make its products smaller. -/
-  four_le_mulKaratsuba : 4 ≤ mulKaratsuba := by decide
-  /-- The size of the shorter operand from which multiplication uses Toom-3 instead of Karatsuba. -/
-  mulToom3 : Nat := 640
-  /-- Toom-3 needs at least `12` limbs to make its products smaller. -/
-  twelve_le_mulToom3 : 12 ≤ mulToom3 := by decide
-  /--
-  The size of the shorter operand from which multiplication uses Toom-3 by 2 when the longer one is
-  between four thirds and twice as long, instead of Toom-3 or Karatsuba.
-  -/
-  mulToom32 : Nat := 192
-  /-- Toom-3 by 2 needs at least `12` limbs to make its products smaller. -/
-  twelve_le_mulToom32 : 12 ≤ mulToom32 := by decide
-  /--
-  The size of the shorter operand from which multiplication uses Toom-4 by 2 when the longer one is
-  between fifteen eighths and twice as long, instead of Toom-3 by 2.
-  -/
-  mulToom42 : Nat := 304
-  /-- Toom-4 by 2 needs at least `12` limbs to make its products smaller. -/
-  twelve_le_mulToom42 : 12 ≤ mulToom42 := by decide
-  /--
-  The size of the shorter operand from which multiplication uses Toom-4 by 3 when the longer one is
-  between six fifths and fifteen eighths as long, instead of Toom-3 by 2 or Toom-3.
-  -/
-  mulToom43 : Nat := 272
-  /-- Toom-4 by 3 needs at least `32` limbs for its split. -/
-  thirtytwo_le_mulToom43 : 32 ≤ mulToom43 := by decide
-  /--
-  The size of the shorter operand from which multiplication uses Toom-4 when the longer one is less
-  than four thirds as long, instead of Toom-3.
-  -/
-  mulToom4 : Nat := 608
-  /-- Toom-4 needs at least `32` limbs for its split. -/
-  thirtytwo_le_mulToom4 : 32 ≤ mulToom4 := by decide
-  /--
-  The size of the shorter operand from which multiplication uses Toom-6 when the longer one is less
-  than six fifths as long, instead of Toom-4.
-  -/
-  mulToom6 : Nat := 1792
-  /-- Toom-6 needs at least `32` limbs for its split. -/
-  thirtytwo_le_mulToom6 : 32 ≤ mulToom6 := by decide
+public structure Config extends Toom.Config where
+  mulKaratsuba := 112
+  four_le_mulKaratsuba := by decide
+  mulToom3 := 640
+  twelve_le_mulToom3 := by decide
+  mulToom32 := 192
+  twelve_le_mulToom32 := by decide
+  mulToom42 := 304
+  twelve_le_mulToom42 := by decide
+  mulToom4 := 608
+  thirtytwo_le_mulToom4 := by decide
+  mulToom43 := 272
+  thirtytwo_le_mulToom43 := by decide
+  mulToom6 := 1792
+  thirtytwo_le_mulToom6 := by decide
+  sqrKaratsuba := 160
+  four_le_sqrKaratsuba := by decide
+  sqrToom3 := 944
+  twelve_le_sqrToom3 := by decide
+  sqrToom4 := 832
+  thirtytwo_le_sqrToom4 := by decide
+  sqrToom6 := 2496
+  thirtytwo_le_sqrToom6 := by decide
   /--
   The size of the shorter operand from which multiplication uses the FFT when the longer one is
   less than twice as long.
@@ -81,22 +62,6 @@ public structure Config where
   mulUnbalanced : Nat := 204
   /-- The size from which squaring uses the schoolbook square instead of multiplying. -/
   sqrBasecase : Nat := 2
-  /-- The size from which squaring uses Karatsuba. -/
-  sqrKaratsuba : Nat := 160
-  /-- Karatsuba needs at least `4` limbs to make its squares smaller. -/
-  four_le_sqrKaratsuba : 4 ≤ sqrKaratsuba := by decide
-  /-- The size from which squaring uses Toom-3 instead of Karatsuba. -/
-  sqrToom3 : Nat := 944
-  /-- Toom-3 needs at least `12` limbs to make its squares smaller. -/
-  twelve_le_sqrToom3 : 12 ≤ sqrToom3 := by decide
-  /-- The size from which squaring uses Toom-4 instead of Toom-3 or Karatsuba. -/
-  sqrToom4 : Nat := 832
-  /-- Toom-4 needs at least `32` limbs for its split. -/
-  thirtytwo_le_sqrToom4 : 32 ≤ sqrToom4 := by decide
-  /-- The size from which squaring uses Toom-6 instead of Toom-4 and those below. -/
-  sqrToom6 : Nat := 2496
-  /-- Toom-6 needs at least `32` limbs for its split. -/
-  thirtytwo_le_sqrToom6 : 32 ≤ sqrToom6 := by decide
   /-- The size from which squaring uses the FFT. -/
   sqrFFT : Nat := 12288
   /-- The size of the divisor from which division computes its quotient in blocks of half the
@@ -115,6 +80,9 @@ public structure Config where
   conquer. -/
   parseDC : Nat := 1024
   deriving Repr
+
+/-- The thresholds of the Karatsuba and Toom methods of `MPN.Toom`, a projection. -/
+@[inline] public abbrev Config.toom (cfg : Config) : Toom.Config := cfg.toConfig
 
 public meta register_option mpn.mul.karatsubaThreshold : Nat := {
   defValue := ({} : Config).mulKaratsuba

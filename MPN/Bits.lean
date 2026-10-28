@@ -313,6 +313,10 @@ doesn't recompute it.
 public def shrLimbs (x : UInt32Array) (s : UInt64) : UInt32Array :=
   x.toSlice.foldrInPlaceThen (0 : UInt32) (fun _ _ v c => shrStep s v c) (fun r _ => trim r.array)
 
+public theorem size_shrLimbs_le (x : UInt32Array) (s : UInt64) : (shrLimbs x s).size ≤ x.size := by
+  rw [shrLimbs, UInt32Array.Slice.foldrInPlaceThen_eq]
+  exact Nat.le_trans (size_trim_le _) (by simp)
+
 @[simp] public theorem toNat_shrLimbs (x : UInt32Array) (s : Nat) (hs : s < 32) :
     toNat (shrLimbs x s.toUInt64) = toNat x / 2 ^ s := by
   rw [shrLimbs]

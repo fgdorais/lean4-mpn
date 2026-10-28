@@ -7,6 +7,7 @@ module
 public import MPN.FFT.Transform
 public import MPN.FFT.Product
 public import MPN.Basic
+public import MPN.ValAt
 public import MPN.Mul.Basecase
 
 /-!
@@ -613,38 +614,6 @@ The rest of the library multiplies the library's slices into new arrays, with va
 `MPN.toNat`: `fftMul` and `fftSqr` take its multiplication for the pointwise products, convert
 the slices to `USlice`s and back, and fall back to schoolbook when the parameters do not suit.
 -/
-
-/-- The limbs `lo` to `lo + n - 1` of `a`, read as a list, have the value `valAt`. -/
-private theorem ofLimbs_take_drop (a : UInt32Array) (lo n : Nat) :
-    ofLimbs ((a.toList.drop lo).take n) = a.valAt lo n := by
-  have hz : ∀ m lo', a.size ≤ lo' → a.valAt lo' m = 0 := by
-    intro m
-    induction m with
-    | zero => simp
-    | succ m ihm =>
-      intro lo' h'
-      rw [valAt_succ, ihm (lo' + 1) (by lia), getElem!_neg a lo' (by lia)]; rfl
-  induction n generalizing lo with
-  | zero => simp
-  | succ n ih =>
-    rcases Nat.lt_or_ge lo a.size with h | h
-    · rw [valAt_succ, List.drop_eq_getElem_cons (by simpa using h), List.take_succ_cons,
-        ofLimbs_cons, ih (lo + 1), getElem!_eq_getElem _ _ h]
-      simp
-    · rw [List.drop_eq_nil_of_le (by simpa using h), hz _ lo h]
-      simp
-
-/-- The value of a library slice, by `valAt`. -/
-public theorem toNat_eq_valAt (s : UInt32Array.Slice) :
-    MPN.toNat s = s.array.valAt s.start s.size := by
-  rw [MPN.toNat, ← ofLimbs_take_drop]
-  congr 1
-  rw [Slice.copy, toList_extract, List.extract_eq_take_drop, Slice.size_eq]
-
-/-- The value of an array, by `valAt`. -/
-public theorem toNat_array_eq_valAt (a : UInt32Array) :
-    MPN.toNat a.toSlice = a.valAt 0 a.size := by
-  rw [toNat_toSlice, ← ofLimbs_take_drop, List.drop_zero, List.take_of_length_le (by simp)]
 
 /-- A library slice as a `USlice`, for an array whose size is a `USize`. -/
 @[inline, expose] public def toUS (s : UInt32Array.Slice) (h : s.array.size < USize.size) :

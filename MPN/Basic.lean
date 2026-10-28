@@ -158,6 +158,9 @@ public theorem toList_trim (a : UInt32Array) : (trim a).toList = trimLimbs a.toL
 @[simp] public theorem toNat_trim (a : UInt32Array) : toNat (trim a) = toNat a := by
   simp [toList_trim]
 
+public theorem size_trim_le (a : UInt32Array) : (trim a).size ≤ a.size :=
+  UInt32Array.size_popWhile_le _ _
+
 public theorem isTrimmed_trim (a : UInt32Array) : isTrimmed (trim a) = true := by
   simp [isTrimmed_iff, toList_trim, isTrimmed_trimLimbs]
 

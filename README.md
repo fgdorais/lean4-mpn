@@ -16,8 +16,9 @@ bitwise operations, `^`, `ToString`, `Repr`), as well as `gcd`, `lcm`, `log2`, `
 bijection, and `toString` and `ofString?` with `Nat.repr` and `String.toNat?`.
 
 This is the `main32` branch. The part that does not depend on the width of a limb (finite sums,
-polynomials and the base-generic algorithms of `MPN.Generic`) lives on `main`, which this branch
-merges; `main64` is the same on `UInt64` limbs.
+polynomials, the FFT, Karatsuba and the Toom methods, and the base-generic algorithms of
+`MPN.Generic`) lives on `main`, which this branch merges, with instances for 32-bit limbs such as
+`toomOps32` (`MPN.Mul.ToomOps`); `main64` is the same on `UInt64` limbs.
 
 ## Tuning
 

@@ -171,6 +171,11 @@ pass from the bottom limb up with `divOddStep`, in place with
   x.toSlice.foldlInPlaceThen (0 : UInt32) (fun _ _ v c => divOddStep d inv v c)
     (fun r _ => r.array)
 
+@[simp] public theorem size_divExactOdd (x : UInt32Array) (d inv : UInt32) :
+    (divExactOdd x d inv).size = x.size := by
+  rw [divExactOdd, UInt32Array.Slice.foldlInPlaceThen_eq]
+  simp
+
 public theorem toNat_divExactOdd (x : UInt32Array) (d inv : UInt32)
     (hinv : d.toNat * inv.toNat % 2 ^ 32 = 1) (hodd : d.toNat % 2 = 1) (X : Nat)
     (hx : toNat x = d.toNat * X) : toNat (divExactOdd x d inv) = X := by

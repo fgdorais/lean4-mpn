@@ -5,10 +5,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN.Mul.Basecase
-public import MPN.Mul.Karatsuba
 public import MPN.Mul.Unbalanced
-public import MPN.Mul.Toom3
-public import MPN.Mul.Toom6
+public import MPN.Mul.Toom
 public import MPN.FFT.Mul
 public import MPN.Config
 
@@ -28,22 +26,11 @@ longer operand first, then `mulLongShort` chooses by the size of the shorter one
   twice as long: `mulUnbalanced`, which halves the longer operand;
 * at least `cfg.mulFFT` limbs otherwise: `fftMul`, Schönhage–Strassen modulo `2ᴺ + 1` with
   `2ᵏ` pieces, `k` from `fftK`;
-* at least `cfg.mulToom42` limbs otherwise, with the longer operand at least fifteen eighths as
-  long: `toom42`, which splits it in four and the shorter in two;
-* at least `cfg.mulToom43` limbs otherwise, with the longer operand at least six fifths as long:
-  `toom43`, which splits it in four and the shorter in three;
-* at least `cfg.mulToom32` limbs otherwise, with the longer operand at least four thirds as long:
-  `toom32`, which splits it in three and the shorter in two;
-* at least `cfg.mulToom6` limbs otherwise, with the longer operand less than six fifths as long:
-  `toom6`, which splits both in six;
-* at least `cfg.mulToom4` limbs otherwise, with the longer operand less than four thirds as long:
-  `toom44`, which splits both in four;
-* at least `cfg.mulToom3` limbs otherwise, with the longer operand less than four thirds as long:
-  `toom3`, which splits both at a third of the longer when two such parts fit in the shorter;
-* at least `cfg.mulKaratsuba` limbs otherwise: `karatsuba`;
+* at least `cfg.mulKaratsuba` limbs otherwise: `mulToomL`, `main`'s Toom methods and Karatsuba,
+  which choose by the sizes and the shape and recurse among themselves;
 * otherwise: the schoolbook `mulBasecase`, with its rows over the shorter operand.
 
-The algorithms that recurse take the multiplier as a parameter and prove their result assuming it
+`mulUnbalanced` and the FFT take the multiplier as a parameter and prove their result assuming it
 is correct on smaller inputs, and the induction in `mulLimbsWith_ok` supplies that. The thresholds
 come from a `Config`, and `mulLimbs` uses the library's `config`.
 -/
@@ -65,7 +52,7 @@ public def config : Config := mpn_config%
 mutual
 
 /-- All the limbs of `a * b` when `b` is no longer than `a`, chosen by the size of `b`. -/
-def mulLongShort (cfg : Config) (a b : UInt32Array.Slice) (hab : b.size ≤ a.size) :
+def mulLongShort (cfg : Config) (a b : UInt32Array.Slice) (_hab : b.size ≤ a.size) :
     UInt32Array :=
   if b.size = 0 then
     .replicate a.size 0
@@ -80,25 +67,8 @@ def mulLongShort (cfg : Config) (a b : UInt32Array.Slice) (hab : b.size ≤ a.si
         mulBasecase b a
     else if cfg.mulFFT ≤ b.size then
       FFT.fftMul a b (FFT.fftK (a.size + b.size)) fun x y _ => mulLimbsWith cfg x y
-    else if h₄₂ : cfg.mulToom42 ≤ b.size ∧ 15 * b.size ≤ 8 * a.size then
-      toom42 a b (Nat.le_trans cfg.twelve_le_mulToom42 h₄₂.1) (by lia) (by lia) fun x y _ =>
-        mulLimbsWith cfg x y
-    else if h₄₃ : cfg.mulToom43 ≤ b.size ∧ 6 * b.size ≤ 5 * a.size ∧ 8 * a.size < 15 * b.size then
-      toom43 a b (Nat.le_trans cfg.thirtytwo_le_mulToom43 h₄₃.1) h₄₃.2.1 h₄₃.2.2 fun x y _ =>
-        mulLimbsWith cfg x y
-    else if h₃₂ : cfg.mulToom32 ≤ b.size ∧ 4 * b.size ≤ 3 * a.size then
-      toom32 a b (Nat.le_trans cfg.twelve_le_mulToom32 h₃₂.1) hab (by lia) fun x y _ =>
-        mulLimbsWith cfg x y
-    else if h₆ : cfg.mulToom6 ≤ b.size ∧ 5 * a.size < 6 * b.size then
-      toom6 a b (Nat.le_trans cfg.thirtytwo_le_mulToom6 h₆.1) hab fun x y _ => mulLimbsWith cfg x y
-    else if h₄ : cfg.mulToom4 ≤ b.size ∧ 3 * a.size < 4 * b.size then
-      toom44 a b (Nat.le_trans cfg.thirtytwo_le_mulToom4 h₄.1) hab h₄.2 fun x y _ =>
-        mulLimbsWith cfg x y
-    else if h₃ : cfg.mulToom3 ≤ b.size ∧ 3 * a.size < 4 * b.size then
-      toom3 a b (Nat.le_trans cfg.twelve_le_mulToom3 h₃.1) hab h₃.2 fun x y _ =>
-        mulLimbsWith cfg x y
     else
-      karatsuba a b (Nat.le_trans cfg.four_le_mulKaratsuba h) hab fun x y _ => mulLimbsWith cfg x y
+      mulToomL cfg a b
   else
     mulBasecase b a
 termination_by (a.size + b.size, 0)
@@ -147,19 +117,7 @@ private theorem mulLongShort_ok (cfg : Config) (a b : UInt32Array.Slice) (hab : 
               toNat_mulBasecase b a⟩).swap
         · split
           · exact FFT.fftMul_spec a b _ _ fun x y hxy => ih x y hxy
-          · split
-            · exact toom42_spec a b _ _ _ _ fun x y hxy => ih x y hxy
-            · split
-              · exact toom43_spec a b _ _ _ _ fun x y hxy => ih x y hxy
-              · split
-                · exact toom32_spec a b _ hab _ _ fun x y hxy => ih x y hxy
-                · split
-                  · exact toom6_spec a b _ hab _ fun x y hxy => ih x y hxy
-                  · split
-                    · exact toom44_spec a b _ hab _ _ fun x y hxy => ih x y hxy
-                    · split
-                      · exact toom3_spec a b _ hab _ _ fun x y hxy => ih x y hxy
-                      · exact karatsuba_spec a b _ hab _ fun x y hxy => ih x y hxy
+          · exact mulToomL_spec cfg a b
       · exact (show MulOK b a (mulBasecase b a) from ⟨size_mulBasecase b a,
           toNat_mulBasecase b a⟩).swap
 
