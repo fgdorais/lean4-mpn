@@ -82,30 +82,31 @@ public theorem valAt_eq_pieces (x : A) (k : Nat) :
 
 /-! ## Evaluations -/
 
-/-- Adds pieces `i` to `p - 1` of `x`, times `jⁱ`, to the `len` limbs of `e`. -/
-@[expose, specialize] public def evalLoop (x : A) (xo xl k j p len : Nat) (e : A) (i : Nat) : A :=
+/-- Adds pieces `i` to `p - 1` of `x`, times `jⁱ`, to the `len` limbs of `e`, with `jp = jⁱ`. -/
+@[expose, specialize] public def evalLoop (x : A) (xo xl k j p len : Nat) (e : A) (i jp : Nat) : A :=
   if i < p then
-    evalLoop x xo xl k j p len (R.addMulInto e 0 len x (xo + i * k) (min k (xl - i * k)) (j ^ i))
-      (i + 1)
+    evalLoop x xo xl k j p len (R.addMulInto e 0 len x (xo + i * k) (min k (xl - i * k)) jp)
+      (i + 1) (jp * j)
   else e
 termination_by p - i
 
 /-- The value at `j` of the polynomial of the `p` pieces of `x`, in a new array of `len` limbs. -/
 @[expose, specialize] public def evalAt (x : A) (xo xl k p j len : Nat) : A :=
-  evalLoop x xo xl k j p len (R.addInto (R.zeros len) 0 len x xo (min k xl)) 1
+  evalLoop x xo xl k j p len (R.addInto (R.zeros len) 0 len x xo (min k xl)) 1 j
 
 private theorem evalLoop_spec (x : A) (xo xl k j p len : Nat) (hj : 1 ≤ j)
     (hjp : j ^ (p - 1) < 2 ^ 32) :
-    ∀ m (e : A) i, p - i = m → LA.size e = len →
+    ∀ m (e : A) i jp, p - i = m → jp = j ^ i → LA.size e = len →
       valAt e 0 len + sumRange (fun l => piece x xo xl k (i + l) * j ^ (i + l)) m <
         2 ^ (LA.w * len) →
-      LA.size (evalLoop x xo xl k j p len e i) = len ∧
-        valAt (evalLoop x xo xl k j p len e i) 0 len =
+      LA.size (evalLoop x xo xl k j p len e i jp) = len ∧
+        valAt (evalLoop x xo xl k j p len e i jp) 0 len =
           valAt e 0 len + sumRange (fun l => piece x xo xl k (i + l) * j ^ (i + l)) m
-  | 0, e, i, hm, he, _ => by
+  | 0, e, i, jp, hm, _, he, _ => by
     have hc : ¬ i < p := by lia
     rw [evalLoop]; simp only [hc, ↓reduceIte]; exact ⟨he, by simp⟩
-  | m + 1, e, i, hm, he, hlt => by
+  | m + 1, e, i, jp, hm, hjp, he, hlt => by
+    subst hjp
     have hc : i < p := by lia
     rw [evalLoop]; simp only [hc, ↓reduceIte]
     rw [sumRange_succ_left, Nat.add_zero] at hlt ⊢
@@ -115,7 +116,8 @@ private theorem evalLoop_spec (x : A) (xo xl k j p len : Nat) (hj : 1 ≤ j)
     have hs : ∀ l, piece x xo xl k (i + (l + 1)) * j ^ (i + (l + 1)) =
         piece x xo xl k (i + 1 + l) * j ^ (i + 1 + l) := fun l => by rw [Nat.add_assoc, Nat.add_comm 1]
     rw [sumRange_congr (fun l _ => hs l)] at hlt ⊢
-    have := evalLoop_spec x xo xl k j p len hj hjp m _ (i + 1) (by lia) (w.1.trans he)
+    have := evalLoop_spec x xo xl k j p len hj hjp m _ (i + 1) _ (by lia) (Nat.pow_succ ..).symm
+      (w.1.trans he)
       (by rw [v, ← piece]; lia)
     rw [this.2, v, ← piece]
     exact ⟨this.1, by lia⟩
@@ -167,7 +169,7 @@ public theorem evalAt_spec (x : A) (xo xl k p j : Nat) (hp : 1 ≤ p) (hj : 1 �
     · have h₂ := sumRange_succ_left (fun i => j ^ i) (p - 2)
       rw [show p - 2 + 1 = p - 1 by lia, Nat.pow_zero] at h₂
       lia
-  have := evalLoop_spec x xo xl k j p (k + 1) hj hjp' (p - 1) _ 1 rfl
+  have := evalLoop_spec x xo xl k j p (k + 1) hj hjp' (p - 1) _ 1 j rfl (Nat.pow_one j).symm
     (by rw [w₀.1, R.size_zeros]) (by
       rw [v₀]
       have e : ∀ l, piece x xo xl k (1 + l) * j ^ (1 + l) = piece x xo xl k (l + 1) * j ^ (l + 1) :=
