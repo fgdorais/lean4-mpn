@@ -409,10 +409,13 @@ The multiply-subtract pass and the add-back pass of a step, over limbs `rs` to `
 array and limbs `vs` to `vs + n - 1` of the divisor `v`, another array.
 -/
 
-/-- One limb of the multiply-subtract pass: limb `z` less limb `j` of `v x` and the borrow. -/
+/--
+One limb of the multiply-subtract pass: limb `z` less limb `j` of `v x` and the borrow, which the
+pass carries in the instance's form (`subMulB`).
+-/
 @[inline, expose] public def subMulStep (v : A) (vs n : USize) (hv : LoopBound v vs n) (x : L)
     (j : USize) (h : j < n) (z c : L) : L × L :=
-  R.subMulC z (R.uget v (vs + j) (hv.uset_bound h)) x c
+  R.subMulB z (R.uget v (vs + j) (hv.uset_bound h)) x c
 
 /-- One limb of the add-back pass: limb `z` plus limb `j` of `v` and the carry. -/
 @[inline, expose] public def addVStep (v : A) (vs n : USize) (hv : LoopBound v vs n) (j : USize)
@@ -426,10 +429,10 @@ public theorem subMulFold_spec (arr : A) (rs : USize) (v : A) (vs n : USize)
         LA.get (foldUInPlace n (subMulStep v vs n hv x) arr rs hr j c).1 i = LA.get arr i) ∧
       LimbArray.valAt (foldUInPlace n (subMulStep v vs n hv x) arr rs hr j c).1
           (rs.toNat + j.toNat) (n.toNat - j.toNat) +
-          LimbArray.valAt v (vs.toNat + j.toNat) (n.toNat - j.toNat) * LA.val x + LA.val c =
+          LimbArray.valAt v (vs.toNat + j.toNat) (n.toNat - j.toNat) * LA.val x + LA.val (R.unB c) =
         LimbArray.valAt arr (rs.toNat + j.toNat) (n.toNat - j.toNat) +
           2 ^ (LA.w * (n.toNat - j.toNat)) *
-            LA.val (foldUInPlace n (subMulStep v vs n hv x) arr rs hr j c).2 := by
+            LA.val (R.unB (foldUInPlace n (subMulStep v vs n hv x) arr rs hr j c).2) := by
   induction arr, hr, j, c using foldUInPlace.induct (R := R) n (subMulStep v vs n hv x) rs with
   | case1 arr hr j c h p ih =>
     rw [foldUInPlace]
@@ -454,7 +457,7 @@ public theorem subMulFold_spec (arr : A) (rs : USize) (v : A) (vs n : USize)
       rw [R.uget_eq, hidx]
     have hy : R.uget v (vs + j) (hv.uset_bound h) = LA.get v (vs.toNat + j.toNat) := by
       rw [R.uget_eq, hvi]
-    have hl := R.val_subMulC (R.uget arr (rs + j) (hr.uset_bound h))
+    have hl := R.val_subMulB (R.uget arr (rs + j) (hr.uset_bound h))
       (R.uget v (vs + j) (hv.uset_bound h)) x c
     rw [hz, hy] at hl
     refine ⟨ih₁, fun i hi => ?_, ?_⟩
@@ -472,7 +475,7 @@ public theorem subMulFold_spec (arr : A) (rs : USize) (v : A) (vs n : USize)
       generalize LimbArray.valAt q.1 _ _ = V at *
       generalize LimbArray.valAt arr (rs.toNat + j.toNat + 1) k = X at *
       generalize LimbArray.valAt v (vs.toNat + j.toNat + 1) k = Y at *
-      generalize LA.val q.2 = c' at *
+      generalize LA.val (R.unB q.2) = c' at *
       generalize 2 ^ (LA.w * k) = P at *
       generalize 2 ^ LA.w = B at *
       grind
@@ -768,9 +771,10 @@ public def divStepIn (w v : A) (vs n : USize) (hv : LoopBound v vs n) (v₁ v₂
     let q := qEstD A dv (R.uget w (i + n) (by rw [ht.1]; lia))
       (R.uget w (i + (n - 1)) (by rw [ht.2.1]; lia)) (R.uget w (i + (n - 2)) (by rw [ht.2.2]; lia))
       v₁ v₂
-    F.foldThen n (subMulStep v vs n hv q) w i ⟨by lia, by lia⟩ 0 R.zero fun w' hw' b =>
+    F.foldThen n (subMulStep v vs n hv q) w i ⟨by lia, by lia⟩ 0 R.b0 fun w' hw' h' =>
       have hti : (i + n).toNat < LA.size w' := by rw [hw', ht.1]; lia
       let top := R.uget w' (i + n) hti
+      let b := R.unB h'
       if R.eqB b top then R.uset w' (i + n) q hti
       else
         let p := addBack (R.uset w' (i + n) (R.sub top b) hti) v vs n hv i
@@ -798,16 +802,16 @@ private theorem divStepIn_spec (w v : A) (vs n : USize) (hv : LoopBound v vs n) 
   dsimp only at hG
   obtain ⟨q, hq, hG⟩ : ∃ q, q = qEstD A dv (R.uget w (i + n) (by rw [ht.1]; lia))
       (R.uget w (i + (n - 1)) (by rw [ht.2.1]; lia)) (R.uget w (i + (n - 2)) (by rw [ht.2.2]; lia))
-      v₁ v₂ ∧ F.foldThen n (subMulStep v vs n hv q) w i ⟨by lia, by lia⟩ 0 R.zero
-        (fun w' hw' b =>
-          if R.eqB b (R.uget w' (i + n) (by rw [hw', ht.1]; lia)) then
+      v₁ v₂ ∧ F.foldThen n (subMulStep v vs n hv q) w i ⟨by lia, by lia⟩ 0 R.b0
+        (fun w' hw' h' =>
+          if R.eqB (R.unB h') (R.uget w' (i + n) (by rw [hw', ht.1]; lia)) then
             R.uset w' (i + n) q (by rw [hw', ht.1]; lia)
           else
-            R.uset (addBack (R.uset w' (i + n) (R.sub (R.uget w' (i + n) (by rw [hw', ht.1]; lia)) b)
-              (by rw [hw', ht.1]; lia)) v vs n hv i
+            R.uset (addBack (R.uset w' (i + n) (R.sub (R.uget w' (i + n) (by rw [hw', ht.1]; lia))
+              (R.unB h')) (by rw [hw', ht.1]; lia)) v vs n hv i
               (WinB.of_size (WinB.of_size hk hw') (R.size_uset ..)) q R.one).1 (i + n)
-              (addBack (R.uset w' (i + n) (R.sub (R.uget w' (i + n) (by rw [hw', ht.1]; lia)) b)
-              (by rw [hw', ht.1]; lia)) v vs n hv i
+              (addBack (R.uset w' (i + n) (R.sub (R.uget w' (i + n) (by rw [hw', ht.1]; lia))
+              (R.unB h')) (by rw [hw', ht.1]; lia)) v vs n hv i
               (WinB.of_size (WinB.of_size hk hw') (R.size_uset ..)) q R.one).2
               (by rw [size_addBack, R.size_uset, hw', ht.1]; lia)) = G := ⟨_, rfl, hG⟩
   rw [R.uget_eq, R.uget_eq, R.uget_eq, ht.1, ht.2.1, ht.2.2] at hq
@@ -836,10 +840,11 @@ private theorem divStepIn_spec (w v : A) (vs n : USize) (hv : LoopBound v vs n) 
   rw [← hq] at hge
   -- The product subtracted from the low `n` limbs of the window.
   have hr : LoopBound w i n := ⟨by lia, by lia⟩
-  obtain ⟨a, f₁, b, e, hG⟩ := foldThen_cases hG
-  obtain ⟨-, f₂, f₃⟩ := subMulFold_spec w i v vs n hv hr q 0 R.zero
+  obtain ⟨a, f₁, h', e, hG⟩ := foldThen_cases hG
+  obtain ⟨-, f₂, f₃⟩ := subMulFold_spec w i v vs n hv hr q 0 R.b0
   rw [e] at f₂ f₃
-  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, R.val_zero, hV] at f₂ f₃
+  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, R.val_unB_b0, hV] at f₂ f₃
+  generalize R.unB h' = b at f₃ hG
   have htop : LA.get a (i.toNat + n.toNat) = LA.get w (i.toNat + n.toNat) :=
     f₂ _ (.inr (Nat.le_refl _))
   have hWs : W = LimbArray.valAt w i.toNat n.toNat +

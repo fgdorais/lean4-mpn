@@ -111,8 +111,16 @@ public class WordArray (A : Type) (L : outParam Type) [LA : LimbArray A L] where
   land : L → L → L
   /-- `1` or `0`. -/
   ofBool : Bool → L
-  /-- `z - y x - c` modulo `2ʷ`, and the borrow out: one limb of a multiply-subtract pass. -/
-  subMulC : L → L → L → L → L × L
+  /--
+  One limb of a multiply-subtract pass: `z - y x - c` modulo `2ʷ`, and the borrow out, for the
+  borrow `c = unB h` carried in a form of the instance's choice, `h`, such as one that shortens the
+  dependency chain from one limb to the next.
+  -/
+  subMulB : L → L → L → L → L × L
+  /-- The borrow that the carried form `h` of `subMulB` stands for. -/
+  unB : L → L
+  /-- The carried form of the borrow `0`. -/
+  b0 : L
   /-- `x + y + c` modulo `2ʷ`, and the carry out: one limb of an addition. -/
   addC : L → L → L → L × L
   /-- Whether a limb is zero. -/
@@ -136,8 +144,9 @@ public class WordArray (A : Type) (L : outParam Type) [LA : LimbArray A L] where
   val_div2 : ∀ h l d, LA.val h < LA.val d →
     LA.val (div2 h l d) = (LA.val h * 2 ^ LA.w + LA.val l) / LA.val d
   ltB_iff : ∀ x y, ltB x y = true ↔ LA.val x < LA.val y
-  val_subMulC : ∀ z y x c, LA.val (subMulC z y x c).1 + LA.val y * LA.val x + LA.val c =
-    LA.val z + 2 ^ LA.w * LA.val (subMulC z y x c).2
+  val_subMulB : ∀ z y x h, LA.val (subMulB z y x h).1 + LA.val y * LA.val x + LA.val (unB h) =
+    LA.val z + 2 ^ LA.w * LA.val (unB (subMulB z y x h).2)
+  val_unB_b0 : LA.val (unB b0) = 0
   val_addC : ∀ x y c, LA.val (addC x y c).1 + 2 ^ LA.w * LA.val (addC x y c).2 =
     LA.val x + LA.val y + LA.val c
   eqB_iff : ∀ x y, eqB x y = true ↔ LA.val x = LA.val y
