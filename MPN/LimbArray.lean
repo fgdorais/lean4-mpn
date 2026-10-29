@@ -106,6 +106,25 @@ public theorem valAt_eq_zero {a : A} {lo : Nat} :
     rw [valAt_succ, h lo (by lia) (by lia), valAt_eq_zero n fun i h₁ h₂ => h i (by lia) (by lia)]
     simp
 
+/-- Limb `i` of `n` limbs is a digit of their value. -/
+public theorem val_get_eq (a : A) {n i : Nat} (h : i < n) :
+    R.val (R.get a i) = valAt a 0 n / 2 ^ (R.w * i) % 2 ^ R.w := by
+  obtain ⟨k, rfl⟩ : ∃ k, n = i + 1 + k := ⟨n - i - 1, by lia⟩
+  rw [show i + 1 + k = i + (1 + k) by lia, valAt_add, Nat.zero_add, valAt_add a i 1 k, valAt_one,
+    Nat.add_mul_div_left _ _ (Nat.two_pow_pos _), Nat.div_eq_of_lt (valAt_lt ..), Nat.zero_add,
+    Nat.mul_one, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (R.val_lt _)]
+
+/-- Bit `j` of the value of `n` limbs is bit `j % w` of limb `j / w`. -/
+public theorem testBit_valAt (a : A) {n j : Nat} (h : j < R.w * n) :
+    (valAt a 0 n).testBit j = (R.val (R.get a (j / R.w))).testBit (j % R.w) := by
+  have hq : j / R.w < n := (Nat.div_lt_iff_lt_mul R.w_pos).2 (by rw [Nat.mul_comm]; exact h)
+  rw [val_get_eq a hq, Nat.testBit_mod_two_pow, decide_eq_true (Nat.mod_lt _ R.w_pos),
+    Bool.true_and, Nat.testBit_div_two_pow]
+  congr 1
+  have := Nat.div_add_mod j R.w
+  rw [Nat.mul_comm] at this
+  lia
+
 /-! ## Writing a value -/
 
 /--
