@@ -73,57 +73,43 @@ namespace LinComb
 variable {A L : Type} [LA : LimbArray A L] [R : WordArray A L] [F : WordFolds A L]
   [C : LinCombOps A L]
 
-/-- Limb `j` of `x`, of `nx` limbs, or zero past its end. -/
-@[inline, expose] public def limbOr (x : A) (nx : USize) (hnx : nx.toNat = LA.size x) (j : USize) :
-    L :=
-  if h : j < nx then R.uget x j (by rw [← hnx]; exact USize.lt_iff_toNat_lt.1 h) else R.zero
+/--
+One limb of the pass of `mulSubMul`. The limbs of `x` and `y` are read by `LimbArray.get`, which is
+zero past their ends; selecting them here instead would make the compiler box the pair of the step
+at the join of the two cases.
+-/
+@[inline, expose] public def msStep (x y : A) (a b : L) (n : USize) (j : USize) (_ : j < n) (_z h : L) :
+    L × L :=
+  C.msC (LA.get x j.toNat) (LA.get y j.toNat) a b h
 
-omit F C in
-public theorem val_limbOr (x : A) (nx : USize) (hnx : nx.toNat = LA.size x) (j : USize)
-    (hz : ∀ i, LA.size x ≤ i → LA.val (LA.get x i) = 0) :
-    LA.val (limbOr x nx hnx j) = LA.val (LA.get x j.toNat) := by
-  unfold limbOr
-  split
-  · rw [R.uget_eq]
-  · rename_i h
-    have : LA.size x ≤ j.toNat := by
-      rw [← hnx]; exact Nat.le_of_not_lt fun h' => h (USize.lt_iff_toNat_lt.2 h')
-    rw [R.val_zero, hz _ this]
-
-/-- One limb of the pass of `mulSubMul`. -/
-@[inline, expose] public def msStep (x y : A) (nx ny : USize) (hnx : nx.toNat = LA.size x)
-    (hny : ny.toNat = LA.size y) (a b : L) (n : USize) (j : USize) (_ : j < n) (_z h : L) : L × L :=
-  C.msC (limbOr x nx hnx j) (limbOr y ny hny j) a b h
-
-/-- One limb of the pass of `mulAddMul`. -/
-@[inline, expose] public def maStep (x y : A) (nx ny : USize) (hnx : nx.toNat = LA.size x)
-    (hny : ny.toNat = LA.size y) (a b : L) (n : USize) (j : USize) (_ : j < n) (_z c : L) : L × L :=
-  C.maC (limbOr x nx hnx j) (limbOr y ny hny j) a b c
+/-- One limb of the pass of `mulAddMul`, like `msStep`. -/
+@[inline, expose] public def maStep (x y : A) (a b : L) (n : USize) (j : USize) (_ : j < n) (_z c : L) :
+    L × L :=
+  C.maC (LA.get x j.toNat) (LA.get y j.toNat) a b c
 
 omit F in
-public theorem msFold_spec (x y : A) (nx ny : USize) (hnx : nx.toNat = LA.size x)
-    (hny : ny.toNat = LA.size y) (a b : L) (ha : LA.val a < 2 ^ C.cb) (hb : LA.val b < 2 ^ C.cb)
+public theorem msFold_spec (x y : A) (a b : L) (ha : LA.val a < 2 ^ C.cb) (hb : LA.val b < 2 ^ C.cb)
     (n : USize) (arr : A) (rs : USize) (hr : LoopBound arr rs n) (j : USize) (h : L)
     (hs : C.sOK h) :
-    LA.size (foldUInPlace n (msStep x y nx ny hnx hny a b n) arr rs hr j h).1 = LA.size arr ∧
+    LA.size (foldUInPlace n (msStep x y a b n) arr rs hr j h).1 = LA.size arr ∧
       (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
-        LA.get (foldUInPlace n (msStep x y nx ny hnx hny a b n) arr rs hr j h).1 i =
+        LA.get (foldUInPlace n (msStep x y a b n) arr rs hr j h).1 i =
           LA.get arr i) ∧
-      (LimbArray.valAt (foldUInPlace n (msStep x y nx ny hnx hny a b n) arr rs hr j h).1
+      (LimbArray.valAt (foldUInPlace n (msStep x y a b n) arr rs hr j h).1
           (rs.toNat + j.toNat) (n.toNat - j.toNat) : Int) +
           2 ^ (LA.w * (n.toNat - j.toNat)) *
-            C.sv (foldUInPlace n (msStep x y nx ny hnx hny a b n) arr rs hr j h).2 =
+            C.sv (foldUInPlace n (msStep x y a b n) arr rs hr j h).2 =
         LA.val a * LimbArray.valAt x j.toNat (n.toNat - j.toNat) -
           LA.val b * LimbArray.valAt y j.toNat (n.toNat - j.toNat) + C.sv h ∧
-      C.sOK (foldUInPlace n (msStep x y nx ny hnx hny a b n) arr rs hr j h).2 := by
-  induction arr, hr, j, h using foldUInPlace.induct (R := R) n (msStep x y nx ny hnx hny a b n) rs
+      C.sOK (foldUInPlace n (msStep x y a b n) arr rs hr j h).2 := by
+  induction arr, hr, j, h using foldUInPlace.induct (R := R) n (msStep x y a b n) rs
     with
   | case1 arr hr j h hj p ih =>
     rw [foldUInPlace_lt _ _ _ _ _ _ _ hj]
     have hj' := USize.lt_iff_toNat_lt.1 hj
     have hj₁ := USize.toNat_add_one_of_lt hj
     have hidx := hr.toNat_add hj
-    obtain ⟨m₁, m₂⟩ := C.val_msC (limbOr x nx hnx j) (limbOr y ny hny j) a b h ha hb hs
+    obtain ⟨m₁, m₂⟩ := C.val_msC (LA.get x j.toNat) (LA.get y j.toNat) a b h ha hb hs
     obtain ⟨ih₁, ih₂, ih₃, ih₄⟩ := ih m₂
     simp only [p, msStep] at ih₁ ih₂ ih₃ ih₄ ⊢
     rw [hj₁] at ih₂ ih₃
@@ -138,7 +124,6 @@ public theorem msFold_spec (x y : A) (nx ny : USize) (hnx : nx.toNat = LA.size x
     · obtain ⟨k, hk⟩ : ∃ k, n.toNat - j.toNat = k + 1 := ⟨n.toNat - j.toNat - 1, by lia⟩
       rw [show n.toNat - (j.toNat + 1) = k by lia, ← Nat.add_assoc] at ih₃
       rw [hk, LimbArray.valAt_succ, LimbArray.valAt_succ, LimbArray.valAt_succ, hv,
-        ← val_limbOr x nx hnx j (C.val_get_ge x), ← val_limbOr y ny hny j (C.val_get_ge y),
         Nat.mul_succ]
       simp only [Int.natCast_add, Int.natCast_mul, Int.natCast_pow, Int.pow_add] at ih₃ m₁ ⊢
       generalize LimbArray.valAt (foldUInPlace (A := A) (β := L) _ _ _ _ _ _ _).1 _ _ = V at *
@@ -147,8 +132,8 @@ public theorem msFold_spec (x y : A) (nx ny : USize) (hnx : nx.toNat = LA.size x
       generalize LA.val (C.msC _ _ a b h).1 = o at *
       generalize LimbArray.valAt x _ k = X at *
       generalize LimbArray.valAt y _ k = Y at *
-      generalize LA.val (limbOr x nx hnx j) = xi at *
-      generalize LA.val (limbOr y ny hny j) = yi at *
+      generalize LA.val (LA.get x j.toNat) = xi at *
+      generalize LA.val (LA.get y j.toNat) = yi at *
       generalize 2 ^ (LA.w * k) = P at *
       generalize C.sv h = σ at *
       generalize LA.val a = Ai at *
@@ -161,29 +146,28 @@ public theorem msFold_spec (x y : A) (nx ny : USize) (hnx : nx.toNat = LA.size x
     refine ⟨rfl, fun _ _ => rfl, by simp [this], hs⟩
 
 omit F in
-public theorem maFold_spec (x y : A) (nx ny : USize) (hnx : nx.toNat = LA.size x)
-    (hny : ny.toNat = LA.size y) (a b : L) (ha : LA.val a < 2 ^ C.cb) (hb : LA.val b < 2 ^ C.cb)
+public theorem maFold_spec (x y : A) (a b : L) (ha : LA.val a < 2 ^ C.cb) (hb : LA.val b < 2 ^ C.cb)
     (n : USize) (arr : A) (rs : USize) (hr : LoopBound arr rs n) (j : USize) (c : L)
     (hc : C.cOK c) :
-    LA.size (foldUInPlace n (maStep x y nx ny hnx hny a b n) arr rs hr j c).1 = LA.size arr ∧
+    LA.size (foldUInPlace n (maStep x y a b n) arr rs hr j c).1 = LA.size arr ∧
       (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
-        LA.get (foldUInPlace n (maStep x y nx ny hnx hny a b n) arr rs hr j c).1 i =
+        LA.get (foldUInPlace n (maStep x y a b n) arr rs hr j c).1 i =
           LA.get arr i) ∧
-      LimbArray.valAt (foldUInPlace n (maStep x y nx ny hnx hny a b n) arr rs hr j c).1
+      LimbArray.valAt (foldUInPlace n (maStep x y a b n) arr rs hr j c).1
           (rs.toNat + j.toNat) (n.toNat - j.toNat) +
           2 ^ (LA.w * (n.toNat - j.toNat)) *
-            LA.val (foldUInPlace n (maStep x y nx ny hnx hny a b n) arr rs hr j c).2 =
+            LA.val (foldUInPlace n (maStep x y a b n) arr rs hr j c).2 =
         LA.val a * LimbArray.valAt x j.toNat (n.toNat - j.toNat) +
           LA.val b * LimbArray.valAt y j.toNat (n.toNat - j.toNat) + LA.val c ∧
-      C.cOK (foldUInPlace n (maStep x y nx ny hnx hny a b n) arr rs hr j c).2 := by
-  induction arr, hr, j, c using foldUInPlace.induct (R := R) n (maStep x y nx ny hnx hny a b n) rs
+      C.cOK (foldUInPlace n (maStep x y a b n) arr rs hr j c).2 := by
+  induction arr, hr, j, c using foldUInPlace.induct (R := R) n (maStep x y a b n) rs
     with
   | case1 arr hr j c hj p ih =>
     rw [foldUInPlace_lt _ _ _ _ _ _ _ hj]
     have hj' := USize.lt_iff_toNat_lt.1 hj
     have hj₁ := USize.toNat_add_one_of_lt hj
     have hidx := hr.toNat_add hj
-    obtain ⟨m₁, m₂⟩ := C.val_maC (limbOr x nx hnx j) (limbOr y ny hny j) a b c ha hb hc
+    obtain ⟨m₁, m₂⟩ := C.val_maC (LA.get x j.toNat) (LA.get y j.toNat) a b c ha hb hc
     obtain ⟨ih₁, ih₂, ih₃, ih₄⟩ := ih m₂
     simp only [p, maStep] at ih₁ ih₂ ih₃ ih₄ ⊢
     rw [hj₁] at ih₂ ih₃
@@ -198,7 +182,6 @@ public theorem maFold_spec (x y : A) (nx ny : USize) (hnx : nx.toNat = LA.size x
     · obtain ⟨k, hk⟩ : ∃ k, n.toNat - j.toNat = k + 1 := ⟨n.toNat - j.toNat - 1, by lia⟩
       rw [show n.toNat - (j.toNat + 1) = k by lia, ← Nat.add_assoc] at ih₃
       rw [hk, LimbArray.valAt_succ, LimbArray.valAt_succ, LimbArray.valAt_succ, hv,
-        ← val_limbOr x nx hnx j (C.val_get_ge x), ← val_limbOr y ny hny j (C.val_get_ge y),
         Nat.mul_succ, Nat.pow_add]
       generalize LimbArray.valAt (foldUInPlace (A := A) (β := L) _ _ _ _ _ _ _).1 _ _ = V at *
       generalize LA.val (foldUInPlace (A := A) (β := L) _ _ _ _ _ _ _).2 = c' at *
@@ -206,8 +189,8 @@ public theorem maFold_spec (x y : A) (nx ny : USize) (hnx : nx.toNat = LA.size x
       generalize LA.val (C.maC _ _ a b c).1 = o at *
       generalize LimbArray.valAt x _ k = X at *
       generalize LimbArray.valAt y _ k = Y at *
-      generalize LA.val (limbOr x nx hnx j) = xi at *
-      generalize LA.val (limbOr y ny hny j) = yi at *
+      generalize LA.val (LA.get x j.toNat) = xi at *
+      generalize LA.val (LA.get y j.toNat) = yi at *
       generalize 2 ^ (LA.w * k) = P at *
       generalize LA.val a = Ai at *
       generalize LA.val b = Bi at *
@@ -251,11 +234,10 @@ is, the limbs would be written from the value instead.
 @[expose, specialize]
 public def mulSubMul (x y : A) (a b : L) : A × Bool :=
   let n := max (LA.size x) (LA.size y)
-  if h : (n + 1).toUSize.toNat = n + 1 ∧ (LA.size x).toUSize.toNat = LA.size x ∧
-      (LA.size y).toUSize.toNat = LA.size y then
-    F.foldThen n.toUSize (msStep x y (LA.size x).toUSize (LA.size y).toUSize h.2.1 h.2.2 a b
-      n.toUSize) (C.zeros (n + 1)) 0 (zeros_bound h.1) 0 C.s0 fun z hz s =>
-        (R.uset z n.toUSize (C.sTop s) (by rw [hz, C.size_zeros, (fits_of h.1).1]; lia), C.sNeg s)
+  if h : (n + 1).toUSize.toNat = n + 1 then
+    F.foldThen n.toUSize (msStep x y a b n.toUSize) (C.zeros (n + 1)) 0 (zeros_bound h) 0 C.s0
+      fun z hz s =>
+        (R.uset z n.toUSize (C.sTop s) (by rw [hz, C.size_zeros, (fits_of h).1]; lia), C.sNeg s)
   else
     (LimbArray.writeNat (C.zeros (n + 1)) 0 (n + 1)
         (LA.val a * LimbArray.valAt x 0 (LA.size x) - LA.val b * LimbArray.valAt y 0 (LA.size y)),
@@ -268,11 +250,9 @@ public def mulSubMul (x y : A) (a b : L) : A × Bool :=
 @[expose, specialize]
 public def mulAddMul (x y : A) (a b : L) : A :=
   let n := max (LA.size x) (LA.size y)
-  if h : (n + 1).toUSize.toNat = n + 1 ∧ (LA.size x).toUSize.toNat = LA.size x ∧
-      (LA.size y).toUSize.toNat = LA.size y then
-    F.foldThen n.toUSize (maStep x y (LA.size x).toUSize (LA.size y).toUSize h.2.1 h.2.2 a b
-      n.toUSize) (C.zeros (n + 1)) 0 (zeros_bound h.1) 0 R.zero fun z hz c =>
-        R.uset z n.toUSize c (by rw [hz, C.size_zeros, (fits_of h.1).1]; lia)
+  if h : (n + 1).toUSize.toNat = n + 1 then
+    F.foldThen n.toUSize (maStep x y a b n.toUSize) (C.zeros (n + 1)) 0 (zeros_bound h) 0 R.zero
+      fun z hz c => R.uset z n.toUSize c (by rw [hz, C.size_zeros, (fits_of h).1]; lia)
   else
     LimbArray.writeNat (C.zeros (n + 1)) 0 (n + 1)
       (LA.val a * LimbArray.valAt x 0 (LA.size x) + LA.val b * LimbArray.valAt y 0 (LA.size y))
@@ -314,11 +294,11 @@ public theorem mulSubMul_spec (x y : A) (a b : L) (ha : LA.val a < 2 ^ C.cb)
   dsimp only at hM
   split at hM
   · rename_i h
-    obtain ⟨hn, hU⟩ := fits_of h.1
+    obtain ⟨hn, hU⟩ := fits_of h
     obtain ⟨z, f₁, s', e, hM⟩ := foldThen_cases hM
     subst hM
-    obtain ⟨-, -, f₃, f₄⟩ := msFold_spec x y _ _ h.2.1 h.2.2 a b ha hb _ (C.zeros _) 0
-      (zeros_bound h.1) 0 C.s0 C.sOK_s0
+    obtain ⟨-, -, f₃, f₄⟩ := msFold_spec x y a b ha hb _ (C.zeros _) 0
+      (zeros_bound h) 0 C.s0 C.sOK_s0
     rw [e] at f₃ f₄
     simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, hn, C.sv_s0, Int.add_zero] at f₃
     rw [valAt_of_ge x _ (C.val_get_ge x) (by lia), valAt_of_ge y _ (C.val_get_ge y) (by lia)] at f₃
@@ -389,11 +369,11 @@ public theorem mulAddMul_spec (x y : A) (a b : L) (ha : LA.val a < 2 ^ C.cb)
   dsimp only at hM
   split at hM
   · rename_i h
-    obtain ⟨hn, hU⟩ := fits_of h.1
+    obtain ⟨hn, hU⟩ := fits_of h
     obtain ⟨z, f₁, c, e, hM⟩ := foldThen_cases hM
     subst hM
-    obtain ⟨-, -, f₃, -⟩ := maFold_spec x y _ _ h.2.1 h.2.2 a b ha hb _ (C.zeros _) 0
-      (zeros_bound h.1) 0 R.zero C.cOK_zero
+    obtain ⟨-, -, f₃, -⟩ := maFold_spec x y a b ha hb _ (C.zeros _) 0
+      (zeros_bound h) 0 R.zero C.cOK_zero
     rw [e] at f₃
     simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, hn, R.val_zero] at f₃
     rw [valAt_of_ge x _ (C.val_get_ge x) (by lia), valAt_of_ge y _ (C.val_get_ge y) (by lia)] at f₃
