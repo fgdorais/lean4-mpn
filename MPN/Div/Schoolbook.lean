@@ -409,71 +409,15 @@ The multiply-subtract pass and the add-back pass of a step, over limbs `rs` to `
 array and limbs `vs` to `vs + n - 1` of the divisor `v`, another array.
 -/
 
-/-- The high limb of `y x + c` and a borrow fit in a limb, since `y x + c ≤ β (β - 1)`. -/
-private theorem hi_bound {H t b B : Nat} (hB : 0 < B) (hS : H * B + t ≤ B * (B - 1)) (hb : b ≤ 1)
-    (ht : b = 1 → 1 ≤ t) : H + b < B := by
-  rcases Nat.lt_or_ge b 1 with h | h
-  · obtain rfl : b = 0 := by lia
-    have : H * B ≤ (B - 1) * B := by rw [Nat.mul_comm (B - 1)]; lia
-    have := Nat.le_of_mul_le_mul_right this hB
-    lia
-  · obtain rfl : b = 1 := by lia
-    have := ht rfl
-    have : H * B < (B - 1) * B := by rw [Nat.mul_comm (B - 1)]; lia
-    have := Nat.lt_of_mul_lt_mul_right this
-    lia
-
-/-- One limb of the multiply-subtract pass: the low limb of `z - y x - c` and the borrow out. -/
-private theorem subMul_step (z y x c : L) :
-    LA.val (R.sub z (R.add (R.mul y x) c)) + LA.val y * LA.val x + LA.val c =
-      LA.val z + 2 ^ LA.w *
-        LA.val (R.subh (R.addh (R.mulh y x) (R.mul y x) c) z (R.add (R.mul y x) c)) := by
-  have hB := four_le (R := R)
-  have hx := LA.val_lt x; have hy := LA.val_lt y; have hc := LA.val_lt c; have hz := LA.val_lt z
-  simp only [R.val_sub, R.val_add, R.val_mul, R.val_mulh, R.val_addh, R.val_subh]
-  generalize LA.val x = X at *
-  generalize LA.val y = Y at *
-  generalize LA.val c = C at *
-  generalize LA.val z = Z at *
-  generalize 2 ^ LA.w = B at *
-  have hP : Y * X ≤ (B - 1) * (B - 1) := Nat.mul_le_mul (by lia) (by lia)
-  have hBB : (B - 1) * (B - 1) + (B - 1) = B * (B - 1) := by
-    rw [← Nat.succ_mul, Nat.succ_eq_add_one, Nat.sub_add_cancel (by lia)]
-  have e₁ := Nat.div_add_mod (Y * X) B
-  have hr := Nat.mod_lt (Y * X) (show 0 < B by lia)
-  generalize Y * X / B = q at *
-  generalize Y * X % B = r at *
-  generalize Y * X = P at *
-  have hk := carry_le (s := r + C) (B := B) (by lia)
-  have e₂ := Nat.div_add_mod (r + C) B
-  have ht := Nat.mod_lt (r + C) (show 0 < B by lia)
-  generalize (r + C) / B = k at *
-  generalize (r + C) % B = t at *
-  have e₃ := sub_mod_eq hz ht
-  have hb₁ : (if Z < t then 1 else 0) ≤ 1 := by split <;> lia
-  have hbt : (if Z < t then 1 else 0) = 1 → 1 ≤ t := by split <;> lia
-  generalize (if Z < t then 1 else 0) = b at *
-  have hS : (q + k) * B + t ≤ B * (B - 1) := by
-    have : (q + k) * B + t = P + C := by grind
-    lia
-  have hH := hi_bound (by lia) hS hb₁ hbt
-  rw [Nat.mod_eq_of_lt (a := q + k) (by lia), Nat.mod_eq_of_lt (a := q + k + b) hH,
-    Nat.mul_add, Nat.mul_add]
-  lia
-
 /-- One limb of the multiply-subtract pass: limb `z` less limb `j` of `v x` and the borrow. -/
 @[inline, expose] public def subMulStep (v : A) (vs n : USize) (hv : LoopBound v vs n) (x : L)
     (j : USize) (h : j < n) (z c : L) : L × L :=
-  let y := R.uget v (vs + j) (hv.uset_bound h)
-  let p := R.mul y x
-  let t := R.add p c
-  (R.sub z t, R.subh (R.addh (R.mulh y x) p c) z t)
+  R.subMulC z (R.uget v (vs + j) (hv.uset_bound h)) x c
 
 /-- One limb of the add-back pass: limb `z` plus limb `j` of `v` and the carry. -/
 @[inline, expose] public def addVStep (v : A) (vs n : USize) (hv : LoopBound v vs n) (j : USize)
     (h : j < n) (z c : L) : L × L :=
-  let y := R.uget v (vs + j) (hv.uset_bound h)
-  (R.add (R.add z y) c, R.addh (R.addh R.zero z y) (R.add z y) c)
+  R.addC z (R.uget v (vs + j) (hv.uset_bound h)) c
 
 public theorem subMulFold_spec (arr : A) (rs : USize) (v : A) (vs n : USize)
     (hv : LoopBound v vs n) (hr : LoopBound arr rs n) (x : L) (j : USize) (c : L) :
@@ -510,7 +454,7 @@ public theorem subMulFold_spec (arr : A) (rs : USize) (v : A) (vs n : USize)
       rw [R.uget_eq, hidx]
     have hy : R.uget v (vs + j) (hv.uset_bound h) = LA.get v (vs.toNat + j.toNat) := by
       rw [R.uget_eq, hvi]
-    have hl := subMul_step (A := A) (R.uget arr (rs + j) (hr.uset_bound h))
+    have hl := R.val_subMulC (R.uget arr (rs + j) (hr.uset_bound h))
       (R.uget v (vs + j) (hv.uset_bound h)) x c
     rw [hz, hy] at hl
     refine ⟨ih₁, fun i hi => ?_, ?_⟩
@@ -572,7 +516,7 @@ public theorem addVFold_spec (arr : A) (rs : USize) (v : A) (vs n : USize)
       rw [R.uget_eq, hidx]
     have hy : R.uget v (vs + j) (hv.uset_bound h) = LA.get v (vs.toNat + j.toNat) := by
       rw [R.uget_eq, hvi]
-    have hl := add_step (A := A) (R.uget arr (rs + j) (hr.uset_bound h))
+    have hl := R.val_addC (R.uget arr (rs + j) (hr.uset_bound h))
       (R.uget v (vs + j) (hv.uset_bound h)) c
     rw [hz, hy] at hl
     refine ⟨ih₁, fun i hi => ?_, ?_⟩
