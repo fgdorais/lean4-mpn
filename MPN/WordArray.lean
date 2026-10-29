@@ -12,10 +12,10 @@ public import MPN.LimbArray
 `WordArray A L` gives arrays `A` of limbs `L` of `w` bits the reads and writes at `USize` indices
 of their in-place loops, and the word operations on limbs that carry loops use: sums and
 differences modulo `2ʷ` with their carries and borrows, shifts and comparisons with zero, each with
-its value. `WordFolds A L` adds the in-place fold of lean4-scalar-arrays that reads two windows of
-the array as it writes a third (`fold2Then`), which makes the array exclusive once and then stores
-without checks, and states that it is the plain loop of `uget`s and `uset`s (`foldUInPlace2Then`),
-which the proofs are about.
+its value. `WordFolds A L` adds the in-place folds of lean4-scalar-arrays over one window (`foldThen`)
+and over one window while reading two others of the same array (`fold2Then`), which make the array
+exclusive once and then store without checks, and states that they are the plain loops of `uget`s
+and `uset`s (`foldUInPlaceThen`, `foldUInPlace2Then`), which the proofs are about.
 
 Code written once over these classes, with `@[expose, specialize]`, compiles in `main32` and
 `main64` to the loops on their own arrays of 32-bit and 64-bit limbs.
@@ -97,6 +97,20 @@ public class WordArray (A : Type) (L : outParam Type) [LA : LimbArray A L] where
   addh : L → L → L → L
   /-- `b` plus the borrow out of `x - y`. -/
   subh : L → L → L → L
+  /-- `x y` modulo `2ʷ`. -/
+  mul : L → L → L
+  /-- The high limb of `x y`. -/
+  mulh : L → L → L
+  /-- `⌊(h 2ʷ + l) / d⌋`, for `h < d`: `div2 h l d`. -/
+  div2 : L → L → L → L
+  /-- Whether `x < y`. -/
+  ltB : L → L → Bool
+  /-- Whether `x = y`. -/
+  eqB : L → L → Bool
+  /-- The bitwise and, for masks. -/
+  land : L → L → L
+  /-- `1` or `0`. -/
+  ofBool : Bool → L
   /-- Whether a limb is zero. -/
   isZero : L → Bool
   /-- A `USize` as a limb, modulo `2ʷ`. -/
@@ -113,6 +127,12 @@ public class WordArray (A : Type) (L : outParam Type) [LA : LimbArray A L] where
     LA.val (addh c x y) = (LA.val c + (LA.val x + LA.val y) / 2 ^ LA.w) % 2 ^ LA.w
   val_subh : ∀ b x y,
     LA.val (subh b x y) = (LA.val b + if LA.val x < LA.val y then 1 else 0) % 2 ^ LA.w
+  val_mul : ∀ x y, LA.val (mul x y) = LA.val x * LA.val y % 2 ^ LA.w
+  val_mulh : ∀ x y, LA.val (mulh x y) = LA.val x * LA.val y / 2 ^ LA.w
+  val_div2 : ∀ h l d, LA.val h < LA.val d →
+    LA.val (div2 h l d) = (LA.val h * 2 ^ LA.w + LA.val l) / LA.val d
+  ltB_iff : ∀ x y, ltB x y = true ↔ LA.val x < LA.val y
+  eqB_iff : ∀ x y, eqB x y = true ↔ LA.val x = LA.val y
   isZero_iff : ∀ x, isZero x = true ↔ LA.val x = 0
   val_ofUSize : ∀ i, LA.val (ofUSize i) = i.toNat % 2 ^ LA.w
   toNat_wU : wU.toNat = LA.w
@@ -121,7 +141,87 @@ public class WordArray (A : Type) (L : outParam Type) [LA : LimbArray A L] where
 
 namespace WordArray
 
+/-! ## Carries and borrows of limbs -/
+
+/-- A sum below `2 B` carries at most `1`. -/
+public theorem carry_le {s B : Nat} (h : s < 2 * B) : s / B ≤ 1 :=
+  Nat.le_of_lt_succ ((Nat.div_lt_iff_lt_mul (by lia)).2 (by lia))
+
+/-- `(a - b) % B` with its borrow, for `a, b < B`. -/
+public theorem sub_mod_eq {a b B : Nat} (ha : a < B) (hb : b < B) :
+    (a + (B - b)) % B + b = a + B * (if a < b then 1 else 0) := by
+  split
+  · rw [Nat.mod_eq_of_lt (by lia)]; lia
+  · rw [show a + (B - b) = (a - b) + B * 1 by lia, Nat.add_mul_mod_self_left,
+      Nat.mod_eq_of_lt (by lia)]
+    lia
+
 variable {A L : Type} [LA : LimbArray A L] [R : WordArray A L]
+
+/-- `2ʷ` is at least `4`. -/
+public theorem four_le : 4 ≤ 2 ^ LA.w :=
+  calc 4 = 2 ^ 2 := rfl
+    _ ≤ 2 ^ LA.w := Nat.pow_le_pow_right (by decide) R.w_ge
+
+/-- `x + c` with its carry. -/
+public theorem incr_step (x c : L) :
+    LA.val (R.add x c) + 2 ^ LA.w * LA.val (R.addh R.zero x c) = LA.val x + LA.val c := by
+  have hx := LA.val_lt x; have hc := LA.val_lt c; have hB := four_le (R := R)
+  rw [R.val_add, R.val_addh, R.val_zero, Nat.zero_add]
+  have := carry_le (s := LA.val x + LA.val c) (B := 2 ^ LA.w) (by lia)
+  rw [Nat.mod_eq_of_lt (a := _ / _) (by lia)]
+  exact Nat.mod_add_div _ _
+
+/-- `x - c` with its borrow. -/
+public theorem decr_step (x c : L) :
+    LA.val (R.sub x c) + LA.val c = LA.val x + 2 ^ LA.w * LA.val (R.subh R.zero x c) := by
+  have hx := LA.val_lt x; have hc := LA.val_lt c; have hB := four_le (R := R)
+  rw [R.val_sub, R.val_subh, R.val_zero, Nat.zero_add, sub_mod_eq hx hc]
+  split <;> simp [Nat.mod_eq_of_lt (show 1 < 2 ^ LA.w by lia)]
+
+/-- `x + y + c` with its carry. -/
+public theorem add_step (x y c : L) :
+    LA.val (R.add (R.add x y) c) + 2 ^ LA.w * LA.val (R.addh (R.addh R.zero x y) (R.add x y) c) =
+      LA.val x + LA.val y + LA.val c := by
+  have hx := LA.val_lt x; have hy := LA.val_lt y; have hc := LA.val_lt c
+  have hB := four_le (R := R)
+  simp only [R.val_add, R.val_addh, R.val_zero, Nat.zero_add]
+  generalize LA.val x = X at *
+  generalize LA.val y = Y at *
+  generalize LA.val c = C at *
+  generalize 2 ^ LA.w = B at *
+  have h₁ : (X + Y) / B ≤ 1 := carry_le (by lia)
+  have hm := Nat.mod_lt (X + Y) (show 0 < B by lia)
+  have h₂ : ((X + Y) % B + C) / B ≤ 1 := carry_le (by lia)
+  rw [Nat.mod_eq_of_lt (a := (X + Y) / B) (by lia), Nat.mod_eq_of_lt (a := (X + Y) / B + _) (by lia)]
+  have e₁ := Nat.mod_add_div (X + Y) B
+  have e₂ := Nat.mod_add_div ((X + Y) % B + C) B
+  generalize (X + Y) / B = q₁ at *
+  generalize ((X + Y) % B + C) / B = q₂ at *
+  rw [Nat.mul_add]
+  lia
+
+/-- `x - y - c` with its borrow. -/
+public theorem sub_step (x y c : L) :
+    LA.val (R.sub (R.sub x y) c) + LA.val y + LA.val c =
+      LA.val x + 2 ^ LA.w * LA.val (R.subh (R.subh R.zero x y) (R.sub x y) c) := by
+  have hx := LA.val_lt x; have hy := LA.val_lt y; have hc := LA.val_lt c
+  have hB := four_le (R := R)
+  simp only [R.val_sub, R.val_subh, R.val_zero, Nat.zero_add]
+  generalize LA.val x = X at *
+  generalize LA.val y = Y at *
+  generalize LA.val c = C at *
+  generalize 2 ^ LA.w = B at *
+  have e₁ := sub_mod_eq hx hy
+  have hm := Nat.mod_lt (X + (B - Y)) (show 0 < B by lia)
+  have e₂ := sub_mod_eq hm hc
+  generalize (X + (B - Y)) % B = D at *
+  rw [Nat.mod_eq_of_lt (a := if X < Y then 1 else 0) (by split <;> lia),
+    Nat.mod_eq_of_lt (a := (if X < Y then 1 else 0) + _) (by split <;> split <;> lia)]
+  generalize (if X < Y then 1 else 0) = b₁ at *
+  generalize (if D < C then 1 else 0) = b₂ at *
+  rw [Nat.mul_add]
+  lia
 
 public theorem LoopBound.of_uset {arr : A} {rs n : USize} (hr : LoopBound arr rs n)
     (i : USize) (v : L) (h) : LoopBound (R.uset arr i v h) rs n :=
@@ -134,6 +234,60 @@ public theorem valAt_uset_of (a : A) (i : USize) (v : L) (h : i.toNat < LA.size 
   LimbArray.valAt_congr _ fun k h₁ h₂ => by
     rw [R.get_uset]
     simp only [show ¬(i.toNat = k) by lia, ↓reduceIte]
+
+/-! ## In-place loops
+
+`foldUInPlace n f arr rs hr j b` replaces limbs `rs + j` to `rs + n - 1` of `arr` while threading
+an accumulator: limb `rs + j` holding `x` becomes `(f j hj x b).1`, and `(f j hj x b).2` is the
+next accumulator. `f` may read other arrays, such as the operand of a multiply-subtract pass.
+-/
+
+/-- Replaces limbs `rs + j` to `rs + n - 1` of `arr` with `f`, threading an accumulator. -/
+@[expose] public def foldUInPlace {β : Type} (n : USize) (f : (j : USize) → j < n → L → β → L × β)
+    (arr : A) (rs : USize) (hr : LoopBound arr rs n) (j : USize) (b : β) : A × β :=
+  if h : j < n then
+    let p := f j h (R.uget arr (rs + j) (hr.uset_bound h)) b
+    foldUInPlace n f (R.uset arr (rs + j) p.1 (hr.uset_bound h)) rs (hr.of_uset ..) (j + 1) p.2
+  else
+    (arr, b)
+termination_by n.toNat - j.toNat
+decreasing_by
+  have := USize.lt_iff_toNat_lt.1 h
+  rw [USize.toNat_add_one_of_lt h]
+  lia
+
+public theorem foldUInPlace_lt {β : Type} (n : USize) (f : (j : USize) → j < n → L → β → L × β)
+    (arr : A) (rs : USize) (hr : LoopBound arr rs n) (j : USize) (b : β) (h : j < n) :
+    foldUInPlace n f arr rs hr j b =
+      foldUInPlace n f (R.uset arr (rs + j) (f j h (R.uget arr (rs + j) (hr.uset_bound h)) b).1
+        (hr.uset_bound h)) rs (hr.of_uset ..) (j + 1)
+        (f j h (R.uget arr (rs + j) (hr.uset_bound h)) b).2 := by
+  rw [foldUInPlace]
+  simp only [h, ↓reduceDIte]
+
+public theorem foldUInPlace_ge {β : Type} (n : USize) (f : (j : USize) → j < n → L → β → L × β)
+    (arr : A) (rs : USize) (hr : LoopBound arr rs n) (j : USize) (b : β) (h : ¬j < n) :
+    foldUInPlace n f arr rs hr j b = (arr, b) := by
+  rw [foldUInPlace]
+  simp only [h, ↓reduceDIte]
+
+public theorem size_foldUInPlace {β : Type} (n : USize) (f : (j : USize) → j < n → L → β → L × β)
+    (arr : A) (rs : USize) (hr : LoopBound arr rs n) (j : USize) (b : β) :
+    LA.size (foldUInPlace n f arr rs hr j b).1 = LA.size arr := by
+  induction arr, hr, j, b using foldUInPlace.induct (R := R) n f rs with
+  | case1 arr hr j b h p ih =>
+    rw [foldUInPlace_lt _ _ _ _ _ _ _ h]
+    exact ih.trans (R.size_uset ..)
+  | case2 arr hr j b h =>
+    rw [foldUInPlace_ge _ _ _ _ _ _ _ h]
+
+/-- `foldUInPlace` followed by `g` on the new array and the last accumulator, like
+`foldUInPlace2Then`. -/
+@[expose]
+public def foldUInPlaceThen {β γ : Type} (n : USize) (f : (j : USize) → j < n → L → β → L × β)
+    (arr : A) (rs : USize) (hr : LoopBound arr rs n) (j : USize) (b : β)
+    (g : (arr' : A) → LA.size arr' = LA.size arr → β → γ) : γ :=
+  g (foldUInPlace n f arr rs hr j b).1 (size_foldUInPlace ..) (foldUInPlace n f arr rs hr j b).2
 
 /-! ## In-place loops reading the same array
 
@@ -286,8 +440,9 @@ end WordArray
 
 open WordArray in
 /--
-The in-place fold of lean4-scalar-arrays on arrays of words that reads two windows of the array it
-writes, which runs in place of `foldUInPlace2Then`.
+The in-place folds of lean4-scalar-arrays on arrays of words, over one window and over one window
+while reading two others of the same array, which run in place of `foldUInPlaceThen` and
+`foldUInPlace2Then`.
 -/
 public class WordFolds (A : Type) (L : outParam Type) [LA : LimbArray A L] [WordArray A L] where
   /-- `foldUInPlace2Then`, compiled. -/
@@ -297,6 +452,12 @@ public class WordFolds (A : Type) (L : outParam Type) [LA : LimbArray A L] [Word
   fold2Then_eq : ∀ {β γ : Type} n f arr rs xs ys hr hx hy j b g,
     @fold2Then β γ n f arr rs xs ys hr hx hy j b g =
       foldUInPlace2Then n f arr rs xs ys hr hx hy j b g
+  /-- `foldUInPlaceThen`, compiled. -/
+  foldThen : {β γ : Type} → (n : USize) → ((j : USize) → j < n → L → β → L × β) → (arr : A) →
+    (rs : USize) → LoopBound arr rs n → USize → β →
+    ((arr' : A) → LA.size arr' = LA.size arr → β → γ) → γ
+  foldThen_eq : ∀ {β γ : Type} n f arr rs hr j b g,
+    @foldThen β γ n f arr rs hr j b g = foldUInPlaceThen n f arr rs hr j b g
 
 namespace WordArray
 
@@ -317,6 +478,23 @@ public theorem fold2Then_cases {β γ : Type} {n : USize}
       foldUInPlace2 n f arr rs xs ys hr hx hy j b = (a, c) ∧ g a ha c = G := by
   rw [F.fold2Then_eq, foldUInPlace2Then] at h
   exact ⟨_, _, _, rfl, h⟩
+
+/-- `foldThen` as an intermediate result, like `fold2Then_cases`. -/
+public theorem foldThen_cases {β γ : Type} {n : USize} {f : (j : USize) → j < n → L → β → L × β}
+    {arr : A} {rs : USize} {hr : LoopBound arr rs n} {j : USize} {b : β}
+    {g : (arr' : A) → LA.size arr' = LA.size arr → β → γ} {G : γ}
+    (h : F.foldThen n f arr rs hr j b g = G) :
+    ∃ a, ∃ ha : LA.size a = LA.size arr, ∃ c,
+      foldUInPlace n f arr rs hr j b = (a, c) ∧ g a ha c = G := by
+  rw [F.foldThen_eq, foldUInPlaceThen] at h
+  exact ⟨_, _, _, rfl, h⟩
+
+public theorem foldThen_eq' {β γ : Type} (n : USize) (f : (j : USize) → j < n → L → β → L × β)
+    (arr : A) (rs : USize) (hr : LoopBound arr rs n) (j : USize) (b : β)
+    (g : (arr' : A) → LA.size arr' = LA.size arr → β → γ) :
+    F.foldThen n f arr rs hr j b g =
+      g (foldUInPlace n f arr rs hr j b).1 (size_foldUInPlace ..) (foldUInPlace n f arr rs hr j b).2 := by
+  rw [F.foldThen_eq, foldUInPlaceThen]
 
 public theorem fold2Then_eq' {β γ : Type} (n : USize)
     (f : (j : USize) → j < n → L → L → β → L × β) (arr : A)
