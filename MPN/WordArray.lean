@@ -111,6 +111,10 @@ public class WordArray (A : Type) (L : outParam Type) [LA : LimbArray A L] where
   land : L → L → L
   /-- `1` or `0`. -/
   ofBool : Bool → L
+  /-- `z - y x - c` modulo `2ʷ`, and the borrow out: one limb of a multiply-subtract pass. -/
+  subMulC : L → L → L → L → L × L
+  /-- `x + y + c` modulo `2ʷ`, and the carry out: one limb of an addition. -/
+  addC : L → L → L → L × L
   /-- Whether a limb is zero. -/
   isZero : L → Bool
   /-- A `USize` as a limb, modulo `2ʷ`. -/
@@ -132,6 +136,10 @@ public class WordArray (A : Type) (L : outParam Type) [LA : LimbArray A L] where
   val_div2 : ∀ h l d, LA.val h < LA.val d →
     LA.val (div2 h l d) = (LA.val h * 2 ^ LA.w + LA.val l) / LA.val d
   ltB_iff : ∀ x y, ltB x y = true ↔ LA.val x < LA.val y
+  val_subMulC : ∀ z y x c, LA.val (subMulC z y x c).1 + LA.val y * LA.val x + LA.val c =
+    LA.val z + 2 ^ LA.w * LA.val (subMulC z y x c).2
+  val_addC : ∀ x y c, LA.val (addC x y c).1 + 2 ^ LA.w * LA.val (addC x y c).2 =
+    LA.val x + LA.val y + LA.val c
   eqB_iff : ∀ x y, eqB x y = true ↔ LA.val x = LA.val y
   isZero_iff : ∀ x, isZero x = true ↔ LA.val x = 0
   val_ofUSize : ∀ i, LA.val (ofUSize i) = i.toNat % 2 ^ LA.w
