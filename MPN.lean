@@ -35,6 +35,7 @@ public import MPN.Toom.Toom
 public import MPN.Toom.Methods
 public import MPN.Toom.Mul
 public import MPN.WordGcd
+public import MPN.NatGcd
 public import MPN.FFT.Fermat
 public import MPN.FFT.Transform
 public import MPN.FFT.Mul
