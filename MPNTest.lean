@@ -552,3 +552,53 @@ def checkSqrToom (n : Nat) : Bool :=
 -- Around `sqrToom3`, `sqrToom4` and `sqrToom6`, and recursion.
 #guard [599, 600, 999, 1000, 1199, 1200, 2800, 7300].all checkSqrToom
 
+
+/-- A random number of `bits` bits. -/
+def randomBits (bits seed : Nat) : Nat := randomLimbs ((bits + 63) / 64) seed % 2 ^ bits
+
+-- `MPN.Nat` against `Nat`, at and around the boundary between words and limbs.
+def bigNatValues : List Nat :=
+  [0, 1, 2, 7, 2 ^ 32 - 1, 2 ^ 32, 2 ^ 63, 2 ^ 64 - 2, 2 ^ 64 - 1, 2 ^ 64, 2 ^ 64 + 1,
+    2 ^ 128 - 1, 2 ^ 128, randomBits 200 61, randomBits 1000 67, 3 ^ 200]
+
+#guard bigNatValues.all fun a => bigNatValues.all fun b =>
+  let x := MPN.Nat.ofNat a
+  let y := MPN.Nat.ofNat b
+  (x + y).toNat == a + b && (x - y).toNat == a - b && (x * y).toNat == a * b &&
+    (x / y).toNat == a / b && (x % y).toNat == a % b &&
+    decide (x < y) == decide (a < b) && decide (x ≤ y) == decide (a ≤ b) &&
+    decide (x = y) == decide (a = b) && (x == y || hash x != hash y || a != b) &&
+    (x.toNat == a && toString x == toString a) &&
+    (MPN.Nat.gcd x y).toNat == Nat.gcd a b && (MPN.Nat.lcm x y).toNat == Nat.lcm a b &&
+    (x &&& y).toNat == (a &&& b) && (x ||| y).toNat == (a ||| b) && (x ^^^ y).toNat == (a ^^^ b)
+
+-- Division by a word, and literals.
+#guard [2 ^ 64, 2 ^ 128 - 1, randomBits 300 89, 2 ^ 1024 - 1].all fun a =>
+  [1, 3, 2 ^ 32 + 1, 2 ^ 63, 2 ^ 64 - 1, 10 ^ 18].all fun b =>
+    (MPN.Nat.ofNat a / MPN.Nat.ofNat b).toNat == a / b &&
+      (MPN.Nat.ofNat a % MPN.Nat.ofNat b).toNat == a % b
+#guard ((12345678901234567890123 : MPN.Nat) * 1000).toNat == 12345678901234567890123000
+#guard (MPN.Nat.ofNat (2 ^ 64 - 1) + 1).toNat == 2 ^ 64
+#guard (MPN.Nat.ofNat (2 ^ 64) - 1).toNat == 2 ^ 64 - 1
+
+-- Shifts, `log2`, `sqrt` and `pow`.
+#guard bigNatValues.all fun a =>
+  let x := MPN.Nat.ofNat a
+  [0, 1, 5, 63, 64, 65, 100, 200].all (fun k =>
+    (x <<< k).toNat == a <<< k && (x >>> k).toNat == a >>> k) &&
+  x.log2 == a.log2 && (MPN.Nat.sqrt x).toNat == Nat.sqrt a &&
+  [0, 1, 2, 3, 7, 10].all (fun k => (x ^ k).toNat == a ^ k)
+
+#guard [2 ^ 64 + 1, 2 ^ 128 - 1, 3 ^ 50, randomBits 500 113, randomBits 3000 83].all
+  fun r => [r * r - 1, r * r, r * r + 1].all fun a =>
+    (MPN.Nat.sqrt (MPN.Nat.ofNat a)).toNat == Nat.sqrt a
+
+-- Decimal strings, and what `String.toNat?` accepts.
+#guard (bigNatValues ++ [10 ^ 19 - 1, 10 ^ 19, 10 ^ 38 * 7, randomBits 3000 89]).all fun a =>
+  let x := MPN.Nat.ofNat a
+  toString x == toString a && reprStr x == reprStr a &&
+    (MPN.Nat.ofString? (toString a)).map (·.toNat) == some a
+
+#guard ["", "_", "_1", "1_", "1__0", "abc", "12a", "-1", " 1", "000", "007", "1_000",
+    "18446744073709551616", "18_446_744_073_709_551_615", "123456789012345678901234567890"].all
+  fun s => (MPN.Nat.ofString? s).map (·.toNat) == s.toNat?

@@ -110,6 +110,20 @@ public theorem size_trimA_le (x : UInt64Array) : (trimA x).size ≤ max x.size 1
   | case2 x h₁ h₂ => rw [trimA, dite_eq_left h₁, ite_eq_right h₂]; lia
   | case3 x h => rw [trimA, dite_eq_right h]; lia
 
+/-- `trimA x` is one limb or has a nonzero top limb, for `x` of one limb at least. -/
+public theorem trimA_top (x : UInt64Array) (h : 1 ≤ x.size) :
+    (trimA x).size = 1 ∨ (1 < (trimA x).size ∧ (trimA x)[(trimA x).size - 1]! ≠ 0) := by
+  induction x using trimA.induct with
+  | case1 x h₁ h₂ ih =>
+    rw [trimA, dite_eq_left h₁, ite_eq_left h₂]
+    exact ih (by simp only [UInt64Array.size_pop]; lia)
+  | case2 x h₁ h₂ =>
+    rw [trimA, dite_eq_left h₁, ite_eq_right h₂]
+    exact Or.inr ⟨h₁, by rw [getElem!_eq_getElem _ _ (by lia)]; exact h₂⟩
+  | case3 x h₁ =>
+    rw [trimA, dite_eq_right h₁]
+    exact Or.inl (by lia)
+
 /-! ## The instance -/
 
 /-- The value `1`. -/

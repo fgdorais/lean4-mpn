@@ -52,6 +52,7 @@ public import MPN.Generic.Ops64
 public import MPN.Lehmer
 public import MPN.Gcd
 public import MPN.Decimal
+public import MPN.Nat
 
 /-!
 # MPN
@@ -80,5 +81,6 @@ Verified multi-precision arithmetic on `UInt64` limbs, in the style of GMP's `mp
 * `MPN.Generic.Ops64`: the instance of `NatOps` for 64-bit limbs, on `MPN.Num`;
 * `MPN.Lehmer`: `mulSubMul`, `a x - b y` in one pass, the kernel of Lehmer's step;
 * `MPN.Gcd`: the greatest common divisor, by Lehmer's algorithm and half-gcd;
-* `MPN.Decimal`: decimal strings, by chunks of nineteen digits and by divide and conquer.
+* `MPN.Decimal`: decimal strings, by chunks of nineteen digits and by divide and conquer;
+* `MPN.Nat`: natural numbers, `main`'s `GNat` on 64-bit limbs, proved against `Nat`.
 -/
