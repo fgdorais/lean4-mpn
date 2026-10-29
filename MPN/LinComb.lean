@@ -38,6 +38,9 @@ public class LinCombOps (A : Type) (L : outParam Type) [LA : LimbArray A L] [R :
   size_zeros : ∀ n, LA.size (zeros n) = n
   /-- Limbs past the end of an array are zero. -/
   val_get_ge : ∀ a i, LA.size a ≤ i → LA.val (LA.get a i) = 0
+  /-- Limb `i` of an array, or zero past its end, without a bounds error. -/
+  limb : A → Nat → L
+  val_limb : ∀ a i, LA.val (limb a i) = LA.val (LA.get a i)
   /-- One limb of `a x + b y`: `maC xᵢ yᵢ a b c`, the low limb of `a xᵢ + b yᵢ + c`, and the
   carry. -/
   maC : L → L → L → L → L → L × L
@@ -74,18 +77,18 @@ variable {A L : Type} [LA : LimbArray A L] [R : WordArray A L] [F : WordFolds A 
   [C : LinCombOps A L]
 
 /--
-One limb of the pass of `mulSubMul`. The limbs of `x` and `y` are read by `LimbArray.get`, which is
-zero past their ends; selecting them here instead would make the compiler box the pair of the step
-at the join of the two cases.
+One limb of the pass of `mulSubMul`. The limbs of `x` and `y` are read by the instance's `limb`,
+which is zero past their ends; selecting them here instead would make the compiler box the pair of
+the step at the join of the two cases.
 -/
 @[inline, expose] public def msStep (x y : A) (a b : L) (n : USize) (j : USize) (_ : j < n) (_z h : L) :
     L × L :=
-  C.msC (LA.get x j.toNat) (LA.get y j.toNat) a b h
+  C.msC (C.limb x j.toNat) (C.limb y j.toNat) a b h
 
 /-- One limb of the pass of `mulAddMul`, like `msStep`. -/
 @[inline, expose] public def maStep (x y : A) (a b : L) (n : USize) (j : USize) (_ : j < n) (_z c : L) :
     L × L :=
-  C.maC (LA.get x j.toNat) (LA.get y j.toNat) a b c
+  C.maC (C.limb x j.toNat) (C.limb y j.toNat) a b c
 
 omit F in
 public theorem msFold_spec (x y : A) (a b : L) (ha : LA.val a < 2 ^ C.cb) (hb : LA.val b < 2 ^ C.cb)
@@ -109,7 +112,8 @@ public theorem msFold_spec (x y : A) (a b : L) (ha : LA.val a < 2 ^ C.cb) (hb : 
     have hj' := USize.lt_iff_toNat_lt.1 hj
     have hj₁ := USize.toNat_add_one_of_lt hj
     have hidx := hr.toNat_add hj
-    obtain ⟨m₁, m₂⟩ := C.val_msC (LA.get x j.toNat) (LA.get y j.toNat) a b h ha hb hs
+    obtain ⟨m₁, m₂⟩ := C.val_msC (C.limb x j.toNat) (C.limb y j.toNat) a b h ha hb hs
+    rw [C.val_limb, C.val_limb] at m₁
     obtain ⟨ih₁, ih₂, ih₃, ih₄⟩ := ih m₂
     simp only [p, msStep] at ih₁ ih₂ ih₃ ih₄ ⊢
     rw [hj₁] at ih₂ ih₃
@@ -167,7 +171,8 @@ public theorem maFold_spec (x y : A) (a b : L) (ha : LA.val a < 2 ^ C.cb) (hb : 
     have hj' := USize.lt_iff_toNat_lt.1 hj
     have hj₁ := USize.toNat_add_one_of_lt hj
     have hidx := hr.toNat_add hj
-    obtain ⟨m₁, m₂⟩ := C.val_maC (LA.get x j.toNat) (LA.get y j.toNat) a b c ha hb hc
+    obtain ⟨m₁, m₂⟩ := C.val_maC (C.limb x j.toNat) (C.limb y j.toNat) a b c ha hb hc
+    rw [C.val_limb, C.val_limb] at m₁
     obtain ⟨ih₁, ih₂, ih₃, ih₄⟩ := ih m₂
     simp only [p, maStep] at ih₁ ih₂ ih₃ ih₄ ⊢
     rw [hj₁] at ih₂ ih₃
