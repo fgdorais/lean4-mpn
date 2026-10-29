@@ -109,7 +109,7 @@ public class NatLimbs (A : Type) where
   val_xor : ∀ a b, val (xor a b) = val a ^^^ val b
   /-- `⌊log₂ a⌋`, from the top limb. -/
   log2 : A → Nat
-  log2_eq : ∀ a, trimmed a = true → log2 a = (val a).log2
+  log2_eq : ∀ a, trimmed a = true → 2 ^ 64 ≤ val a → log2 a = (val a).log2
   /-- The decimal digits. -/
   toDecimal : A → String
   toDecimal_eq : ∀ a, trimmed a = true → toDecimal a = _root_.Nat.repr (val a)
@@ -622,7 +622,7 @@ public theorem blt_iff (x y : GNat A) : blt x y = true ↔ x.toNat < y.toNat := 
 @[simp] public theorem log2_eq (x : GNat A) : x.log2 = x.toNat.log2 := by
   cases x with
   | small a => rfl
-  | large a ha => exact C.log2_eq a ha.1
+  | large a ha => exact C.log2_eq a ha.1 ha.2
 
 /-! ## Powers and square roots -/
 
