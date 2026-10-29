@@ -24,6 +24,29 @@ open ScalarArray UInt32Array MPN.U
 
 namespace MPN.FFT
 
+/-- `main`'s `incrAt_spec` on `UInt32Array`. -/
+private theorem incrAt_spec' (arr : UInt32Array) (o len : USize) (h : LoopBound arr o len)
+    (j : USize) (c : UInt32) :
+    (incrAt arr o len h j c).1.size = arr.size ∧
+      (∀ i, (i < o.toNat + j.toNat ∨ o.toNat + len.toNat ≤ i) →
+        (incrAt arr o len h j c).1[i]! = arr[i]!) ∧
+      (incrAt arr o len h j c).1.valAt (o.toNat + j.toNat) (len.toNat - j.toNat) +
+          2 ^ (32 * (len.toNat - j.toNat)) * (incrAt arr o len h j c).2.toNat =
+        arr.valAt (o.toNat + j.toNat) (len.toNat - j.toNat) + c.toNat :=
+  incrAt_spec arr o len h j c
+
+/-- The value of a window: its low `n` limbs and its top limb. -/
+private theorem valAt_top32 (a : UInt32Array) (o n : Nat) :
+    a.valAt o (n + 1) = a.valAt o n + 2 ^ (32 * n) * a[o + n]!.toNat := valAt_top a o n
+
+/-- `main`'s `normAt_spec` on `UInt32Array`. -/
+private theorem normAt_spec' (arr : UInt32Array) (n o : USize) (h : Win arr n o)
+    (hn : 1 ≤ n.toNat) :
+    (normAt arr n o h).size = arr.size ∧
+      (∀ i, (i < o.toNat ∨ o.toNat + n.toNat + 1 ≤ i) → (normAt arr n o h)[i]! = arr[i]!) ∧
+      (normAt arr n o h).valAt o.toNat (n.toNat + 1) = arr.valAt o.toNat (n.toNat + 1) % fermat n.toNat :=
+  normAt_spec arr n o h hn
+
 
 /-! ## Slices at `Nat` offsets -/
 
@@ -79,7 +102,7 @@ public theorem normG_spec (arr : UInt32Array) (n d : Nat) (hS : arr.size < USize
   have hd' : d.toUSize.toNat = d := by rw [USize.toNat_ofNat', Nat.mod_eq_of_lt (by lia)]
   have w : Win arr n.toUSize d.toUSize := ⟨by rw [hn', hd']; exact hd, hS⟩
   rw [normG, dite_eq_left w]
-  have := normAt_spec arr n.toUSize d.toUSize w (by lia)
+  have := normAt_spec' arr n.toUSize d.toUSize w (by lia)
   simp only [hn', hd'] at this
   exact this
 
@@ -143,7 +166,7 @@ public theorem reduceAt_spec (arr : UInt32Array) (n d : Nat) (P : UInt32Array)
   have hidx : (d + n).toUSize.toNat < q.1.size := by rw [hdn, hs₁]; lia
   rw [dite_eq_left hidx]
   have t₁ : (q.1.uset (d + n).toUSize 0 hidx).valAt d (n + 1) = q.1.valAt d n := by
-    rw [valAt_top, getElem!_uset, valAt_uset_of _ _ _ _ _ _ (by rw [hdn]; lia)]
+    rw [valAt_top32, getElem!_uset, valAt_uset_of _ _ _ _ _ _ (by rw [hdn]; lia)]
     simp only [hdn, ↓reduceIte, UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero]
   have hlb : LoopBound (q.1.uset (d + n).toUSize 0 hidx) d.toUSize (n + 1).toUSize := by
     constructor <;> simp only [size_uset, hd', hn1, hs₁] <;> lia
@@ -181,10 +204,11 @@ public theorem reduceAt_spec (arr : UInt32Array) (n d : Nat) (P : UInt32Array)
       lia
   have hc : (q.2 + P[2 * n]!).toNat = q.2.toNat + P[2 * n]!.toNat := by
     rw [UInt32.toNat_add, Nat.mod_eq_of_lt (by lia)]
-  obtain ⟨i₁, i₂, i₃⟩ := incrAt_spec _ d.toUSize (n + 1).toUSize hlb 0 (q.2 + P[2 * n]!)
+  obtain ⟨i₁, i₂, i₃⟩ := incrAt_spec' _ d.toUSize (n + 1).toUSize hlb 0 (q.2 + P[2 * n]!)
   simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, hd', hn1, size_uset] at i₁ i₂ i₃
   rw [t₁, hc] at i₃
-  generalize incrAt _ d.toUSize (n + 1).toUSize hlb 0 (q.2 + P[2 * n]!) = q' at *
+  generalize incrAt (q.1.uset (d + n).toUSize 0 hidx) d.toUSize (n + 1).toUSize hlb 0
+    (q.2 + P[2 * n]!) = q' at *
   -- No carry out of the window.
   have hq' := valAt_lt q.1 d n
   have hB1 : 2 ^ (32 * (n + 1)) = 2 ^ (32 * n) * 2 ^ 32 := by rw [Nat.mul_succ, Nat.pow_add]
@@ -288,7 +312,7 @@ public theorem addCoef_spec (arr : UInt32Array) (o T off : Nat) (src : UInt32Arr
     · rw [ho₁, ho₂, a₁]; lia
     · rw [ho₁, ho₂]; lia
   rw [dite_eq_left hlb]
-  obtain ⟨i₁, i₂, i₃⟩ := incrAt_spec q.1 _ _ hlb 0 q.2
+  obtain ⟨i₁, i₂, i₃⟩ := incrAt_spec' q.1 _ _ hlb 0 q.2
   simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, ho₁, ho₂] at i₁ i₂ i₃
   refine ⟨by rw [i₁, a₁], fun i hi => by rw [i₂ i (by lia), a₂ i (by lia)], ?_⟩
   -- The region in three parts: below `off`, the window, and the rest.

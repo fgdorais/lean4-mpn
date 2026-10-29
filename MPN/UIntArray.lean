@@ -6,6 +6,8 @@ module
 
 public import ScalarArray.UInt32
 public import MPN.LimbArray
+public import MPN.WordArray
+public import MPN.UInt
 
 /-!
 # Limb arrays with `USize` bounds
@@ -100,12 +102,6 @@ public theorem Slice.getElem_eq_getElem! (s : UInt32Array.Slice) (i : Nat) (h : 
   rw [Slice.getElem_eq, getElem!_eq_getElem _ _ (by rw [Slice.size_eq] at h; lia)]
 
 /-! ### `USize` arithmetic -/
-
-/-- `USize` addition that does not overflow. -/
-public theorem _root_.USize.toNat_add_of_lt {a b : USize} (h : a.toNat + b.toNat < USize.size) :
-    (a + b).toNat = a.toNat + b.toNat := by
-  rw [USize.toNat_add]
-  exact Nat.mod_eq_of_lt h
 
 public theorem _root_.USize.toNat_min (a b : USize) : (min a b).toNat = min a.toNat b.toNat := by
   show (if a ≤ b then a else b).toNat = _
@@ -233,14 +229,6 @@ public theorem toUSlice_toNat (a : UInt32Array) (h : a.size < USize.size) :
   simp [toUSlice, USlice.size, usize, Nat.mod_eq_of_lt h]
 
 /-! ### Loops over `USize` indices -/
-
-/-- The successor of an index below `n` does not overflow. -/
-public theorem _root_.USize.toNat_add_one_of_lt {j n : USize} (h : j < n) :
-    (j + 1).toNat = j.toNat + 1 := by
-  have := USize.lt_iff_toNat_lt.1 h
-  have := n.toNat_lt_size
-  have : 4294967296 ≤ USize.size := by cases USize.size_eq <;> lia
-  rw [USize.toNat_add_of_lt (a := j) (b := 1) (by rw [USize.toNat_one]; lia), USize.toNat_one]
 
 /--
 The bounds of a loop over limbs `rs` to `rs + n - 1` of `arr`: they are limbs of `arr`, and their
@@ -576,73 +564,58 @@ private theorem g_congr {β γ : Type} {arr : UInt32Array}
   · rename_i h
     exact g_congr g (foldUInPlace_ge _ _ _ _ _ _ _ h) _
 
-/-! ### In-place loops reading the same array
+/-! ### The word arrays of `main`
 
-`foldUInPlace2 n f arr rs xs ys hr hx hy j b` is `foldUInPlace` where `f` also receives limbs
-`xs + j` and `ys + j` of `arr` itself, read at the time of the step. A function on several windows
-of one array, such as the butterflies of the FFT on its flat array, can then read and write them
-without a second reference to the array, which would copy it. When each window read starts at or
-after the window written, or ends before it, the limbs read are those from before the loop
-(`foldUInPlace2_spec`).
+The instances of `main`'s `WordArray` and `WordFolds` on `UInt32Array`, for its loops written for
+limbs of any width. Its in-place loop reading other windows of the array it writes,
+`foldUInPlace2Then`, runs lean4-scalar-arrays' `foldlInPlace2Then` (`fold2Then_eq` of
+`wordFolds32`).
 -/
 
-/-- Replaces limbs `rs + j` to `rs + n - 1` of `arr` with `f` of limbs `xs + j` and `ys + j`. -/
-@[expose] public def foldUInPlace2 {β : Type} (n : USize)
-    (f : (j : USize) → j < n → UInt32 → UInt32 → β → UInt32 × β)
-    (arr : UInt32Array) (rs xs ys : USize) (hr : LoopBound arr rs n) (hx : LoopBound arr xs n)
-    (hy : LoopBound arr ys n) (j : USize) (b : β) : UInt32Array × β :=
-  if h : j < n then
-    let p := f j h (arr.uget (xs + j) (hx.uset_bound h)) (arr.uget (ys + j) (hy.uset_bound h)) b
-    foldUInPlace2 n f (arr.uset (rs + j) p.1 (hr.uset_bound h)) rs xs ys (hr.of_uset ..)
-      (hx.of_uset ..) (hy.of_uset ..) (j + 1) p.2
-  else
-    (arr, b)
-termination_by n.toNat - j.toNat
-decreasing_by
-  have := USize.lt_iff_toNat_lt.1 h
-  rw [USize.toNat_add_one_of_lt h]
-  lia
+/-- The reads, writes and word operations of `UInt32Array`, for the loops of `main`. -/
+public instance wordArray32 : MPN.WordArray UInt32Array UInt32 where
+  uget a i h := a.uget i h
+  uset a i v h := a.uset i v h
+  uget_eq a i h := uget_eq_getElem! a i h
+  size_uset a i v h := size_uset a i v h
+  get_uset a i v h j := getElem!_uset a i v h j
+  zero := 0
+  one := 1
+  add x y := x + y
+  sub x y := x - y
+  shl x b := x <<< b
+  shr x b := x >>> b
+  addh := UInt32.addh
+  subh := UInt32.subh
+  isZero x := x == 0
+  ofUSize i := i.toUInt32
+  wU := 32
+  val_zero := rfl
+  val_one := rfl
+  val_add x y := UInt32.toNat_add x y
+  val_sub x y := by
+    show (x - y).toNat = (x.toNat + (2 ^ 32 - y.toNat)) % 2 ^ 32
+    rw [UInt32.toNat_sub, Nat.add_comm]
+  val_shl x b := by
+    show (x <<< b).toNat = x.toNat * 2 ^ (b.toNat % 32) % 2 ^ 32
+    rw [UInt32.toNat_shiftLeft, Nat.shiftLeft_eq]
+  val_shr x b := by
+    show (x >>> b).toNat = x.toNat / 2 ^ (b.toNat % 32)
+    rw [UInt32.toNat_shiftRight, Nat.shiftRight_eq_div_pow]
+  val_addh := UInt32.toNat_addh
+  val_subh := UInt32.toNat_subh
+  isZero_iff x := by
+    show (x == 0) = true ↔ x.toNat = 0
+    rw [beq_iff_eq, ← UInt32.toNat_inj, UInt32.toNat_zero]
+  val_ofUSize i := by
+    show i.toUInt32.toNat = i.toNat % 2 ^ 32
+    rw [USize.toNat_toUInt32]
+  toNat_wU := by
+    show (32 : USize).toNat = 32
+    rw [USize.toNat_ofNat, Nat.mod_eq_of_lt (by cases USize.size_eq <;> simp_all [USize.size])]
+  w_ge := by decide
 
-public theorem size_foldUInPlace2 {β : Type} (n : USize)
-    (f : (j : USize) → j < n → UInt32 → UInt32 → β → UInt32 × β) (arr : UInt32Array)
-    (rs xs ys : USize) (hr : LoopBound arr rs n) (hx : LoopBound arr xs n)
-    (hy : LoopBound arr ys n) (j : USize) (b : β) :
-    (foldUInPlace2 n f arr rs xs ys hr hx hy j b).1.size = arr.size := by
-  induction arr, hr, hx, hy, j, b using foldUInPlace2.induct n f rs xs ys with
-  | case1 arr hr hx hy j b h p ih =>
-    rw [foldUInPlace2]
-    simp only [h, ↓reduceDIte]
-    exact ih.trans (size_uset ..)
-  | case2 arr hr hx hy j b h =>
-    rw [foldUInPlace2]
-    simp only [h, ↓reduceDIte]
-
-/--
-`foldUInPlace2` followed by `g` on the new array and the last accumulator, like
-`foldUInPlaceThen`. The compiler runs lean4-scalar-arrays' `foldlInPlace2Then` in its place
-(`foldUInPlace2Then_eq_lib`), which makes `arr` exclusive once, then reads and stores without
-checks.
--/
-@[expose]
-public def foldUInPlace2Then {β γ : Type} (n : USize)
-    (f : (j : USize) → j < n → UInt32 → UInt32 → β → UInt32 × β) (arr : UInt32Array)
-    (rs xs ys : USize) (hr : LoopBound arr rs n) (hx : LoopBound arr xs n)
-    (hy : LoopBound arr ys n) (j : USize) (b : β)
-    (g : (arr' : UInt32Array) → arr'.size = arr.size → β → γ) : γ :=
-  g (foldUInPlace2 n f arr rs xs ys hr hx hy j b).1 (size_foldUInPlace2 ..)
-    (foldUInPlace2 n f arr rs xs ys hr hx hy j b).2
-
-public theorem foldUInPlace2Then_eq {β γ : Type} (n : USize)
-    (f : (j : USize) → j < n → UInt32 → UInt32 → β → UInt32 × β) (arr : UInt32Array)
-    (rs xs ys : USize) (hr : LoopBound arr rs n) (hx : LoopBound arr xs n)
-    (hy : LoopBound arr ys n) (j : USize) (b : β)
-    (g : (arr' : UInt32Array) → arr'.size = arr.size → β → γ) :
-    foldUInPlace2Then n f arr rs xs ys hr hx hy j b g =
-      g (foldUInPlace2 n f arr rs xs ys hr hx hy j b).1 (size_foldUInPlace2 ..)
-        (foldUInPlace2 n f arr rs xs ys hr hx hy j b).2 := by
-  rw [foldUInPlace2Then]
-
-/-- The loop of `foldlInPlace2` from index `k` is `foldUInPlace2` from `j₀ + k`. -/
+/-- The loop of `foldlInPlace2` from index `k` is `main`'s `foldUInPlace2` from `j₀ + k`. -/
 private theorem loop2_eq {β : Type} (n : USize)
     (f : (j : USize) → j < n → UInt32 → UInt32 → β → UInt32 × β) (rs xs ys j₀ : USize)
     (hj₀ : j₀ < n) (k : Nat) (hkN : k ≤ (n - j₀).toNat) :
@@ -650,14 +623,14 @@ private theorem loop2_eq {β : Type} (n : USize)
       (hy : LoopBound arr ys n) (hx' hy' hr') (b : β),
       foldlInPlace2.loop (xs + j₀).toNat (ys + j₀).toNat (rs + j₀).toNat (n - j₀).toNat
           (fun k hk => f (j₀ + k) (toNat_shift hj₀ hk).2) arr hx' hy' hr' k b =
-        foldUInPlace2 n f arr rs xs ys hr hx hy (j₀ + k.toUSize) b := by
+        MPN.WordArray.foldUInPlace2 n f arr rs xs ys hr hx hy (j₀ + k.toUSize) b := by
   have hsub : (n - j₀).toNat = n.toNat - j₀.toNat := USize.toNat_sub_of_le _ _ (USize.le_of_lt hj₀)
   have h₀ := USize.lt_iff_toNat_lt.1 hj₀
   have hn := n.toNat_lt_size
   induction hd : (n - j₀).toNat - k generalizing k with
   | zero =>
     intro arr hr hx hy hx' hy' hr' b
-    rw [foldlInPlace2.loop, dite_eq_right (by lia), foldUInPlace2]
+    rw [foldlInPlace2.loop, dite_eq_right (by lia), MPN.WordArray.foldUInPlace2]
     rw [dite_eq_right]
     intro hlt
     have := USize.lt_iff_toNat_lt.1 hlt
@@ -672,8 +645,11 @@ private theorem loop2_eq {β : Type} (n : USize)
     have off (o : USize) (ho : LoopBound arr o n) :
         (o + (j₀ + k.toUSize)).toNat = (o + j₀).toNat + k := by
       rw [ho.toNat_add hlt, ho.toNat_add hj₀, e, hkk]; lia
-    rw [foldlInPlace2.loop, dite_eq_left hk, foldUInPlace2, dite_eq_left hlt]
-    dsimp only
+    rw [foldlInPlace2.loop, dite_eq_left hk, MPN.WordArray.foldUInPlace2, dite_eq_left hlt]
+    simp only [show ∀ (a : UInt32Array) i h, MPN.WordArray.uget a i h = a.uget i h from
+        fun _ _ _ => rfl,
+      show ∀ (a : UInt32Array) i v h, MPN.WordArray.uset a i v h = a.uset i v h from
+        fun _ _ _ _ => rfl]
     have gx := uget_eq_get' arr (xs + (j₀ + k.toUSize)) (hx.uset_bound hlt) _ (off xs hx)
     have gy := uget_eq_get' arr (ys + (j₀ + k.toUSize)) (hy.uset_bound hlt) _ (off ys hy)
     simp only [gx, gy]
@@ -687,7 +663,10 @@ private theorem loop2_eq {β : Type} (n : USize)
     simp only [hnext, su]
     exact ih (k + 1) (by lia) (by lia) _ _ _ _ _ _ _ _
 
-/-- `foldUInPlace2Then` by `foldlInPlace2Then` on the windows from `xs + j`, `ys + j`, `rs + j`. -/
+/--
+`main`'s `foldUInPlace2Then` by `foldlInPlace2Then` on the windows from `xs + j`, `ys + j`,
+`rs + j`.
+-/
 @[inline, expose] public def foldUInPlace2ThenLib {β γ : Type} (n : USize)
     (f : (j : USize) → j < n → UInt32 → UInt32 → β → UInt32 × β) (arr : UInt32Array)
     (rs xs ys : USize) (hr : LoopBound arr rs n) (hx : LoopBound arr xs n)
@@ -703,123 +682,22 @@ private theorem loop2_eq {β : Type} (n : USize)
       (fun k hk x y b => f (j + k) (toNat_shift h hk).2 x y b) g
   else g arr rfl b
 
-@[csimp] public theorem foldUInPlace2Then_eq_lib :
-    @foldUInPlace2Then = @foldUInPlace2ThenLib := by
-  funext β γ n f arr rs xs ys hr hx hy j b g
-  rw [foldUInPlace2Then, foldUInPlace2ThenLib]
-  split
-  · rename_i h
-    rw [foldlInPlace2Then_eq]
-    have e := loop2_eq n f rs xs ys j h 0 (Nat.zero_le _) arr hr hx hy
-    simp only [show (0 : Nat).toUSize = 0 from rfl, USize.add_zero] at e
-    exact (g_congr g (Eq.trans rfl (e _ _ _ b)) _).symm
-  · rename_i h
-    exact g_congr g (q := (arr, b)) (by rw [foldUInPlace2, dite_eq_right h]) _
 
-/--
-`foldUInPlace2Then` as an intermediate result: the array and the accumulator of the loop, and the
-size proof that `g` receives, as variables. Proofs about a chain of loops go through this, so
-that the later loops mention variables, not the earlier loops.
--/
-public theorem foldUInPlace2Then_cases {β γ : Type} {n : USize}
-    {f : (j : USize) → j < n → UInt32 → UInt32 → β → UInt32 × β} {arr : UInt32Array}
-    {rs xs ys : USize} {hr : LoopBound arr rs n} {hx : LoopBound arr xs n}
-    {hy : LoopBound arr ys n} {j : USize} {b : β}
-    {g : (arr' : UInt32Array) → arr'.size = arr.size → β → γ} {R : γ}
-    (h : foldUInPlace2Then n f arr rs xs ys hr hx hy j b g = R) :
-    ∃ a, ∃ ha : a.size = arr.size, ∃ c,
-      foldUInPlace2 n f arr rs xs ys hr hx hy j b = (a, c) ∧ g a ha c = R := by
-  rw [foldUInPlace2Then_eq] at h
-  exact ⟨_, _, _, rfl, h⟩
-
-/--
-The value of `foldUInPlace2` for a step with a linear carry law: if every step turns limbs `x`,
-`y` and the accumulator `c` into a limb `out` and an accumulator `c'` with
-`out + 2³² P c' + ux x + uy y + Q c = vx x + vy y + 2³² Q c' + P c` and keeps the invariant `I`
-of the accumulator, then the limbs written and the last accumulator satisfy the same law with the
-values of the windows, as long as the windows read are not overwritten before they are read. `P`
-is a carry and `Q` a borrow.
--/
-public theorem foldUInPlace2_spec {β : Type} (n : USize)
-    (f : (j : USize) → j < n → UInt32 → UInt32 → β → UInt32 × β) (P Q : β → Nat)
-    (ux uy vx vy : Nat) (I : β → Prop) (inv : ∀ j h x y c, I c → I (f j h x y c).2)
-    (law : ∀ j h x y c, I c → (f j h x y c).1.toNat + 2 ^ 32 * P (f j h x y c).2 + ux * x.toNat +
-      uy * y.toNat + Q c = vx * x.toNat + vy * y.toNat + 2 ^ 32 * Q (f j h x y c).2 + P c)
-    (arr : UInt32Array) (rs xs ys : USize) (hr : LoopBound arr rs n) (hx : LoopBound arr xs n)
-    (hy : LoopBound arr ys n)
-    (hdx : rs.toNat ≤ xs.toNat ∨ xs.toNat + n.toNat ≤ rs.toNat)
-    (hdy : rs.toNat ≤ ys.toNat ∨ ys.toNat + n.toNat ≤ rs.toNat) (j : USize) (b : β) (hb : I b) :
-    (foldUInPlace2 n f arr rs xs ys hr hx hy j b).1.size = arr.size ∧
-      I (foldUInPlace2 n f arr rs xs ys hr hx hy j b).2 ∧
-      (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
-        (foldUInPlace2 n f arr rs xs ys hr hx hy j b).1[i]! = arr[i]!) ∧
-      (foldUInPlace2 n f arr rs xs ys hr hx hy j b).1.valAt (rs.toNat + j.toNat)
-          (n.toNat - j.toNat) +
-        2 ^ (32 * (n.toNat - j.toNat)) * P (foldUInPlace2 n f arr rs xs ys hr hx hy j b).2 +
-        ux * arr.valAt (xs.toNat + j.toNat) (n.toNat - j.toNat) +
-        uy * arr.valAt (ys.toNat + j.toNat) (n.toNat - j.toNat) + Q b =
-      vx * arr.valAt (xs.toNat + j.toNat) (n.toNat - j.toNat) +
-        vy * arr.valAt (ys.toNat + j.toNat) (n.toNat - j.toNat) +
-        2 ^ (32 * (n.toNat - j.toNat)) * Q (foldUInPlace2 n f arr rs xs ys hr hx hy j b).2 +
-        P b := by
-  induction arr, hr, hx, hy, j, b using foldUInPlace2.induct n f rs xs ys with
-  | case1 arr hr hx hy j b h p ih =>
-    rw [foldUInPlace2]
-    simp only [h, ↓reduceDIte]
-    have hI := inv j h (arr.uget (xs + j) (hx.uset_bound h)) (arr.uget (ys + j) (hy.uset_bound h))
-      b hb
-    have hj := USize.lt_iff_toNat_lt.1 h
-    have hj₁ := USize.toNat_add_one_of_lt h
-    have hri := hr.toNat_add h
-    have hxi := hx.toNat_add h
-    have hyi := hy.toNat_add h
-    obtain ⟨ih₁, ih₀, ih₂, ih₃⟩ := ih hI
-    rw [hj₁] at ih₂ ih₃
-    simp only [UInt32Array.size_uset] at ih₁
-    have hv : (foldUInPlace2 n f (arr.uset (rs + j) p.1 (hr.uset_bound h)) rs xs ys
-        (hr.of_uset ..) (hx.of_uset ..) (hy.of_uset ..) (j + 1) p.2).1[rs.toNat + j.toNat]! =
-          p.1 := by
-      rw [ih₂ _ (.inl (by lia)), getElem!_uset]
-      simp [hri]
-    have hX : (arr.uset (rs + j) p.1 (hr.uset_bound h)).valAt (xs.toNat + (j.toNat + 1))
-        (n.toNat - (j.toNat + 1)) =
-          arr.valAt (xs.toNat + (j.toNat + 1)) (n.toNat - (j.toNat + 1)) :=
-      valAt_uset_of _ _ _ _ _ _ (by rw [hri]; lia)
-    have hY : (arr.uset (rs + j) p.1 (hr.uset_bound h)).valAt (ys.toNat + (j.toNat + 1))
-        (n.toNat - (j.toNat + 1)) =
-          arr.valAt (ys.toNat + (j.toNat + 1)) (n.toNat - (j.toNat + 1)) :=
-      valAt_uset_of _ _ _ _ _ _ (by rw [hri]; lia)
-    have hx' : arr.uget (xs + j) (hx.uset_bound h) = arr[xs.toNat + j.toNat]! := by
-      rw [uget_eq_getElem!, hxi]
-    have hy' : arr.uget (ys + j) (hy.uset_bound h) = arr[ys.toNat + j.toNat]! := by
-      rw [uget_eq_getElem!, hyi]
-    refine ⟨ih₁, ih₀, fun i hi => ?_, ?_⟩
-    · rw [ih₂ i (by lia), getElem!_uset]
-      simp only [hri]
-      split <;> lia
-    · rw [hX, hY] at ih₃
-      obtain ⟨k, hk⟩ : ∃ k, n.toNat - j.toNat = k + 1 := ⟨n.toNat - j.toNat - 1, by lia⟩
-      rw [show n.toNat - (j.toNat + 1) = k by lia, ← Nat.add_assoc, ← Nat.add_assoc,
-        ← Nat.add_assoc] at ih₃
-      have hl := law j h (arr.uget (xs + j) (hx.uset_bound h)) (arr.uget (ys + j) (hy.uset_bound h))
-        b hb
-      rw [hx', hy'] at hl
-      rw [hk, valAt_succ, valAt_succ, valAt_succ, hv, Nat.mul_succ, Nat.pow_add]
-      show _ + _ * P (foldUInPlace2 n f (arr.uset (rs + j) p.1 (hr.uset_bound h)) rs xs ys
-        (hr.of_uset ..) (hx.of_uset ..) (hy.of_uset ..) (j + 1) p.2).2 + _ + _ + _ = _
-      generalize (foldUInPlace2 n f (arr.uset (rs + j) p.1 (hr.uset_bound h)) rs xs ys
-        (hr.of_uset ..) (hx.of_uset ..) (hy.of_uset ..) (j + 1) p.2) = q at *
-      simp only [p] at *
-      generalize f j h arr[xs.toNat + j.toNat]! arr[ys.toNat + j.toNat]! b = p' at *
-      generalize q.1.valAt _ _ = R at *
-      generalize arr.valAt (xs.toNat + j.toNat + 1) k = X at *
-      generalize arr.valAt (ys.toNat + j.toNat + 1) k = Y at *
-      generalize 2 ^ (32 * k) = B at *
-      grind
-  | case2 arr hr hx hy j b h =>
-    rw [foldUInPlace2]
-    have : n.toNat - j.toNat = 0 := by have := USize.lt_iff_toNat_lt (a := j) (b := n); lia
-    simp [h, this, Nat.add_comm, hb]
+/-- `main`'s in-place loop over two windows on `UInt32Array`, by `foldlInPlace2Then`. -/
+public instance wordFolds32 : MPN.WordFolds UInt32Array UInt32 where
+  fold2Then := foldUInPlace2ThenLib
+  fold2Then_eq := by
+    intro β γ n f arr rs xs ys hr hx hy j b g
+    rw [foldUInPlace2ThenLib, MPN.WordArray.foldUInPlace2Then]
+    split
+    · rename_i h
+      rw [foldlInPlace2Then_eq]
+      have e := loop2_eq n f rs xs ys j h 0 (Nat.zero_le _) arr hr hx hy
+      simp only [show (0 : Nat).toUSize = 0 from rfl, USize.add_zero] at e
+      exact g_congr g (Eq.trans rfl (e _ _ _ b)) _
+    · rename_i h
+      exact (g_congr g (q := (arr, b))
+        (by rw [MPN.WordArray.foldUInPlace2, dite_eq_right h]) _).symm
 
 /-- A sub-slice of a whole array, `toUSlice`. -/
 public theorem toUSlice_slice (a : UInt32Array) {i j : USize} (hij : i.toNat ≤ j.toNat)

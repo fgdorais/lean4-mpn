@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN.FFT.Fermat
+public import MPN.AddSub
 public import MPN.FFT.Windows
 
 /-!
@@ -29,90 +30,11 @@ open ScalarArray UInt32Array MPN.U
 
 namespace MPN.FFT
 
-/-! ## Guarded residue operations
-
-The operations of `MPN.FFT.Fermat` with `Nat` offsets, which check their bounds: the transforms
-call these, so that their definitions carry no proofs, and the theorems show that the checks
-pass.
--/
-
-/-- `(x - y) % F` into the window at `d`. -/
-public def subModG (arr : UInt32Array) (n d x y : Nat) : UInt32Array :=
-  if h : Win arr n.toUSize d.toUSize ∧ Win arr n.toUSize x.toUSize ∧ Win arr n.toUSize y.toUSize
-  then subModAt arr n.toUSize d.toUSize x.toUSize y.toUSize h.1 h.2.1 h.2.2 else arr
-
-/-- `(x + y) % F` into the window at `d`. -/
-public def addModG (arr : UInt32Array) (n d x y : Nat) : UInt32Array :=
-  if h : Win arr n.toUSize d.toUSize ∧ Win arr n.toUSize x.toUSize ∧ Win arr n.toUSize y.toUSize
-  then addModAt arr n.toUSize d.toUSize x.toUSize y.toUSize h.1 h.2.1 h.2.2 else arr
-
-/-- `t 2ᵉ % F` into the window at `d`. -/
-public def mulPow2G (arr : UInt32Array) (n d t e : Nat) : UInt32Array :=
-  if h : Win arr n.toUSize d.toUSize ∧ Win arr n.toUSize t.toUSize ∧
-      e.toUSize.toNat < 32 * n.toUSize.toNat
-  then mulPow2At arr n.toUSize d.toUSize t.toUSize e.toUSize h.1 h.2.1 h.2.2 else arr
+/-- The Fermat modulus `2^(32 n) + 1`. -/
+@[expose] public def fermat (n : Nat) : Nat := 2 ^ (32 * n) + 1
 
 /-- The value of the window of `n + 1` limbs at `o`. -/
 public abbrev win (arr : UInt32Array) (n o : Nat) : Nat := arr.valAt o (n + 1)
-
-private theorem toNat_toUSize {a : Nat} (h : a < USize.size) : a.toUSize.toNat = a := by
-  rw [USize.toNat_ofNat', Nat.mod_eq_of_lt h]
-
-private theorem win_of {arr : UInt32Array} {n o : Nat} (hS : arr.size < USize.size)
-    (h : o + n + 1 ≤ arr.size) :
-    Win arr n.toUSize o.toUSize ∧ n.toUSize.toNat = n ∧ o.toUSize.toNat = o := by
-  have hn := toNat_toUSize (a := n) (by lia)
-  have ho := toNat_toUSize (a := o) (by lia)
-  exact ⟨⟨by rw [hn, ho]; exact h, hS⟩, hn, ho⟩
-
-public theorem subModG_spec (arr : UInt32Array) (n d x y : Nat) (hS : arr.size < USize.size)
-    (hd : d + n + 1 ≤ arr.size) (hx : x + n + 1 ≤ arr.size) (hy : y + n + 1 ≤ arr.size)
-    (hn : 1 ≤ n) (hdx : d ≤ x ∨ x + n + 1 ≤ d) (hdy : d ≤ y ∨ y + n + 1 ≤ d)
-    (hX : win arr n x < fermat n) (hY : win arr n y < fermat n) :
-    (subModG arr n d x y).size = arr.size ∧
-      (∀ i, (i < d ∨ d + n + 1 ≤ i) → (subModG arr n d x y)[i]! = arr[i]!) ∧
-      win (subModG arr n d x y) n d = (win arr n x + fermat n - win arr n y) % fermat n := by
-  obtain ⟨wd, hn', hd'⟩ := win_of hS hd
-  obtain ⟨wx, -, hx'⟩ := win_of hS hx
-  obtain ⟨wy, -, hy'⟩ := win_of hS hy
-  rw [subModG, dite_eq_left ⟨wd, wx, wy⟩]
-  have := subModAt_spec arr n.toUSize d.toUSize x.toUSize y.toUSize wd wx wy (by lia)
-    (by rw [hd', hx', hn']; lia) (by rw [hd', hy', hn']; lia) (by rw [hx', hn']; exact hX)
-    (by rw [hy', hn']; exact hY)
-  simp only [hn', hd', hx', hy'] at this
-  exact this
-
-public theorem addModG_spec (arr : UInt32Array) (n d x y : Nat) (hS : arr.size < USize.size)
-    (hd : d + n + 1 ≤ arr.size) (hx : x + n + 1 ≤ arr.size) (hy : y + n + 1 ≤ arr.size)
-    (hn : 1 ≤ n) (hdx : d ≤ x ∨ x + n + 1 ≤ d) (hdy : d ≤ y ∨ y + n + 1 ≤ d)
-    (hX : win arr n x < fermat n) (hY : win arr n y < fermat n) :
-    (addModG arr n d x y).size = arr.size ∧
-      (∀ i, (i < d ∨ d + n + 1 ≤ i) → (addModG arr n d x y)[i]! = arr[i]!) ∧
-      win (addModG arr n d x y) n d = (win arr n x + win arr n y) % fermat n := by
-  obtain ⟨wd, hn', hd'⟩ := win_of hS hd
-  obtain ⟨wx, -, hx'⟩ := win_of hS hx
-  obtain ⟨wy, -, hy'⟩ := win_of hS hy
-  rw [addModG, dite_eq_left ⟨wd, wx, wy⟩]
-  have := addModAt_spec arr n.toUSize d.toUSize x.toUSize y.toUSize wd wx wy (by lia)
-    (by rw [hd', hx', hn']; lia) (by rw [hd', hy', hn']; lia) (by rw [hx', hn']; exact hX)
-    (by rw [hy', hn']; exact hY)
-  simp only [hn', hd', hx', hy'] at this
-  exact this
-
-public theorem mulPow2G_spec (arr : UInt32Array) (n d t e : Nat) (hS : arr.size < USize.size)
-    (hd : d + n + 1 ≤ arr.size) (ht : t + n + 1 ≤ arr.size) (hn : 1 ≤ n) (he : e < 32 * n)
-    (heS : e < USize.size) (hdt : d + n + 1 ≤ t ∨ t + n + 1 ≤ d) (hT : win arr n t < fermat n) :
-    (mulPow2G arr n d t e).size = arr.size ∧
-      (∀ i, (i < d ∨ d + n + 1 ≤ i) → (mulPow2G arr n d t e)[i]! = arr[i]!) ∧
-      win (mulPow2G arr n d t e) n d = win arr n t * 2 ^ e % fermat n := by
-  obtain ⟨wd, hn', hd'⟩ := win_of hS hd
-  obtain ⟨wt, -, ht'⟩ := win_of hS ht
-  have he' : e.toUSize.toNat = e := toNat_toUSize heS
-  rw [mulPow2G, dite_eq_left ⟨wd, wt, by rw [he', hn']; exact he⟩]
-  have := mulPow2At_spec arr n.toUSize d.toUSize t.toUSize e.toUSize wd wt
-    (by rw [he', hn']; exact he) (by lia) (by rw [hd', ht', hn']; lia) (by rw [ht', hn']; exact hT)
-  simp only [hn', hd', ht', he'] at this
-  exact this
 
 /-- A window whose limbs are unchanged keeps its value. -/
 public theorem win_congr {a a' : UInt32Array} {n o : Nat}
@@ -127,7 +49,7 @@ public theorem win_of_untouched {a a' : UInt32Array} {n d o : Nat}
 
 /-! ## The transforms -/
 
-/-- The residue operations of `MPN.FFT.Fermat`, guarded, for the transforms of `WinOps`. -/
+/-- The residue operations of `main`'s `MPN.FFT.Fermat`, guarded, for the transforms of `WinOps`. -/
 public instance winOps32 : WinOps UInt32Array UInt32 where
   subMod := subModG
   addMod := addModG
