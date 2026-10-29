@@ -587,6 +587,19 @@ public instance wordArray32 : MPN.WordArray UInt32Array UInt32 where
   shr x b := x >>> b
   addh := UInt32.addh
   subh := UInt32.subh
+  mul x y := x * y
+  mulh := UInt32.mulh
+  div2 := UInt32.div2
+  ltB x y := decide (x < y)
+  eqB x y := x == y
+  land x y := x &&& y
+  ofBool b := b.toUInt32
+  subMulB z y x h := z.subMulBiased y x h
+  unB h := ~~~h
+  b0 := 0xFFFFFFFF
+  addC x y c :=
+    let t := x.toUInt64 + y.toUInt64 + c.toUInt64
+    (t.toUInt32, (t >>> 32).toUInt32)
   isZero x := x == 0
   ofUSize i := i.toUInt32
   wU := 32
@@ -604,6 +617,33 @@ public instance wordArray32 : MPN.WordArray UInt32Array UInt32 where
     rw [UInt32.toNat_shiftRight, Nat.shiftRight_eq_div_pow]
   val_addh := UInt32.toNat_addh
   val_subh := UInt32.toNat_subh
+  val_mul x y := UInt32.toNat_mul x y
+  val_mulh := UInt32.toNat_mulh
+  val_div2 h l d hd := UInt32.toNat_div2 h l d hd
+  val_subMulB z y x h := by
+    show (z.subMulBiased y x h).1.toNat + y.toNat * x.toNat + (~~~h).toNat =
+      z.toNat + 2 ^ 32 * (~~~(z.subMulBiased y x h).2).toNat
+    have e : z.subMulBiased y x h = z.subMulBiased y x (~~~(~~~h)) := by
+      rw [UInt32.not_not]
+    rw [e, UInt32.subMulBiased_not, UInt32.not_not]
+    have := UInt32.subMul_spec z y x (~~~h)
+    lia
+  val_unB_b0 := by decide
+  val_addC x y c := by
+    show (x.toUInt64 + y.toUInt64 + c.toUInt64).toUInt32.toNat +
+        2 ^ 32 * ((x.toUInt64 + y.toUInt64 + c.toUInt64) >>> 32).toUInt32.toNat =
+      x.toNat + y.toNat + c.toNat
+    have := x.toNat_lt; have := y.toNat_lt; have := c.toNat_lt
+    simp only [UInt64.toNat_add, UInt64.toNat_toUInt32, UInt32.toNat_toUInt64,
+      UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow, UInt64.toNat_ofNat, Nat.reduceMod,
+      Nat.reducePow]
+    lia
+  ltB_iff x y := by
+    show decide (x < y) = true ↔ x.toNat < y.toNat
+    rw [decide_eq_true_iff, UInt32.lt_iff_toNat_lt]
+  eqB_iff x y := by
+    show (x == y) = true ↔ x.toNat = y.toNat
+    rw [beq_iff_eq, UInt32.toNat_inj]
   isZero_iff x := by
     show (x == 0) = true ↔ x.toNat = 0
     rw [beq_iff_eq, ← UInt32.toNat_inj, UInt32.toNat_zero]
@@ -683,7 +723,19 @@ private theorem loop2_eq {β : Type} (n : USize)
   else g arr rfl b
 
 
-/-- `main`'s in-place loop over two windows on `UInt32Array`, by `foldlInPlace2Then`. -/
+/-- `main`'s plain in-place loop is the one of `UInt32Array`. -/
+private theorem foldUInPlace_main {β : Type} (n : USize)
+    (f : (j : USize) → j < n → UInt32 → β → UInt32 × β) (arr : UInt32Array) (rs : USize)
+    (hr : LoopBound arr rs n) (j : USize) (b : β) :
+    MPN.WordArray.foldUInPlace n f arr rs hr j b = foldUInPlace n f arr rs hr j b := by
+  induction arr, hr, j, b using foldUInPlace.induct n f rs with
+  | case1 arr hr j b h p ih =>
+    rw [MPN.WordArray.foldUInPlace, dite_eq_left_of_eq_true (eq_true h), foldUInPlace_lt _ _ _ _ _ _ _ h]
+    exact ih
+  | case2 arr hr j b h =>
+    rw [MPN.WordArray.foldUInPlace, dite_eq_right_of_eq_false (eq_false h), foldUInPlace_ge _ _ _ _ _ _ _ h]
+
+/-- `main`'s in-place loops on `UInt32Array`, by `foldlInPlaceRangeThen` and `foldlInPlace2Then`. -/
 public instance wordFolds32 : MPN.WordFolds UInt32Array UInt32 where
   fold2Then := foldUInPlace2ThenLib
   fold2Then_eq := by
@@ -698,6 +750,11 @@ public instance wordFolds32 : MPN.WordFolds UInt32Array UInt32 where
     · rename_i h
       exact (g_congr g (q := (arr, b))
         (by rw [MPN.WordArray.foldUInPlace2, dite_eq_right h]) _).symm
+  foldThen := foldUInPlaceThenLib
+  foldThen_eq := by
+    intro β γ n f arr rs hr j b g
+    rw [← foldUInPlaceThen_eq_lib, foldUInPlaceThen, MPN.WordArray.foldUInPlaceThen]
+    exact g_congr g (foldUInPlace_main n f arr rs hr j b).symm _
 
 /-- A sub-slice of a whole array, `toUSlice`. -/
 public theorem toUSlice_slice (a : UInt32Array) {i j : USize} (hij : i.toNat ≤ j.toNat)
