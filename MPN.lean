@@ -20,7 +20,9 @@ public import MPN.Sqr.Karatsuba
 public import MPN.FFT.Roots
 public import MPN.FFT.Algebra
 public import MPN.LimbArray
+public import MPN.WordArray
 public import MPN.FFT.Windows
+public import MPN.FFT.Fermat
 public import MPN.FFT.Product
 public import MPN.Toom.Ops
 public import MPN.Toom.Karatsuba
