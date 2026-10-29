@@ -30,19 +30,6 @@ open WordArray
 
 /-! ## Carries -/
 
-/-- A sum below `2 B` carries at most `1`. -/
-private theorem carry_le {s B : Nat} (h : s < 2 * B) : s / B ≤ 1 :=
-  Nat.le_of_lt_succ ((Nat.div_lt_iff_lt_mul (by lia)).2 (by lia))
-
-/-- `(a - b) % B` with its borrow, for `a, b < B`. -/
-private theorem sub_mod_eq {a b B : Nat} (ha : a < B) (hb : b < B) :
-    (a + (B - b)) % B + b = a + B * (if a < b then 1 else 0) := by
-  split
-  · rw [Nat.mod_eq_of_lt (by lia)]; lia
-  · rw [show a + (B - b) = (a - b) + B * 1 by lia, Nat.add_mul_mod_self_left,
-      Nat.mod_eq_of_lt (by lia)]
-    lia
-
 private theorem mod_of_eq {R v q F : Nat} (h : R + F * q = v) (hR : R < F) : v % F = R := by
   subst h; rw [Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hR]
 
@@ -54,69 +41,9 @@ private theorem mod_of_eq' {R v q c F : Nat} (h : R + F * q = v + F * c) (hR : R
 
 variable {A L : Type} [LA : LimbArray A L] [R : WordArray A L]
 
-private theorem four_le : 4 ≤ 2 ^ LA.w :=
-  calc 4 = 2 ^ 2 := rfl
-    _ ≤ 2 ^ LA.w := Nat.pow_le_pow_right (by decide) R.w_ge
-
 omit R in
 private theorem two_pow_le (n : Nat) (hn : 1 ≤ n) : 2 ^ LA.w ≤ 2 ^ (LA.w * n) :=
   Nat.pow_le_pow_right (by decide) (Nat.le_mul_of_pos_right _ hn)
-
-private theorem incr_step (x c : L) :
-    LA.val (R.add x c) + 2 ^ LA.w * LA.val (R.addh R.zero x c) = LA.val x + LA.val c := by
-  have hx := LA.val_lt x; have hc := LA.val_lt c; have hB := four_le (R := R)
-  rw [R.val_add, R.val_addh, R.val_zero, Nat.zero_add]
-  have := carry_le (s := LA.val x + LA.val c) (B := 2 ^ LA.w) (by lia)
-  rw [Nat.mod_eq_of_lt (a := _ / _) (by lia)]
-  exact Nat.mod_add_div _ _
-
-private theorem decr_step (x c : L) :
-    LA.val (R.sub x c) + LA.val c = LA.val x + 2 ^ LA.w * LA.val (R.subh R.zero x c) := by
-  have hx := LA.val_lt x; have hc := LA.val_lt c; have hB := four_le (R := R)
-  rw [R.val_sub, R.val_subh, R.val_zero, Nat.zero_add, sub_mod_eq hx hc]
-  split <;> simp [Nat.mod_eq_of_lt (show 1 < 2 ^ LA.w by lia)]
-
-private theorem add_step (x y c : L) :
-    LA.val (R.add (R.add x y) c) + 2 ^ LA.w * LA.val (R.addh (R.addh R.zero x y) (R.add x y) c) =
-      LA.val x + LA.val y + LA.val c := by
-  have hx := LA.val_lt x; have hy := LA.val_lt y; have hc := LA.val_lt c
-  have hB := four_le (R := R)
-  simp only [R.val_add, R.val_addh, R.val_zero, Nat.zero_add]
-  generalize LA.val x = X at *
-  generalize LA.val y = Y at *
-  generalize LA.val c = C at *
-  generalize 2 ^ LA.w = B at *
-  have h₁ : (X + Y) / B ≤ 1 := carry_le (by lia)
-  have hm := Nat.mod_lt (X + Y) (show 0 < B by lia)
-  have h₂ : ((X + Y) % B + C) / B ≤ 1 := carry_le (by lia)
-  rw [Nat.mod_eq_of_lt (a := (X + Y) / B) (by lia), Nat.mod_eq_of_lt (a := (X + Y) / B + _) (by lia)]
-  have e₁ := Nat.mod_add_div (X + Y) B
-  have e₂ := Nat.mod_add_div ((X + Y) % B + C) B
-  generalize (X + Y) / B = q₁ at *
-  generalize ((X + Y) % B + C) / B = q₂ at *
-  rw [Nat.mul_add]
-  lia
-
-private theorem sub_step (x y c : L) :
-    LA.val (R.sub (R.sub x y) c) + LA.val y + LA.val c =
-      LA.val x + 2 ^ LA.w * LA.val (R.subh (R.subh R.zero x y) (R.sub x y) c) := by
-  have hx := LA.val_lt x; have hy := LA.val_lt y; have hc := LA.val_lt c
-  have hB := four_le (R := R)
-  simp only [R.val_sub, R.val_subh, R.val_zero, Nat.zero_add]
-  generalize LA.val x = X at *
-  generalize LA.val y = Y at *
-  generalize LA.val c = C at *
-  generalize 2 ^ LA.w = B at *
-  have e₁ := sub_mod_eq hx hy
-  have hm := Nat.mod_lt (X + (B - Y)) (show 0 < B by lia)
-  have e₂ := sub_mod_eq hm hc
-  generalize (X + (B - Y)) % B = D at *
-  rw [Nat.mod_eq_of_lt (a := if X < Y then 1 else 0) (by split <;> lia),
-    Nat.mod_eq_of_lt (a := (if X < Y then 1 else 0) + _) (by split <;> split <;> lia)]
-  generalize (if X < Y then 1 else 0) = b₁ at *
-  generalize (if D < C then 1 else 0) = b₂ at *
-  rw [Nat.mul_add]
-  lia
 
 private theorem shl_step (x c b : L) (hb₀ : 0 < LA.val b) (hb : LA.val b < LA.w)
     (hc : LA.val c < 2 ^ LA.val b) :
