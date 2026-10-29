@@ -15,6 +15,7 @@ public import MPN.FFT.Windows
 public import MPN.FFT.Fermat
 public import MPN.Div.Schoolbook
 public import MPN.LinComb
+public import MPN.Natural
 public import MPN.FFT.Product
 public import MPN.Toom.Ops
 public import MPN.Toom.Karatsuba
