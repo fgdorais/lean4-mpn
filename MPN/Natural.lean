@@ -19,7 +19,8 @@ The arithmetic takes a fast path on words when both numbers are small, checking 
 and otherwise works on limbs with the operations of the instance of `NatLimbs A`, which are
 whole-number operations on trimmed arrays with their values. Every operation is proved correct
 against `Nat`. `main32` and `main64` instantiate it on their arrays of 32-bit and 64-bit limbs as
-`MPN.Nat`, and add the square root and the greatest common divisor by their own algorithms.
+`MPN.Nat`, and add the square root by their own algorithms; the greatest common divisor is in
+`MPN.NatGcd`.
 
 Lean's own `Nat` stores small values in the pointer itself; a type defined in Lean cannot, so
 a small `GNat` is a heap object holding its word, which costs an allocation per result.

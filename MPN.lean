@@ -25,6 +25,7 @@ public import MPN.Toom.Toom
 public import MPN.Toom.Methods
 public import MPN.Toom.Mul
 public import MPN.WordGcd
+public import MPN.NatGcd
 public import MPN.Generic.Ops
 public import MPN.Generic.Barrett
 public import MPN.Generic.DC
