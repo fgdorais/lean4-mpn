@@ -6,6 +6,8 @@ module
 
 public import MPN.Basic
 public import MPN.UInt
+public import MPN.ValAt
+public import MPN.LinComb
 
 /-!
 # A difference of two multiples
@@ -448,173 +450,80 @@ public theorem mulAddMulStep_spec (v x y a b c : UInt32) (ha : a.toNat < 2 ^ 31)
     Nat.mod_eq_of_lt (show q < 18446744073709551616 by lia)]
   lia
 
+/-- Limb `i` of `a`, or `0` past its end. -/
+@[inline] public def limbAt (a : UInt32Array) (i : Nat) : UInt32 :=
+  if h : i < a.size then a[i] else 0
+
 /--
-Adds `x[j...] a + y[j...] b` and the carry `c` to `r` from limb `j` up to limb `m`, with `x` and
-`y` read as `0` past their ends, and returns the carry out.
+The steps of `main`'s linear combinations on `UInt32Array`: `mulSubMulStep` with its carry plus
+`2³¹`, and `mulAddMulStep`, on a limb of zero.
 -/
-def mulAddMulLoop (r x y : UInt32Array) (a b : UInt32) (m j : Nat) (c : UInt32) :
-    UInt32Array × UInt32 :=
-  if hj : j < m ∧ j < r.size then
-    let p := mulAddMulStep r[j] (x.getD j 0) (y.getD j 0) a b c
-    mulAddMulLoop (r.set j p.1 hj.2) x y a b m (j + 1) p.2
-  else
-    (r, c)
-termination_by m - j
+public instance linComb32 : LinCombOps UInt32Array UInt32 where
+  cb := 31
+  cb_lt := by decide
+  zeros n := UInt32Array.replicate n 0
+  size_zeros n := UInt32Array.size_replicate ..
+  val_get_ge a i h := by
+    show a[i]!.toNat = 0
+    rw [getElem!_neg a i (Nat.not_lt.2 h)]; rfl
+  limb := limbAt
+  val_limb a i := by
+    show (limbAt a i).toNat = a[i]!.toNat
+    unfold limbAt
+    split
+    · rw [UInt32Array.getElem!_eq_getElem]
+    · rename_i h; rw [getElem!_neg a i h]; rfl
+  maC xi yi a b c := mulAddMulStep 0 xi yi a b c
+  cOK _ := True
+  cOK_zero := trivial
+  val_maC xi yi a b c ha hb _ := by
+    refine ⟨?_, trivial⟩
+    have := mulAddMulStep_spec 0 xi yi a b c ha hb
+    show (mulAddMulStep 0 xi yi a b c).1.toNat + 2 ^ 32 * (mulAddMulStep 0 xi yi a b c).2.toNat =
+      a.toNat * xi.toNat + b.toNat * yi.toNat + c.toNat
+    rw [Nat.mul_comm a.toNat, Nat.mul_comm b.toNat]
+    simpa using this
+  msC xi yi a b h := mulSubMulStep 0 xi yi a b h
+  sv h := (h.toNat : Int) - 2 ^ 31
+  sOK _ := True
+  s0 := 0x80000000
+  sOK_s0 := trivial
+  sv_s0 := by decide
+  val_msC xi yi a b h ha hb _ := by
+    refine ⟨?_, trivial⟩
+    have := mulSubMulStep_spec 0 xi yi a b h ha hb
+    show ((mulSubMulStep 0 xi yi a b h).1.toNat : Int) +
+        2 ^ 32 * (((mulSubMulStep 0 xi yi a b h).2.toNat : Int) - 2 ^ 31) =
+      a.toNat * xi.toNat - b.toNat * yi.toNat + ((h.toNat : Int) - 2 ^ 31)
+    rw [Nat.mul_comm yi.toNat, Nat.mul_comm xi.toNat] at this
+    simp only [UInt32.toNat_zero, Nat.zero_add] at this
+    lia
+  sNeg h := decide (h < 0x80000000)
+  sNeg_iff h _ := by
+    show decide (h < 0x80000000) = true ↔ (h.toNat : Int) - 2 ^ 31 < 0
+    rw [decide_eq_true_eq, UInt32.lt_iff_toNat_lt,
+      show (0x80000000 : UInt32).toNat = 2 ^ 31 from rfl]
+    lia
+  sTop h := h - 0x80000000
+  val_sTop h _ hs := by
+    show ((h - 0x80000000).toNat : Int) = (h.toNat : Int) - 2 ^ 31
+    change 0 ≤ (h.toNat : Int) - 2 ^ 31 at hs
+    have e : (0x80000000 : UInt32).toNat = 2 ^ 31 := rfl
+    rw [UInt32.toNat_sub_of_le _ _ (by rw [UInt32.le_iff_toNat_le, e]; lia), e]
+    lia
 
-private theorem mulAddMulLoop_spec (r x y : UInt32Array) (a b : UInt32) (m j : Nat) (c : UInt32)
-    (ha : a.toNat < 2 ^ 31) (hb : b.toNat < 2 ^ 31) (hm : m ≤ r.size) (hx : x.size ≤ m)
-    (hy : y.size ≤ m) (hj : j ≤ m) :
-    (mulAddMulLoop r x y a b m j c).1.size = r.size ∧
-      (mulAddMulLoop r x y a b m j c).1.toList.drop m = r.toList.drop m ∧
-      ofLimbs (mulAddMulLoop r x y a b m j c).1.toList +
-          2 ^ (32 * m) * (mulAddMulLoop r x y a b m j c).2.toNat =
-        ofLimbs r.toList + 2 ^ (32 * j) *
-          (ofLimbs (x.toList.drop j) * a.toNat + ofLimbs (y.toList.drop j) * b.toNat + c.toNat) := by
-  induction r, j, c using mulAddMulLoop.induct x y a b m with
-  | case1 r j c hj' p ih =>
-    rw [mulAddMulLoop]
-    simp only [hj', and_self, ↓reduceDIte]
-    have hs := mulAddMulStep_spec r[j] (x.getD j 0) (y.getD j 0) a b c ha hb
-    obtain ⟨ih₁, ih₂, ih₃⟩ := ih (by simpa using hm) (by lia)
-    simp only [UInt32Array.size_set] at ih₁ ih₂ ih₃
-    refine ⟨ih₁, ?_, ?_⟩
-    · rw [ih₂, UInt32Array.toList_set, List.drop_set]
-      simp only [show j < m by lia, ↓reduceIte]
-    have hk : j < r.toList.length := by simp; lia
-    have hset := ofLimbs_set r.toList j p.1 hk
-    simp only [UInt32Array.getElem_toList] at hset
-    have hX := ofLimbs_drop x.toList j
-    have hY := ofLimbs_drop y.toList j
-    have hxj : x.toList.getD j 0 = x.getD j 0 := by simp [List.getD_eq_getElem?_getD]
-    have hyj : y.toList.getD j 0 = y.getD j 0 := by simp [List.getD_eq_getElem?_getD]
-    rw [hxj] at hX
-    rw [hyj] at hY
-    rw [UInt32Array.toList_set] at ih₃
-    rw [Nat.mul_add 32 j 1, Nat.mul_one, Nat.pow_add] at ih₃
-    generalize ofLimbs (r.toList.set j p.1) = R₁ at *
-    generalize ofLimbs r.toList = R at *
-    generalize ofLimbs (x.toList.drop j) = X at *
-    generalize ofLimbs (y.toList.drop j) = Y at *
-    generalize ofLimbs (x.toList.drop (j + 1)) = X' at *
-    generalize ofLimbs (y.toList.drop (j + 1)) = Y' at *
-    generalize ofLimbs (mulAddMulLoop (r.set j p.1 hj'.2) x y a b m (j + 1) p.2).1.toList =
-      R₂ at *
-    generalize (mulAddMulLoop (r.set j p.1 hj'.2) x y a b m (j + 1) p.2).2.toNat = C₂ at *
-    generalize 2 ^ (32 * j) = P at *
-    generalize 2 ^ (32 * m) = Q at *
-    simp only [p] at *
-    generalize (mulAddMulStep r[j] (x.getD j 0) (y.getD j 0) a b c).1.toNat = lo at *
-    generalize (mulAddMulStep r[j] (x.getD j 0) (y.getD j 0) a b c).2.toNat = hi at *
-    generalize r[j].toNat = v at *
-    generalize (x.getD j 0).toNat = xj at *
-    generalize (y.getD j 0).toNat = yj at *
-    generalize a.toNat = A at *
-    generalize b.toNat = B at *
-    generalize c.toNat = c at *
-    subst hX hY
-    grind
-  | case2 r j c hj' =>
-    rw [mulAddMulLoop]
-    simp only [hj', ↓reduceDIte]
-    have hjm : j = m := by lia
-    subst hjm
-    have hy' : y.toList.drop j = [] := List.drop_of_length_le (by simp; lia)
-    have hx' : x.toList.drop j = [] := List.drop_of_length_le (by simp; lia)
-    simp only [hy', hx', ofLimbs_nil, Nat.zero_mul, Nat.zero_add]
-    exact ⟨by simp, by simp, by simp⟩
-
-/-- `a x + b y` for `a, b < 2³¹`, as `max x.size y.size + 1` limbs, untrimmed. -/
+/-- `a x + b y` for `a, b < 2³¹`, as `max x.size y.size + 1` limbs, untrimmed: `main`'s
+`LinComb.mulAddMul`. -/
 public def mulAddMul (x y : UInt32Array) (a b : UInt32) : UInt32Array :=
-  let m := max x.size y.size
-  let p := mulAddMulLoop (.replicate (m + 1) 0) x y a b m 0 0
-  p.1.set! m p.2
+  LinComb.mulAddMul x y a b
 
 public theorem toNat_mulAddMul (x y : UInt32Array) (a b : UInt32) (ha : a.toNat < 2 ^ 31)
     (hb : b.toNat < 2 ^ 31) :
     toNat (mulAddMul x y a b) = toNat x * a.toNat + toNat y * b.toNat := by
-  have hrs : (UInt32Array.replicate (max x.size y.size + 1) 0).size = max x.size y.size + 1 := by
-    simp
-  obtain ⟨h₁, h₂, h₃⟩ := mulAddMulLoop_spec (.replicate (max x.size y.size + 1) 0) x y a b
-    (max x.size y.size) 0 0 ha hb (by lia) (by lia) (by lia) (by lia)
-  simp only [mulAddMul, toNat_toSlice]
-  generalize hp : mulAddMulLoop (.replicate (max x.size y.size + 1) 0) x y a b
-    (max x.size y.size) 0 0 = p at h₁ h₂ h₃
-  generalize max x.size y.size = m at *
-  simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul, List.drop_zero, UInt32.toNat_zero,
-    UInt32Array.toList_replicate, ofLimbs_replicate_zero, Nat.zero_add, Nat.add_zero] at h₃
-  -- The top limb of `p.1` is still zero, so the limbs below it are below `βᵐ`.
-  have hsplit := ofLimbs_append (p.1.toList.take m) (p.1.toList.drop m)
-  rw [List.take_append_drop, h₂, UInt32Array.toList_replicate, List.drop_replicate,
-    show m + 1 - m = 1 by lia, List.length_take, UInt32Array.length_toList, h₁, hrs,
-    Nat.min_eq_left (by lia)] at hsplit
-  simp only [List.replicate_one, ofLimbs_cons, ofLimbs_nil, UInt32.toNat_zero, Nat.mul_zero,
-    Nat.add_zero] at hsplit
-  -- Writing the carry into the top limb, which is zero.
-  have hk : m < p.1.toList.length := by simp [h₁, hrs]
-  have hold : p.1.toList[m] = 0 := by
-    have := congrArg (·[0]?) h₂
-    simp only [List.getElem?_drop, Nat.add_zero, UInt32Array.toList_replicate] at this
-    rw [List.getElem?_replicate, ite_eq_left (by lia), List.getElem?_eq_getElem hk] at this
-    exact Option.some.inj this
-  have hset := ofLimbs_set p.1.toList m p.2 hk
-  rw [hold, UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero, hsplit] at hset
-  rw [UInt32Array.toList_set!, hset]
-  rw [hsplit] at h₃
-  lia
-
-/-- The step of the fold of `mulAddMulFast`. -/
-@[inline] def mulAddMulStepU (x y : UInt32Array) (nx ny : USize) (hnx : nx.toNat = x.size)
-    (hny : ny.toNat = y.size) (a b : UInt32) (len : USize) (k : USize) (_ : k.toNat < len.toNat)
-    (v c : UInt32) : UInt32 × UInt32 :=
-  mulAddMulStep v (limbOrZero x nx hnx k) (limbOrZero y ny hny k) a b c
-
-/-- The fold of `mulAddMulFast` from limb `j` on is `mulAddMulLoop` from limb `j` on. -/
-private theorem foldInPlace_loop_mulAddMul (r x y : UInt32Array) (nx ny : USize)
-    (hnx : nx.toNat = x.size) (hny : ny.toNat = y.size) (a b : UInt32) (len : USize) (m : Nat)
-    (hlen' : len.toNat = m) (hm : m ≤ r.size) (s n : Nat) (hs : s = 0) (hn : n = m) (j : Nat)
-    (c : UInt32) (h' hlen) :
-    UInt32Array.foldInPlace.loop len (mulAddMulStepU x y nx ny hnx hny a b len) s n r h' hlen j c =
-      mulAddMulLoop r x y a b m j c := by
-  subst s n
-  induction r, j, c using mulAddMulLoop.induct x y a b m with
-  | case1 r j c hj' p ih =>
-    rw [UInt32Array.foldInPlace.loop]
-    conv => rhs; rw [mulAddMulLoop]
-    simp only [hj', and_self, ↓reduceDIte, Nat.zero_add]
-    have hjU : j.toUSize.toNat = j := toNat_toUSize (by have := len.toNat_lt_size; lia)
-    simp only [mulAddMulStepU, limbOrZero_eq x nx hnx _ j hjU, limbOrZero_eq y ny hny _ j hjU]
-    exact ih (by simpa using hm) _
-  | case2 r j c hj' =>
-    rw [UInt32Array.foldInPlace.loop, mulAddMulLoop]
-    have : ¬ j < m := by lia
-    simp [this]
-
-/-- `mulAddMul` with `foldInPlaceThen`, which the compiler uses in its place. -/
-public def mulAddMulFast (x y : UInt32Array) (a b : UInt32) : UInt32Array :=
-  if hs : max x.size y.size + 1 < 4294967295 then
-    let m := max x.size y.size
-    (UInt32Array.replicate (m + 1) 0).foldInPlaceThen 0 m.toUSize 0
-      (mulAddMulStepU x y x.size.toUSize y.size.toUSize (toNat_toUSize (lt_usizeSize (by lia)))
-        (toNat_toUSize (lt_usizeSize (by lia))) a b m.toUSize)
-      (fun r c => r.set! m c)
-      (by
-        rw [toNat_toUSize (lt_usizeSize (by lia)), UInt32Array.size_replicate]
-        simp)
-  else
-    let m := max x.size y.size
-    let p := mulAddMulLoop (.replicate (m + 1) 0) x y a b m 0 0
-    p.1.set! m p.2
-
-@[csimp] public theorem mulAddMul_eq_mulAddMulFast : @mulAddMul = @mulAddMulFast := by
-  funext x y a b
-  rw [mulAddMulFast]
-  split
-  · rename_i hs
-    rw [UInt32Array.foldInPlaceThen_eq, UInt32Array.foldInPlace,
-      foldInPlace_loop_mulAddMul _ x y _ _ _ _ a b _ (max x.size y.size)
-        (toNat_toUSize (lt_usizeSize (by lia))) (by simp) _ _ (by simp)
-        (toNat_toUSize (lt_usizeSize (by lia))) 0 0]
-    rfl
-  · rfl
+  obtain ⟨s₁, s₂⟩ := LinComb.mulAddMul_spec x y a b ha hb
+  rw [toNat_array_eq_valAt, toNat_array_eq_valAt, toNat_array_eq_valAt, mulAddMul,
+    show (LinComb.mulAddMul x y a b).size = _ from s₁, Nat.mul_comm (x.valAt 0 x.size),
+    Nat.mul_comm (y.valAt 0 y.size)]
+  exact s₂
 
 end MPN
