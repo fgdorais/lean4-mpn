@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN.Natural
+public import MPN.NatGcd
 public import MPN.Gcd
 public import MPN.Decimal
 public import MPN.Sqrt
@@ -21,8 +22,9 @@ and limb-wise bitwise operations (`bitA`). Since `MPN.Num` leaves at least one l
 form here is one limb or a nonzero top limb (`isTrim`). The operations guard the bounds that the
 specifications of `MPN.Num` need, and otherwise compute on `Nat`, which never happens.
 
-The square root above `2⁶⁴` is Zimmermann's recursion of `sqrtRem`, and the greatest common
-divisor is `Num.gcd`.
+The square root above `2⁶⁴` is Zimmermann's recursion of `sqrtRem`. The greatest common divisor
+is `main`'s `GNat.gcd` on the instance `gcdLimbs64` of `GcdLimbs`, with Lehmer's step and half-gcd
+from `MPN.Gcd`; `MPN.gcdWith` and `Num.gcd` are it on arrays.
 -/
 
 open ScalarArray UInt64Array
@@ -473,6 +475,102 @@ public instance natLimbs64 : NatLimbs UInt64Array where
   ofDecimal := Limbs64.ofDecimal
   ofDecimal_spec := Limbs64.ofDecimal_spec
 
+namespace Limbs64
+
+/-- The `GNat` of an array, trimmed. -/
+@[inline] public def toGNat (x : UInt64Array) : GNat UInt64Array := GNat.ofLimbs (norm x) (isTrim_norm x)
+
+@[simp] public theorem toNat_toGNat (x : UInt64Array) : (toGNat x).toNat = x.toNat := by
+  rw [toGNat, GNat.toNat_ofLimbs]; exact toNat_norm x
+
+/-- Lehmer's step (`lehmerStep`) on the limbs of `x` and `y`. -/
+public def lehmer (x y : GNat UInt64Array) : Option (GNat UInt64Array × GNat UInt64Array) :=
+  match lehmerStep x.limbs y.limbs with
+  | some p => some (toGNat p.1, toGNat p.2)
+  | none => none
+
+public theorem gcd_lehmer (x y : GNat UInt64Array) (p : GNat UInt64Array × GNat UInt64Array)
+    (h : lehmer x y = some p) : Nat.gcd p.1.toNat p.2.toNat = Nat.gcd x.toNat y.toNat := by
+  unfold lehmer at h
+  split at h
+  · rename_i q hq
+    rw [Option.some.injEq] at h
+    subst h
+    simp only [toNat_toGNat]
+    rw [gcd_lehmerStep _ _ q hq, ← GNat.val_limbs x, ← GNat.val_limbs y]
+    rfl
+  · exact absurd h (by simp)
+
+/-- Half-gcd (`hgcd64`) on the limbs of `x` and `y`. -/
+public def hgcd (x y : GNat UInt64Array) : GNat UInt64Array × GNat UInt64Array :=
+  let p := hgcd64 x.limbs y.limbs
+  (toGNat p.1, toGNat p.2)
+
+public theorem gcd_hgcd (x y : GNat UInt64Array) :
+    Nat.gcd (hgcd x y).1.toNat (hgcd x y).2.toNat = Nat.gcd x.toNat y.toNat := by
+  simp only [hgcd, toNat_toGNat]
+  rw [gcd_hgcd64, ← GNat.val_limbs x, ← GNat.val_limbs y]
+  rfl
+
+/-- The high word of a number of at most two limbs. -/
+public def hi : GNat UInt64Array → UInt64
+  | .small _ => 0
+  | .large a _ => Num.limbAt a 1
+
+/-- The low word of a number. -/
+public def lo : GNat UInt64Array → UInt64
+  | .small w => w
+  | .large a _ => Num.limbAt a 0
+
+/-- Whether a number has at most two limbs. -/
+public def fits2 : GNat UInt64Array → Bool
+  | .small _ => true
+  | .large a _ => decide (a.size ≤ 2)
+
+public theorem val_two (x : GNat UInt64Array) (h : fits2 x = true) :
+    (hi x).toNat * 2 ^ 64 + (lo x).toNat = x.toNat := by
+  cases x with
+  | small w => simp [hi, lo, GNat.toNat_small]
+  | large a ha =>
+    simp only [fits2, decide_eq_true_eq] at h
+    show (Num.limbAt a 1).toNat * 2 ^ 64 + (Num.limbAt a 0).toNat = a.toNat
+    rw [Num.limbAt_eq, Num.limbAt_eq]
+    rcases Nat.lt_or_ge a.size 2 with h1 | h1
+    · rw [getElem!_neg a 1 (by lia), toNat_eq_valAt]
+      change 0 * 2 ^ 64 + _ = _
+      rcases Nat.lt_or_ge a.size 1 with h0 | h0
+      · rw [show a.size = 0 by lia, getElem!_neg a 0 (by lia), valAt_zero]; rfl
+      · rw [show a.size = 1 by lia, valAt_one]; lia
+    · rw [toNat_eq_valAt, show a.size = 2 by lia, valAt_succ, valAt_one]
+      lia
+
+/-- The size of a number, in limbs. -/
+public def size : GNat UInt64Array → Nat
+  | .small _ => 1
+  | .large a _ => a.size
+
+end Limbs64
+
+/-- The parts of `main`'s greatest common divisor that depend on 64-bit limbs. -/
+public instance gcdLimbs64 : GcdLimbs UInt64Array where
+  mulh := UInt64.mulh
+  toNat_mulh := UInt64.toNat_mulh
+  rem2 ah al bl := al - UInt64.div2 (ah % bl) al bl * bl
+  toNat_rem2 ah al bl hb := by
+    rw [(UInt64.toNat_div2_rem (ah % bl) al bl
+      (by rw [UInt64.toNat_mod]; exact Nat.mod_lt _ hb)).1, UInt64.toNat_mod]
+    simp [Nat.add_mod, Nat.mul_mod]
+  fits2 := Limbs64.fits2
+  hi := Limbs64.hi
+  lo := Limbs64.lo
+  val_two := Limbs64.val_two
+  lehmer := Limbs64.lehmer
+  gcd_lehmer := Limbs64.gcd_lehmer
+  hgcd := Limbs64.hgcd
+  gcd_hgcd := Limbs64.gcd_hgcd
+  size := Limbs64.size
+  half := config.gcdHalf
+
 /-- A natural number: `main`'s `GNat` on arrays of 64-bit limbs. -/
 public protected abbrev Nat := GNat UInt64Array
 
@@ -483,7 +581,7 @@ export GNat (small large ofLimbs wideOf toNat_wideOf add sub mul div mod blt dec
   trimmed_limbs toNat_add toNat_sub toNat_mul toNat_div toNat_mod blt_iff toNat_shiftLeft
   toNat_shiftRight toNat_land toNat_lor toNat_xor log2_eq toNat_sqr toNat_pow toNat_sqrtNewton
   repr_eq ofString?_eq toNat_hAdd toNat_hSub toNat_hMul toNat_hDiv toNat_hMod toNat_ofNat'
-  lt_iff_toNat_lt le_iff_toNat_le)
+  lt_iff_toNat_lt le_iff_toNat_le gcd lcm toNat_gcd toNat_lcm)
 
 /-- The `MPN.Nat` of a natural number. -/
 public abbrev ofNat (n : _root_.Nat) : MPN.Nat := GNat.ofNat n
@@ -512,49 +610,23 @@ public def sqrt (n : MPN.Nat) : MPN.Nat :=
       rfl
     · exact toNat_sqrtNewton _
 
-/-- The greatest common divisor: on words by `Nat.gcd`, and above by `Num.gcd`. -/
-public def gcd (x y : MPN.Nat) : MPN.Nat :=
-  match x, y with
-  | small a, small b => small (_root_.Nat.gcd a.toNat b.toNat).toUInt64
-  | x, y => ofLimbs (Limbs64.norm (Num.gcd x.limbs y.limbs)) (Limbs64.isTrim_norm _)
-
-@[simp] public theorem toNat_gcd (x y : MPN.Nat) :
-    (gcd x y).toNat = _root_.Nat.gcd x.toNat y.toNat := by
-  have hgen : ∀ x y : MPN.Nat,
-      (ofLimbs (Limbs64.norm (Num.gcd x.limbs y.limbs)) (Limbs64.isTrim_norm _) : MPN.Nat).toNat =
-        _root_.Nat.gcd x.toNat y.toNat := fun x y => by
-    rw [toNat_ofLimbs, Limbs64.toNat_norm, Num.toNat_gcd]
-    rw [show x.limbs.toNat = x.toNat from GNat.val_limbs x,
-      show y.limbs.toNat = y.toNat from GNat.val_limbs y]
-  cases x with
-  | small a =>
-    cases y with
-    | small b =>
-      show ((_root_.Nat.gcd a.toNat b.toNat).toUInt64).toNat = _root_.Nat.gcd a.toNat b.toNat
-      have hlt : _root_.Nat.gcd a.toNat b.toNat < 2 ^ 64 := by
-        rcases Nat.eq_zero_or_pos a.toNat with h | h
-        · rw [h, Nat.gcd_zero_left]; exact b.toNat_lt
-        · exact Nat.lt_of_le_of_lt (Nat.gcd_le_left _ h) a.toNat_lt
-      rw [Nat.toUInt64_eq, UInt64.toNat_ofNat', Nat.mod_eq_of_lt hlt]
-    | large b hb => exact hgen _ _
-  | large a ha => exact hgen _ _
-
-/-- The least common multiple. -/
-public def lcm (x y : MPN.Nat) : MPN.Nat :=
-  if gcd x y = small 0 then small 0 else div x (gcd x y) * y
-
-@[simp] public theorem toNat_lcm (x y : MPN.Nat) :
-    (lcm x y).toNat = _root_.Nat.lcm x.toNat y.toNat := by
-  unfold lcm
-  split
-  · rename_i h
-    have h' := congrArg GNat.toNat h
-    rw [toNat_gcd, toNat_small, UInt64.toNat_zero, Nat.gcd_eq_zero_iff] at h'
-    rw [toNat_small, UInt64.toNat_zero, h'.1, Nat.lcm_zero_left]
-  · show (mul (div x (gcd x y)) y).toNat = _
-    rw [toNat_mul, toNat_div, toNat_gcd, _root_.Nat.lcm,
-      Nat.div_mul_right_comm (Nat.gcd_dvd_left _ _)]
-
 end Nat
+
+/-- `Nat.gcd x.toNat y.toNat`, by `GNat.gcdWith`: half-gcd from `half` limbs of the smaller. -/
+public def gcdWith (half : _root_.Nat) (x y : UInt64Array) : UInt64Array :=
+  (GNat.gcdWith half (Limbs64.toGNat x) (Limbs64.toGNat y)).limbs
+
+public theorem toNat_gcdWith (half : _root_.Nat) (x y : UInt64Array) :
+    (gcdWith half x y).toNat = _root_.Nat.gcd x.toNat y.toNat := by
+  rw [gcdWith]
+  show natLimbs64.val _ = _
+  rw [GNat.val_limbs, GNat.toNat_gcdWith, Limbs64.toNat_toGNat, Limbs64.toNat_toGNat]
+
+/-- `Nat.gcd a.toNat b.toNat`. -/
+public def Num.gcd (a b : UInt64Array) : UInt64Array := gcdWith config.gcdHalf a b
+
+@[simp] public theorem Num.toNat_gcd (a b : UInt64Array) :
+    (Num.gcd a b).toNat = _root_.Nat.gcd a.toNat b.toNat :=
+  toNat_gcdWith ..
 
 end MPN

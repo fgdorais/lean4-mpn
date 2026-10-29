@@ -12,19 +12,16 @@ public import MPN.WordGcd
 /-!
 # Greatest common divisor
 
-`Num.gcd a b` is `Nat.gcd a.toNat b.toNat`, ported from `main`:
+The parts of the greatest common divisor that depend on 64-bit limbs, for `main`'s `GNat.gcd`
+(`MPN.NatGcd`, with the instance in `MPN.Nat`), ported from `main`:
 
-* Lehmer's algorithm (`gcdLehmer`): two runs of Euclid's steps on the leading words of the two
+* Lehmer's step (`lehmerStep`): two runs of Euclid's steps on the leading words of the two
   numbers (`cofactors2`, with `lehmerSteps` in `Int64`) give cofactors of about 62 bits, which are
   checked on words (`applyCof`: determinant `±1`) and applied to the full numbers in one pass each
-  (`mulSubMul`); when they do not apply or do not make the numbers smaller, one step of Euclid's
-  algorithm is taken instead. Nothing about the steps on the words needs a proof: a matrix of
-  determinant `±1` keeps the greatest common divisor.
-* Euclid's algorithm on pairs of words (`gcd2`, like GMP's `mpn_gcd_22`) once both numbers have at
-  most two limbs.
-* Half-gcd (`NatOps.hgcdReduce`) from `config.gcdHalf` limbs, whose base case up to `hgcdBase`
-  limbs is the same steps with their matrix kept up to date in one pass per entry (`baseW`,
-  `mulAddMul`).
+  (`mulSubMul`). Nothing about the steps on the words needs a proof: a matrix of determinant `±1`
+  keeps the greatest common divisor.
+* Half-gcd (`NatOps.hgcdReduce`, `hgcd64`), whose base case up to `hgcdBase` limbs is the same
+  steps with their matrix kept up to date in one pass per entry (`baseW`, `mulAddMul`).
 -/
 
 open ScalarArray UInt64Array
@@ -223,14 +220,14 @@ def cofactors2 (x y : UInt64Array) : Cofactors :=
 Lehmer's step on the full numbers: the cofactors of two runs on the leading words (`cofactors2`),
 or of one run when those do not apply.
 -/
-def lehmerStep (x y : UInt64Array) : Option (UInt64Array × UInt64Array) :=
+public def lehmerStep (x y : UInt64Array) : Option (UInt64Array × UInt64Array) :=
   match applyCof x y (cofactors2 x y) with
   | some p => some p
   | none =>
     let w := leadWords x y
     applyCof x y (lehmerSteps w.x w.y 1 0 0 1 100)
 
-private theorem gcd_lehmerStep (x y : UInt64Array) (p : UInt64Array × UInt64Array)
+public theorem gcd_lehmerStep (x y : UInt64Array) (p : UInt64Array × UInt64Array)
     (h : lehmerStep x y = some p) : Nat.gcd p.1.toNat p.2.toNat = Nat.gcd x.toNat y.toNat := by
   unfold lehmerStep at h
   split at h
@@ -239,286 +236,6 @@ private theorem gcd_lehmerStep (x y : UInt64Array) (p : UInt64Array × UInt64Arr
     subst h
     exact gcd_applyCof x y _ q hq
   · exact gcd_applyCof x y _ p h
-
-/-- `x mod y`. -/
-def modN (x y : UInt64Array) : UInt64Array := (ops64.divRem x y).2
-
-private theorem toNat_modN (x y : UInt64Array) (hy : y.toNat ≠ 0) :
-    (modN x y).toNat = x.toNat % y.toNat :=
-  (ops64.val_divRem x y hy).2
-
-/-- `0`, as an array without limbs. -/
-def zeroA : UInt64Array := UInt64Array.replicate 0 0
-
-private theorem toNat_zeroA : zeroA.toNat = 0 := by simp [zeroA, toNat_eq_valAt]
-
-/-! ## Two words -/
-
-/-- The number `h β + l`. -/
-def v2 (h l : UInt64) : Nat := h.toNat * 2 ^ 64 + l.toNat
-
-/-- `(ah β + al) - (bh β + bl)` in two words. -/
-@[inline] def sub2h (ah al bh bl : UInt64) : UInt64 := ah - bh - (if al < bl then 1 else 0)
-
-private theorem toNat_sub_add (a b : UInt64) :
-    (a - b).toNat + b.toNat = a.toNat + (if a.toNat < b.toNat then 2 ^ 64 else 0) := by
-  rw [UInt64.toNat_sub]
-  have := a.toNat_lt; have := b.toNat_lt
-  split
-  · rw [Nat.mod_eq_of_lt (by lia)]; lia
-  · rw [show 2 ^ 64 - b.toNat + a.toNat = a.toNat - b.toNat + 2 ^ 64 by lia, Nat.add_mod_right,
-      Nat.mod_eq_of_lt (by lia)]
-    lia
-
-private theorem v2_sub (ah al bh bl : UInt64) (h : v2 bh bl ≤ v2 ah al) :
-    v2 (sub2h ah al bh bl) (al - bl) = v2 ah al - v2 bh bl := by
-  unfold v2 sub2h at *
-  have := al.toNat_lt; have := bl.toNat_lt; have := ah.toNat_lt; have := bh.toNat_lt
-  have := (ah - bh).toNat_lt; have := (al - bl).toNat_lt
-  have e₁ := toNat_sub_add al bl
-  have e₂ := toNat_sub_add ah bh
-  have e₃ := toNat_sub_add (ah - bh) (if al < bl then 1 else 0)
-  have := (ah - bh - if al < bl then 1 else 0).toNat_lt
-  generalize ah - bh - (if al < bl then 1 else 0) = t at *
-  by_cases hl : al < bl
-  · have hl' := UInt64.lt_iff_toNat_lt.1 hl
-    simp only [hl, hl', ↓reduceIte, UInt64.toNat_one] at e₁ e₃
-    split at e₃ <;> lia
-  · have hl' := mt UInt64.lt_iff_toNat_lt.2 hl
-    simp only [hl, hl', ↓reduceIte, UInt64.toNat_zero] at e₁ e₃
-    split at e₃ <;> lia
-
-/-- Whether `ah β + al < bh β + bl`. -/
-@[inline] def lt2 (ah al bh bl : UInt64) : Bool := ah < bh || (ah == bh && al < bl)
-
-private theorem lt2_iff (ah al bh bl : UInt64) : lt2 ah al bh bl = true ↔ v2 ah al < v2 bh bl := by
-  unfold lt2 v2
-  have := al.toNat_lt; have := bl.toNat_lt
-  simp only [Bool.or_eq_true, decide_eq_true_eq, Bool.and_eq_true, beq_iff_eq,
-    UInt64.lt_iff_toNat_lt, ← UInt64.toNat_inj]
-  constructor
-  · rintro (h | ⟨h₁, h₂⟩) <;> lia
-  · intro h
-    rcases Nat.lt_or_ge ah.toNat bh.toNat with h' | h'
-    · exact .inl h'
-    · exact .inr ⟨by lia, by lia⟩
-
-/-- The quotient estimate of a step: `⌊ah / (bh + 1)⌋`, at least `1`. -/
-@[inline] def q2 (ah bh : UInt64) : UInt64 := let q := ah / (bh + 1); if q = 0 then 1 else q
-
-private theorem q2_mul_le (ah al bh bl : UInt64) (h : v2 bh bl ≤ v2 ah al) :
-    (q2 ah bh).toNat * v2 bh bl ≤ v2 ah al ∧ 1 ≤ (q2 ah bh).toNat := by
-  unfold q2
-  dsimp only
-  split
-  · simp only [UInt64.toNat_one]; lia
-  · rename_i hq
-    have hq' : (ah / (bh + 1)).toNat ≠ 0 := fun e => hq (UInt64.toNat_inj.1 (by rw [e]; rfl))
-    rw [UInt64.toNat_div] at hq' ⊢
-    have hb1 : (bh + 1).toNat = bh.toNat + 1 := by
-      rw [UInt64.toNat_add, UInt64.toNat_one]
-      rcases Nat.lt_or_ge (bh.toNat + 1) (2 ^ 64) with e | e
-      · exact Nat.mod_eq_of_lt e
-      · exfalso; apply hq'
-        rw [UInt64.toNat_add, UInt64.toNat_one, show bh.toNat + 1 = 2 ^ 64 by have := bh.toNat_lt; lia]
-        simp
-    rw [hb1] at hq' ⊢
-    have hd := Nat.div_mul_le_self ah.toNat (bh.toNat + 1)
-    have := bl.toNat_lt
-    unfold v2
-    constructor
-    · have : ah.toNat / (bh.toNat + 1) * (bh.toNat * 2 ^ 64 + bl.toNat) ≤
-          ah.toNat / (bh.toNat + 1) * ((bh.toNat + 1) * 2 ^ 64) :=
-        Nat.mul_le_mul_left _ (by lia)
-      have : ah.toNat / (bh.toNat + 1) * ((bh.toNat + 1) * 2 ^ 64) ≤ ah.toNat * 2 ^ 64 := by
-        rw [← Nat.mul_assoc]; exact Nat.mul_le_mul_right _ hd
-      lia
-    · lia
-
-/-- The high word of `q (bh β + bl)`. -/
-@[inline] def mul2h (q bh bl : UInt64) : UInt64 := q * bh + UInt64.mulh q bl
-
-private theorem v2_mul (q bh bl : UInt64) (h : q.toNat * v2 bh bl < 2 ^ 128) :
-    v2 (mul2h q bh bl) (q * bl) = q.toNat * v2 bh bl := by
-  unfold v2 mul2h at *
-  have hm := Nat.div_add_mod (q.toNat * bl.toNat) (2 ^ 64)
-  rw [UInt64.toNat_add, UInt64.toNat_mul, UInt64.toNat_mulh, UInt64.toNat_mul]
-  have : q.toNat * bh.toNat * 2 ^ 64 + q.toNat * bl.toNat < 2 ^ 128 := by
-    rw [Nat.mul_add, ← Nat.mul_assoc] at h; exact h
-  have : q.toNat * bh.toNat < 2 ^ 64 := by
-    rcases Nat.lt_or_ge (q.toNat * bh.toNat) (2 ^ 64) with e | e
-    · exact e
-    · exfalso
-      have := Nat.mul_le_mul_right (2 ^ 64) e
-      lia
-  rw [Nat.mod_eq_of_lt (a := q.toNat * bh.toNat) this]
-  have : q.toNat * bh.toNat + q.toNat * bl.toNat / 2 ^ 64 < 2 ^ 64 := by
-    rcases Nat.lt_or_ge (q.toNat * bh.toNat + q.toNat * bl.toNat / 2 ^ 64) (2 ^ 64) with e | e
-    · exact e
-    · exfalso
-      have := Nat.mul_le_mul_right (2 ^ 64) e
-      lia
-  rw [Nat.mod_eq_of_lt this]
-  lia
-
-/-- A step of `gcd2`: `a = (a - q b) + q b` with `q ≥ 1`. -/
-private theorem v2_step (ah al bh bl : UInt64) (h : ¬lt2 ah al bh bl = true) :
-    v2 (sub2h ah al (mul2h (q2 ah bh) bh bl) (q2 ah bh * bl)) (al - q2 ah bh * bl) +
-      (q2 ah bh).toNat * v2 bh bl = v2 ah al ∧ 1 ≤ (q2 ah bh).toNat := by
-  rw [lt2_iff] at h
-  have hle : v2 bh bl ≤ v2 ah al := Nat.le_of_not_lt h
-  obtain ⟨hq, h1⟩ := q2_mul_le ah al bh bl hle
-  have h128 : v2 ah al < 2 ^ 128 := by
-    unfold v2; have := ah.toNat_lt; have := al.toNat_lt; lia
-  have hm := v2_mul (q2 ah bh) bh bl (Nat.lt_of_le_of_lt hq h128)
-  have hq' : v2 (mul2h (q2 ah bh) bh bl) (q2 ah bh * bl) ≤ v2 ah al := by rw [hm]; exact hq
-  rw [v2_sub _ _ _ _ hq', hm]
-  exact ⟨Nat.sub_add_cancel hq, h1⟩
-
-/--
-The greatest common divisor of `ah β + al` and `bh β + bl` by Euclid's algorithm on pairs of words,
-like GMP's `mpn_gcd_22`: steps `a - q b` with the estimate `q2` of the quotient, which is never too
-large, until `b` fits in a word, then one remainder by `UInt64.div2` and `wordGcd`.
--/
-def gcd2 (ah al bh bl : UInt64) : UInt64Array :=
-  if bh = 0 then
-    if bl = 0 then (UInt64Array.replicate 2 al).set! 1 ah
-    else UInt64Array.replicate 1 (wordGcd bl (al - UInt64.div2 (ah % bl) al bl * bl))
-  else if _h : lt2 ah al bh bl then gcd2 bh bl ah al
-  else
-    let q := q2 ah bh
-    gcd2 bh bl (sub2h ah al (mul2h q bh bl) (q * bl)) (al - q * bl)
-termination_by v2 ah al + v2 bh bl + (if v2 ah al < v2 bh bl then 1 else 0)
-decreasing_by
-  · rw [lt2_iff] at _h
-    generalize v2 ah al = A at *
-    generalize v2 bh bl = B at *
-    split <;> (try split) <;> lia
-  · rename_i hb
-    obtain ⟨e, h1⟩ := v2_step ah al bh bl _h
-    have hpos : 2 ^ 64 ≤ v2 bh bl := by
-      have : bh.toNat ≠ 0 := fun e => hb (UInt64.toNat_inj.1 (by rw [e]; rfl))
-      unfold v2; lia
-    have hb1 : v2 bh bl ≤ (q2 ah bh).toNat * v2 bh bl := Nat.le_mul_of_pos_left _ h1
-    rw [lt2_iff] at _h
-    generalize v2 (sub2h ah al (mul2h (q2 ah bh) bh bl) (q2 ah bh * bl)) (al - q2 ah bh * bl) = R at *
-    generalize v2 ah al = A at *
-    generalize v2 bh bl = B at *
-    generalize (q2 ah bh).toNat * B = P at *
-    split <;> lia
-
-private theorem toNat_pair (h l : UInt64) :
-    ((UInt64Array.replicate 2 l).set! 1 h).toNat = v2 h l := by
-  simp [toNat_eq_valAt, valAt_succ, v2]
-  lia
-
-private theorem toNat_gcd2 (ah al bh bl : UInt64) :
-    (gcd2 ah al bh bl).toNat = Nat.gcd (v2 ah al) (v2 bh bl) := by
-  induction ah, al, bh, bl using gcd2.induct with
-  | case1 ah al =>
-    rw [gcd2, ite_eq_left rfl, ite_eq_left rfl, toNat_pair]
-    simp [v2]
-  | case2 ah al bl hl =>
-    rw [gcd2, ite_eq_left rfl, ite_eq_right hl]
-    have hl' : 0 < bl.toNat := Nat.pos_of_ne_zero fun e => hl (UInt64.toNat_inj.1 (by rw [e]; rfl))
-    have hr := (UInt64.toNat_div2_rem (ah % bl) al bl
-      (by rw [UInt64.toNat_mod]; exact Nat.mod_lt _ hl')).1
-    simp only [toNat_eq_valAt, UInt64Array.size_replicate, valAt_one]
-    simp only [show v2 0 bl = bl.toNat by simp [v2]]
-    rw [show (UInt64Array.replicate 1 (wordGcd bl (al - UInt64.div2 (ah % bl) al bl * bl)))[0]! =
-      wordGcd bl (al - UInt64.div2 (ah % bl) al bl * bl) by simp, toNat_wordGcd, hr,
-      UInt64.toNat_mod, show (ah.toNat % bl.toNat * 2 ^ 64 + al.toNat) % bl.toNat =
-        v2 ah al % bl.toNat by unfold v2; simp [Nat.add_mod, Nat.mul_mod],
-      Nat.gcd_comm, ← Nat.gcd_rec, Nat.gcd_comm]
-  | case3 ah al bh bl hb h ih =>
-    rw [gcd2, ite_eq_right hb, dite_eq_left h, ih, Nat.gcd_comm]
-  | case4 ah al bh bl hb h q ih =>
-    simp only [q] at ih
-    rw [gcd2, ite_eq_right hb, dite_eq_right h, ih]
-    obtain ⟨e, -⟩ := v2_step ah al bh bl h
-    rw [← e, Nat.gcd_comm (_ + _), Nat.gcd_add_mul_right_right]
-
-private theorem toNat_small (x : UInt64Array) (h : x.size ≤ 1) :
-    x.toNat = (Num.limbAt x 0).toNat := by
-  rw [toNat_eq_valAt, Num.limbAt_eq]
-  rcases Nat.lt_or_ge x.size 1 with h0 | h0
-  · rw [show x.size = 0 by lia, valAt_zero, getElem!_neg x 0 (by lia)]; rfl
-  · rw [show x.size = 1 by lia, valAt_one]
-
-private theorem toNat_small2 (x : UInt64Array) (h : x.size ≤ 2) :
-    x.toNat = v2 (Num.limbAt x 1) (Num.limbAt x 0) := by
-  rw [Num.limbAt_eq, Num.limbAt_eq, v2]
-  rcases Nat.lt_or_ge x.size 2 with h1 | h1
-  · rw [toNat_small x (by lia), Num.limbAt_eq, getElem!_neg x 1 (by lia)]
-    change _ = 0 * 2 ^ 64 + _
-    lia
-  · rw [toNat_eq_valAt, show x.size = 2 by lia, valAt_succ, valAt_one]
-    lia
-
-/--
-The greatest common divisor by Lehmer's algorithm: Lehmer's step on the leading words, applied to
-the full numbers when it is valid and makes them smaller, and otherwise one step of Euclid's
-algorithm; on words when both numbers have at most one limb, and on pairs of words (`gcd2`) when
-they have at most two.
--/
-public def gcdLehmer (x y : UInt64Array) : UInt64Array :=
-  if x.size ≤ 1 ∧ y.size ≤ 1 then
-    UInt64Array.replicate 1 (wordGcd (Num.limbAt x 0) (Num.limbAt y 0))
-  else if x.size ≤ 2 ∧ y.size ≤ 2 then
-    gcd2 (Num.limbAt x 1) (Num.limbAt x 0) (Num.limbAt y 1) (Num.limbAt y 0)
-  else if _h : ops64.le y zeroA = true then x
-  else if ops64.le y x = false then gcdLehmer y (modN x y)
-  else
-    match lehmerStep x y with
-    | some p => if _hy : ops64.le y p.2 = false then gcdLehmer p.1 p.2 else gcdLehmer y (modN x y)
-    | none => gcdLehmer y (modN x y)
-termination_by y.toNat
-decreasing_by
-  all_goals first
-    | (rw [← Bool.not_eq_true, ops64.le_iff] at _hy; simp only [ops64_val] at _hy; lia)
-    | (rw [ops64.le_iff] at _h
-       simp only [ops64_val, toNat_zeroA] at _h
-       rw [toNat_modN _ _ (by lia)]
-       exact Nat.mod_lt _ (by lia))
-
-private theorem ne_zero_of (y : UInt64Array) (h : ¬ops64.le y zeroA = true) :
-    y.toNat ≠ 0 := by
-  rw [ops64.le_iff] at h
-  simp only [ops64_val, toNat_zeroA] at h
-  lia
-
-private theorem gcd_mod_step (x y : UInt64Array) (hy : y.toNat ≠ 0) :
-    Nat.gcd y.toNat (modN x y).toNat = Nat.gcd x.toNat y.toNat := by
-  rw [toNat_modN _ _ hy, Nat.gcd_comm x.toNat y.toNat, Nat.gcd_rec y.toNat x.toNat, Nat.gcd_comm]
-
-public theorem toNat_gcdLehmer (x y : UInt64Array) :
-    (gcdLehmer x y).toNat = Nat.gcd x.toNat y.toNat := by
-  induction x, y using gcdLehmer.induct with
-  | case1 x y hs =>
-    rw [gcdLehmer, ite_eq_left hs, toNat_small x hs.1, toNat_small y hs.2, ← toNat_wordGcd]
-    simp [toNat_eq_valAt]
-  | case2 x y hs hs2 =>
-    rw [gcdLehmer, ite_eq_right hs, ite_eq_left hs2, toNat_gcd2, ← toNat_small2 x hs2.1,
-      ← toNat_small2 y hs2.2]
-  | case3 x y hs hs2 h =>
-    rw [gcdLehmer, ite_eq_right hs, ite_eq_right hs2, dite_eq_left_of_eq_true (eq_true h)]
-    rw [ops64.le_iff] at h
-    simp only [ops64_val, toNat_zeroA] at h
-    rw [show y.toNat = 0 by lia, Nat.gcd_zero_right]
-  | case4 x y hs hs2 h hlt ih =>
-    rw [gcdLehmer, ite_eq_right hs, ite_eq_right hs2, dite_eq_right h, ite_eq_left hlt, ih,
-      gcd_mod_step _ _ (ne_zero_of y h)]
-  | case5 x y hs hs2 h hlt p hp hy ih =>
-    rw [gcdLehmer, ite_eq_right hs, ite_eq_right hs2, dite_eq_right h, ite_eq_right hlt]
-    simp only [hp, dite_eq_left_of_eq_true (eq_true hy), ih]
-    exact gcd_lehmerStep x y p hp
-  | case6 x y hs hs2 h hlt p hp hy ih =>
-    rw [gcdLehmer, ite_eq_right hs, ite_eq_right hs2, dite_eq_right h, ite_eq_right hlt]
-    simp only [hp, dite_eq_right_of_eq_false (eq_false hy), ih,
-      gcd_mod_step _ _ (ne_zero_of y h)]
-  | case7 x y hs hs2 h hlt hp ih =>
-    rw [gcdLehmer, ite_eq_right hs, ite_eq_right hs2, dite_eq_right h, ite_eq_right hlt]
-    simp only [hp, ih, gcd_mod_step _ _ (ne_zero_of y h)]
 
 /-! ## Half-gcd -/
 
@@ -720,64 +437,12 @@ private theorem baseW_ok (s : Nat) (a b : UInt64Array) : ops64.HgcdOK a b (baseW
 /-- The size up to which half-gcd computes its matrices by Lehmer's steps alone. -/
 public def hgcdBase : Nat := 128
 
-/-- One reduction by half-gcd (`NatOps.hgcdReduce`), on the larger number first. -/
-def hgcdOrd (x y : UInt64Array) : UInt64Array × UInt64Array :=
-  if ops64.le y x then ops64.hgcdReduce baseW hgcdBase x y
-  else ops64.hgcdReduce baseW hgcdBase y x
+/-- One reduction of `x ≥ y` by half-gcd (`NatOps.hgcdReduce`). -/
+public def hgcd64 (x y : UInt64Array) : UInt64Array × UInt64Array :=
+  ops64.hgcdReduce baseW hgcdBase x y
 
-private theorem gcd_hgcdOrd (x y : UInt64Array) :
-    Nat.gcd (hgcdOrd x y).1.toNat (hgcdOrd x y).2.toNat = Nat.gcd x.toNat y.toNat := by
-  unfold hgcdOrd
-  split
-  · exact ops64.gcd_hgcdReduce _ baseW_ok hgcdBase x y
-  · have := ops64.gcd_hgcdReduce _ baseW_ok hgcdBase y x
-    simp only [ops64_val] at this
-    rw [this, Nat.gcd_comm]
-
-/-- The smaller of two numbers. -/
-def minN (x y : UInt64Array) : UInt64Array := if ops64.le x y then x else y
-
-private theorem toNat_minN_le (x y : UInt64Array) : (minN x y).toNat ≤ y.toNat := by
-  unfold minN
-  split
-  · rename_i h; rw [ops64.le_iff] at h; exact h
-  · exact Nat.le_refl _
-
-/--
-The greatest common divisor: from `half` limbs in the smaller number, reductions by half-gcd while
-they make it smaller, and Lehmer's algorithm (`gcdLehmer`) below and otherwise.
--/
-public def gcdWith (half : Nat) (x y : UInt64Array) : UInt64Array :=
-  if half ≤ (minN x y).size then
-    let p := hgcdOrd x y
-    if _hy : ops64.le (minN x y) p.2 = false then gcdWith half p.1 p.2 else gcdLehmer x y
-  else gcdLehmer x y
-termination_by y.toNat
-decreasing_by
-  rw [← Bool.not_eq_true, ops64.le_iff] at _hy
-  simp only [ops64_val] at _hy
-  have := toNat_minN_le x y
-  lia
-
-public theorem toNat_gcdWith (half : Nat) (x y : UInt64Array) :
-    (gcdWith half x y).toNat = Nat.gcd x.toNat y.toNat := by
-  induction x, y using gcdWith.induct half with
-  | case1 x y h p hy ih =>
-    rw [gcdWith, ite_eq_left h]
-    simp only [p] at hy ih
-    rw [dite_eq_left_of_eq_true (eq_true hy), ih, gcd_hgcdOrd]
-  | case2 x y h p hy =>
-    rw [gcdWith, ite_eq_left h]
-    simp only [p] at hy
-    rw [dite_eq_right_of_eq_false (eq_false hy), toNat_gcdLehmer]
-  | case3 x y h =>
-    rw [gcdWith, ite_eq_right h, toNat_gcdLehmer]
-
-/-- `Nat.gcd a.toNat b.toNat`. -/
-public def Num.gcd (a b : UInt64Array) : UInt64Array := gcdWith config.gcdHalf a b
-
-@[simp] public theorem Num.toNat_gcd (a b : UInt64Array) :
-    (Num.gcd a b).toNat = Nat.gcd a.toNat b.toNat :=
-  toNat_gcdWith ..
+public theorem gcd_hgcd64 (x y : UInt64Array) :
+    Nat.gcd (hgcd64 x y).1.toNat (hgcd64 x y).2.toNat = Nat.gcd x.toNat y.toNat :=
+  ops64.gcd_hgcdReduce _ baseW_ok hgcdBase x y
 
 end MPN
