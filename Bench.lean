@@ -104,6 +104,10 @@ def time {α β : Type} (f : α → α → β) (check : β → UInt64) (a b : α
 def checkArr (r : UInt64Array) : UInt64 := r.size.toUInt64 + r[0]!
 def checkPair (p : UInt64Array × UInt64) : UInt64 := checkArr p.1 + p.2
 def checkNat (n : Nat) : UInt64 := n.toUInt64
+def checkBig : MPN.Nat → UInt64
+  | .small w => w
+  | .large a _ => a.size.toUInt64 + a[0]!
+def checkStr (s : String) : UInt64 := s.utf8ByteSize.toUInt64
 
 /-- `x` with `w` characters, padded on the left. -/
 def pad (w : Nat) (s : String) : String := "".pushn ' ' (w - s.length) ++ s
@@ -156,7 +160,8 @@ def toNat (a : UInt64Array) : Nat := a.foldr (fun d n => n * 2 ^ 64 + d.toNat) 0
 def ops : List String :=
   ["add", "sub", "shl", "shr", "div1", "sbdiv", "div", "divmod", "sqrt", "mulmod", "gcd", "str", "parse",
     "mul1", "addmul1", "mul", "sqr", "kara", "toom", "kara2", "toom2", "fft", "fft2",
-    "auto", "ksqr", "fftsqr", "toomsqr", "autosqr", "mulref"]
+    "auto", "ksqr", "fftsqr", "toomsqr", "autosqr", "mulref", "badd", "bsub", "bmul", "bdiv",
+    "bgcd", "bshl", "bshr", "bsqrt", "btostr", "bofstr"]
 
 def main (args : List String) : IO Unit := do
   let noNat := args.contains "--no-nat"
@@ -173,6 +178,44 @@ def main (args : List String) : IO Unit := do
       let s := sample (n + 1) 3
       let ns := if noNat then 0 else toNat s
       match op with
+      | "badd" =>
+        let (x, y) := (MPN.Nat.ofNat na, MPN.Nat.ofNat nb)
+        row noNat op n (time (· + ·) checkBig x y) (time (· + ·) checkNat na nb)
+      | "bsub" =>
+        let (x, y) := (MPN.Nat.ofNat ns, MPN.Nat.ofNat nb)
+        row noNat op n (time (· - ·) checkBig x y) (time (· - ·) checkNat ns nb)
+      | "bmul" =>
+        let (x, y) := (MPN.Nat.ofNat na, MPN.Nat.ofNat nb)
+        row noNat op n (time (· * ·) checkBig x y) (time (· * ·) checkNat na nb)
+      | "bdiv" =>
+        -- `2 n` by `n` limbs.
+        let na2 := toNat (sample (2 * n) 4)
+        let (x, y) := (MPN.Nat.ofNat na2, MPN.Nat.ofNat nb)
+        row noNat op n (time (· / ·) checkBig x y) (time (· / ·) checkNat na2 nb)
+      | "bgcd" =>
+        let (x, y) := (MPN.Nat.ofNat na, MPN.Nat.ofNat nb)
+        row noNat op n (time MPN.Nat.gcd checkBig x y) (time Nat.gcd checkNat na nb)
+      | "bshl" =>
+        let x := MPN.Nat.ofNat na
+        row noNat op n (time (fun (x : MPN.Nat) _ => x <<< (37 : Nat)) checkBig x x)
+          (time (fun x _ => x <<< 37) checkNat na na)
+      | "bshr" =>
+        let x := MPN.Nat.ofNat na
+        row noNat op n (time (fun (x : MPN.Nat) _ => x >>> (37 : Nat)) checkBig x x)
+          (time (fun x _ => x >>> 37) checkNat na na)
+      | "bsqrt" =>
+        let na2 := toNat (sample (2 * n) 4)
+        let x := MPN.Nat.ofNat na2
+        row noNat op n (time (fun x _ => MPN.Nat.sqrt x) checkBig x x)
+          (time (fun x _ => Nat.sqrt x) checkNat na2 na2)
+      | "btostr" =>
+        let x := MPN.Nat.ofNat na
+        row noNat op n (time (fun (x : MPN.Nat) _ => toString x) checkStr x x)
+          (time (fun (x : Nat) _ => toString x) checkStr na na)
+      | "bofstr" =>
+        let t := toString na
+        row noNat op n (time (fun t _ => MPN.Nat.ofString? t) (fun r => checkBig r.get!) t t)
+          (time (fun t _ => t.toNat?) (fun r => checkNat r.get!) t t)
       | "add" =>
         row noNat op n
           (time (fun (x y : UInt64Array) =>
