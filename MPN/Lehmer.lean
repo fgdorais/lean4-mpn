@@ -5,14 +5,16 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN.Generic.Ops64
+public import MPN.LinComb
 
 /-!
 # The kernel of Lehmer's step
 
-`mulSubMul x y a b` is `a x - b y` in one pass over the limbs, like `main`'s `mulSubMul` and GMP's
-`mpn_hgcd_mul_matrix1_vector`, or `none` when it is negative: each limb adds `a xᵢ`, subtracts
-`b yᵢ`, and carries a signed word (`sval`) to the next. `mulAddMul x y a b` is `a x + b y` in the
-same way, for the entries of the matrices of half-gcd.
+`mulSubMul x y a b` is `a x - b y` in one pass over the limbs, `main`'s `LinComb.mulSubMul` on
+`UInt64Array`, like GMP's `mpn_hgcd_mul_matrix1_vector`, or `none` when it is negative: each limb
+adds `a xᵢ`, subtracts `b yᵢ`, and carries a signed word (`sval`) to the next (`msWord`).
+`mulAddMul x y a b` is `a x + b y` in the same way (`maWord`), for the entries of the matrices of
+half-gcd. The steps and their values are the instance `linComb64` of `main`'s `LinCombOps`.
 -/
 
 open ScalarArray UInt64Array
@@ -138,127 +140,6 @@ private theorem msWord_spec (xi yi a b s : UInt64) (ha : a.toNat < 2 ^ 62) (hb :
   refine ⟨?_, by lia, by lia⟩
   lia
 
-/-! ## The pass -/
-
-/-- The step of `mulSubMul`: limb `j` of `a x - b y` with the signed carry `s`. -/
-@[inline, expose] public def msStep (x y : UInt64Array) (a b : UInt64) (n : USize) (j : USize)
-    (_h : j < n) (_z s : UInt64) : UInt64 × UInt64 :=
-  msWord (Num.limbAt x j.toNat) (Num.limbAt y j.toNat) a b s
-
-private theorem ms_spec (x y : UInt64Array) (a b : UInt64) (ha : a.toNat < 2 ^ 62)
-    (hb : b.toNat < 2 ^ 62) (n : USize) (arr : UInt64Array) (rs : USize)
-    (hr : LoopBound arr rs n) (j : USize) (s : UInt64)
-    (hs : -2 ^ 62 - 2 ≤ sval s ∧ sval s ≤ 2 ^ 62 + 1) :
-    (foldUInPlace n (msStep x y a b n) arr rs hr j s).1.size = arr.size ∧
-      (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
-        (foldUInPlace n (msStep x y a b n) arr rs hr j s).1[i]! = arr[i]!) ∧
-      ((foldUInPlace n (msStep x y a b n) arr rs hr j s).1.valAt (rs.toNat + j.toNat)
-          (n.toNat - j.toNat) : Int) +
-          2 ^ (64 * (n.toNat - j.toNat)) *
-            sval (foldUInPlace n (msStep x y a b n) arr rs hr j s).2 =
-        a.toNat * x.valAt j.toNat (n.toNat - j.toNat) -
-          b.toNat * y.valAt j.toNat (n.toNat - j.toNat) + sval s ∧
-      -2 ^ 62 - 2 ≤ sval (foldUInPlace n (msStep x y a b n) arr rs hr j s).2 ∧
-        sval (foldUInPlace n (msStep x y a b n) arr rs hr j s).2 ≤ 2 ^ 62 + 1 := by
-  induction arr, hr, j, s using foldUInPlace.induct n (msStep x y a b n) rs with
-  | case1 arr hr j s h p ih =>
-    rw [foldUInPlace_lt _ _ _ _ _ _ _ h]
-    have hj := USize.lt_iff_toNat_lt.1 h
-    have hj₁ := USize.toNat_add_one_of_lt h
-    have hidx := hr.toNat_add h
-    obtain ⟨m₁, m₂, m₃⟩ := msWord_spec (Num.limbAt x j.toNat) (Num.limbAt y j.toNat) a b s ha hb
-      hs
-    obtain ⟨ih₁, ih₂, ih₃, ih₄⟩ := ih ⟨m₂, m₃⟩
-    simp only [p, msStep] at ih₁ ih₂ ih₃ ih₄ ⊢
-    rw [hj₁] at ih₂ ih₃
-    simp only [UInt64Array.size_uset] at ih₁
-    have hv := ih₂ (rs.toNat + j.toNat) (.inl (by lia))
-    rw [getElem!_uset, hidx] at hv
-    simp only [↓reduceIte] at hv
-    refine ⟨ih₁, fun i hi => ?_, ?_, ih₄⟩
-    · rw [ih₂ i (by lia), getElem!_uset]
-      simp only [hidx]
-      split <;> lia
-    · obtain ⟨k, hk⟩ : ∃ k, n.toNat - j.toNat = k + 1 := ⟨n.toNat - j.toNat - 1, by lia⟩
-      rw [show n.toNat - (j.toNat + 1) = k by lia, ← Nat.add_assoc] at ih₃
-      rw [hk, UInt64Array.valAt_succ, UInt64Array.valAt_succ, UInt64Array.valAt_succ, hv,
-        ← Num.limbAt_eq, ← Num.limbAt_eq, Nat.mul_succ]
-      simp only [Int.natCast_add, Int.natCast_mul, Int.natCast_pow, Int.pow_add] at ih₃ m₁ ⊢
-      generalize (foldUInPlace (β := UInt64) _ _ _ _ _ _ _).1.valAt _ _ = R at *
-      generalize sval (foldUInPlace (β := UInt64) _ _ _ _ _ _ _).2 = c' at *
-      generalize sval (msWord _ _ a b s).2 = c₁ at *
-      generalize (msWord _ _ a b s).1.toNat = o at *
-      generalize x.valAt _ k = X at *
-      generalize y.valAt _ k = Y at *
-      generalize (Num.limbAt x j.toNat).toNat = xi at *
-      generalize (Num.limbAt y j.toNat).toNat = yi at *
-      generalize 2 ^ (64 * k) = P at *
-      generalize sval s = σ at *
-      generalize a.toNat = A at *
-      generalize b.toNat = B at *
-      grind
-  | case2 arr hr j s h =>
-    rw [foldUInPlace_ge _ _ _ _ _ _ _ h]
-    have : n.toNat - j.toNat = 0 := by have := USize.lt_iff_toNat_lt (a := j) (b := n); lia
-    refine ⟨rfl, fun _ _ => rfl, by simp [this], hs⟩
-
-private theorem ms_bound {n : Nat} (h : fits (n + 2) = true) :
-    LoopBound (UInt64Array.replicate (n + 1) 0) 0 n.toUSize := by
-  have := lt_of_fits h
-  have hn : n.toUSize.toNat = n := USize.toNat_ofNat_of_lt' (by lia)
-  constructor <;> simp [hn] <;> lia
-
-/--
-`a x - b y` for `a, b < 2⁶²`, or `none` when it is negative, in one pass over the limbs
-(`msStep`).
--/
-public def mulSubMul (x y : UInt64Array) (a b : UInt64) : Option UInt64Array :=
-  let n := max x.size y.size
-  if h : fits (n + 2) = true then
-    foldUInPlaceThen n.toUSize (msStep x y a b n.toUSize) (UInt64Array.replicate (n + 1) 0) 0
-      (ms_bound h) 0 0 fun arr _ s =>
-        if s < 0x8000000000000000 then some (arr.set! n s) else none
-  else if b.toNat * y.toNat ≤ a.toNat * x.toNat then
-    some (ofNat (a.toNat * x.toNat - b.toNat * y.toNat))
-  else none
-
-public theorem toNat_mulSubMul (x y : UInt64Array) (a b : UInt64) (ha : a.toNat < 2 ^ 62)
-    (hb : b.toNat < 2 ^ 62) (r : UInt64Array) (h : mulSubMul x y a b = some r) :
-    (r.toNat : Int) = a.toNat * x.toNat - b.toNat * y.toNat := by
-  unfold mulSubMul at h
-  dsimp only at h
-  split at h
-  · rename_i hf
-    have hS := lt_of_fits hf
-    have hn : (max x.size y.size).toUSize.toNat = max x.size y.size :=
-      USize.toNat_ofNat_of_lt' (by lia)
-    rw [foldUInPlaceThen_eq] at h
-    obtain ⟨f₁, -, f₃, -⟩ := ms_spec x y a b ha hb _ _ 0 (ms_bound hf) 0 0 (by simp [sval])
-    simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, hn] at f₁ f₃
-    rw [Num.valAt_ge x _ (by lia), Num.valAt_ge y _ (by lia)] at f₃
-    generalize foldUInPlace _ (msStep x y a b _) _ 0 _ 0 0 = F at f₁ f₃ h
-    split at h
-    · rename_i hs
-      rw [Option.some.injEq] at h
-      subst h
-      have hsv : sval F.2 = F.2.toNat := by
-        unfold sval; rw [ite_eq_left (by rw [UInt64.lt_iff_toNat_lt] at hs; simpa using hs)]
-      have hsz : F.1.size = max x.size y.size + 1 := by rw [f₁]; simp
-      rw [toNat_eq_valAt, size_set!, hsz, UInt64Array.valAt_add, valAt_one, Nat.zero_add,
-        getElem!_set!_self _ _ _ (by lia),
-        valAt_congr (b := F.1) _ fun i _ hi => getElem!_set!_of_ne _ _ (by lia)]
-      have h0 : sval 0 = 0 := by simp [sval]
-      rw [hsv, h0] at f₃
-      rw [Int.natCast_add, Int.natCast_mul, Int.natCast_pow]
-      lia
-    · exact absurd h (by simp)
-  · split at h
-    · rename_i _ hle
-      rw [Option.some.injEq] at h
-      subst h
-      rw [toNat_ofNat, Int.ofNat_sub hle, Int.natCast_mul, Int.natCast_mul]
-    · exact absurd h (by simp)
-
 /-! ## Sums -/
 
 /-- One limb of `a x + b y`: the low word of `a xᵢ + b yᵢ + c`, and the carry out. -/
@@ -319,92 +200,87 @@ private theorem maWord_spec (xi yi a b c : UInt64) (ha : a.toNat < 2 ^ 62) (hb :
     have : 2 ^ 64 * (ph.toNat + qh.toNat + k₁ + k₂) ≤ P + Q + c.toNat := by lia
     lia
 
-/-- The step of `mulAddMul`: limb `j` of `a x + b y` with the carry `c`. -/
-@[inline, expose] public def maStep (x y : UInt64Array) (a b : UInt64) (n : USize) (j : USize)
-    (_h : j < n) (_z c : UInt64) : UInt64 × UInt64 :=
-  maWord (Num.limbAt x j.toNat) (Num.limbAt y j.toNat) a b c
+/-! ## The passes -/
 
-private theorem ma_spec (x y : UInt64Array) (a b : UInt64) (ha : a.toNat < 2 ^ 62)
-    (hb : b.toNat < 2 ^ 62) (n : USize) (arr : UInt64Array) (rs : USize)
-    (hr : LoopBound arr rs n) (j : USize) (c : UInt64) (hc : c.toNat ≤ 2 ^ 63) :
-    (foldUInPlace n (maStep x y a b n) arr rs hr j c).1.size = arr.size ∧
-      (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
-        (foldUInPlace n (maStep x y a b n) arr rs hr j c).1[i]! = arr[i]!) ∧
-      (foldUInPlace n (maStep x y a b n) arr rs hr j c).1.valAt (rs.toNat + j.toNat)
-          (n.toNat - j.toNat) +
-          2 ^ (64 * (n.toNat - j.toNat)) *
-            (foldUInPlace n (maStep x y a b n) arr rs hr j c).2.toNat =
-        a.toNat * x.valAt j.toNat (n.toNat - j.toNat) +
-          b.toNat * y.valAt j.toNat (n.toNat - j.toNat) + c.toNat ∧
-      (foldUInPlace n (maStep x y a b n) arr rs hr j c).2.toNat ≤ 2 ^ 63 := by
-  induction arr, hr, j, c using foldUInPlace.induct n (maStep x y a b n) rs with
-  | case1 arr hr j c h p ih =>
-    rw [foldUInPlace_lt _ _ _ _ _ _ _ h]
-    have hj := USize.lt_iff_toNat_lt.1 h
-    have hj₁ := USize.toNat_add_one_of_lt h
-    have hidx := hr.toNat_add h
-    obtain ⟨m₁, m₂⟩ := maWord_spec (Num.limbAt x j.toNat) (Num.limbAt y j.toNat) a b c ha hb hc
-    obtain ⟨ih₁, ih₂, ih₃, ih₄⟩ := ih m₂
-    simp only [p, maStep] at ih₁ ih₂ ih₃ ih₄ ⊢
-    rw [hj₁] at ih₂ ih₃
-    simp only [UInt64Array.size_uset] at ih₁
-    have hv := ih₂ (rs.toNat + j.toNat) (.inl (by lia))
-    rw [getElem!_uset, hidx] at hv
-    simp only [↓reduceIte] at hv
-    refine ⟨ih₁, fun i hi => ?_, ?_, ih₄⟩
-    · rw [ih₂ i (by lia), getElem!_uset]
-      simp only [hidx]
-      split <;> lia
-    · obtain ⟨k, hk⟩ : ∃ k, n.toNat - j.toNat = k + 1 := ⟨n.toNat - j.toNat - 1, by lia⟩
-      rw [show n.toNat - (j.toNat + 1) = k by lia, ← Nat.add_assoc] at ih₃
-      rw [hk, UInt64Array.valAt_succ, UInt64Array.valAt_succ, UInt64Array.valAt_succ, hv,
-        ← Num.limbAt_eq, ← Num.limbAt_eq, Nat.mul_succ, Nat.pow_add]
-      generalize (foldUInPlace (β := UInt64) _ _ _ _ _ _ _).1.valAt _ _ = R at *
-      generalize (foldUInPlace (β := UInt64) _ _ _ _ _ _ _).2.toNat = c' at *
-      generalize (maWord _ _ a b c).2.toNat = c₁ at *
-      generalize (maWord _ _ a b c).1.toNat = o at *
-      generalize x.valAt _ k = X at *
-      generalize y.valAt _ k = Y at *
-      generalize (Num.limbAt x j.toNat).toNat = xi at *
-      generalize (Num.limbAt y j.toNat).toNat = yi at *
-      generalize 2 ^ (64 * k) = P at *
-      generalize a.toNat = A at *
-      generalize b.toNat = B at *
-      grind
-  | case2 arr hr j c h =>
-    rw [foldUInPlace_ge _ _ _ _ _ _ _ h]
-    have : n.toNat - j.toNat = 0 := by have := USize.lt_iff_toNat_lt (a := j) (b := n); lia
-    refine ⟨rfl, fun _ _ => rfl, by simp [this], hc⟩
+/-- The steps of `main`'s linear combinations on `UInt64Array`, by `msWord` and `maWord`. -/
+public instance linComb64 : LinCombOps UInt64Array UInt64 where
+  cb := 62
+  cb_lt := by decide
+  zeros n := UInt64Array.replicate n 0
+  size_zeros n := UInt64Array.size_replicate ..
+  val_get_ge a i h := by
+    show a[i]!.toNat = 0
+    rw [getElem!_neg a i (Nat.not_lt.2 h)]; rfl
+  limb := Num.limbAt
+  val_limb a i := congrArg UInt64.toNat (Num.limbAt_eq a i)
+  maC := maWord
+  cOK c := c.toNat ≤ 2 ^ 63
+  cOK_zero := by decide
+  val_maC xi yi a b c ha hb hc := by
+    exact maWord_spec xi yi a b c ha hb hc
+  msC := msWord
+  sv := sval
+  sOK s := -2 ^ 62 - 2 ≤ sval s ∧ sval s ≤ 2 ^ 62 + 1
+  s0 := 0
+  sOK_s0 := by simp [sval]
+  sv_s0 := by simp [sval]
+  val_msC xi yi a b s ha hb hs := by
+    exact msWord_spec xi yi a b s ha hb hs
+  sNeg s := !decide (s < 0x8000000000000000)
+  sNeg_iff s _ := by
+    have := s.toNat_lt
+    simp only [Bool.not_eq_true', decide_eq_false_iff_not, UInt64.lt_iff_toNat_lt,
+      UInt64.reduceToNat, Nat.not_lt, sval]
+    split <;> lia
+  sTop s := s
+  val_sTop s _ hs := by
+    show (s.toNat : Int) = sval s
+    have := s.toNat_lt
+    by_cases h : s.toNat < 2 ^ 63
+    · simp [sval, h]
+    · exfalso
+      simp only [sval, h, ↓reduceIte] at hs
+      lia
 
-/-- `a x + b y` for `a, b < 2⁶²`, in one pass over the limbs (`maStep`), in `max` sizes `+ 1`. -/
+/--
+`a x - b y` for `a, b < 2⁶²`, or `none` when it is negative, in one pass over the limbs: `main`'s
+`LinComb.mulSubMul`.
+-/
+public def mulSubMul (x y : UInt64Array) (a b : UInt64) : Option UInt64Array :=
+  let p := LinComb.mulSubMul x y a b
+  if p.2 then none else some p.1
+
+public theorem toNat_mulSubMul (x y : UInt64Array) (a b : UInt64) (ha : a.toNat < 2 ^ 62)
+    (hb : b.toNat < 2 ^ 62) (r : UInt64Array) (h : mulSubMul x y a b = some r) :
+    (r.toNat : Int) = a.toNat * x.toNat - b.toNat * y.toNat := by
+  unfold mulSubMul at h
+  obtain ⟨s₁, s₂, -⟩ := LinComb.mulSubMul_spec x y a b ha hb
+  dsimp only at h
+  split at h
+  · exact absurd h (by simp)
+  · rename_i hn
+    rw [Option.some.injEq] at h
+    subst h
+    have e := s₂ (by simpa using hn)
+    have e' : (LinComb.mulSubMul x y a b).1.toNat + b.toNat * y.toNat = a.toNat * x.toNat := by
+      rw [toNat_eq_valAt, show (LinComb.mulSubMul x y a b).1.size = max x.size y.size + 1 from s₁,
+        toNat_eq_valAt x, toNat_eq_valAt y]
+      exact e
+    have : ((LinComb.mulSubMul x y a b).1.toNat : Int) + b.toNat * y.toNat = a.toNat * x.toNat := by
+      exact_mod_cast e'
+    lia
+
+/-- `a x + b y` for `a, b < 2⁶²`, in one pass over the limbs, in `max` sizes `+ 1`: `main`'s
+`LinComb.mulAddMul`. -/
 public def mulAddMul (x y : UInt64Array) (a b : UInt64) : UInt64Array :=
-  let n := max x.size y.size
-  if h : fits (n + 2) = true then
-    foldUInPlaceThen n.toUSize (maStep x y a b n.toUSize) (UInt64Array.replicate (n + 1) 0) 0
-      (ms_bound h) 0 0 fun arr _ c => arr.set! n c
-  else ofNat (a.toNat * x.toNat + b.toNat * y.toNat)
+  LinComb.mulAddMul x y a b
 
 public theorem toNat_mulAddMul (x y : UInt64Array) (a b : UInt64) (ha : a.toNat < 2 ^ 62)
     (hb : b.toNat < 2 ^ 62) :
     (mulAddMul x y a b).toNat = a.toNat * x.toNat + b.toNat * y.toNat := by
-  unfold mulAddMul
-  dsimp only
-  split
-  · rename_i hf
-    have hS := lt_of_fits hf
-    have hn : (max x.size y.size).toUSize.toNat = max x.size y.size :=
-      USize.toNat_ofNat_of_lt' (by lia)
-    rw [foldUInPlaceThen_eq]
-    obtain ⟨f₁, -, f₃, -⟩ := ma_spec x y a b ha hb _ _ 0 (ms_bound hf) 0 0 (by simp)
-    simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, hn] at f₁ f₃
-    rw [Num.valAt_ge x _ (by lia), Num.valAt_ge y _ (by lia)] at f₃
-    generalize foldUInPlace _ (maStep x y a b _) _ 0 _ 0 0 = F at f₁ f₃
-    have hsz : F.1.size = max x.size y.size + 1 := by rw [f₁]; simp
-    rw [toNat_eq_valAt, size_set!, hsz, UInt64Array.valAt_add, valAt_one, Nat.zero_add,
-      getElem!_set!_self _ _ _ (by lia),
-      valAt_congr (b := F.1) _ fun i _ hi => getElem!_set!_of_ne _ _ (by lia)]
-    simp only [UInt64.toNat_zero, Nat.add_zero] at f₃
-    lia
-  · exact toNat_ofNat _
+  obtain ⟨s₁, s₂⟩ := LinComb.mulAddMul_spec x y a b ha hb
+  rw [mulAddMul, toNat_eq_valAt, show (LinComb.mulAddMul x y a b).size = _ from s₁,
+    toNat_eq_valAt x, toNat_eq_valAt y]
+  exact s₂
 
 end MPN
