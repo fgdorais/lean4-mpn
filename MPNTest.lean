@@ -475,9 +475,9 @@ def bigNatValues : List Nat :=
     let str := toString v
     let under := String.ofList ((str.toList.zip (List.range str.length)).flatMap fun (c, i) =>
       if i % 7 = 3 then ['_', c] else [c])
-    (MPN.Nat.ofStringWith 2 str).map MPN.Nat.toNat == some v &&
-      (MPN.Nat.ofStringWith 2 ("000" ++ str)).map MPN.Nat.toNat == some v &&
-      (MPN.Nat.ofStringWith 2 under).map MPN.Nat.toNat == under.toNat? &&
+    (MPN.Nat.ofStringWith 2 str).map (·.toNat) == some v &&
+      (MPN.Nat.ofStringWith 2 ("000" ++ str)).map (·.toNat) == some v &&
+      (MPN.Nat.ofStringWith 2 under).map (·.toNat) == under.toNat? &&
       (MPN.Nat.ofStringWith 2 (str ++ "x")).isNone
 
 -- Shifts, bitwise operations, `log2`, `sqrt` and `pow` against `Nat`.
@@ -502,11 +502,11 @@ def decimalValues : List Nat :=
 #guard decimalValues.all fun a =>
   let x := MPN.Nat.ofNat a
   toString x == toString a && reprStr x == reprStr a &&
-    (MPN.Nat.ofString? (toString a)).map MPN.Nat.toNat == some a
+    (MPN.Nat.ofString? (toString a)).map (·.toNat) == some a
 
 #guard ["", "_", "_1", "1_", "1__0", "abc", "12a", "-1", " 1", "000", "007", "1_000",
     "18446744073709551616", "18_446_744_073_709_551_615", "123456789012345678901234567890"].all
-  fun s => (MPN.Nat.ofString? s).map MPN.Nat.toNat == s.toNat?
+  fun s => (MPN.Nat.ofString? s).map (·.toNat) == s.toNat?
 
 -- Division by two limbs (`divRem2`): edge cases of the divisor and of the dividend.
 #guard
