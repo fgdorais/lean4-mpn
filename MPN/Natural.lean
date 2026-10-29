@@ -223,7 +223,7 @@ for each word first.
     have := Nat.mul_le_mul_left (2 ^ 64) (Nat.one_le_iff_ne_zero.2 this)
     lia⟩
 
-private theorem toNat_wideOf (lo hi : UInt64) :
+public theorem toNat_wideOf (lo hi : UInt64) :
     (wideOf lo hi : GNat A).toNat = lo.toNat + 2 ^ 64 * hi.toNat := by
   unfold wideOf
   split
