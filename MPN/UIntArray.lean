@@ -600,6 +600,20 @@ public instance wordArray64 : MPN.WordArray UInt64Array UInt64 where
   shr x b := x >>> b
   addh := UInt64.addh
   subh := UInt64.subh
+  mul x y := x * y
+  mulh := UInt64.mulh
+  div2 := UInt64.div2
+  ltB x y := decide (x < y)
+  eqB x y := x == y
+  land x y := x &&& y
+  ofBool b := b.toUInt64
+  subMulB z y x c :=
+    let p := y * x
+    let t := p + c
+    (z - t, UInt64.subh (UInt64.addh (y.mulh x) p c) z t)
+  unB h := h
+  b0 := 0
+  addC x y c := (x + y + c, UInt64.addh (UInt64.addh 0 x y) (x + y) c)
   isZero x := x == 0
   ofUSize i := i.toUInt64
   wU := 64
@@ -617,6 +631,37 @@ public instance wordArray64 : MPN.WordArray UInt64Array UInt64 where
     rw [UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow]
   val_addh := UInt64.toNat_addh
   val_subh := UInt64.toNat_subh
+  val_mul x y := UInt64.toNat_mul x y
+  val_mulh := UInt64.toNat_mulh
+  val_div2 h l d hd := UInt64.toNat_div2 h l d hd
+  val_unB_b0 := rfl
+  val_subMulB z y x c := by
+    show (z - (y * x + c)).toNat + y.toNat * x.toNat + c.toNat =
+      z.toNat + 2 ^ 64 * (UInt64.subh (UInt64.addh (y.mulh x) (y * x) c) z (y * x + c)).toNat
+    have : y.toNat * x.toNat ≤ (2 ^ 64 - 1) * (2 ^ 64 - 1) :=
+      Nat.mul_le_mul (by have := y.toNat_lt; lia) (by have := x.toNat_lt; lia)
+    have := c.toNat_lt; have := z.toNat_lt
+    simp only [UInt64.toNat_subh, UInt64.toNat_addh, UInt64.toNat_mulh, UInt64.toNat_add,
+      UInt64.toNat_sub, UInt64.toNat_mul]
+    generalize y.toNat * x.toNat = p at *
+    generalize c.toNat = c at *
+    generalize z.toNat = z at *
+    split <;> lia
+  val_addC x y c := by
+    show (x + y + c).toNat + 2 ^ 64 * (UInt64.addh (UInt64.addh 0 x y) (x + y) c).toNat =
+      x.toNat + y.toNat + c.toNat
+    have := x.toNat_lt; have := y.toNat_lt; have := c.toNat_lt
+    simp only [UInt64.toNat_addh, UInt64.toNat_add, UInt64.toNat_zero]
+    generalize x.toNat = x at *
+    generalize y.toNat = y at *
+    generalize c.toNat = c at *
+    lia
+  ltB_iff x y := by
+    show decide (x < y) = true ↔ x.toNat < y.toNat
+    rw [decide_eq_true_iff, UInt64.lt_iff_toNat_lt]
+  eqB_iff x y := by
+    show (x == y) = true ↔ x.toNat = y.toNat
+    rw [beq_iff_eq, UInt64.toNat_inj]
   isZero_iff x := by
     show (x == 0) = true ↔ x.toNat = 0
     rw [beq_iff_eq, ← UInt64.toNat_inj, UInt64.toNat_zero]
@@ -697,7 +742,19 @@ private theorem loop2_eq {β : Type} (n : USize)
   else g arr rfl b
 
 
-/-- `main`'s in-place loop over two windows on `UInt64Array`, by `foldlInPlace2Then`. -/
+/-- `main`'s plain in-place loop is the one of `UInt64Array`. -/
+private theorem foldUInPlace_main {β : Type} (n : USize)
+    (f : (j : USize) → j < n → UInt64 → β → UInt64 × β) (arr : UInt64Array) (rs : USize)
+    (hr : LoopBound arr rs n) (j : USize) (b : β) :
+    MPN.WordArray.foldUInPlace n f arr rs hr j b = foldUInPlace n f arr rs hr j b := by
+  induction arr, hr, j, b using foldUInPlace.induct n f rs with
+  | case1 arr hr j b h p ih =>
+    rw [MPN.WordArray.foldUInPlace, dite_eq_left_of_eq_true (eq_true h), foldUInPlace_lt _ _ _ _ _ _ _ h]
+    exact ih
+  | case2 arr hr j b h =>
+    rw [MPN.WordArray.foldUInPlace, dite_eq_right_of_eq_false (eq_false h), foldUInPlace_ge _ _ _ _ _ _ _ h]
+
+/-- `main`'s in-place loops on `UInt64Array`, by `foldlInPlaceRangeThen` and `foldlInPlace2Then`. -/
 public instance wordFolds64 : MPN.WordFolds UInt64Array UInt64 where
   fold2Then := foldUInPlace2ThenLib
   fold2Then_eq := by
@@ -712,6 +769,11 @@ public instance wordFolds64 : MPN.WordFolds UInt64Array UInt64 where
     · rename_i h
       exact (g_congr g (q := (arr, b))
         (by rw [MPN.WordArray.foldUInPlace2, dite_eq_right h]) _).symm
+  foldThen := foldUInPlaceThenLib
+  foldThen_eq := by
+    intro β γ n f arr rs hr j b g
+    rw [← foldUInPlaceThen_eq_lib, foldUInPlaceThen, MPN.WordArray.foldUInPlaceThen]
+    exact g_congr g (foldUInPlace_main n f arr rs hr j b).symm _
 
 /-- A sub-slice of a whole array, `toUSlice`. -/
 public theorem toUSlice_slice (a : UInt64Array) {i j : USize} (hij : i.toNat ≤ j.toNat)
