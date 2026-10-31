@@ -124,6 +124,17 @@ public theorem trimA_top (x : UInt64Array) (h : 1 ≤ x.size) :
     rw [trimA, dite_eq_right h₁]
     exact Or.inl (by lia)
 
+/-- `trimA x` has at most one limb or a nonzero top limb. -/
+public theorem trimA_trimmed (x : UInt64Array) :
+    (trimA x).size ≤ 1 ∨ (trimA x)[(trimA x).size - 1]! ≠ 0 := by
+  by_cases h : 1 ≤ x.size
+  · rcases trimA_top x h with e | ⟨-, e⟩
+    · exact .inl (by lia)
+    · exact .inr e
+  · have e : trimA x = x := by rw [trimA, dite_eq_right (by lia)]
+    rw [e]
+    exact .inl (by lia)
+
 /-! ## The instance -/
 
 /-- The value `1`. -/
