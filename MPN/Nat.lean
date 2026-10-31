@@ -442,102 +442,47 @@ public theorem divWord_eq (a : UInt32Array) (b : UInt64) : divWord a b = (divRem
   unfold divWord divRemWord
   split <;> simp [div2_eq]
 
-/-! ## Decimal strings -/
+/-! ## Decimal strings
 
-/-- The decimal digits of a slice by chunks of nine digits (`toDecimal`), `toDec`'s base case. -/
-public def decBase (x : UInt32Array.Slice) : String := toDecimal (trim x.copy) (isTrimmed_trim _)
+`main`'s `DecChunks.toDecimalWith` and `DecChunks.ofDecimalWith` on `ops32`, which converts this
+library's slices to arrays by copying them.
+-/
 
-private theorem decBase_spec (x : UInt32Array.Slice) :
-    (decBase x).toList = _root_.Nat.toDigits 10 (ops32.val x) := by
-  rw [decBase, toDecimal_eq, _root_.Nat.toList_repr, toNat_trim, toNat_copy, ops32_val]
-
-/-- The size below which divide and conquer writes digits by chunks (`decBase`). -/
+/-- The size below which divide and conquer writes digits by chunks. -/
 public def decBaseSize : Nat := 32
 
+/-- The size, in digits, below which divide and conquer reads digits by chunks. -/
+public def parseBaseSize : Nat := 300
+
+private theorem hto (x : UInt32Array.Slice) : DecChunks.vA x.copy = ops32.val x := by
+  rw [decVA_eq, ops32_val, toNat_copy]
+
+private theorem hof (a : UInt32Array) : ops32.val a.toSlice = DecChunks.vA a := by
+  rw [ops32_val, decVA_eq]
+
 /--
-The decimal digits of limbs: by chunks of nine digits below `strDC` limbs (`toDecimal`), and by
-divide and conquer from `strDC` limbs (`NatOps.toDec`), down to `decBaseSize` limbs.
+The decimal digits of limbs: by chunks of nine digits below `strDC` limbs, and by divide and
+conquer from `strDC` limbs (`NatOps.toDec`), down to `decBaseSize` limbs.
 -/
-public def toDecimalWith (strDC : Nat) (a : UInt32Array) (h : isTrimmed a = true) : String :=
-  if strDC ≤ a.size then ops32.toDec decBase decBaseSize a.toSlice else toDecimal a h
+public def toDecimalWith (strDC : Nat) (a : UInt32Array) (_h : isTrimmed a = true) : String :=
+  DecChunks.toDecimalWith ops32 (·.copy) (·.toSlice) strDC decBaseSize a
 
 public theorem toDecimalWith_eq (strDC : Nat) (a : UInt32Array) (h : isTrimmed a = true) :
     toDecimalWith strDC a h = _root_.Nat.repr (MPN.toNat a) := by
-  unfold toDecimalWith
-  split
-  · rw [← String.toList_inj, ops32.toDec_spec decBase decBaseSize decBase_spec,
-      _root_.Nat.toList_repr,
-      ops32_val]
-  · exact toDecimal_eq a h
-
-/-- The value of `len` digits of `arr` from `start` by chunks of nine digits, `fromDec`'s base. -/
-public def parseBase (arr : Array Char) (start len : Nat) : UInt32Array.Slice :=
-  (trim (DecChunks.finish
-    (arr.foldl DecChunks.step (DecChunks.init UInt32Array) start (start + len)))).toSlice
-
-private theorem foldl_chars (arr : Array Char) (start len : Nat) :
-    arr.foldl DecChunks.step (DecChunks.init UInt32Array) start (start + len) =
-      (NatOps.chars arr start len).foldl DecChunks.step (DecChunks.init UInt32Array) := by
-  rw [Array.foldl_eq_foldl_extract, ← Array.foldl_toList, Array.toList_extract,
-    List.extract_eq_take_drop, Nat.add_sub_cancel_left, NatOps.chars]
-
-/-- The size, in digits, below which divide and conquer reads digits by chunks (`parseBase`). -/
-public def parseBaseSize : Nat := 300
-
-private theorem parseBase_spec (arr : Array Char) (hd : ∀ c ∈ arr.toList, c.isDigit = true)
-    (start len : Nat) :
-    ops32.val (parseBase arr start len) =
-      _root_.Nat.ofDigitChars 10 (NatOps.chars arr start len) 0 := by
-  have hc : ∀ c ∈ NatOps.chars arr start len, c.isDigit = true := fun c hc =>
-    hd c (List.mem_of_mem_drop (List.mem_of_mem_take hc))
-  rw [ops32_val, parseBase, toNat_toSlice, ← toNat_toSlice, toNat_trim, foldl_chars,
-    toNat_finish_foldl _ (fun c h => Or.inl (hc c h))]
-  congr 1
-  apply List.filter_eq_self.2
-  intro c h
-  have := hc c h
-  simp only [bne_iff_ne, ne_eq]
-  rintro rfl
-  exact absurd this (by decide)
+  rw [toDecimalWith, DecChunks.toDecimalWith_eq _ _ _ hto hof, decVA_eq]
 
 /--
-The limbs of a string of decimal digits that `String.isNat` accepts: from `9 parseDC` digits by
-divide and conquer (`NatOps.fromDec`), and below by chunks of nine digits.
+The limbs of a string of decimal digits that `String.isNat` accepts, trimmed: from `9 parseDC`
+digits by divide and conquer (`NatOps.fromDec`), and below by chunks of nine digits.
 -/
 public def ofDecimalWith (parseDC : Nat) (s : String) : UInt32Array :=
-  if 9 * parseDC ≤ s.length then
-    let ds := (s.toList.filter (· != '_')).toArray
-    trim (ops32.fromDec parseBase parseBaseSize ds).copy
-  else trim (DecChunks.finish (s.foldl DecChunks.step (DecChunks.init UInt32Array)))
+  trim (DecChunks.ofDecimalWith ops32 (·.copy) (·.toSlice) parseDC parseBaseSize s)
 
 public theorem ofDecimalWith_spec (parseDC : Nat) (s : String) (h : s.isNat = true) :
     isTrimmed (ofDecimalWith parseDC s) = true ∧
       s.toNat? = some (MPN.toNat (ofDecimalWith parseDC s)) := by
-  rw [String.toNat?_eq_some_ofDigitChars h]
-  by_cases hl : 9 * parseDC ≤ s.length
-  · have e : ofDecimalWith parseDC s =
-        trim (ops32.fromDec parseBase parseBaseSize (s.toList.filter (· != '_')).toArray).copy := by
-      simp [ofDecimalWith, hl]
-    rw [e]
-    refine ⟨isTrimmed_trim _, ?_⟩
-    rw [Option.some.injEq, toNat_trim, toNat_copy]
-    have hd : ∀ c ∈ (s.toList.filter (· != '_')).toArray.toList, c.isDigit = true := by
-      intro c hc
-      simp only [List.mem_filter, bne_iff_ne, ne_eq] at hc
-      rcases (String.isNat_iff.1 h).2.1 c hc.1 with h' | h'
-      · exact h'
-      · exact absurd h' hc.2
-    have := ops32.fromDec_spec parseBase parseBaseSize _
-      (fun st ln _ => parseBase_spec _ hd st ln)
-    rw [ops32_val] at this
-    rw [this, List.toList_toArray]
-  · have e : ofDecimalWith parseDC s =
-        trim (DecChunks.finish (s.foldl DecChunks.step (DecChunks.init UInt32Array))) := by
-      simp [ofDecimalWith, hl]
-    rw [e]
-    refine ⟨isTrimmed_trim _, ?_⟩
-    rw [Option.some.injEq, toNat_trim, String.foldl_eq_foldl_toList]
-    exact (toNat_finish_foldl _ (String.isNat_iff.1 h).2.1).symm
+  refine ⟨isTrimmed_trim _, ?_⟩
+  rw [DecChunks.ofDecimalWith_spec _ _ _ hto hof _ _ s h, ofDecimalWith, toNat_trim, decVA_eq]
 
 /-- `a / b` for a nonzero word, trimmed: by `divRem128` for up to four limbs and `2³² ≤ b`. -/
 public def divW (a : UInt32Array) (b : UInt64) : UInt32Array :=
