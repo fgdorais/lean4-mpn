@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN.Linear
+public import MPN.Shift
 import all Init.Data.UInt.Log2
 import all Init.Data.Fin.Log2
 
@@ -160,99 +161,44 @@ private theorem rshift_word (x y s : UInt64) (hs₀ : 0 < s.toNat) (hs : s.toNat
   rw [← hP]
   grind
 
-/-! ## Left shifts -/
+/-! ## Left shifts
 
-/-- The step of `lshift`: limb `j` of `a` shifted left by `s`, with the bits `c` from below. -/
-@[inline, expose] public def lshiftStep (a : USlice) (s : UInt64) (n : USize) (hn : n ≤ a.size)
-    (j : USize) (h : j < n) (_ c : UInt64) : UInt64 × UInt64 :=
-  let x := a[j]'(USize.lt_of_lt_of_le h hn)
-  ((x <<< s) + c, x >>> (64 - s))
-
-private theorem lshift_spec (a : USlice) (s : UInt64) (hs₀ : 0 < s.toNat) (hs : s.toNat < 64)
-    (n : USize) (hn : n ≤ a.size) (arr : UInt64Array) (rs : USize) (hr : LoopBound arr rs n)
-    (j : USize) (c : UInt64) (hc : c.toNat < 2 ^ s.toNat) :
-    (foldUInPlace n (lshiftStep a s n hn) arr rs hr j c).1.size = arr.size ∧
-      (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
-        (foldUInPlace n (lshiftStep a s n hn) arr rs hr j c).1[i]! = arr[i]!) ∧
-      (foldUInPlace n (lshiftStep a s n hn) arr rs hr j c).1.valAt (rs.toNat + j.toNat)
-          (n.toNat - j.toNat) +
-          2 ^ (64 * (n.toNat - j.toNat)) *
-            (foldUInPlace n (lshiftStep a s n hn) arr rs hr j c).2.toNat =
-        a.array.valAt (a.start.toNat + j.toNat) (n.toNat - j.toNat) * 2 ^ s.toNat + c.toNat := by
-  induction arr, hr, j, c using foldUInPlace.induct n (lshiftStep a s n hn) rs with
-  | case1 arr hr j c h p ih =>
-    rw [foldUInPlace_lt _ _ _ _ _ _ _ h]
-    have hj := USize.lt_iff_toNat_lt.1 h
-    have hj₁ := USize.toNat_add_one_of_lt h
-    have hidx := hr.toNat_add h
-    have hs' := lshift_word (a[j]'(USize.lt_of_lt_of_le h hn)) c s hs₀ hs hc
-    obtain ⟨ih₁, ih₂, ih₃⟩ := ih hs'.2
-    simp only [p] at ih₁ ih₂ ih₃
-    rw [hj₁] at ih₂ ih₃
-    simp only [UInt64Array.size_uset] at ih₁
-    have hv := ih₂ (rs.toNat + j.toNat) (.inl (by lia))
-    rw [getElem!_uset, hidx] at hv
-    simp only [↓reduceIte] at hv
-    refine ⟨ih₁, fun i hi => ?_, ?_⟩
-    · rw [ih₂ i (by lia), getElem!_uset]
-      simp only [hidx]
-      split <;> lia
-    · obtain ⟨k, hk⟩ : ∃ k, n.toNat - j.toNat = k + 1 := ⟨n.toNat - j.toNat - 1, by lia⟩
-      rw [show n.toNat - (j.toNat + 1) = k by lia, ← Nat.add_assoc, ← Nat.add_assoc] at ih₃
-      rw [hk, UInt64Array.valAt_succ, UInt64Array.valAt_succ, hv,
-        ← USlice.getElem_eq_getElem! a j (USize.lt_of_lt_of_le h hn), Nat.mul_succ, Nat.pow_add]
-      have hs1 := hs'.1
-      simp only [lshiftStep] at ih₃ hv ⊢
-      generalize (foldUInPlace (β := UInt64) _ _ _ _ _ _ _).1.valAt _ _ = R at *
-      generalize (foldUInPlace (β := UInt64) _ _ _ _ _ _ _).2.toNat = c' at *
-      generalize (a[j]'(USize.lt_of_lt_of_le h hn) >>> (64 - s)).toNat = c₁ at *
-      generalize ((a[j]'(USize.lt_of_lt_of_le h hn) <<< s) + c).toNat = o at *
-      generalize a.array.valAt _ k = A at *
-      generalize (a[j]'(USize.lt_of_lt_of_le h hn)).toNat = x at *
-      generalize 2 ^ (64 * k) = P at *
-      generalize 2 ^ s.toNat = S at *
-      grind
-  | case2 arr hr j c h =>
-    rw [foldUInPlace_ge _ _ _ _ _ _ _ h]
-    have : n.toNat - j.toNat = 0 := by have := USize.lt_iff_toNat_lt (a := j) (b := n); lia
-    simp [this]
+`main`'s `WordArray.lshiftW` and `WordArray.rshiftW` on the windows of slices.
+-/
 
 /--
 Writes the limbs of `a 2ˢ`, for `0 < s < 64`, into `r` and returns the bits out of the top, on the
 first `min r.size a.size` limbs, like GMP's `mpn_lshift`.
 -/
 public def lshift (r a : USlice) (s : UInt64) : UInt64Array × UInt64 :=
-  foldUInPlaceThen (min a.size r.size) (lshiftStep a s _ (USize.min_le_left ..)) r.array r.start
-    (r.loopBound (USize.min_le_right ..)) 0 0 fun arr _ c => (arr, c)
+  WordArray.lshiftW r.array r.start a.array a.start (min a.size r.size) s
+    (r.loopBound (USize.min_le_right ..)) (a.loopBound (USize.min_le_left ..))
 
 @[simp] public theorem size_lshift (r a : USlice) (s : UInt64) :
     (lshift r a s).1.size = r.array.size := by
-  rw [lshift, foldUInPlaceThen_eq]
-  exact size_foldUInPlace ..
+  rw [lshift, WordArray.lshiftW, wordFolds64.foldThen_eq, WordArray.foldUInPlaceThen]
+  exact WordArray.size_foldUInPlace (A := UInt64Array) ..
 
 /-- `lshift` leaves the limbs of `r` outside the ones it writes unchanged. -/
 public theorem getElem!_lshift (r a : USlice) (s : UInt64) (hs₀ : 0 < s.toNat)
     (hs : s.toNat < 64) (i : Nat)
     (hi : i < r.start.toNat ∨ r.start.toNat + min a.size.toNat r.size.toNat ≤ i) :
-    (lshift r a s).1[i]! = r.array[i]! := by
-  rw [lshift, foldUInPlaceThen_eq]
-  exact (lshift_spec a s hs₀ hs _ _ _ _ _ 0 0
-    (by rw [UInt64.toNat_zero]; exact Nat.two_pow_pos _)).2.1 i
-    (by rw [USize.toNat_zero, USize.toNat_min]; lia)
+    (lshift r a s).1[i]! = r.array[i]! :=
+  (WordArray.lshiftW_spec r.array r.start a.array a.start (min a.size r.size) s _ _ hs₀ hs).2.1 i
+    (by rw [USize.toNat_min]; exact hi)
 
 public theorem valAt_lshift (r a : USlice) (s : UInt64) (hs₀ : 0 < s.toNat) (hs : s.toNat < 64)
     (har : a.size ≤ r.size) :
     (lshift r a s).1.valAt r.start.toNat a.size.toNat +
         2 ^ (64 * a.size.toNat) * (lshift r a s).2.toNat =
       a.toNat * 2 ^ s.toNat := by
-  have := (lshift_spec a s hs₀ hs _ (USize.min_le_left ..) r.array r.start
-    (r.loopBound (USize.min_le_right ..)) 0 0
-    (by rw [UInt64.toNat_zero]; exact Nat.two_pow_pos _)).2.2
-  have h := USize.le_iff_toNat_le.1 har
-  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, USize.toNat_min,
-    show min a.size.toNat r.size.toNat = a.size.toNat by lia, UInt64.toNat_zero] at this
-  rw [lshift, foldUInPlaceThen_eq, USlice.toNat_eq_valAt]
-  exact this
+  have h := (WordArray.lshiftW_spec r.array r.start a.array a.start (min a.size r.size) s
+    (r.loopBound (USize.min_le_right ..)) (a.loopBound (USize.min_le_left ..)) hs₀ hs).2.2
+  have e : (min a.size r.size).toNat = a.size.toNat := by
+    rw [USize.toNat_min]; have := USize.le_iff_toNat_le.1 har; lia
+  rw [e] at h
+  rw [USlice.toNat_eq_valAt]
+  exact h
 
 /-! ## Right shifts -/
 
@@ -264,114 +210,16 @@ public theorem _root_.USize.add_one_lt_of_lt_of_lt {j n m : USize} (h : j < n) (
   have := USize.lt_iff_toNat_lt.1 hn
   lia
 
-/--
-The step of `rshift`: limb `j` of `a`, which is `x`, shifted right by `s`, with the low bits of the
-limb above, which is the next accumulator.
--/
-@[inline, expose] public def rshiftStep (a : USlice) (s : UInt64) (n : USize) (hn : n < a.size)
-    (j : USize) (h : j < n) (_ x : UInt64) : UInt64 × UInt64 :=
-  let y := a[j + 1]'(USize.add_one_lt_of_lt_of_lt h hn)
-  ((x >>> s) + (y <<< (64 - s)), y)
-
-private theorem rshift_spec (a : USlice) (s : UInt64) (hs₀ : 0 < s.toNat) (hs : s.toNat < 64)
-    (n : USize) (hn : n < a.size) (arr : UInt64Array) (rs : USize) (hr : LoopBound arr rs n)
-    (j : USize) (x : UInt64) (hj : j ≤ n) (hx : x = a.array[a.start.toNat + j.toNat]!) :
-    (foldUInPlace n (rshiftStep a s n hn) arr rs hr j x).1.size = arr.size ∧
-      (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
-        (foldUInPlace n (rshiftStep a s n hn) arr rs hr j x).1[i]! = arr[i]!) ∧
-      (foldUInPlace n (rshiftStep a s n hn) arr rs hr j x).2 =
-        a.array[a.start.toNat + n.toNat]! ∧
-      2 ^ s.toNat * (foldUInPlace n (rshiftStep a s n hn) arr rs hr j x).1.valAt
-          (rs.toNat + j.toNat) (n.toNat - j.toNat) + x.toNat % 2 ^ s.toNat =
-        a.array.valAt (a.start.toNat + j.toNat) (n.toNat - j.toNat) +
-          2 ^ (64 * (n.toNat - j.toNat)) *
-            ((foldUInPlace n (rshiftStep a s n hn) arr rs hr j x).2.toNat % 2 ^ s.toNat) := by
-  induction arr, hr, j, x using foldUInPlace.induct n (rshiftStep a s n hn) rs with
-  | case1 arr hr j x h p ih =>
-    rw [foldUInPlace_lt _ _ _ _ _ _ _ h]
-    have hj' := USize.lt_iff_toNat_lt.1 h
-    have hj₁ := USize.toNat_add_one_of_lt h
-    have hidx := hr.toNat_add h
-    have hy := USlice.getElem_eq_getElem! a (j + 1) (USize.add_one_lt_of_lt_of_lt h hn)
-    obtain ⟨ih₁, ih₂, ih₃, ih₄⟩ := ih (USize.le_iff_toNat_le.2 (by lia)) hy
-    simp only [p] at ih₁ ih₂ ih₃ ih₄
-    rw [hj₁] at ih₂ ih₄
-    simp only [UInt64Array.size_uset] at ih₁
-    have hv := ih₂ (rs.toNat + j.toNat) (.inl (by lia))
-    rw [getElem!_uset, hidx] at hv
-    simp only [↓reduceIte] at hv
-    refine ⟨ih₁, fun i hi => ?_, ih₃, ?_⟩
-    · rw [ih₂ i (by lia), getElem!_uset]
-      simp only [hidx]
-      split <;> lia
-    · obtain ⟨k, hk⟩ : ∃ k, n.toNat - j.toNat = k + 1 := ⟨n.toNat - j.toNat - 1, by lia⟩
-      rw [show n.toNat - (j.toNat + 1) = k by lia, ← Nat.add_assoc, ← Nat.add_assoc] at ih₄
-      rw [hk, UInt64Array.valAt_succ, UInt64Array.valAt_succ, hv, ← hx, Nat.mul_succ, Nat.pow_add]
-      have hs1 := rshift_word x (a[j + 1]'(USize.add_one_lt_of_lt_of_lt h hn)) s hs₀ hs
-      simp only [rshiftStep] at ih₄ hv ⊢
-      generalize (foldUInPlace (β := UInt64) _ _ _ _ _ _ _).1.valAt _ _ = R at *
-      generalize (foldUInPlace (β := UInt64) _ _ _ _ _ _ _).2.toNat % 2 ^ s.toNat = c' at *
-      generalize ((x >>> s) + (a[j + 1]'(USize.add_one_lt_of_lt_of_lt h hn) <<< (64 - s))).toNat
-        = o at *
-      generalize (a[j + 1]'(USize.add_one_lt_of_lt_of_lt h hn)).toNat % 2 ^ s.toNat = c₁ at *
-      generalize a.array.valAt _ k = A at *
-      generalize x.toNat % 2 ^ s.toNat = x₀ at *
-      generalize x.toNat = X at *
-      generalize 2 ^ (64 * k) = P at *
-      generalize 2 ^ s.toNat = S at *
-      grind
-  | case2 arr hr j x h =>
-    rw [foldUInPlace_ge _ _ _ _ _ _ _ h]
-    have hjn : j.toNat = n.toNat := by
-      have := USize.lt_iff_toNat_lt (a := j) (b := n); have := USize.le_iff_toNat_le.1 hj; lia
-    have : n.toNat - j.toNat = 0 := by lia
-    simp only [hx, hjn]
-    simp
-
-/-- The low `s` bits of a word, `0 < s < 64`, by a mask. -/
-private theorem toNat_mask (x s : UInt64) (hs : s.toNat < 64) :
-    (x &&& ((1 <<< s) - 1)).toNat = x.toNat % 2 ^ s.toNat := by
-  have h₁ : ((1 : UInt64) <<< s).toNat = 2 ^ s.toNat := by
-    rw [UInt64.toNat_shiftLeft, Nat.mod_eq_of_lt hs, Nat.shiftLeft_eq, UInt64.toNat_one,
-      Nat.one_mul, Nat.mod_eq_of_lt (Nat.pow_lt_pow_right (by decide) hs)]
-  have hm : ((1 : UInt64) <<< s - 1).toNat = 2 ^ s.toNat - 1 := by
-    rw [UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.2 (by
-      rw [h₁, UInt64.toNat_one]; exact Nat.one_le_two_pow)), h₁, UInt64.toNat_one]
-  rw [UInt64.toNat_and, hm, Nat.and_two_pow_sub_one_eq_mod]
-
 /-- `m - 1` does not wrap around when `m ≠ 0`. -/
 public theorem toNat_pred {m : USize} (h : ¬m = 0) : (m - 1).toNat = m.toNat - 1 := by
   have : m.toNat ≠ 0 := fun e => h (USize.toNat_inj.1 (by rw [e]; rfl))
   exact (USize.toNat_sub_of_le m 1 (USize.le_iff_toNat_le.2 (by rw [USize.toNat_one]; lia))).trans
     (by rw [USize.toNat_one])
 
-private theorem rshift_lt {r a : USlice} (h : ¬min a.size r.size = 0) :
-    min a.size r.size - 1 < a.size := by
-  have := toNat_pred h
-  have := USize.toNat_min a.size r.size
-  rw [USize.lt_iff_toNat_lt]
+private theorem rshift_pos {r a : USlice} (h : ¬min a.size r.size = 0) :
+    (0 : USize) < min a.size r.size := by
   have : (min a.size r.size).toNat ≠ 0 := fun e => h (USize.toNat_inj.1 (by rw [e]; rfl))
-  lia
-
-private theorem rshift_le {r a : USlice} (h : ¬min a.size r.size = 0) :
-    min a.size r.size - 1 ≤ r.size := by
-  have := toNat_pred h
-  have := USize.toNat_min a.size r.size
-  rw [USize.le_iff_toNat_le]
-  lia
-
-private theorem rshift_pos {r a : USlice} (h : ¬min a.size r.size = 0) : (0 : USize) < a.size :=
-  USize.lt_of_le_of_lt USize.zero_le (rshift_lt h)
-
-private theorem rshift_idx (r a : USlice) (h : ¬min a.size r.size = 0) (arr : UInt64Array)
-    (harr : arr.size = r.array.size) :
-    (r.start + (min a.size r.size - 1)).toNat < arr.size := by
-  have hlt : min a.size r.size - 1 < min a.size r.size := by
-    rw [USize.lt_iff_toNat_lt, toNat_pred h]
-    have : (min a.size r.size).toNat ≠ 0 := fun e => h (USize.toNat_inj.1 (by rw [e]; rfl))
-    lia
-  rw [harr]
-  exact (r.loopBound (USize.min_le_right ..)).uset_bound hlt
+  rw [USize.lt_iff_toNat_lt]; simp; lia
 
 /--
 Writes the limbs of `a / 2ˢ`, for `0 < s < 64`, into `r` and returns the bits out of the bottom,
@@ -381,19 +229,18 @@ the top bits of a word instead.
 public def rshift (r a : USlice) (s : UInt64) : UInt64Array × UInt64 :=
   if h : min a.size r.size = 0 then (r.array, 0)
   else
-    let x₀ := a[(0 : USize)]'(rshift_pos h)
-    foldUInPlaceThen (min a.size r.size - 1) (rshiftStep a s _ (rshift_lt h)) r.array r.start
-      (r.loopBound (rshift_le h)) 0 x₀ fun arr harr x =>
-        (arr.uset (r.start + (min a.size r.size - 1)) (x >>> s) (rshift_idx r a h arr harr),
-          x₀ &&& ((1 <<< s) - 1))
+    WordArray.rshiftW r.array r.start a.array a.start (min a.size r.size) s
+      (r.loopBound (USize.min_le_right ..)) (a.loopBound (USize.min_le_left ..)) (rshift_pos h)
 
 @[simp] public theorem size_rshift (r a : USlice) (s : UInt64) :
     (rshift r a s).1.size = r.array.size := by
   rw [rshift]
   split
   · rfl
-  · rw [foldUInPlaceThen_eq, size_uset]
-    exact size_foldUInPlace ..
+  · rw [WordArray.rshiftW, wordFolds64.foldThen_eq, WordArray.foldUInPlaceThen]
+    show (UInt64Array.uset _ _ _ _).size = _
+    rw [size_uset]
+    exact WordArray.size_foldUInPlace (A := UInt64Array) ..
 
 /-- `rshift` leaves the limbs of `r` outside the ones it writes unchanged. -/
 public theorem getElem!_rshift (r a : USlice) (s : UInt64) (hs₀ : 0 < s.toNat)
@@ -403,67 +250,29 @@ public theorem getElem!_rshift (r a : USlice) (s : UInt64) (hs₀ : 0 < s.toNat)
   rw [rshift]
   split
   · rfl
-  · rename_i h
-    have hp := toNat_pred h
-    have hm := USize.toNat_min a.size r.size
-    have : (min a.size r.size).toNat ≠ 0 := fun e => h (USize.toNat_inj.1 (by rw [e]; rfl))
-    have hidx : (r.start + (min a.size r.size - 1)).toNat =
-        r.start.toNat + ((min a.size r.size).toNat - 1) := by
-      rw [(r.loopBound (USize.min_le_right a.size r.size)).toNat_add
-        (USize.lt_iff_toNat_lt.2 (by lia)), hp]
-    rw [foldUInPlaceThen_eq, getElem!_uset, hidx]
-    simp only [show ¬(r.start.toNat + ((min a.size r.size).toNat - 1) = i) by lia, ↓reduceIte]
-    exact (rshift_spec a s hs₀ hs _ (rshift_lt h) _ _ _ 0 _ USize.zero_le
-      (by rw [USlice.getElem_eq_getElem!])).2.1 i (by rw [USize.toNat_zero, hp]; lia)
+  · exact (WordArray.rshiftW_spec r.array r.start a.array a.start (min a.size r.size) s _ _ _ hs₀
+      hs).2.1 i
+      (by rw [USize.toNat_min]; exact hi)
 
 private theorem rshift_full (r a : USlice) (s : UInt64) (hs₀ : 0 < s.toNat) (hs : s.toNat < 64)
     (har : a.size ≤ r.size) :
     2 ^ s.toNat * (rshift r a s).1.valAt r.start.toNat a.size.toNat + (rshift r a s).2.toNat =
       a.toNat ∧ (rshift r a s).2.toNat < 2 ^ s.toNat := by
-  have har' := USize.le_iff_toNat_le.1 har
-  have hm := USize.toNat_min a.size r.size
-  have hma : (min a.size r.size).toNat = a.size.toNat := by lia
-  rw [rshift, USlice.toNat_eq_valAt]
+  have e : (min a.size r.size).toNat = a.size.toNat := by
+    rw [USize.toNat_min]; have := USize.le_iff_toNat_le.1 har; lia
+  rw [rshift]
   split
   · rename_i h
-    rw [h, USize.toNat_zero] at hma
-    rw [← hma]
+    have h0 : a.size.toNat = 0 := by rw [← e, h]; rfl
+    rw [USlice.toNat_eq_valAt, h0]
     simp [Nat.two_pow_pos]
   · rename_i h
-    have hp := toNat_pred h
-    have h₀ : a.size.toNat ≠ 0 := by
-      intro e; apply h; apply USize.toNat_inj.1; rw [hma, e]; rfl
-    rw [foldUInPlaceThen_eq, toNat_mask _ _ hs]
-    obtain ⟨-, -, i₃, i₄⟩ := rshift_spec a s hs₀ hs _ (rshift_lt h) r.array r.start
-      (r.loopBound (rshift_le h)) 0 (a[(0 : USize)]'(rshift_pos h)) USize.zero_le
-      (by rw [USlice.getElem_eq_getElem!])
-    simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, hp, hma] at i₃ i₄
-    have hx₀ : (a[(0 : USize)]'(rshift_pos h)) = a.array[a.start.toNat]! := by
-      rw [USlice.getElem_eq_getElem!, USize.toNat_zero, Nat.add_zero]
-    refine ⟨?_, Nat.mod_lt _ (Nat.two_pow_pos _)⟩
-    obtain ⟨k, hk⟩ : ∃ k, a.size.toNat = k + 1 := ⟨a.size.toNat - 1, by lia⟩
-    rw [hk, show k + 1 - 1 = k by lia] at i₃ i₄
-    have hidx : (r.start + (min a.size r.size - 1)).toNat = r.start.toNat + k := by
-      rw [(r.loopBound (USize.min_le_right a.size r.size)).toNat_add
-        (USize.lt_iff_toNat_lt.2 (by lia)), hp,
-        hma, hk]
-      rfl
-    rw [hk, UInt64Array.valAt_add, UInt64Array.valAt_add, valAt_one, valAt_one, getElem!_uset, hidx,
-      valAt_uset_of _ _ _ _ _ _ (.inr (by rw [hidx]; lia))]
-    simp only [↓reduceIte]
-    rw [i₃] at i₄ ⊢
-    rw [UInt64.toNat_shiftRight, Nat.mod_eq_of_lt hs, Nat.shiftRight_eq_div_pow]
-    have hdm := Nat.div_add_mod (a.array[a.start.toNat + k]!).toNat (2 ^ s.toNat)
-    generalize (foldUInPlace (β := UInt64) _ _ _ _ _ _ _).1.valAt _ _ = V at *
-    generalize (a.array[a.start.toNat + k]!).toNat = X at *
-    generalize (a[(0 : USize)]'(rshift_pos h)).toNat % 2 ^ s.toNat = x₀ at *
-    generalize a.array.valAt _ k = A at *
-    generalize 2 ^ (64 * k) = P at *
-    generalize 2 ^ s.toNat = S at *
-    generalize X / S = q at *
-    generalize X % S = c at *
-    subst hdm
-    grind
+    obtain ⟨-, -, h₁, h₂⟩ := WordArray.rshiftW_spec r.array r.start a.array a.start
+      (min a.size r.size) s (r.loopBound (USize.min_le_right ..))
+      (a.loopBound (USize.min_le_left ..)) (rshift_pos h) hs₀ hs
+    rw [e] at h₁
+    rw [USlice.toNat_eq_valAt]
+    exact ⟨h₁, h₂⟩
 
 public theorem valAt_rshift (r a : USlice) (s : UInt64) (hs₀ : 0 < s.toNat) (hs : s.toNat < 64)
     (har : a.size ≤ r.size) :
