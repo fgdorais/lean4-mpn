@@ -34,3 +34,4 @@ public import MPN.Generic.Sqrt
 public import MPN.Generic.HGCD
 public import MPN.Generic.Radix
 public import MPN.DecChunks
+public import MPN.Shift
