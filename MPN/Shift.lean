@@ -182,7 +182,7 @@ private theorem lsh_spec (a : A) (ao : USize) (s : L) (hs₀ : 0 < LA.val s) (hs
 Writes the `n` limbs of `a` from `ao` shifted left by `0 < s < w` bits into `r` from `ro`, and
 returns the bits out of the top, like GMP's `mpn_lshift`.
 -/
-@[expose, specialize] public def lshiftW (r : A) (ro : USize) (a : A) (ao n : USize) (s : L)
+@[inline, expose, specialize] public def lshiftW (r : A) (ro : USize) (a : A) (ao n : USize) (s : L)
     (hr : LoopBound r ro n) (ha : LoopBound a ao n) : A × L :=
   F.foldThen n (lshStep A a ao s n ha) r ro hr 0 R.zero fun arr _ c => (arr, c)
 
@@ -254,7 +254,7 @@ private theorem cp_spec (a : A) (ao n : USize) (ha : LoopBound a ao n) (arr : A)
     simp [this]
 
 /-- Copies the `n` limbs of `a` from `ao` into `r` from `ro`. -/
-@[expose, specialize] public def copyW (r : A) (ro : USize) (a : A) (ao n : USize)
+@[inline, expose, specialize] public def copyW (r : A) (ro : USize) (a : A) (ao n : USize)
     (hr : LoopBound r ro n) (ha : LoopBound a ao n) : A :=
   F.foldThen n (cpStep A a ao n ha) r ro hr 0 R.zero fun arr _ _ => arr
 
@@ -394,7 +394,7 @@ Writes the `m > 0` limbs of `a` from `ao` shifted right by `0 < s < w` bits into
 returns the bits out of the bottom, `a mod 2ˢ`, like GMP's `mpn_rshift`, which returns them in the
 top bits of a limb instead.
 -/
-@[expose, specialize] public def rshiftW (r : A) (ro : USize) (a : A) (ao m : USize) (s : L)
+@[inline, expose, specialize] public def rshiftW (r : A) (ro : USize) (a : A) (ao m : USize) (s : L)
     (hr : LoopBound r ro m) (ha : LoopBound a ao m) (hm : 0 < m) : A × L :=
   let x₀ := R.uget a ao (by have := ha.uset_bound hm; simpa using this)
   F.foldThen (m - 1) (rshStep A a ao s (m - 1) m (pred_lt' hm) ha) r ro (bound_pred hr hm) 0 x₀
