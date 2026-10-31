@@ -472,11 +472,12 @@ public theorem toDecimalWith_eq (strDC : Nat) (a : UInt32Array) (h : isTrimmed a
 
 /-- The value of `len` digits of `arr` from `start` by chunks of nine digits, `fromDec`'s base. -/
 public def parseBase (arr : Array Char) (start len : Nat) : UInt32Array.Slice :=
-  (trim (arr.foldl DecimalState.step .init start (start + len)).finish).toSlice
+  (trim (DecChunks.finish
+    (arr.foldl DecChunks.step (DecChunks.init UInt32Array) start (start + len)))).toSlice
 
 private theorem foldl_chars (arr : Array Char) (start len : Nat) :
-    arr.foldl DecimalState.step .init start (start + len) =
-      (NatOps.chars arr start len).foldl DecimalState.step .init := by
+    arr.foldl DecChunks.step (DecChunks.init UInt32Array) start (start + len) =
+      (NatOps.chars arr start len).foldl DecChunks.step (DecChunks.init UInt32Array) := by
   rw [Array.foldl_eq_foldl_extract, ← Array.foldl_toList, Array.toList_extract,
     List.extract_eq_take_drop, Nat.add_sub_cancel_left, NatOps.chars]
 
@@ -507,7 +508,7 @@ public def ofDecimalWith (parseDC : Nat) (s : String) : UInt32Array :=
   if 9 * parseDC ≤ s.length then
     let ds := (s.toList.filter (· != '_')).toArray
     trim (ops32.fromDec parseBase parseBaseSize ds).copy
-  else trim (s.foldl DecimalState.step .init).finish
+  else trim (DecChunks.finish (s.foldl DecChunks.step (DecChunks.init UInt32Array)))
 
 public theorem ofDecimalWith_spec (parseDC : Nat) (s : String) (h : s.isNat = true) :
     isTrimmed (ofDecimalWith parseDC s) = true ∧
@@ -530,7 +531,8 @@ public theorem ofDecimalWith_spec (parseDC : Nat) (s : String) (h : s.isNat = tr
       (fun st ln _ => parseBase_spec _ hd st ln)
     rw [ops32_val] at this
     rw [this, List.toList_toArray]
-  · have e : ofDecimalWith parseDC s = trim (s.foldl DecimalState.step .init).finish := by
+  · have e : ofDecimalWith parseDC s =
+        trim (DecChunks.finish (s.foldl DecChunks.step (DecChunks.init UInt32Array))) := by
       simp [ofDecimalWith, hl]
     rw [e]
     refine ⟨isTrimmed_trim _, ?_⟩
