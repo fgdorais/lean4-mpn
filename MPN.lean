@@ -53,6 +53,7 @@ public import MPN.Generic.Radix
 public import MPN.Generic.Ops64
 public import MPN.Lehmer
 public import MPN.Gcd
+public import MPN.Shift
 public import MPN.DecChunks
 public import MPN.Decimal
 public import MPN.Nat

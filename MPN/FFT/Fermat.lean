@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN.WordArray
+public import MPN.Shift
 public import MPN.FFT.Windows
 
 /-!
@@ -44,45 +45,6 @@ variable {A L : Type} [LA : LimbArray A L] [R : WordArray A L]
 omit R in
 private theorem two_pow_le (n : Nat) (hn : 1 ≤ n) : 2 ^ LA.w ≤ 2 ^ (LA.w * n) :=
   Nat.pow_le_pow_right (by decide) (Nat.le_mul_of_pos_right _ hn)
-
-private theorem shl_step (x c b : L) (hb₀ : 0 < LA.val b) (hb : LA.val b < LA.w)
-    (hc : LA.val c < 2 ^ LA.val b) :
-    LA.val (R.add (R.shl x b) c) + 2 ^ LA.w * LA.val (R.shr x (R.sub (R.ofUSize R.wU) b)) =
-        2 ^ LA.val b * LA.val x + LA.val c ∧
-      LA.val (R.shr x (R.sub (R.ofUSize R.wU) b)) < 2 ^ LA.val b := by
-  have hwB : LA.w < 2 ^ LA.w := Nat.lt_two_pow_self
-  have hBb := LA.val_lt b
-  have hwb : LA.val (R.sub (R.ofUSize R.wU) b) = LA.w - LA.val b := by
-    rw [R.val_sub, R.val_ofUSize, R.toNat_wU, Nat.mod_eq_of_lt hwB,
-      show LA.w + (2 ^ LA.w - LA.val b) = (LA.w - LA.val b) + 2 ^ LA.w * 1 by lia,
-      Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (by lia)]
-  rw [R.val_add, R.val_shl, R.val_shr, hwb, Nat.mod_eq_of_lt hb,
-    Nat.mod_eq_of_lt (show LA.w - LA.val b < LA.w by lia)]
-  have hPQ : 2 ^ (LA.w - LA.val b) * 2 ^ LA.val b = 2 ^ LA.w := by
-    rw [← Nat.pow_add]; congr 1; lia
-  have hx := LA.val_lt x
-  have hP : 0 < 2 ^ LA.val b := Nat.two_pow_pos _
-  have hQ : 0 < 2 ^ (LA.w - LA.val b) := Nat.two_pow_pos _
-  rw [← hPQ] at hx ⊢
-  have hdm := Nat.div_add_mod (LA.val x) (2 ^ (LA.w - LA.val b))
-  have hr := Nat.mod_lt (LA.val x) hQ
-  generalize LA.val x / 2 ^ (LA.w - LA.val b) = q at *
-  generalize LA.val x % 2 ^ (LA.w - LA.val b) = r at *
-  generalize 2 ^ (LA.w - LA.val b) = Q at *
-  generalize 2 ^ LA.val b = P at *
-  generalize LA.val x = X at *
-  generalize LA.val c = C at *
-  subst hdm
-  have hrP : (r + 1) * P ≤ Q * P := Nat.mul_le_mul_right P hr
-  have hq : q < P := by
-    rcases Nat.lt_or_ge q P with e | e
-    · exact e
-    · have := Nat.mul_le_mul_left Q e; lia
-  have e₁ : (Q * q + r) * P = Q * P * q + r * P := by grind
-  rw [e₁, Nat.add_comm (Q * P * q), Nat.add_mul_mod_self_left,
-    Nat.mod_eq_of_lt (show r * P < Q * P from Nat.mul_lt_mul_of_pos_right hr hP),
-    Nat.mod_eq_of_lt (show r * P + C < Q * P by grind)]
-  exact ⟨by grind, hq⟩
 
 /-! ## Increment and decrement -/
 
@@ -335,14 +297,14 @@ private theorem shlStep_law (N : USize) (b : L) (hb₀ : 0 < LA.val b) (hb : LA.
       0 * LA.val x + 0 * LA.val y + (fun _ => 0) c = 2 ^ LA.val b * LA.val x + 0 * LA.val y +
       2 ^ LA.w * (fun _ => 0) (shlStep A N b j h x y c).2 + LA.val c := by
   intro j h x y c hc
-  have := (shl_step (A := A) x c b hb₀ hb hc).1
+  have := (WordArray.shl_step (A := A) x c b hb₀ hb hc).1
   simp only [shlStep]
   lia
 
 private theorem shlStep_inv (N : USize) (b : L) (hb₀ : 0 < LA.val b) (hb : LA.val b < LA.w) :
     ∀ j h x y c, (fun c => LA.val c < 2 ^ LA.val b) c →
       (fun c => LA.val c < 2 ^ LA.val b) (shlStep A N b j h x y c).2 :=
-  fun _ _ x _ c hc => (shl_step (A := A) x c b hb₀ hb hc).2
+  fun _ _ x _ c hc => (WordArray.shl_step (A := A) x c b hb₀ hb hc).2
 
 /-- A limb that is not zero, of a value at most `1`, is `1`. -/
 private theorem val_eq_one {x : L} (h : ¬R.isZero x = true) (h₁ : LA.val x < 2) : LA.val x = 1 := by
