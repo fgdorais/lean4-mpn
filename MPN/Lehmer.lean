@@ -211,8 +211,8 @@ public instance linComb64 : LinCombOps UInt64Array UInt64 where
   val_get_ge a i h := by
     show a[i]!.toNat = 0
     rw [getElem!_neg a i (Nat.not_lt.2 h)]; rfl
-  limb := Num.limbAt
-  val_limb a i := congrArg UInt64.toNat (Num.limbAt_eq a i)
+  limb := LinComb.limbU
+  val_limb := LinComb.val_limbU (fun a i h => by show a[i]!.toNat = 0; rw [getElem!_neg a i (Nat.not_lt.2 h)]; rfl)
   maC := maWord
   cOK c := c.toNat ≤ 2 ^ 63
   cOK_zero := by decide
