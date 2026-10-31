@@ -16,7 +16,9 @@ of words `S = [[|D|, |B|], [|C|, |A|]]` and the numbers `x = |A a + B b|` and `y
 each in one pass (`LinComb.mulSubMul`), with `(a, b) = S (x, y)` (`applyW`). Only words are
 checked: the instance turns the cofactors into a matrix whose entries are below `2ᶜ` and whose
 determinant is `±1` (`wmat`), and both differences must be nonnegative, which makes the relation
-exact; nothing about the cofactors needs a proof.
+exact; nothing about the cofactors needs a proof. The matrices are a structure of the instance's
+(`W`), whose fields are unboxed words: a structure over the limbs would box each entry, an
+allocation per entry and per step on 64-bit limbs, which made `gcd` 10% slower.
 
 `stepW` is such a step from the instance's cofactors, `lehmerStep` its two numbers, which have the
 same greatest common divisor as `a` and `b`, and `mulMatW` the product of a matrix of numbers by a
@@ -25,14 +27,6 @@ matrix of words (`LinComb.mulAddMul`). `smallSteps` makes of them the base case 
 -/
 
 namespace MPN
-
-/-- A `2 × 2` matrix of limbs, and the sign of its determinant. -/
-public structure WMat (L : Type) where
-  s11 : L
-  s12 : L
-  s21 : L
-  s22 : L
-  neg : Bool
 
 namespace LehmerStep
 
@@ -43,12 +37,13 @@ variable {A L : Type} [LA : LimbArray A L] [R : WordArray A L] [F : WordFolds A 
 @[expose] public def vA (a : A) : Nat := LimbArray.valAt a 0 (LA.size a)
 
 variable (A) in
-/-- `S` has entries below `2ᶜ` and determinant `±1`, with the sign of `S.neg`. -/
-@[expose] public def OK (S : WMat L) : Prop :=
-  LA.val S.s11 < 2 ^ C.cb ∧ LA.val S.s12 < 2 ^ C.cb ∧ LA.val S.s21 < 2 ^ C.cb ∧
-    LA.val S.s22 < 2 ^ C.cb ∧
-    (S.neg = false → LA.val S.s11 * LA.val S.s22 = LA.val S.s12 * LA.val S.s21 + 1) ∧
-    (S.neg = true → LA.val S.s12 * LA.val S.s21 = LA.val S.s11 * LA.val S.s22 + 1)
+/--
+The matrix `[[p, q], [r, t]]` has entries below `2ᶜ` and determinant `±1`, with the sign `neg`.
+-/
+@[expose] public def OK (p q r t : L) (neg : Bool) : Prop :=
+  LA.val p < 2 ^ C.cb ∧ LA.val q < 2 ^ C.cb ∧ LA.val r < 2 ^ C.cb ∧ LA.val t < 2 ^ C.cb ∧
+    (neg = false → LA.val p * LA.val t = LA.val q * LA.val r + 1) ∧
+    (neg = true → LA.val q * LA.val r = LA.val p * LA.val t + 1)
 
 end LehmerStep
 
@@ -66,9 +61,17 @@ public class LehmerOps (A : Type) (L : outParam Type) [LA : LimbArray A L] [R : 
   /-- Whether an array is trimmed. -/
   trimmed : A → Bool
   trimmed_trim : ∀ a, trimmed (trim a) = true
+  /-- The matrices of words, with their entries and the sign of their determinant: a structure of
+  the instance's, whose fields are unboxed words. -/
+  W : Type
+  s11 : W → L
+  s12 : W → L
+  s21 : W → L
+  s22 : W → L
+  neg : W → Bool
   /-- The matrix `[[|D|, |B|], [|C|, |A|]]` of the cofactors `A`, `B`, `C`, `D`, when it is `OK`. -/
-  wmat : Cofactors → Option (WMat L)
-  ok_wmat : ∀ m S, wmat m = some S → OK A S
+  wmat : Cofactors → Option W
+  ok_wmat : ∀ m S, wmat m = some S → OK A (s11 S) (s12 S) (s21 S) (s22 S) (neg S)
   /-- The cofactors of `a ≥ b`, first and second. -/
   cof₁ : A → A → Cofactors
   cof₂ : A → A → Cofactors
@@ -78,6 +81,9 @@ namespace LehmerStep
 
 variable {A L : Type} [LA : LimbArray A L] [R : WordArray A L] [F : WordFolds A L]
   [C : LinCombOps A L] [O : LehmerOps A L]
+
+/-- A matrix of the instance is `OK`. -/
+@[expose] public def okW (S : O.W) : Prop := OK A (O.s11 S) (O.s12 S) (O.s21 S) (O.s22 S) (O.neg S)
 
 omit O in
 private theorem vA_mulSubMul (x y : A) (a b : L) (ha : LA.val a < 2 ^ C.cb)
@@ -101,9 +107,11 @@ private theorem vA_mulAddMul (x y : A) (a b : L) (ha : LA.val a < 2 ^ C.cb)
 `S⁻¹ (a, b)` when its entries are nonnegative, by `mulSubMul` in one pass each, trimmed: the
 numbers `(x, y)` with `(a, b) = S (x, y)`.
 -/
-@[expose, specialize] public def applyW (S : WMat L) (a b : A) : Option (A × A) :=
-  let x := if !S.neg then LinComb.mulSubMul a b S.s22 S.s12 else LinComb.mulSubMul b a S.s12 S.s22
-  let y := if !S.neg then LinComb.mulSubMul b a S.s11 S.s21 else LinComb.mulSubMul a b S.s21 S.s11
+@[expose, specialize] public def applyW (S : O.W) (a b : A) : Option (A × A) :=
+  let x := if !O.neg S then LinComb.mulSubMul a b (O.s22 S) (O.s12 S)
+    else LinComb.mulSubMul b a (O.s12 S) (O.s22 S)
+  let y := if !O.neg S then LinComb.mulSubMul b a (O.s11 S) (O.s21 S)
+    else LinComb.mulSubMul a b (O.s21 S) (O.s11 S)
   if x.2 || y.2 then none else some (O.trim x.1, O.trim y.1)
 
 private theorem fwd_pos (p q r s a b X Y : Nat) (hd : p * s = q * r + 1)
@@ -116,13 +124,13 @@ private theorem fwd_neg (p q r s a b X Y : Nat) (hd : q * r = p * s + 1)
     a = p * X + q * Y ∧ b = r * X + s * Y := by
   constructor <;> grind
 
-private theorem fwd_applyW (S : WMat L) (hS : OK A S) (a b : A) (p : A × A)
+private theorem fwd_applyW (S : O.W) (hS : okW S) (a b : A) (p : A × A)
     (h : applyW S a b = some p) :
-    vA a = LA.val S.s11 * vA p.1 + LA.val S.s12 * vA p.2 ∧
-      vA b = LA.val S.s21 * vA p.1 + LA.val S.s22 * vA p.2 := by
+    vA a = LA.val (O.s11 S) * vA p.1 + LA.val (O.s12 S) * vA p.2 ∧
+      vA b = LA.val (O.s21 S) * vA p.1 + LA.val (O.s22 S) * vA p.2 := by
   obtain ⟨h₁₁, h₁₂, h₂₁, h₂₂, hp, hn⟩ := hS
   unfold applyW at h
-  cases hs : S.neg <;>
+  cases hs : O.neg S <;>
     simp only [hs, Bool.not_false, Bool.not_true, ↓reduceIte, Bool.false_eq_true] at h <;>
     split at h <;> (try (cases h; done)) <;> rename_i hc <;>
     simp only [Bool.or_eq_true, not_or, Bool.not_eq_true] at hc <;>
@@ -132,16 +140,16 @@ private theorem fwd_applyW (S : WMat L) (hS : OK A S) (a b : A) (p : A × A)
   · exact fwd_neg _ _ _ _ _ _ _ _ (hn hs) (vA_mulSubMul _ _ _ _ h₁₂ h₂₂ hc.1)
       (vA_mulSubMul _ _ _ _ h₂₁ h₁₁ hc.2)
 
-private theorem trimmed_applyW (S : WMat L) (a b : A) (p : A × A) (h : applyW S a b = some p) :
+private theorem trimmed_applyW (S : O.W) (a b : A) (p : A × A) (h : applyW S a b = some p) :
     O.trimmed p.1 = true ∧ O.trimmed p.2 = true := by
   unfold applyW at h
-  cases hs : S.neg <;>
+  cases hs : O.neg S <;>
     simp only [hs, Bool.not_false, Bool.not_true, ↓reduceIte, Bool.false_eq_true] at h <;>
     split at h <;> (try (cases h; done)) <;>
     rw [Option.some.injEq] at h <;> subst h <;> exact ⟨O.trimmed_trim _, O.trimmed_trim _⟩
 
 /-- The matrix of the cofactors `m` and the numbers it takes to `a` and `b`, when it is valid. -/
-@[expose, specialize] public def tryCof (a b : A) (m : Cofactors) : Option (WMat L × A × A) :=
+@[expose, specialize] public def tryCof (a b : A) (m : Cofactors) : Option (O.W × A × A) :=
   match O.wmat m with
   | some S =>
     match applyW S a b with
@@ -150,18 +158,18 @@ private theorem trimmed_applyW (S : WMat L) (a b : A) (p : A × A) (h : applyW S
   | none => none
 
 /-- A step of Lehmer's algorithm on `a ≥ b`, with its matrix, from the instance's cofactors. -/
-@[expose, specialize] public def stepW (a b : A) : Option (WMat L × A × A) :=
+@[expose, specialize] public def stepW (a b : A) : Option (O.W × A × A) :=
   match tryCof a b (O.cof₁ a b) with
   | some r => some r
   | none => if O.two then tryCof a b (O.cof₂ a b) else none
 
-public theorem stepW_spec (a b : A) (r : WMat L × A × A) (h : stepW a b = some r) :
-    OK A r.1 ∧ vA a = LA.val r.1.s11 * vA r.2.1 + LA.val r.1.s12 * vA r.2.2 ∧
-      vA b = LA.val r.1.s21 * vA r.2.1 + LA.val r.1.s22 * vA r.2.2 ∧
+public theorem stepW_spec (a b : A) (r : O.W × A × A) (h : stepW a b = some r) :
+    okW r.1 ∧ vA a = LA.val (O.s11 r.1) * vA r.2.1 + LA.val (O.s12 r.1) * vA r.2.2 ∧
+      vA b = LA.val (O.s21 r.1) * vA r.2.1 + LA.val (O.s22 r.1) * vA r.2.2 ∧
       O.trimmed r.2.1 = true ∧ O.trimmed r.2.2 = true := by
-  have hc : ∀ m r, tryCof a b m = some r → OK A r.1 ∧
-      vA a = LA.val r.1.s11 * vA r.2.1 + LA.val r.1.s12 * vA r.2.2 ∧
-      vA b = LA.val r.1.s21 * vA r.2.1 + LA.val r.1.s22 * vA r.2.2 ∧
+  have hc : ∀ m r, tryCof a b m = some r → okW r.1 ∧
+      vA a = LA.val (O.s11 r.1) * vA r.2.1 + LA.val (O.s12 r.1) * vA r.2.2 ∧
+      vA b = LA.val (O.s21 r.1) * vA r.2.1 + LA.val (O.s22 r.1) * vA r.2.2 ∧
       O.trimmed r.2.1 = true ∧ O.trimmed r.2.2 = true := by
     intro m r h
     unfold tryCof at h
@@ -187,7 +195,9 @@ public theorem stepW_spec (a b : A) (r : WMat L × A × A) (h : stepW a b = some
     · exact hc _ _ h
     · exact absurd h (by simp)
 
-/-- Lehmer's step on `a ≥ b`: two trimmed numbers with the same greatest common divisor, or none. -/
+/--
+Lehmer's step on `a ≥ b`: two trimmed numbers with the same greatest common divisor, or none.
+-/
 @[expose, specialize] public def lehmerStep (a b : A) : Option (A × A) :=
   match stepW a b with
   | some r => some r.2
@@ -203,9 +213,9 @@ public theorem lehmerStep_spec (a b : A) (p : A × A) (h : lehmerStep a b = some
     subst h
     obtain ⟨⟨-, -, -, -, hp, hn⟩, ha, hb, t₁, t₂⟩ := stepW_spec a b r hr
     refine ⟨?_, t₁, t₂⟩
-    have g := NatOps.gcd_unimodular (vA r.2.1) (vA r.2.2) (LA.val r.1.s11) (LA.val r.1.s12)
-      (LA.val r.1.s21) (LA.val r.1.s22) (by
-        cases hs : r.1.neg
+    have g := NatOps.gcd_unimodular (vA r.2.1) (vA r.2.2) (LA.val (O.s11 r.1)) (LA.val (O.s12 r.1))
+      (LA.val (O.s21 r.1)) (LA.val (O.s22 r.1)) (by
+        cases hs : O.neg r.1
         · have := congrArg (fun n : Nat => (n : Int)) (hp hs)
           push_cast at this; left; lia
         · have := congrArg (fun n : Nat => (n : Int)) (hn hs)
@@ -216,18 +226,18 @@ public theorem lehmerStep_spec (a b : A) (p : A × A) (h : lehmerStep a b = some
   · exact absurd h (by simp)
 
 /-- `M S`, by `mulAddMul`, trimmed. -/
-@[expose, specialize] public def mulMatW (M : Mat2 A) (S : WMat L) : Mat2 A :=
-  ⟨O.trim (LinComb.mulAddMul M.m11 M.m12 S.s11 S.s21),
-    O.trim (LinComb.mulAddMul M.m11 M.m12 S.s12 S.s22),
-    O.trim (LinComb.mulAddMul M.m21 M.m22 S.s11 S.s21),
-    O.trim (LinComb.mulAddMul M.m21 M.m22 S.s12 S.s22), M.neg != S.neg⟩
+@[expose, specialize] public def mulMatW (M : Mat2 A) (S : O.W) : Mat2 A :=
+  ⟨O.trim (LinComb.mulAddMul M.m11 M.m12 (O.s11 S) (O.s21 S)),
+    O.trim (LinComb.mulAddMul M.m11 M.m12 (O.s12 S) (O.s22 S)),
+    O.trim (LinComb.mulAddMul M.m21 M.m22 (O.s11 S) (O.s21 S)),
+    O.trim (LinComb.mulAddMul M.m21 M.m22 (O.s12 S) (O.s22 S)), M.neg != O.neg S⟩
 
-public theorem mulMatW_spec (M : Mat2 A) (S : WMat L) (hS : OK A S) :
-    vA (mulMatW M S).m11 = vA M.m11 * LA.val S.s11 + vA M.m12 * LA.val S.s21 ∧
-      vA (mulMatW M S).m12 = vA M.m11 * LA.val S.s12 + vA M.m12 * LA.val S.s22 ∧
-      vA (mulMatW M S).m21 = vA M.m21 * LA.val S.s11 + vA M.m22 * LA.val S.s21 ∧
-      vA (mulMatW M S).m22 = vA M.m21 * LA.val S.s12 + vA M.m22 * LA.val S.s22 ∧
-      (mulMatW M S).neg = (M.neg != S.neg) := by
+public theorem mulMatW_spec (M : Mat2 A) (S : O.W) (hS : okW S) :
+    vA (mulMatW M S).m11 = vA M.m11 * LA.val (O.s11 S) + vA M.m12 * LA.val (O.s21 S) ∧
+      vA (mulMatW M S).m12 = vA M.m11 * LA.val (O.s12 S) + vA M.m12 * LA.val (O.s22 S) ∧
+      vA (mulMatW M S).m21 = vA M.m21 * LA.val (O.s11 S) + vA M.m22 * LA.val (O.s21 S) ∧
+      vA (mulMatW M S).m22 = vA M.m21 * LA.val (O.s12 S) + vA M.m22 * LA.val (O.s22 S) ∧
+      (mulMatW M S).neg = (M.neg != O.neg S) := by
   obtain ⟨h₁₁, h₁₂, h₂₁, h₂₂, -, -⟩ := hS
   simp only [mulMatW, O.vA_trim]
   rw [vA_mulAddMul _ _ _ _ h₁₁ h₂₁, vA_mulAddMul _ _ _ _ h₁₂ h₂₂,
@@ -239,16 +249,17 @@ Half-gcd's base case of word matrices, for `NatOps.smallBase` on a representatio
 that converts to the arrays (`toA`) and back (`ofA`): Lehmer's steps (`stepW`) and the matrix
 updated by `mulAddMul` (`mulMatW`). `geB b s` is whether `b ≥ Bˢ`, which only affects speed.
 -/
-@[expose, specialize] public def smallSteps {α : Type} (o : NatOps α) (toA : α → A) (ofA : A → α)
+@[expose, specialize] public def smallSteps {α : Type} (o : NatOps α) (toA : α → A)
+    (ofA : A → α)
     (hto : ∀ x, vA (toA x) = o.val x) (hof : ∀ a, o.val (ofA a) = vA a)
     (geB : α → Nat → Bool) : o.SmallSteps where
-  W := WMat L
-  e₁₁ S := LA.val S.s11
-  e₁₂ S := LA.val S.s12
-  e₂₁ S := LA.val S.s21
-  e₂₂ S := LA.val S.s22
-  neg S := S.neg
-  ok S := OK A S
+  W := O.W
+  e₁₁ S := LA.val (O.s11 S)
+  e₁₂ S := LA.val (O.s12 S)
+  e₂₁ S := LA.val (O.s21 S)
+  e₂₂ S := LA.val (O.s22 S)
+  neg S := O.neg S
+  ok S := okW S
   step a b :=
     match stepW (toA a) (toA b) with
     | some r => some (r.1, ofA r.2.1, ofA r.2.2)
