@@ -186,6 +186,12 @@ returns the bits out of the top, like GMP's `mpn_lshift`.
     (hr : LoopBound r ro n) (ha : LoopBound a ao n) : A × L :=
   F.foldThen n (lshStep A a ao s n ha) r ro hr 0 R.zero fun arr _ c => (arr, c)
 
+@[simp] public theorem size_lshiftW (r : A) (ro : USize) (a : A) (ao n : USize) (s : L)
+    (hr : LoopBound r ro n) (ha : LoopBound a ao n) :
+    LA.size (lshiftW r ro a ao n s hr ha).1 = LA.size r := by
+  rw [lshiftW, F.foldThen_eq, foldUInPlaceThen]
+  exact size_foldUInPlace ..
+
 public theorem lshiftW_spec (r : A) (ro : USize) (a : A) (ao n : USize) (s : L)
     (hr : LoopBound r ro n) (ha : LoopBound a ao n) (hs₀ : 0 < LA.val s) (hs : LA.val s < LA.w) :
     LA.size (lshiftW r ro a ao n s hr ha).1 = LA.size r ∧
@@ -251,6 +257,12 @@ private theorem cp_spec (a : A) (ao n : USize) (ha : LoopBound a ao n) (arr : A)
 @[expose, specialize] public def copyW (r : A) (ro : USize) (a : A) (ao n : USize)
     (hr : LoopBound r ro n) (ha : LoopBound a ao n) : A :=
   F.foldThen n (cpStep A a ao n ha) r ro hr 0 R.zero fun arr _ _ => arr
+
+@[simp] public theorem size_copyW (r : A) (ro : USize) (a : A) (ao n : USize)
+    (hr : LoopBound r ro n) (ha : LoopBound a ao n) :
+    LA.size (copyW r ro a ao n hr ha) = LA.size r := by
+  rw [copyW, F.foldThen_eq, foldUInPlaceThen]
+  exact size_foldUInPlace ..
 
 public theorem copyW_spec (r : A) (ro : USize) (a : A) (ao n : USize) (hr : LoopBound r ro n)
     (ha : LoopBound a ao n) :
@@ -389,6 +401,12 @@ top bits of a limb instead.
     fun arr harr x =>
       (R.uset arr (ro + (m - 1)) (R.shr x s) (top_idx hr hm arr harr),
         R.sub x₀ (R.shl (R.shr x₀ s) s))
+
+@[simp] public theorem size_rshiftW (r : A) (ro : USize) (a : A) (ao m : USize) (s : L)
+    (hr : LoopBound r ro m) (ha : LoopBound a ao m) (hm : 0 < m) :
+    LA.size (rshiftW r ro a ao m s hr ha hm).1 = LA.size r := by
+  rw [rshiftW, F.foldThen_eq, foldUInPlaceThen]
+  exact (R.size_uset ..).trans (size_foldUInPlace ..)
 
 omit F in
 private theorem rsh_fin (r a : A) (ro ao m : USize) (s : L) (hm : 0 < m) (hs : LA.val s < LA.w)
