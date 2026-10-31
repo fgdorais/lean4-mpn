@@ -180,91 +180,47 @@ public theorem toNat_finish_foldl (l : List Char) (hl : ∀ c ∈ l, c.isDigit =
       Nat.ofDigitChars 10 (l.filter (· != '_')) 0 := by
   rw [← decVA_eq]; exact DecChunks.vA_finish_foldl l hl
 
-/-! ## Divide and conquer -/
+/-! ## Divide and conquer
 
-/-- The decimal digits of limbs by chunks (`toDecimal`), the base case of `NatOps.toDec`. -/
-public def decBase (x : UInt64Array) : String := toDecimal x
+`main`'s `DecChunks.toDecimalWith` and `DecChunks.ofDecimalWith` on `ops64`, whose numbers are the
+arrays themselves.
+-/
 
-private theorem decBase_spec (x : UInt64Array) :
-    (decBase x).toList = Nat.toDigits 10 (ops64.val x) := by
-  rw [decBase, toDecimal_eq, Nat.toList_repr, ops64_val]
-
-/-- The size below which divide and conquer writes digits by chunks (`decBase`). -/
+/-- The size below which divide and conquer writes digits by chunks. -/
 public def decBaseSize : Nat := 16
 
+/-- The size, in digits, below which divide and conquer reads digits by chunks. -/
+public def parseBaseSize : Nat := 300
+
+private theorem hto (x : UInt64Array) : DecChunks.vA (id x) = ops64.val x := by
+  rw [ops64_val, id, decVA_eq]
+
+private theorem hof (a : UInt64Array) : ops64.val (id a) = DecChunks.vA a := by
+  rw [ops64_val, id, decVA_eq]
+
 /--
-The decimal digits of `a`: by chunks of nineteen digits below `strDC` limbs (`toDecimal`), and by
-divide and conquer from `strDC` limbs (`NatOps.toDec`), down to `decBaseSize` limbs.
+The decimal digits of `a`: by chunks of nineteen digits below `strDC` limbs, and by divide and
+conquer from `strDC` limbs (`NatOps.toDec`), down to `decBaseSize` limbs.
 -/
 public def toDecimalWith (strDC : Nat) (a : UInt64Array) : String :=
-  if strDC ≤ a.size then ops64.toDec decBase decBaseSize a else toDecimal a
+  DecChunks.toDecimalWith ops64 id id strDC decBaseSize a
 
 public theorem toDecimalWith_eq (strDC : Nat) (a : UInt64Array) :
     toDecimalWith strDC a = Nat.repr a.toNat := by
-  unfold toDecimalWith
-  split
-  · rw [← String.toList_inj, ops64.toDec_spec decBase decBaseSize decBase_spec, Nat.toList_repr,
-      ops64_val]
-  · exact toDecimal_eq a
-
-/-- The value of `len` digits of `arr` from `start` by chunks, the base case of `fromDec`. -/
-public def parseBase (arr : Array Char) (start len : Nat) : UInt64Array :=
-  (DecChunks.finish (arr.foldl DecChunks.step (DecChunks.init UInt64Array) start (start + len)))
-
-private theorem foldl_chars (arr : Array Char) (start len : Nat) :
-    arr.foldl DecChunks.step (DecChunks.init UInt64Array) start (start + len) =
-      (NatOps.chars arr start len).foldl DecChunks.step (DecChunks.init UInt64Array) := by
-  rw [Array.foldl_eq_foldl_extract, ← Array.foldl_toList, Array.toList_extract,
-    List.extract_eq_take_drop, Nat.add_sub_cancel_left, NatOps.chars]
-
-/-- The size, in digits, below which divide and conquer reads digits by chunks (`parseBase`). -/
-public def parseBaseSize : Nat := 300
-
-private theorem parseBase_spec (arr : Array Char) (hd : ∀ c ∈ arr.toList, c.isDigit = true)
-    (start len : Nat) :
-    ops64.val (parseBase arr start len) =
-      Nat.ofDigitChars 10 (NatOps.chars arr start len) 0 := by
-  have hc : ∀ c ∈ NatOps.chars arr start len, c.isDigit = true := fun c hc =>
-    hd c (List.mem_of_mem_drop (List.mem_of_mem_take hc))
-  rw [ops64_val, parseBase, foldl_chars, toNat_finish_foldl _ (fun c h => Or.inl (hc c h))]
-  congr 1
-  apply List.filter_eq_self.2
-  intro c h
-  have := hc c h
-  simp only [bne_iff_ne, ne_eq]
-  rintro rfl
-  exact absurd this (by decide)
+  rw [toDecimalWith, DecChunks.toDecimalWith_eq _ _ _ hto hof, decVA_eq]
 
 /--
 The number that a string of decimal digits denotes, like `String.toNat?`: from `19 parseDC`
 digits by divide and conquer (`NatOps.fromDec`), and below by chunks of nineteen digits.
 -/
 public def ofDecimalWith (parseDC : Nat) (s : String) : Option UInt64Array :=
-  if s.isNat then
-    if 19 * parseDC ≤ s.length then
-      some (ops64.fromDec parseBase parseBaseSize (s.toList.filter (· != '_')).toArray)
-    else some (DecChunks.finish (s.foldl DecChunks.step (DecChunks.init UInt64Array)))
-  else
-    none
+  if s.isNat then some (DecChunks.ofDecimalWith ops64 id id parseDC parseBaseSize s) else none
 
 public theorem ofDecimalWith_eq (parseDC : Nat) (s : String) :
     (ofDecimalWith parseDC s).map UInt64Array.toNat = s.toNat? := by
   by_cases h : s.isNat = true
-  · rw [ofDecimalWith, ite_eq_left h, String.toNat?_eq_some_ofDigitChars h]
-    split
-    · rw [Option.map_some, Option.some.injEq]
-      have hd : ∀ c ∈ (s.toList.filter (· != '_')).toArray.toList, c.isDigit = true := by
-        intro c hc
-        simp only [List.mem_filter, bne_iff_ne, ne_eq] at hc
-        rcases (String.isNat_iff.1 h).2.1 c hc.1 with h' | h'
-        · exact h'
-        · exact absurd h' hc.2
-      have := ops64.fromDec_spec parseBase parseBaseSize _
-        (fun st ln _ => parseBase_spec _ hd st ln)
-      rw [ops64_val] at this
-      rw [this, List.toList_toArray]
-    · rw [Option.map_some, Option.some.injEq, String.foldl_eq_foldl_toList]
-      exact toNat_finish_foldl _ (String.isNat_iff.1 h).2.1
+  · rw [ofDecimalWith, ite_eq_left h, Option.map_some,
+      DecChunks.ofDecimalWith_spec _ _ _ hto hof _ _ s h, decVA_eq]
   · rw [ofDecimalWith, ite_eq_right h, String.toNat?_eq_none (by simpa using h), Option.map_none]
 
 /-- The decimal digits of `a`, like `Nat.repr a.toNat`. -/
