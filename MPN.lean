@@ -86,3 +86,4 @@ Verified multi-precision arithmetic on `UInt64` limbs, in the style of GMP's `mp
 * `MPN.Decimal`: decimal strings, by chunks of nineteen digits and by divide and conquer;
 * `MPN.Nat`: natural numbers, `main`'s `GNat` on 64-bit limbs, proved against `Nat`.
 -/
+public import MPN.DecChunks
