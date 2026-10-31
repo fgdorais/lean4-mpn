@@ -12,11 +12,10 @@ public import MPN.LinComb
 /-!
 # Linear combinations of two numbers by words
 
-`mulSubMul x y a b` is `a x - b y` and whether it is negative, and `mulAddMul x y a b` is
-`a x + b y`, for words `a, b < 2³¹`, each in one pass over the limbs of `x` and `y`: `main`'s
-`LinComb.mulSubMul` and `LinComb.mulAddMul` on the instance `linComb32`, whose steps are here.
-Lehmer's step applies its cofactors to the two numbers this way, and half-gcd's base case
-multiplies its matrices.
+The steps of `main`'s `LinComb.mulSubMul` and `LinComb.mulAddMul` on 32-bit limbs, `a x - b y` and
+`a x + b y` for words `a, b < 2³¹` in one pass over the limbs of `x` and `y`, and the instance
+`linComb32`: `main`'s `LehmerStep` applies the cofactors of Lehmer's step to two numbers this way,
+and multiplies the matrices of half-gcd's base case.
 
 The value of a limb of `a x - b y`, `x a - y b` plus the carry, lies in `(-2⁶³, 2⁶³)`. The step adds
 `2⁶³ - 2³¹` to make it a word, whose low half is the limb and whose high half is the next carry plus
@@ -155,45 +154,5 @@ public instance linComb32 : LinCombOps UInt32Array UInt32 where
     have e : (0x80000000 : UInt32).toNat = 2 ^ 31 := rfl
     rw [UInt32.toNat_sub_of_le _ _ (by rw [UInt32.le_iff_toNat_le, e]; lia), e]
     lia
-
-/-- `a x + b y` for `a, b < 2³¹`, as `max x.size y.size + 1` limbs, untrimmed: `main`'s
-`LinComb.mulAddMul`. -/
-public def mulAddMul (x y : UInt32Array) (a b : UInt32) : UInt32Array :=
-  LinComb.mulAddMul x y a b
-
-public theorem toNat_mulAddMul (x y : UInt32Array) (a b : UInt32) (ha : a.toNat < 2 ^ 31)
-    (hb : b.toNat < 2 ^ 31) :
-    toNat (mulAddMul x y a b) = toNat x * a.toNat + toNat y * b.toNat := by
-  obtain ⟨s₁, s₂⟩ := LinComb.mulAddMul_spec x y a b ha hb
-  rw [toNat_array_eq_valAt, toNat_array_eq_valAt, toNat_array_eq_valAt, mulAddMul,
-    show (LinComb.mulAddMul x y a b).size = _ from s₁, Nat.mul_comm (x.valAt 0 x.size),
-    Nat.mul_comm (y.valAt 0 y.size)]
-  exact s₂
-
-/-- `a x - b y` for `a, b < 2³¹`, as `max x.size y.size + 1` limbs, untrimmed, and whether it is
-negative, in which case the limbs mean nothing: `main`'s `LinComb.mulSubMul`. -/
-public def mulSubMul (x y : UInt32Array) (a b : UInt32) : UInt32Array × Bool :=
-  LinComb.mulSubMul x y a b
-
-public theorem mulSubMul_spec (x y : UInt32Array) (a b : UInt32) (ha : a.toNat < 2 ^ 31)
-    (hb : b.toNat < 2 ^ 31) :
-    ((mulSubMul x y a b).2 = false →
-        toNat (mulSubMul x y a b).1 + toNat y * b.toNat = toNat x * a.toNat) ∧
-      ((mulSubMul x y a b).2 = true → toNat x * a.toNat < toNat y * b.toNat) := by
-  obtain ⟨s₁, s₂, s₃⟩ := LinComb.mulSubMul_spec x y a b ha hb
-  rw [toNat_array_eq_valAt, toNat_array_eq_valAt, toNat_array_eq_valAt, mulSubMul,
-    show (LinComb.mulSubMul x y a b).1.size = _ from s₁, Nat.mul_comm (x.valAt 0 x.size),
-    Nat.mul_comm (y.valAt 0 y.size)]
-  exact ⟨s₂, s₃⟩
-
-/-- `(mulSubMul x y a b, mulSubMul y x d c)`: `a x - b y` and `d y - c x`, both differences of a
-Lehmer step, with their signs. -/
-public def mulSubMul₂ (x y : UInt32Array) (a b c d : UInt32) :
-    (UInt32Array × Bool) × (UInt32Array × Bool) :=
-  (mulSubMul x y a b, mulSubMul y x d c)
-
-public theorem mulSubMul₂_eq (x y : UInt32Array) (a b c d : UInt32) :
-    mulSubMul₂ x y a b c d = (mulSubMul x y a b, mulSubMul y x d c) := by
-  rw [mulSubMul₂]
 
 end MPN
