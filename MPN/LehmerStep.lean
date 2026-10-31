@@ -112,7 +112,9 @@ numbers `(x, y)` with `(a, b) = S (x, y)`.
     else LinComb.mulSubMul b a (O.s12 S) (O.s22 S)
   let y := if !O.neg S then LinComb.mulSubMul b a (O.s11 S) (O.s21 S)
     else LinComb.mulSubMul a b (O.s21 S) (O.s11 S)
-  if x.2 || y.2 then none else some (O.trim x.1, O.trim y.1)
+  -- Taking the pairs apart first leaves the arrays unshared, so that `trim` pops in place.
+  match x, y with
+  | (xa, xn), (ya, yn) => if xn || yn then none else some (O.trim xa, O.trim ya)
 
 private theorem fwd_pos (p q r s a b X Y : Nat) (hd : p * s = q * r + 1)
     (hX : X + q * b = s * a) (hY : Y + r * a = p * b) :
