@@ -22,9 +22,10 @@ of `k` decimal digits, the largest power of ten below the base of the limbs (`De
   of `j` digits. It skips `_` and equals `Nat.ofDigitChars` of the digits, the value that
   `String.toNat?` gives.
 
-Both take quadratic time; the libraries switch to divide and conquer (`NatOps.toDec`,
-`NatOps.fromDec`) on long numbers. The state of reading is a structure of the instance's, whose
-fields are unboxed: a structure over the limbs would box the chunk at every character.
+Both take quadratic time; on long numbers `toDecimalWith` and `ofDecimalWith` switch to divide and
+conquer (`NatOps.toDec`, `NatOps.fromDec`), with the chunks as base cases. The state of reading is
+a structure of the instance's, whose fields are unboxed: a structure over the limbs would box the
+chunk at every character.
 -/
 
 namespace MPN
@@ -336,6 +337,89 @@ public theorem vA_finish_foldl (l : List Char) (hl : ∀ c ∈ l, c.isDigit = tr
     rw [init, O.acc_mkSt, O.chunk_mkSt, O.count_mkSt, O.vA_empty, O.val_chunk0]; simp⟩
   rw [List.nil_append] at h
   exact vA_finish _ _ h
+
+/-! ## Divide and conquer
+
+Long numbers go through the base-generic divide and conquer of `MPN.Generic.Radix`
+(`NatOps.toDec`, `NatOps.fromDec`) on a representation `α` of numbers that converts to the arrays
+(`toA`) and back (`ofA`), with the chunks as its base cases.
+-/
+
+section DC
+
+variable {α : Type} (o : NatOps α) (toA : α → A) (ofA : A → α)
+
+/-- The decimal digits of `x` by chunks (`toDecimal`), the base case of `NatOps.toDec`. -/
+@[expose, specialize] public def decBase (x : α) : String := toDecimal (toA x)
+
+/--
+The decimal digits of `a`: by chunks below `strDC` limbs (`toDecimal`), and by divide and conquer
+from `strDC` limbs (`NatOps.toDec`), down to `T` limbs.
+-/
+@[expose, specialize] public def toDecimalWith (strDC T : Nat) (a : A) : String :=
+  if strDC ≤ LA.size a then o.toDec (decBase toA) T (ofA a) else toDecimal a
+
+public theorem toDecimalWith_eq (hto : ∀ x, vA (toA x) = o.val x)
+    (hof : ∀ a, o.val (ofA a) = vA a) (strDC T : Nat) (a : A) :
+    toDecimalWith o toA ofA strDC T a = Nat.repr (vA a) := by
+  unfold toDecimalWith
+  split
+  · rw [← String.toList_inj, o.toDec_spec (decBase toA) T
+      (fun x => by rw [decBase, toDecimal_eq, Nat.toList_repr, hto]), Nat.toList_repr, hof]
+  · exact toDecimal_eq a
+
+/-- The value of `len` digits of `arr` from `start` by chunks, the base case of `fromDec`. -/
+@[expose, specialize] public def parseBase (arr : Array Char) (start len : Nat) : α :=
+  ofA (finish (arr.foldl step (init A) start (start + len)))
+
+omit [DecOps A L] in
+private theorem foldl_chars {β : Type} (f : β → Char → β) (b : β) (arr : Array Char)
+    (start len : Nat) :
+    arr.foldl f b start (start + len) = (NatOps.chars arr start len).foldl f b := by
+  rw [Array.foldl_eq_foldl_extract, ← Array.foldl_toList, Array.toList_extract,
+    List.extract_eq_take_drop, Nat.add_sub_cancel_left, NatOps.chars]
+
+private theorem parseBase_spec (hof : ∀ a, o.val (ofA a) = vA a) (arr : Array Char)
+    (hd : ∀ c ∈ arr.toList, c.isDigit = true) (start len : Nat) :
+    o.val (parseBase ofA arr start len) = Nat.ofDigitChars 10 (NatOps.chars arr start len) 0 := by
+  have hc : ∀ c ∈ NatOps.chars arr start len, c.isDigit = true := fun c hc =>
+    hd c (List.mem_of_mem_drop (List.mem_of_mem_take hc))
+  rw [parseBase, hof, foldl_chars, vA_finish_foldl _ (fun c h => Or.inl (hc c h))]
+  congr 1
+  apply List.filter_eq_self.2
+  intro c h
+  have := hc c h
+  simp only [bne_iff_ne, ne_eq]
+  rintro rfl
+  exact absurd this (by decide)
+
+/--
+The limbs of a string of decimal digits that `String.isNat` accepts: from `k parseDC` digits by
+divide and conquer (`NatOps.fromDec`, by chunks below `T` digits), and below by chunks.
+-/
+@[expose, specialize] public def ofDecimalWith (parseDC T : Nat) (s : String) : A :=
+  if O.k * parseDC ≤ s.length then
+    toA (o.fromDec (parseBase ofA) T (s.toList.filter (· != '_')).toArray)
+  else finish (s.foldl step (init A))
+
+public theorem ofDecimalWith_spec (hto : ∀ x, vA (toA x) = o.val x)
+    (hof : ∀ a, o.val (ofA a) = vA a) (parseDC T : Nat) (s : String) (h : s.isNat = true) :
+    s.toNat? = some (vA (ofDecimalWith o toA ofA parseDC T s)) := by
+  rw [String.toNat?_eq_some_ofDigitChars h, Option.some.injEq]
+  unfold ofDecimalWith
+  split
+  · have hd : ∀ c ∈ (s.toList.filter (· != '_')).toArray.toList, c.isDigit = true := by
+      intro c hc
+      simp only [List.mem_filter, bne_iff_ne, ne_eq] at hc
+      rcases (String.isNat_iff.1 h).2.1 c hc.1 with h' | h'
+      · exact h'
+      · exact absurd h' hc.2
+    rw [hto, o.fromDec_spec (parseBase ofA) T _
+      (fun st ln _ => parseBase_spec o ofA hof _ hd st ln), List.toList_toArray]
+  · rw [String.foldl_eq_foldl_toList]
+    exact (vA_finish_foldl _ (String.isNat_iff.1 h).2.1).symm
+
+end DC
 
 end DecChunks
 
