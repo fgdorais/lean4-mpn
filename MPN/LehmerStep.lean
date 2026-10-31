@@ -20,8 +20,8 @@ exact; nothing about the cofactors needs a proof. The matrices are a structure o
 (`W`), whose fields are unboxed words: a structure over the limbs would box each entry, an
 allocation per entry and per step on 64-bit limbs, which made `gcd` 10% slower.
 
-`stepW` is such a step from the instance's cofactors, `lehmerStep` its two numbers, which have the
-same greatest common divisor as `a` and `b`, and `mulMatW` the product of a matrix of numbers by a
+`stepW` is such a step from the instance's cofactors, `lehmerStep` its two numbers without the
+matrix, which have the same greatest common divisor as `a` and `b`, and `mulMatW` the product of a matrix of numbers by a
 matrix of words (`LinComb.mulAddMul`). `smallSteps` makes of them the base case of half-gcd
 (`NatOps.SmallSteps`) for any representation that converts to and from the arrays.
 -/
@@ -195,35 +195,60 @@ public theorem stepW_spec (a b : A) (r : O.W × A × A) (h : stepW a b = some r)
     · exact hc _ _ h
     · exact absurd h (by simp)
 
+/-- The numbers that the matrix of the cofactors `m` takes to `a` and `b`, when it is valid. -/
+@[expose, specialize] public def tryNums (a b : A) (m : Cofactors) : Option (A × A) :=
+  match O.wmat m with
+  | some S => applyW S a b
+  | none => none
+
 /--
-Lehmer's step on `a ≥ b`: two trimmed numbers with the same greatest common divisor, or none.
+Lehmer's step on `a ≥ b`: two trimmed numbers with the same greatest common divisor, or none. It
+is `stepW` without its matrix, which it does not build.
 -/
 @[expose, specialize] public def lehmerStep (a b : A) : Option (A × A) :=
-  match stepW a b with
-  | some r => some r.2
-  | none => none
+  match tryNums a b (O.cof₁ a b) with
+  | some p => some p
+  | none => if O.two then tryNums a b (O.cof₂ a b) else none
+
+private theorem tryNums_spec (a b : A) (m : Cofactors) (p : A × A) (h : tryNums a b m = some p) :
+    ∃ S, O.wmat m = some S ∧ applyW S a b = some p := by
+  unfold tryNums at h
+  split at h
+  · rename_i S hS; exact ⟨S, hS, h⟩
+  · exact absurd h (by simp)
+
+private theorem tryNums_ok (a b : A) (m : Cofactors) (p : A × A) (h : tryNums a b m = some p) :
+    Nat.gcd (vA p.1) (vA p.2) = Nat.gcd (vA a) (vA b) ∧ O.trimmed p.1 = true ∧
+      O.trimmed p.2 = true := by
+  obtain ⟨S, hS, hp⟩ := tryNums_spec a b m p h
+  have hok := O.ok_wmat m S hS
+  obtain ⟨ha, hb⟩ := fwd_applyW S hok a b p hp
+  obtain ⟨t₁, t₂⟩ := trimmed_applyW S a b p hp
+  obtain ⟨-, -, -, -, hpos, hneg⟩ := hok
+  refine ⟨?_, t₁, t₂⟩
+  have g := NatOps.gcd_unimodular (vA p.1) (vA p.2) (LA.val (O.s11 S)) (LA.val (O.s12 S))
+    (LA.val (O.s21 S)) (LA.val (O.s22 S)) (by
+      cases hs : O.neg S
+      · have := congrArg (fun n : Nat => (n : Int)) (hpos hs)
+        push_cast at this; left; lia
+      · have := congrArg (fun n : Nat => (n : Int)) (hneg hs)
+        push_cast at this; right; lia)
+  rw [← g, ha, hb]
+  push_cast
+  rfl
 
 public theorem lehmerStep_spec (a b : A) (p : A × A) (h : lehmerStep a b = some p) :
     Nat.gcd (vA p.1) (vA p.2) = Nat.gcd (vA a) (vA b) ∧ O.trimmed p.1 = true ∧
       O.trimmed p.2 = true := by
   unfold lehmerStep at h
   split at h
-  · rename_i r hr
+  · rename_i q hq
     rw [Option.some.injEq] at h
     subst h
-    obtain ⟨⟨-, -, -, -, hp, hn⟩, ha, hb, t₁, t₂⟩ := stepW_spec a b r hr
-    refine ⟨?_, t₁, t₂⟩
-    have g := NatOps.gcd_unimodular (vA r.2.1) (vA r.2.2) (LA.val (O.s11 r.1)) (LA.val (O.s12 r.1))
-      (LA.val (O.s21 r.1)) (LA.val (O.s22 r.1)) (by
-        cases hs : O.neg r.1
-        · have := congrArg (fun n : Nat => (n : Int)) (hp hs)
-          push_cast at this; left; lia
-        · have := congrArg (fun n : Nat => (n : Int)) (hn hs)
-          push_cast at this; right; lia)
-    rw [← g, ha, hb]
-    push_cast
-    rfl
-  · exact absurd h (by simp)
+    exact tryNums_ok a b _ q hq
+  · split at h
+    · exact tryNums_ok a b _ p h
+    · exact absurd h (by simp)
 
 /-- `M S`, by `mulAddMul`, trimmed. -/
 @[expose, specialize] public def mulMatW (M : Mat2 A) (S : O.W) : Mat2 A :=
