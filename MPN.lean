@@ -33,3 +33,4 @@ public import MPN.Generic.DC
 public import MPN.Generic.Sqrt
 public import MPN.Generic.HGCD
 public import MPN.Generic.Radix
+public import MPN.DecChunks
