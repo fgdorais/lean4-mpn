@@ -48,6 +48,10 @@ public class DecOps (A : Type) (L : outParam Type) [LA : LimbArray A L] where
   /-- The digits of a chunk. -/
   k : Nat
   one_le_k : 1 ≤ k
+  k_lt : k < 256
+  /-- `k`, as a word for counting digits. -/
+  kU : UInt32
+  toNat_kU : kU.toNat = k
   /-- `10ᵏ`. -/
   base : L
   val_base : LA.val base = 10 ^ k
@@ -75,10 +79,10 @@ public class DecOps (A : Type) (L : outParam Type) [LA : LimbArray A L] where
     LA.val (push c d) = LA.val c * 10 + d.toNat
   /-- The state of reading: the limbs of the chunks so far, the current chunk and its digits. -/
   St : Type
-  mkSt : A → L → Nat → St
+  mkSt : A → L → UInt32 → St
   acc : St → A
   chunk : St → L
-  count : St → Nat
+  count : St → UInt32
   acc_mkSt : ∀ a c n, acc (mkSt a c n) = a
   chunk_mkSt : ∀ a c n, chunk (mkSt a c n) = c
   count_mkSt : ∀ a c n, count (mkSt a c n) = n
@@ -215,24 +219,25 @@ variable (A) in
 
 /--
 Reads one character: a digit goes into the current chunk, which moves into the limbs when it has
-`k` digits, and `_` is skipped.
+`k` digits, and `_` is skipped. The digits are counted in a word.
 -/
 @[expose, specialize] public def step (st : O.St) (c : Char) : O.St :=
   if c = '_' then
     st
   else
     let v := O.push (O.chunk st) (c.val - 48)
-    if O.count st + 1 = O.k then O.mkSt (O.mulAdd (O.acc st) O.base v) O.chunk0 0
+    if O.count st + 1 = O.kU then O.mkSt (O.mulAdd (O.acc st) O.base v) O.chunk0 0
     else O.mkSt (O.acc st) v (O.count st + 1)
 
-/-- The number read: the limbs times `10ʲ` for the `j` digits of the last chunk, plus that chunk. -/
+/-- The number read: the limbs times `10ʲ` for the `j` digits of the last chunk, plus it. -/
 @[expose, specialize] public def finish (st : O.St) : A :=
-  if O.count st = 0 then O.acc st else O.mulAdd (O.acc st) (O.pow10 (O.count st)) (O.chunk st)
+  if O.count st = 0 then O.acc st
+  else O.mulAdd (O.acc st) (O.pow10 (O.count st).toNat) (O.chunk st)
 
 /-- After reading `p`, the state holds the value of the digits of `p`. -/
 private def Inv (st : O.St) (p : List Char) : Prop :=
-  O.count st < O.k ∧ LA.val (O.chunk st) < 10 ^ O.count st ∧
-    vA (O.acc st) * 10 ^ O.count st + LA.val (O.chunk st) =
+  (O.count st).toNat < O.k ∧ LA.val (O.chunk st) < 10 ^ (O.count st).toNat ∧
+    vA (O.acc st) * 10 ^ (O.count st).toNat + LA.val (O.chunk st) =
       Nat.ofDigitChars 10 (p.filter (· != '_')) 0
 
 private theorem digit_toNat {c : Char} (h : c.isDigit = true) :
@@ -244,9 +249,16 @@ private theorem digit_toNat {c : Char} (h : c.isDigit = true) :
   rw [UInt32.toNat_sub_of_le _ _ hle, hv]
   exact ⟨rfl, by lia⟩
 
+omit [LimbArray A L] in
+private theorem toNat_succ (n : UInt32) (h : n.toNat < 256) : (n + 1).toNat = n.toNat + 1 := by
+  rw [UInt32.toNat_add]
+  simp only [UInt32.reduceToNat]
+  exact Nat.mod_eq_of_lt (by lia)
+
 private theorem inv_step (st : O.St) (p : List Char) (c : Char)
     (hc : c.isDigit = true ∨ c = '_') (h : Inv st p) : Inv (step st c) (p ++ [c]) := by
   obtain ⟨hk, hch, hv⟩ := h
+  have hk' := toNat_succ (O.count st) (by have := O.k_lt; lia)
   by_cases hu : c = '_'
   · subst hu
     rw [step, ite_eq_left rfl, Inv, List.filter_append]
@@ -260,32 +272,38 @@ private theorem inv_step (st : O.St) (p : List Char) (c : Char)
       have hne : (c != '_') = true := by simpa using hu
       rw [List.filter_append, Nat.ofDigitChars_append]
       simp [List.filter, hne, Nat.ofDigitChars_cons]
-    have hpow : 10 ^ O.count st ≤ 10 ^ (O.k - 1) := Nat.pow_le_pow_right (by decide) (by lia)
+    have hpow : 10 ^ (O.count st).toNat ≤ 10 ^ (O.k - 1) :=
+      Nat.pow_le_pow_right (by decide) (by lia)
     have hv' : LA.val (O.push (O.chunk st) (c.val - 48)) =
         LA.val (O.chunk st) * 10 + (c.toNat - 48) := by
       rw [O.val_push _ _ (by lia) (by rw [hd₁]; exact hd₂), hd₁]
-    have hlt : LA.val (O.chunk st) * 10 + (c.toNat - 48) < 10 ^ (O.count st + 1) := by
+    have hlt : LA.val (O.chunk st) * 10 + (c.toNat - 48) < 10 ^ ((O.count st).toNat + 1) := by
       rw [Nat.pow_succ]; lia
-    have hval : vA (O.acc st) * 10 ^ (O.count st + 1) +
+    have hval : vA (O.acc st) * 10 ^ ((O.count st).toNat + 1) +
         (LA.val (O.chunk st) * 10 + (c.toNat - 48)) =
           Nat.ofDigitChars 10 ((p ++ [c]).filter (· != '_')) 0 := by
       rw [hf, ← hv, Nat.pow_succ]
       generalize vA (O.acc st) = A
-      generalize 10 ^ O.count st = P
+      generalize 10 ^ (O.count st).toNat = P
       rw [Nat.mul_add, Nat.add_assoc, Nat.mul_comm 10 (A * P), Nat.mul_assoc A P 10,
         Nat.mul_comm 10 (LA.val (O.chunk st))]
-    by_cases h8 : O.count st + 1 = O.k
-    · rw [step, ite_eq_right hu]
+    have hiff : O.count st + 1 = O.kU ↔ (O.count st).toNat + 1 = O.k := by
+      rw [← UInt32.toNat_inj, hk', O.toNat_kU]
+    by_cases h8 : O.count st + 1 = O.kU
+    · have h8' := hiff.1 h8
+      rw [step, ite_eq_right hu]
       simp only [h8, ↓reduceIte]
-      refine ⟨by rw [O.count_mkSt]; have := O.one_le_k; lia, by
+      refine ⟨by rw [O.count_mkSt]; have := O.one_le_k; simp; lia, by
         rw [O.chunk_mkSt, O.count_mkSt, O.val_chunk0]; decide, ?_⟩
       rw [O.acc_mkSt, O.chunk_mkSt, O.count_mkSt, O.vA_mulAdd _ _ _ (by
-        rw [O.val_base, hv', ← h8]; exact hlt), O.val_base, ← hval, hv', h8, O.val_chunk0]
+        rw [O.val_base, hv', ← h8']; exact hlt), O.val_base, ← hval, hv', h8', O.val_chunk0]
       simp
-    · rw [step, ite_eq_right hu]
+    · have h8' : ¬(O.count st).toNat + 1 = O.k := fun e => h8 (hiff.2 e)
+      rw [step, ite_eq_right hu]
       simp only [h8, ↓reduceIte]
-      refine ⟨by rw [O.count_mkSt]; lia, by rw [O.chunk_mkSt, O.count_mkSt, hv']; exact hlt, ?_⟩
-      rw [O.acc_mkSt, O.chunk_mkSt, O.count_mkSt, hv', hval]
+      refine ⟨by rw [O.count_mkSt, hk']; lia,
+        by rw [O.chunk_mkSt, O.count_mkSt, hk', hv']; exact hlt, ?_⟩
+      rw [O.acc_mkSt, O.chunk_mkSt, O.count_mkSt, hk', hv', hval]
 
 private theorem inv_foldl (l p : List Char) (st : O.St)
     (hl : ∀ c ∈ l, c.isDigit = true ∨ c = '_') (h : Inv st p) :
@@ -302,7 +320,7 @@ private theorem vA_finish (st : O.St) (p : List Char) (h : Inv st p) :
   by_cases h0 : O.count st = 0
   · rw [h0] at hch hv
     rw [finish, ite_eq_left h0, ← hv]
-    simp only [Nat.pow_zero] at hch
+    simp only [UInt32.toNat_zero, Nat.pow_zero] at hch
     simp [show LA.val (O.chunk st) = 0 by lia]
   · rw [finish, ite_eq_right h0, O.vA_mulAdd _ _ _ (by rw [O.val_pow10 _ (by lia)]; exact hch),
       O.val_pow10 _ (by lia), hv]
