@@ -25,6 +25,8 @@ namespace MPN
 
 open WordArray
 
+namespace LinComb
+
 /--
 Limb `i` of `a`, or zero past its end, by `uget` against the size as a `USize`: the instances'
 `limb`. A `Nat` index would cost a conversion and a comparison of `Nat`s at every limb, about a
@@ -50,6 +52,8 @@ public theorem val_limbU {A L : Type} [LA : LimbArray A L] [R : WordArray A L]
   · rename_i h
     rw [R.val_zero, hz a i.toNat (by rw [USize.lt_iff_toNat_lt, e] at h; lia)]
 
+end LinComb
+
 /--
 The steps of the linear combinations of two arrays of limbs by two limbs below `2ᶜ`, with their
 values.
@@ -63,7 +67,7 @@ public class LinCombOps (A : Type) (L : outParam Type) [LA : LimbArray A L] [R :
   size_zeros : ∀ n, LA.size (zeros n) = n
   /-- Limbs past the end of an array are zero. -/
   val_get_ge : ∀ a i, LA.size a ≤ i → LA.val (LA.get a i) = 0
-  /-- Limb `i` of an array, or zero past its end, without a bounds error, such as `limbU`. -/
+  /-- Limb `i` of an array, or zero past its end, without a bounds error, such as `LinComb.limbU`. -/
   limb : A → USize → L
   val_limb : ∀ a i, LA.size a < USize.size → LA.val (limb a i) = LA.val (LA.get a i.toNat)
   /-- One limb of `a x + b y`: `maC xᵢ yᵢ a b c`, the low limb of `a xᵢ + b yᵢ + c`, and the
