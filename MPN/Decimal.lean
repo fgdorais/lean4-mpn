@@ -6,63 +6,33 @@ module
 
 public import MPN.Generic.Radix
 public import MPN.Generic.Ops64
+public import MPN.DecChunks
 import Std.Data.String.ToNat
 
 /-!
 # Decimal strings
 
-Ported from `main` with chunks of nineteen decimal digits, the largest power of ten below `β`:
-
-* `toDecimal a` divides by `10¹⁹` with `divRem1` until nothing is left, which gives the chunks
-  from the least significant one up, then writes the top chunk as it is and each other one with
-  exactly nineteen digits. It equals `Nat.repr a.toNat`.
-* `DecimalState.step`, folded over the characters, reads nineteen digits at a time into a chunk
-  and then multiplies the limbs so far by `10¹⁹` and adds the chunk; `finish` does the same with
-  `10ᵏ` for a last chunk of `k` digits. It skips `_` and equals `Nat.ofDigitChars` of the
-  digits, the value that `String.toNat?` gives.
-
-Both take quadratic time; `Num.toDecimal` and `Num.ofDecimal?` switch to divide and conquer
-(`NatOps.toDec`, `NatOps.fromDec`) on long numbers. Like `ops64`, the limb operations check that
-their arrays are small enough (`fits`) and otherwise compute with `Nat`, which cannot happen.
+`main`'s decimal strings by chunks (`MPN.DecChunks`) with chunks of nineteen decimal digits, the
+largest power of ten below `β` (`dec64`): `toDecimal` divides by `10¹⁹` with `divRem1` until
+nothing is left, and `DecChunks.step` reads nineteen digits at a time and adds them to the limbs
+with `mul1` (`mulAddLimb`). Both take quadratic time; `Num.toDecimal` and `Num.ofDecimal?` switch
+to divide and conquer (`NatOps.toDec`, `NatOps.fromDec`) on long numbers. Like `ops64`, the limb
+operations check that their arrays are small enough (`fits`) and otherwise compute with `Nat`,
+which cannot happen.
 -/
 
 open ScalarArray UInt64Array
 
 namespace MPN
 
-/-! ## Digits -/
-
-/-- Pushes the `k` low decimal digits of `d`, with leading zeros, onto `s`. -/
-def pushDigits (s : String) : Nat → Nat → String
-  | 0, _ => s
-  | k + 1, d => (pushDigits s k (d / 10)).push (Nat.digitChar (d % 10))
-
-theorem toList_pushDigits (s : String) (k d : Nat) :
-    (pushDigits s k d).toList = s.toList ++ padDigits k d := by
-  induction k generalizing d with
-  | zero => simp [pushDigits, padDigits]
-  | succ k ih => rw [pushDigits, String.toList_push, ih, padDigits, List.append_assoc]
-
-/-! ## Limbs to decimal -/
-
-/-- The value of chunks of nineteen digits, most significant first, after `v`. -/
-def ofChunks (l : List Nat) (v : Nat) : Nat := l.foldl (fun v d => 10 ^ 19 * v + d) v
-
-theorem ofChunks_eq (l : List Nat) (v : Nat) :
-    ofChunks l v = 10 ^ (19 * l.length) * v + ofChunks l 0 := by
-  induction l generalizing v with
-  | nil => simp [ofChunks]
-  | cons x xs ih =>
-    have e (w : Nat) : ofChunks (x :: xs) w = ofChunks xs (10 ^ 19 * w + x) := rfl
-    rw [e, e, ih, ih (10 ^ 19 * 0 + x), List.length_cons, Nat.mul_succ, Nat.pow_add,
-      Nat.mul_zero, Nat.zero_add, Nat.mul_add, Nat.mul_assoc, Nat.add_assoc]
+/-! ## Chunks of nineteen digits -/
 
 /-- Whether `a` is zero. -/
-def isZero (a : UInt64Array) : Bool :=
+public def isZero (a : UInt64Array) : Bool :=
   if a.size == 0 then true
   else if fits (a.size + 1) then MPN.log2 a.toUSlice == 0 && a[0]! == 0 else a.toNat == 0
 
-private theorem isZero_iff (a : UInt64Array) : isZero a = true ↔ a.toNat = 0 := by
+public theorem isZero_iff (a : UInt64Array) : isZero a = true ↔ a.toNat = 0 := by
   unfold isZero
   split
   · rename_i h0
@@ -94,14 +64,12 @@ private theorem isZero_iff (a : UInt64Array) : isZero a = true ↔ a.toNat = 0 :
   · simp
 
 /-- `(a / d, a mod d)` by `divRem1`. -/
-def divRem1N (a : UInt64Array) (d : UInt64) : UInt64Array × Nat :=
-  if fits (a.size + 1) then
-    let p := MPN.divRem1 (UInt64Array.replicate a.size 0).toUSlice a.toUSlice d
-    (p.1, p.2.toNat)
-  else (ofNat (a.toNat / d.toNat), a.toNat % d.toNat)
+public def divRem1N (a : UInt64Array) (d : UInt64) : UInt64Array × UInt64 :=
+  if fits (a.size + 1) then MPN.divRem1 (UInt64Array.replicate a.size 0).toUSlice a.toUSlice d
+  else (ofNat (a.toNat / d.toNat), (a.toNat % d.toNat).toUInt64)
 
-private theorem divRem1N_spec (a : UInt64Array) (d : UInt64) (hd : 0 < d.toNat) :
-    (divRem1N a d).1.toNat = a.toNat / d.toNat ∧ (divRem1N a d).2 = a.toNat % d.toNat := by
+public theorem divRem1N_spec (a : UInt64Array) (d : UInt64) (hd : 0 < d.toNat) :
+    (divRem1N a d).1.toNat = a.toNat / d.toNat ∧ (divRem1N a d).2.toNat = a.toNat % d.toNat := by
   unfold divRem1N
   split
   · rename_i h
@@ -118,110 +86,18 @@ private theorem divRem1N_spec (a : UInt64Array) (d : UInt64) (hd : 0 < d.toNat) 
     refine ⟨?_, h₂⟩
     rw [toNat_eq_valAt, size_divRem1]
     simpa using h₁
-  · exact ⟨toNat_ofNat _, rfl⟩
-
-/--
-Puts the chunks of nineteen digits of `a`, most significant first, in front of `acc`, by
-dividing by `10¹⁹` until nothing is left.
--/
-def chunksLoop (a : UInt64Array) (acc : List Nat) : List Nat :=
-  if _hz : isZero a = true then acc
-  else
-    let p := divRem1N a 10000000000000000000
-    chunksLoop p.1 (p.2 :: acc)
-termination_by a.toNat
-decreasing_by
-  rw [(divRem1N_spec a _ (by decide)).1]
-  rw [isZero_iff] at _hz
-  exact Nat.div_lt_self (by lia) (by decide)
-
-private theorem chunksLoop_spec (a : UInt64Array) (acc : List Nat)
-    (hacc : ∀ d ∈ acc, d < 10 ^ 19) :
-    (∀ d ∈ chunksLoop a acc, d < 10 ^ 19) ∧
-      ofChunks (chunksLoop a acc) 0 = 10 ^ (19 * acc.length) * a.toNat + ofChunks acc 0 ∧
-      (0 < a.toNat → ∃ c cs, chunksLoop a acc = c :: cs ∧ 0 < c) := by
-  induction a, acc using chunksLoop.induct with
-  | case1 a acc hz =>
-    rw [chunksLoop, dite_eq_left_of_eq_true (eq_true hz)]
-    rw [isZero_iff] at hz
-    rw [hz]
-    exact ⟨hacc, by simp, fun h => absurd h (Nat.lt_irrefl 0)⟩
-  | case2 a acc hz p ih =>
-    rw [chunksLoop, dite_eq_right hz]
-    have ⟨hq, hr⟩ := divRem1N_spec a 10000000000000000000 (by decide)
-    have hd : (10000000000000000000 : UInt64).toNat = 10 ^ 19 := rfl
-    rw [hd] at hq hr
-    have hpos : 0 < a.toNat := by
-      rw [isZero_iff] at hz; lia
-    have hmod : a.toNat % 10 ^ 19 < 10 ^ 19 := Nat.mod_lt _ (by decide)
-    obtain ⟨ih₁, ih₂, ih₃⟩ := ih (fun d hd => by
-      rcases List.mem_cons.1 hd with rfl | hd
-      · simp only [p]; rw [hr]; exact hmod
-      · exact hacc d hd)
-    simp only [p] at ih₁ ih₂ ih₃ ⊢
-    refine ⟨ih₁, ?_, fun _ => ?_⟩
-    · have hc : ofChunks (a.toNat % 10 ^ 19 :: acc) 0 =
-          10 ^ (19 * acc.length) * (a.toNat % 10 ^ 19) + ofChunks acc 0 := by
-        rw [show ofChunks (a.toNat % 10 ^ 19 :: acc) 0 = ofChunks acc (a.toNat % 10 ^ 19) by
-          simp [ofChunks], ofChunks_eq]
-      rw [ih₂, hq, List.length_cons, hr, hc, Nat.mul_succ, Nat.pow_add]
-      have := Nat.div_add_mod a.toNat (10 ^ 19)
-      generalize a.toNat / 10 ^ 19 = q at *
-      generalize a.toNat % 10 ^ 19 = r at *
-      generalize 10 ^ (19 * acc.length) = P
-      rw [← this, Nat.mul_add, Nat.mul_assoc, Nat.add_assoc]
-    · by_cases hq0 : a.toNat / 10 ^ 19 = 0
-      · have hs : isZero (divRem1N a 10000000000000000000).1 = true := by
-          rw [isZero_iff, hq, hq0]
-        rw [chunksLoop, dite_eq_left_of_eq_true (eq_true hs)]
-        exact ⟨_, _, rfl, by rw [hr]; lia⟩
-      · exact ih₃ (by rw [hq]; lia)
-
-/-- Writes the top chunk `c` as it is and each other chunk with nineteen digits. -/
-def renderChunks : List Nat → String
-  | [] => "0"
-  | c :: cs => cs.foldl (fun s d => pushDigits s 19 d) (Nat.repr c)
-
-private theorem toList_foldl_pushDigits (cs : List Nat) (s : String) (v : Nat) (hv : 0 < v)
-    (hs : s.toList = Nat.toDigits 10 v) (hcs : ∀ d ∈ cs, d < 10 ^ 19) :
-    (cs.foldl (fun s d => pushDigits s 19 d) s).toList = Nat.toDigits 10 (ofChunks cs v) := by
-  induction cs generalizing s v with
-  | nil => simpa [ofChunks] using hs
-  | cons d ds ih =>
-    rw [List.foldl_cons, show ofChunks (d :: ds) v = ofChunks ds (10 ^ 19 * v + d) from rfl]
-    apply ih _ _ (by have := Nat.mul_pos (show 0 < 10 ^ 19 by decide) hv; lia)
-    · rw [toList_pushDigits, hs, toDigits_pow_mul_add 19 hv (hcs d (by simp))]
-    · exact fun d' hd' => hcs d' (by simp [hd'])
-
-/-- The decimal digits of `a`, like `Nat.repr`, by chunks of nineteen digits. -/
-public def toDecimal (a : UInt64Array) : String := renderChunks (chunksLoop a [])
-
-public theorem toDecimal_eq (a : UInt64Array) : toDecimal a = Nat.repr a.toNat := by
-  rw [← String.toList_inj, Nat.toList_repr, toDecimal]
-  by_cases hz : isZero a = true
-  · rw [chunksLoop, dite_eq_left_of_eq_true (eq_true hz)]
-    rw [isZero_iff] at hz
-    rw [hz, renderChunks, Nat.toDigits_zero]
-    rfl
-  · obtain ⟨hlt, hv, hpos⟩ := chunksLoop_spec a [] (by simp)
-    obtain ⟨c, cs, he, hc⟩ := hpos (by rw [isZero_iff] at hz; lia)
-    rw [he] at hlt hv
-    simp only [List.length_nil, Nat.mul_zero, Nat.pow_zero, Nat.one_mul,
-      show ofChunks [] 0 = 0 from rfl, Nat.add_zero] at hv
-    rw [he, renderChunks, ← hv, show ofChunks (c :: cs) 0 = ofChunks cs c by simp [ofChunks]]
-    exact toList_foldl_pushDigits cs _ c hc Nat.toList_repr
-      (fun d hd => hlt d (List.mem_cons_of_mem _ hd))
-
-/-! ## Decimal to limbs -/
+  · refine ⟨toNat_ofNat _, ?_⟩
+    rw [Nat.toUInt64_eq, UInt64.toNat_ofNat', Nat.mod_eq_of_lt
+      (Nat.lt_trans (Nat.mod_lt _ hd) d.toNat_lt)]
 
 /-- `a m + v`, by `mul1` with the carry in `v`. -/
-def mulAddLimb (a : UInt64Array) (m v : UInt64) : UInt64Array :=
+public def mulAddLimb (a : UInt64Array) (m v : UInt64) : UInt64Array :=
   if fits (a.size + 2) then
     let p := MPN.mul1 (UInt64Array.replicate (a.size + 1) 0).toUSlice a.toUSlice m v
     p.1.set! a.size p.2
   else ofNat (a.toNat * m.toNat + v.toNat)
 
-private theorem toNat_mulAddLimb (a : UInt64Array) (m v : UInt64) :
+public theorem toNat_mulAddLimb (a : UInt64Array) (m v : UInt64) :
     (mulAddLimb a m v).toNat = a.toNat * m.toNat + v.toNat := by
   unfold mulAddLimb
   split
@@ -241,133 +117,68 @@ private theorem toNat_mulAddLimb (a : UInt64Array) (m v : UInt64) :
     exact h₁
   · exact toNat_ofNat _
 
-/--
-The state of reading decimal digits: the limbs of the chunks so far, and the value of the
-`count < 19` digits of the current chunk.
--/
-public structure DecimalState where
+/-- The state of reading decimal digits, with unboxed fields, for `DecChunks`. -/
+public structure DecState where
   acc : UInt64Array
   chunk : UInt64
-  count : UInt64
+  count : UInt32
 
-/-- The state before any digit. -/
-public def DecimalState.init : DecimalState := ⟨UInt64Array.replicate 0 0, 0, 0⟩
+/-- The value of an array, as `DecChunks` reads it. -/
+public theorem decVA_eq (x : UInt64Array) : DecChunks.vA x = x.toNat := (toNat_eq_valAt x).symm
 
-/--
-Reads one character: a digit goes into the current chunk, which moves into the limbs when it has
-nineteen digits, and `_` is skipped.
--/
-public def DecimalState.step (st : DecimalState) (c : Char) : DecimalState :=
-  if c = '_' then
-    st
-  else
-    let v := st.chunk * 10 + (c.val - 48).toUInt64
-    if st.count = 18 then ⟨mulAddLimb st.acc 10000000000000000000 v, 0, 0⟩
-    else ⟨st.acc, v, st.count + 1⟩
+/-- Decimal strings by chunks of nineteen digits, the largest power of ten below `β`. -/
+public instance dec64 : DecOps UInt64Array UInt64 where
+  k := 19
+  one_le_k := by decide
+  k_lt := by decide
+  kU := 19
+  toNat_kU := rfl
+  base := 10000000000000000000
+  val_base := rfl
+  pow10 j := (10 ^ j).toUInt64
+  val_pow10 j hj := by
+    show (10 ^ j).toUInt64.toNat = 10 ^ j
+    have : 10 ^ j ≤ 10 ^ 19 := Nat.pow_le_pow_right (by decide) hj
+    rw [Nat.toUInt64_eq, UInt64.toNat_ofNat', Nat.mod_eq_of_lt (by lia)]
+  empty := UInt64Array.replicate 0 0
+  vA_empty := by rw [decVA_eq]; simp [toNat_eq_valAt]
+  isZero := isZero
+  isZero_iff a := by rw [decVA_eq]; exact isZero_iff a
+  divRem a := divRem1N a 10000000000000000000
+  divRem_spec a := by
+    rw [decVA_eq, decVA_eq]
+    exact divRem1N_spec a _ (by decide)
+  mulAdd := mulAddLimb
+  vA_mulAdd a m v _ := by rw [decVA_eq, decVA_eq]; exact toNat_mulAddLimb a m v
+  chunk0 := 0
+  val_chunk0 := rfl
+  push c d := c * 10 + d.toUInt64
+  val_push c d hc hd := by
+    show (c * 10 + d.toUInt64).toNat = c.toNat * 10 + d.toNat
+    change c.toNat < 10 ^ 18 at hc
+    rw [UInt64.toNat_add, UInt64.toNat_mul, UInt32.toNat_toUInt64]
+    simp only [UInt64.reduceToNat]
+    rw [Nat.mod_eq_of_lt (a := c.toNat * 10) (by lia), Nat.mod_eq_of_lt (by lia)]
+  St := DecState
+  mkSt := DecState.mk
+  acc := DecState.acc
+  chunk := DecState.chunk
+  count := DecState.count
+  acc_mkSt _ _ _ := rfl
+  chunk_mkSt _ _ _ := rfl
+  count_mkSt _ _ _ := rfl
 
-/-- The number read: the limbs times `10ᵏ` for the `k` digits of the last chunk, plus that chunk. -/
-public def DecimalState.finish (st : DecimalState) : UInt64Array :=
-  if st.count = 0 then st.acc else mulAddLimb st.acc (10 ^ st.count.toNat).toUInt64 st.chunk
+/-- The decimal digits of `a`, like `Nat.repr`, by chunks of nineteen digits. -/
+public def toDecimal (a : UInt64Array) : String := DecChunks.toDecimal a
 
-/-- After reading `p`, the state holds the value of the digits of `p`. -/
-def DecimalState.Inv (st : DecimalState) (p : List Char) : Prop :=
-  st.count.toNat < 19 ∧ st.chunk.toNat < 10 ^ st.count.toNat ∧
-    st.acc.toNat * 10 ^ st.count.toNat + st.chunk.toNat =
-      Nat.ofDigitChars 10 (p.filter (· != '_')) 0
+public theorem toDecimal_eq (a : UInt64Array) : toDecimal a = Nat.repr a.toNat := by
+  rw [toDecimal, DecChunks.toDecimal_eq, decVA_eq]
 
-private theorem digit_toNat {c : Char} (h : c.isDigit = true) :
-    (c.val - 48).toUInt64.toNat = c.toNat - 48 ∧ c.toNat - 48 ≤ 9 := by
-  have := Char.isDigit_iff_toNat.1 h
-  simp only [Char.reduceToNat] at this
-  have hv : c.val.toNat = c.toNat := rfl
-  have hle : (48 : UInt32) ≤ c.val := by rw [UInt32.le_iff_toNat_le, hv]; exact this.1
-  rw [UInt32.toNat_toUInt64, UInt32.toNat_sub_of_le _ _ hle, hv]
-  exact ⟨rfl, by lia⟩
-
-private theorem inv_step (st : DecimalState) (p : List Char) (c : Char)
-    (hc : c.isDigit = true ∨ c = '_') (h : st.Inv p) : (st.step c).Inv (p ++ [c]) := by
-  obtain ⟨hk, hch, hv⟩ := h
-  by_cases hu : c = '_'
-  · subst hu
-    rw [DecimalState.step, ite_eq_left rfl, DecimalState.Inv, List.filter_append]
-    simp only [List.filter_cons, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte,
-      List.filter_nil, List.append_nil]
-    exact ⟨hk, hch, hv⟩
-  · have hd := hc.resolve_right hu
-    obtain ⟨hd₁, hd₂⟩ := digit_toNat hd
-    have hf : Nat.ofDigitChars 10 ((p ++ [c]).filter (· != '_')) 0 =
-        10 * Nat.ofDigitChars 10 (p.filter (· != '_')) 0 + (c.toNat - 48) := by
-      have hne : (c != '_') = true := by simpa using hu
-      rw [List.filter_append, Nat.ofDigitChars_append]
-      simp [List.filter, hne, Nat.ofDigitChars_cons]
-    have hpow : 10 ^ st.count.toNat ≤ 10 ^ 18 := Nat.pow_le_pow_right (by decide) (by lia)
-    have hv' : (st.chunk * 10 + (c.val - 48).toUInt64).toNat =
-        st.chunk.toNat * 10 + (c.toNat - 48) := by
-      have hc8 : st.chunk.toNat < 10 ^ 18 := by lia
-      rw [UInt64.toNat_add, UInt64.toNat_mul, hd₁]
-      simp only [UInt64.reduceToNat]
-      rw [Nat.mod_eq_of_lt (a := st.chunk.toNat * 10) (by lia), Nat.mod_eq_of_lt (by lia)]
-    have hlt : st.chunk.toNat * 10 + (c.toNat - 48) < 10 ^ (st.count.toNat + 1) := by
-      rw [Nat.pow_succ]; lia
-    have hval : st.acc.toNat * 10 ^ (st.count.toNat + 1) +
-        (st.chunk.toNat * 10 + (c.toNat - 48)) =
-          Nat.ofDigitChars 10 ((p ++ [c]).filter (· != '_')) 0 := by
-      rw [hf, ← hv, Nat.pow_succ]
-      generalize st.acc.toNat = A
-      generalize 10 ^ st.count.toNat = P
-      rw [Nat.mul_add, Nat.add_assoc, Nat.mul_comm 10 (A * P), Nat.mul_assoc A P 10,
-        Nat.mul_comm 10 st.chunk.toNat]
-    by_cases h8 : st.count = 18
-    · have h8' : st.count.toNat = 18 := by rw [h8]; rfl
-      rw [DecimalState.step, ite_eq_right hu]
-      simp only [h8, ↓reduceIte]
-      refine ⟨by simp, by simp, ?_⟩
-      rw [toNat_mulAddLimb, ← hval, hv', h8']
-      simp
-    · have hk' : (st.count + 1).toNat = st.count.toNat + 1 := by
-        rw [UInt64.toNat_add]
-        simp only [UInt64.reduceToNat]
-        exact Nat.mod_eq_of_lt (by lia)
-      have hne : st.count.toNat ≠ 18 := fun h' => h8 (UInt64.toNat_inj.1 (by rw [h']; rfl))
-      rw [DecimalState.step, ite_eq_right hu]
-      simp only [h8, ↓reduceIte]
-      refine ⟨by rw [hk']; lia, by rw [hk', hv']; exact hlt, ?_⟩
-      rw [hk', hv', hval]
-
-private theorem inv_foldl (l p : List Char) (st : DecimalState)
-    (hl : ∀ c ∈ l, c.isDigit = true ∨ c = '_') (h : st.Inv p) :
-    (l.foldl DecimalState.step st).Inv (p ++ l) := by
-  induction l generalizing st p with
-  | nil => simpa using h
-  | cons c cs ih =>
-    rw [List.foldl_cons, show p ++ c :: cs = (p ++ [c]) ++ cs by simp]
-    exact ih _ _ (fun c hc => hl c (by simp [hc])) (inv_step st p c (hl c (by simp)) h)
-
-private theorem toNat_finish (st : DecimalState) (p : List Char) (h : st.Inv p) :
-    st.finish.toNat = Nat.ofDigitChars 10 (p.filter (· != '_')) 0 := by
-  obtain ⟨hk, hch, hv⟩ := h
-  by_cases h0 : st.count = 0
-  · have hc : st.chunk.toNat = 0 := by rw [h0] at hch; simpa using hch
-    rw [DecimalState.finish, ite_eq_left h0, ← hv, h0, hc]
-    simp
-  · rw [DecimalState.finish, ite_eq_right h0]
-    have hp : 10 ^ st.count.toNat ≤ 10 ^ 18 := Nat.pow_le_pow_right (by decide) (by lia)
-    have hm : (10 ^ st.count.toNat).toUInt64.toNat = 10 ^ st.count.toNat := by
-      simp only [Nat.toUInt64, UInt64.toNat_ofNat']
-      exact Nat.mod_eq_of_lt (by lia)
-    rw [toNat_mulAddLimb, hm, hv]
-
-/--
-The number with the decimal digits of `l`, skipping `_`, like `Nat.ofDigitChars` of the digits;
-`l.foldl` and `String.foldl` read it without building lists.
--/
+/-- The limbs of the digits of `l` by chunks, skipping `_`. -/
 public theorem toNat_finish_foldl (l : List Char) (hl : ∀ c ∈ l, c.isDigit = true ∨ c = '_') :
-    (l.foldl DecimalState.step .init).finish.toNat =
+    (DecChunks.finish (l.foldl DecChunks.step (DecChunks.init UInt64Array))).toNat =
       Nat.ofDigitChars 10 (l.filter (· != '_')) 0 := by
-  have h := inv_foldl l [] .init hl ⟨by decide, by decide, by
-    simp [DecimalState.init, toNat_eq_valAt]⟩
-  rw [List.nil_append] at h
-  exact toNat_finish _ _ h
+  rw [← decVA_eq]; exact DecChunks.vA_finish_foldl l hl
 
 /-! ## Divide and conquer -/
 
@@ -398,11 +209,11 @@ public theorem toDecimalWith_eq (strDC : Nat) (a : UInt64Array) :
 
 /-- The value of `len` digits of `arr` from `start` by chunks, the base case of `fromDec`. -/
 public def parseBase (arr : Array Char) (start len : Nat) : UInt64Array :=
-  (arr.foldl DecimalState.step .init start (start + len)).finish
+  (DecChunks.finish (arr.foldl DecChunks.step (DecChunks.init UInt64Array) start (start + len)))
 
 private theorem foldl_chars (arr : Array Char) (start len : Nat) :
-    arr.foldl DecimalState.step .init start (start + len) =
-      (NatOps.chars arr start len).foldl DecimalState.step .init := by
+    arr.foldl DecChunks.step (DecChunks.init UInt64Array) start (start + len) =
+      (NatOps.chars arr start len).foldl DecChunks.step (DecChunks.init UInt64Array) := by
   rw [Array.foldl_eq_foldl_extract, ← Array.foldl_toList, Array.toList_extract,
     List.extract_eq_take_drop, Nat.add_sub_cancel_left, NatOps.chars]
 
@@ -432,7 +243,7 @@ public def ofDecimalWith (parseDC : Nat) (s : String) : Option UInt64Array :=
   if s.isNat then
     if 19 * parseDC ≤ s.length then
       some (ops64.fromDec parseBase parseBaseSize (s.toList.filter (· != '_')).toArray)
-    else some (s.foldl DecimalState.step .init).finish
+    else some (DecChunks.finish (s.foldl DecChunks.step (DecChunks.init UInt64Array)))
   else
     none
 
