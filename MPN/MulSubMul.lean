@@ -466,13 +466,8 @@ public instance linComb32 : LinCombOps UInt32Array UInt32 where
   val_get_ge a i h := by
     show a[i]!.toNat = 0
     rw [getElem!_neg a i (Nat.not_lt.2 h)]; rfl
-  limb := limbAt
-  val_limb a i := by
-    show (limbAt a i).toNat = a[i]!.toNat
-    unfold limbAt
-    split
-    · rw [UInt32Array.getElem!_eq_getElem]
-    · rename_i h; rw [getElem!_neg a i h]; rfl
+  limb := LinComb.limbU
+  val_limb := LinComb.val_limbU (fun a i h => by show a[i]!.toNat = 0; rw [getElem!_neg a i (Nat.not_lt.2 h)]; rfl)
   maC xi yi a b c := mulAddMulStep 0 xi yi a b c
   cOK _ := True
   cOK_zero := trivial
