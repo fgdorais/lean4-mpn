@@ -66,3 +66,4 @@ public import MPN.Generic.Radix
 public import MPN.Bits
 public import MPN.Decimal
 public import MPN.Nat
+public import MPN.DecChunks
