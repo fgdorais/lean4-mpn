@@ -6,7 +6,7 @@ module
 
 public import MPN.Generic.HGCD
 public import MPN64.Generic.Ops64
-public import MPN64.Lehmer
+public import MPN64.Arch.LinComb
 public import MPN.WordGcd
 public import MPN.LehmerStep
 

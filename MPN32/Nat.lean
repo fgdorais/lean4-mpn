@@ -12,7 +12,7 @@ public import MPN32.Sqr
 public import MPN32.Div
 public import MPN32.Bits
 public import MPN32.Decimal
-public import MPN32.MulSubMul
+public import MPN32.Arch.LinComb
 public import MPN.WordGcd
 public import MPN.NatGcd
 public import MPN.LehmerStep

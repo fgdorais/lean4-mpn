@@ -5,8 +5,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN32.Mul.Limb
-public import MPN32.Mul.Comba
-public import MPN32.Mul.Rows
+public import MPN32.Arch.Comba
+public import MPN32.Arch.Rows
 public import MPN32.Settings
 
 /-!

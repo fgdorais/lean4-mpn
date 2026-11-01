@@ -5,7 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN32.Basic
-public import MPN32.UIntArray
+public import MPN32.Arch.UIntArray
 
 /-!
 # Values of the library's slices by `valAt`

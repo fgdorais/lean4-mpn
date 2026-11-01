@@ -6,12 +6,11 @@ module
 
 public import MPN32.AddDiff
 public import MPN32.Sub
-public import MPN32.Mul.DivExact
 public import MPN32.Mul.Basecase
-public import MPN32.Sqr.Basecase
+public import MPN32.Arch.SqrBasecase
 public import MPN.Toom.Ops
 public import MPN.Toom.Kernels
-public import MPN32.UIntArray
+public import MPN32.Arch.UIntArray
 public import MPN32.ValAt
 
 /-!

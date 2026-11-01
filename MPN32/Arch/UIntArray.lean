@@ -9,7 +9,7 @@ public import MPN.LimbArray
 public import MPN.WordArray
 import all Init.Data.UInt.Log2
 import all Init.Data.Fin.Log2
-public import MPN32.UInt
+public import MPN32.Arch.UInt
 
 /-!
 # Limb arrays with `USize` bounds

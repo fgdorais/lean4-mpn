@@ -5,8 +5,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN64.Bits
-public import MPN64.Mul.KaratsubaMid
-public import MPN64.Sqr.Basecase
+public import MPN64.Arch.KaratsubaMid
+public import MPN64.Arch.SqrBasecase
 public import MPN.Toom.Ops
 public import MPN.Toom.Kernels
 

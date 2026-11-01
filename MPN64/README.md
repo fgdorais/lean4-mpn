@@ -16,28 +16,28 @@ comes with Lean.
 
 | module | functions | like GMP's |
 |---|---|---|
-| `MPN64.UInt` | `addh`, `subh`, `mulh` on `UInt32` and `UInt64`: the high words | |
+| `MPN64.Arch.UInt` | `addh`, `subh`, `mulh` on `UInt32` and `UInt64`: the high words | |
 | `MPN64.Config` | `Config`: the size thresholds of the algorithms; `config`, the library's, from its build options | GMP's `gmp-mparam.h` |
 | `MPN64.AddSub` | `add1`: the carry through a slice, or a copy; the other additions and subtractions are `MPN`'s `MPN.AddSubW` (`addW`, `subW`) and the Toom kernels | `mpn_add_1`, `mpn_add`, `mpn_sub` |
-| `MPN64.Mul.Basecase` | `mul1`, `addMul1`, `addMul2Loop` (two rows in one pass, its carries unboxed by lean4-scalar-arrays' `foldlInPlaceRangeWith2AccThen`), `mulBasecase` | `mpn_mul_1`, `mpn_addmul_1`, `mpn_addmul_2`, `mpn_mul_basecase` |
-| `MPN64.Mul.Karatsuba` | `mulKaratsuba`, from `mulKaratsuba = 64` limbs, by `MPN`'s `MPN.Toom.mulKaratsuba` on `MPN`'s instance `toomOpsW` of the in-place passes, from `toomBase64` (`MPN64.Mul.ToomOps`): the, products below the thresholds and Karatsuba's middle term (`MPN64.Mul.KaratsubaMid`) | `mpn_kara_mul_n` |
+| `MPN64.Arch.MulBasecase` | `mul1`, `addMul1`, `addMul2Loop` (two rows in one pass, its carries unboxed by lean4-scalar-arrays' `foldlInPlaceRangeWith2AccThen`), `mulBasecase` | `mpn_mul_1`, `mpn_addmul_1`, `mpn_addmul_2`, `mpn_mul_basecase` |
+| `MPN64.Mul.Karatsuba` | `mulKaratsuba`, from `mulKaratsuba = 64` limbs, by `MPN`'s `MPN.Toom.mulKaratsuba` on `MPN`'s instance `toomOpsW` of the in-place passes, from `toomBase64` (`MPN64.Mul.ToomOps`): the, products below the thresholds and Karatsuba's middle term (`MPN64.Arch.KaratsubaMid`) | `mpn_kara_mul_n` |
 | `MPN64.Bits` | `lshift`, `rshift` (by `0 < s < 64`), `shiftLeft`, `shiftRight` (by any number of bits), `zeroInto`, `log2` | `mpn_lshift`, `mpn_rshift`, `mpn_zero`, `mpn_sizeinbase` |
 | `MPN64.Div.Limb` | `divRem1`: division by a limb, with `UInt64.div2` (128 by 64 bits) | `mpn_divrem_1` |
 | `MPN64.Div.Basecase` | `divRem`: schoolbook division (Algorithm D) with normalization, `qEst` never too small and `addBack` | `mpn_tdiv_qr`, `mpn_sbpi1_div_qr` |
 | `MPN64.Num` | whole arrays as numbers: `add`, `sub`, `mul`, `sqr`, `shl`, `shr`, `low`, `lt`, `divMod`, each returning a new array | |
 | `MPN64.Div.DC` | `Num.divMod`: divide-and-conquer division (`MPN`'s `NatOps.divNorm`, Burnikel and Ziegler) from `divDC = 512` limbs, and Barrett's division with Newton's reciprocal and wrapped remainders (`MPN`'s `NatOps.divMuW`, the products modulo `β^N - 1` by the FFT) from `divMu = 8192`; `Num.div`, the quotient alone, by Barrett's division without the last remainder (`NatOps.divQMuW`) from `divQMu = 5632` | `mpn_dcpi1_div_qr`, `mpn_mu_div_qr`, `mpn_mu_div_q` |
 | `MPN.Generic.*` | shared with `MPN32` in `MPN`: `NatOps` (whole-number operations at any base), half-gcd (`HGCD`), decimal strings by divide and conquer (`Radix`); `Ops64` is the 64-bit instance on `MPN64.Num` | `mpn_hgcd`, `mpn_get_str`, `mpn_set_str` |
-| `MPN64.Lehmer`, `MPN64.Gcd` | `mulSubMul` (`a x - b y` in one pass), `mulAddMul` (`a x + b y`); `Num.gcd`: Euclid's algorithm on pairs of words (`gcd2`) up to two limbs, Lehmer's algorithm, and half-gcd with its own base case | `mpn_gcd_22`, `mpn_hgcd_mul_matrix1_vector`, `mpn_hgcd_matrix_mul_1`, `mpn_gcd` |
+| `MPN64.Arch.LinComb`, `MPN64.Gcd` | `mulSubMul` (`a x - b y` in one pass), `mulAddMul` (`a x + b y`); `Num.gcd`: Euclid's algorithm on pairs of words (`gcd2`) up to two limbs, Lehmer's algorithm, and half-gcd with its own base case | `mpn_gcd_22`, `mpn_hgcd_mul_matrix1_vector`, `mpn_hgcd_matrix_mul_1`, `mpn_gcd` |
 | `MPN64.Decimal` | `Num.toDecimal`, `Num.ofDecimal?`: chunks of 19 digits, divide and conquer on long numbers | `mpn_get_str`, `mpn_set_str` |
 | `MPN64.Sqrt` | `sqrtRem`: Zimmermann's Karatsuba square root, Newton's iteration on a double word (`sqrt2`) at the bottom | `mpn_sqrtrem`, `mpn_dc_sqrtrem` |
 | `MPN64.Mul.Toom` | by `MPN`'s `MPN.Toom.mulToom` and `MPN.Toom.sqrToom` on `toomOpsW`; `mulToom`: Toom-6 from `mulToom6 = 768` limbs, Toom-4 from `mulToom4 = 600` and Toom-4 by 3 from `mulToom43 = 600` limbs, Toom-3 from `mulToom3 = 384`, Toom-3 by 2 from `mulToom32 = 176` and Toom-4 by 2 from `mulToom42 = 88` limbs, by the shape; `sqrToom`: the Toom-6 square from 1152 limbs, the Toom-4 square from 1000, the Toom-3 square from 600 | `mpn_toom6h_mul`, `mpn_toom44_mul`, `mpn_toom43_mul`, `mpn_toom33_mul`, `mpn_toom32_mul`, `mpn_toom42_mul`, `mpn_toom6_sqr`, `mpn_toom4_sqr`, `mpn_toom3_sqr` |
 | `MPN.FFT.Fermat` | in place on windows of one array, modulo `2^(64 n) + 1`: `normAt`, `addModAt`, `subModAt`, `mulPow2At` | `mpn_fft_add_modF`, `mpn_fft_sub_modF`, `mpn_fft_mul_2exp_modF` |
 | `MPN64.FFT.Transform` | `fwd`, `inv`: the transforms of length `2ᵏ`, in place, by `MPN`'s `MPN.FFT.Windows` on `MPN`'s instance `winOpsW` | `mpn_fft_fft`, `mpn_fft_fftinv` |
 | `MPN64.FFT.Mul` | `fftMul`, `fftSqr`: Schönhage–Strassen with `2ᵏ` pieces; `MPN.mul` and `MPN.sqr`, which split unbalanced products into pieces (`mulChunked`) and choose the FFT from `mulFFT = 4096` limbs in the larger operand and `sqrFFT = 2816` limbs, and `mulToom` or `sqrToom` below | `mpn_mul_fft`, `mpn_mul`, `mpn_sqr` |
-| `MPN64.Sqr.Basecase` | `sqrBasecase` | `mpn_sqr_basecase` |
+| `MPN64.Arch.SqrBasecase` | `sqrBasecase` | `mpn_sqr_basecase` |
 | `MPN64.Sqr.Karatsuba` | `sqrKaratsuba`, from `sqrKaratsuba = 96` limbs, by `MPN`'s `MPN.Toom.sqrKaratsuba` | `mpn_kara_sqr_n` |
 
-`MPN64.UIntArray` holds the general tooling: the instance `limbArray64` of `MPN`'s `LimbArray`,
+`MPN64.Arch.UIntArray` holds the general tooling: the instance `limbArray64` of `MPN`'s `LimbArray`,
 whose `valAt` is the value of a range of limbs; `USlice`, a region of an array with `USize`
 bounds; `foldUInPlace`, the in-place loop; and `foldUInPlace2`, the in-place loop that reads other
 windows of the array it writes. `MPN.Sum`, `MPN.NatMod`, `MPN.Poly`, `MPN.FFT.Roots` and
@@ -59,7 +59,7 @@ width, over the class `WinOps` of residue operations.
   `@[csimp]` lemma or a continuation, to `foldUInPlaceThen` or `foldUInPlace2Then`, which `@[csimp]`
   lemmas in turn replace with lean4-scalar-arrays' in-place folds (`foldlInPlaceRangeThen`,
   `foldlInPlace2Then`). Those make the array exclusive once and then store without checks. The
-  library has no `implemented_by` of its own; the inline C of the high words in `MPN64.UInt` is the
+  library has no `implemented_by` of its own; the inline C of the high words in `MPN64.Arch.UInt` is the
   only code outside Lean.
 
 ## Building

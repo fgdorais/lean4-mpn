@@ -11,7 +11,7 @@ public import MPN.Join
 public import MPN32.Sqr
 public import MPN32.Cmp
 public import MPN.Generic.DC
-public import MPN32.Div.Two
+public import MPN32.Arch.DivTwo
 public import MPN32.Bits
 public import MPN.Generic.Barrett
 

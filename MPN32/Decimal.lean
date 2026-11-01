@@ -10,7 +10,7 @@ public import MPN32.Mul.Limb
 public import MPN.Generic.Radix
 public import MPN.DecChunks
 public import MPN32.ValAt
-public import MPN32.UIntArray
+public import MPN32.Arch.UIntArray
 
 /-!
 # Decimal strings
