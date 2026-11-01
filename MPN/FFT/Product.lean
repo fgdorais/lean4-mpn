@@ -1154,6 +1154,73 @@ public theorem fftSqrAt_spec (sqrP : A → A → Nat → Nat → A) (r : A) (rs 
   · rw [c₂ i (by lia), z₂ i (by lia)]
   · rw [c₃, z₃, Nat.zero_add, hab]
 
+
+/-! ## Parameters
+
+The parameters of the products for operands of `T` limbs in all with `K = 2ᵏ` pieces, and the
+conditions of `FFTParams` and `FFTModParams` as decidable checks, for the dispatchers of the
+branches. The checks bound `k` by the limb width and ask `k + 2 w m ≤ w n`, which gives `hbits`.
+-/
+
+/--
+The parameters for `T` limbs and `K = 2ᵏ` pieces of `w`-bit limbs: pieces of
+`m = ⌈T / (K - 1)⌉` limbs, so that the two operands have at most `K + 1`, and residues of `n`
+limbs, `2 m + 1` rounded up to a multiple of `K / (2 w)`, so that the root `2^(2 w n / K)` is a
+power of two.
+-/
+public def fftParams (w T k : Nat) : Nat × Nat :=
+  let m := (T + 2 ^ k - 2) / (2 ^ k - 1)
+  let q := max 1 (2 ^ k / (2 * w))
+  (m, (2 * m + 1 + q - 1) / q * q)
+
+/-- The coefficient size `n` for `fftMulModAt` with `2ᵏ` pieces of `m` limbs of `w` bits. -/
+public def fftModN (w k m : Nat) : Nat :=
+  let q := max 1 (2 ^ k / (2 * w))
+  (2 * m + 1 + q - 1) / q * q
+
+/--
+The conditions of `FFTParams` for a product into the window of `rl` limbs of `r` from `rs`,
+decidably.
+-/
+public abbrev FFTCheck (r : A) (rs rl : Nat) (a : A) (as al : Nat) (b : A) (bs bl k m n : Nat) :
+    Prop :=
+  1 ≤ k ∧ k ≤ LA.w ∧ 1 ≤ n ∧ 1 ≤ m ∧ m ≤ n ∧ 2 * (LA.w * n) % 2 ^ k = 0 ∧ 0 < al ∧ 0 < bl ∧
+    (al + m - 1) / m + (bl + m - 1) / m ≤ 2 ^ k + 1 ∧ k + (LA.w * m + LA.w * m) ≤ LA.w * n ∧
+    al + bl ≤ rl ∧ (2 * 2 ^ k + 2) * (n + 1) < USize.size ∧ LA.w * n < USize.size ∧
+    LA.size a < USize.size ∧ LA.size b < USize.size ∧ LA.size r < USize.size ∧
+    rs + rl ≤ LA.size r ∧ as + al ≤ LA.size a ∧ bs + bl ≤ LA.size b
+
+omit W R in
+public theorem FFTCheck.params {r : A} {rs rl : Nat} {a : A} {as al : Nat} {b : A}
+    {bs bl k m n : Nat} (h : FFTCheck r rs rl a as al b bs bl k m n) :
+    FFTParams r rs a as al b bs bl k m n := by
+  obtain ⟨h₁, -, h₃, h₄, h₅, h₆, h₇, h₈, h₉, h₁₀, h₁₁, h₁₂, h₁₃, h₁₄, h₁₅, h₁₆, h₁₇, h₁₈, h₁₉⟩ := h
+  exact ⟨h₁, h₃, h₄, h₅, h₆, h₇, h₈, h₉,
+    by rw [← Nat.pow_add]; exact Nat.pow_le_pow_right (by decide) h₁₀, by lia, h₁₂, h₁₃, h₁₄,
+    h₁₅, h₁₆, h₁₈, h₁₉⟩
+
+/--
+The conditions of `FFTModParams` for a product modulo `2^(w m 2ᵏ) - 1` into the window of `rl`
+limbs of `r` from `rs`, decidably.
+-/
+public abbrev FFTModCheck (r : A) (rs rl : Nat) (a : A) (as al : Nat) (b : A)
+    (bs bl k m n : Nat) : Prop :=
+  1 ≤ k ∧ k + 1 ≤ LA.w ∧ 1 ≤ n ∧ 1 ≤ m ∧ m ≤ n ∧ 2 * (LA.w * n) % 2 ^ k = 0 ∧ 0 < al ∧
+    0 < bl ∧ al ≤ m * 2 ^ k ∧ bl ≤ m * 2 ^ k ∧ k + 1 + (LA.w * m + LA.w * m) ≤ LA.w * n ∧
+    m * 2 ^ k + n + 1 ≤ rl ∧ (2 * 2 ^ k + 2) * (n + 1) < USize.size ∧ LA.w * n < USize.size ∧
+    LA.size a < USize.size ∧ LA.size b < USize.size ∧ LA.size r < USize.size ∧
+    rs + rl ≤ LA.size r ∧ as + al ≤ LA.size a ∧ bs + bl ≤ LA.size b
+
+omit W R in
+public theorem FFTModCheck.params {r : A} {rs rl : Nat} {a : A} {as al : Nat} {b : A}
+    {bs bl k m n : Nat} (h : FFTModCheck r rs rl a as al b bs bl k m n) :
+    FFTModParams r rs a as al b bs bl k m n := by
+  obtain ⟨h₁, -, h₃, h₄, h₅, h₆, h₇, h₈, h₉, h₁₀, h₁₁, h₁₂, h₁₃, h₁₄, h₁₅, h₁₆, h₁₇, h₁₈, h₁₉,
+    h₂₀⟩ := h
+  refine ⟨h₁, h₃, h₄, h₅, h₆, h₇, h₈, h₉, h₁₀, ?_, by lia, h₁₃, h₁₄, h₁₅, h₁₆, h₁₇, h₁₉, h₂₀⟩
+  rw [show 2 * 2 ^ k = 2 ^ (k + 1) by rw [Nat.pow_succ, Nat.mul_comm], ← Nat.pow_add]
+  exact Nat.pow_le_pow_right (by decide) h₁₁
+
 end FFTOps
 
 end MPN.FFT
