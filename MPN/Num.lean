@@ -6,6 +6,7 @@ module
 
 public import MPN.FFT.Mul
 public import MPN.Div.Basecase
+public import MPN.Bitwise
 
 /-!
 # Whole arrays as numbers
@@ -347,6 +348,33 @@ public def lt (a b : UInt64Array) : Bool := ltLoop a b (max a.size b.size)
 public theorem lt_iff (a b : UInt64Array) (_hU : a.size + b.size < USize.size) :
     lt a b = true ↔ a.toNat < b.toNat := by
   rw [lt, ltLoop_iff, valAt_ge a _ (by lia), valAt_ge b _ (by lia)]
+
+/--
+`lt` by `main`'s `WordArray.ltW`, from the top limb down with `uget`, below `2³¹` limbs, which the
+compiler uses in its place.
+-/
+public def ltFast (a b : UInt64Array) : Bool :=
+  if max a.size b.size < 2147483648 then WordArray.ltW a b (max a.size b.size).toUSize
+  else ltLoop a b (max a.size b.size)
+
+@[csimp] public theorem lt_eq_ltFast : @lt = @ltFast := by
+  funext a b
+  rw [lt, ltFast]
+  split
+  · rename_i h
+    have hU : 2147483648 < USize.size := by
+      rcases USize.size_eq with e | e <;> rw [e] <;> decide
+    have hz : ∀ (a : UInt64Array) (i : Nat), LimbArray.size a ≤ i →
+        LimbArray.val UInt64Array (LimbArray.get a i) = 0 := fun a i h => by
+      show a[i]!.toNat = 0
+      rw [getElem!_neg a i (Nat.not_lt.2 h)]; rfl
+    have e : (max a.size b.size).toUSize.toNat = max a.size b.size := by
+      rw [USize.toNat_ofNat', Nat.mod_eq_of_lt (by lia)]
+    apply Bool.eq_iff_iff.2
+    rw [ltLoop_iff, WordArray.ltW_iff hz a b _ (by show a.size < _; lia) (by show b.size < _; lia),
+      e]
+    rfl
+  · rfl
 
 /-! ## Division -/
 
