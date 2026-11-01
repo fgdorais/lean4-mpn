@@ -6,7 +6,6 @@ module
 
 public import MPN.AddDiff
 public import MPN.Sub
-public import MPN.Mul.DivExact
 public import MPN.Mul.Basecase
 public import MPN.Sqr.Basecase
 public import MPN.Toom.Ops

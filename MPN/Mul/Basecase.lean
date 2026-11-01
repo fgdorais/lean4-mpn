@@ -5,8 +5,6 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN.Mul.Limb
-public import MPN.Mul.Comba
-public import MPN.Mul.Rows
 public import MPN.Settings
 
 /-!
@@ -81,45 +79,12 @@ public theorem toNat_mulBasecase (a b : UInt32Array.Slice) :
 
 /-! ## The compiled product
 
-`mulBasecaseFast` adds rows into wide accumulators (`Mul.Rows`) from `config.mulRows` limbs in all,
-and uses Comba's method (`Mul.Comba`) below, whose lower fixed cost (one array, no carry pass) made
-it up to 26% faster below 16 limbs on Zen 3. `@[csimp]` makes the compiler use it in place of
-`mulBasecase`: both compute all `a.size + b.size` limbs of the product, and limbs of a given length
-are determined by their value.
+The product by rows of `addMul1Set`, whose loop is `main`'s generic pass. `mulBasecaseWith`
+keeps the signature of the tuned dispatchers for `Tune`.
 -/
 
-/--
-`mulBasecase`, by rows into wide accumulators from `r` limbs in all, or by Comba's method, with
-whole products in its columns from `w` limbs, when the sizes allow it.
--/
-public def mulBasecaseWith (r w : Nat) (a b : UInt32Array.Slice) : UInt32Array :=
-  if h : r ≤ a.size + b.size ∧ RowsOK a b then rowsMul a b h.2
-  else if h : CombaOK a b then combaMul w a b h
-  else mulBasecase a b
-
-public theorem mulBasecase_eq_mulBasecaseWith (r w : Nat) (a b : UInt32Array.Slice) :
-    mulBasecase a b = mulBasecaseWith r w a b := by
-  unfold mulBasecaseWith
-  split
-  · rename_i h
-    obtain ⟨hs, hv⟩ := rowsMul_spec a b h.2
-    apply UInt32Array.toList_inj.1
-    apply ofLimbs_inj_of_length (by simp [hs])
-    rw [← toNat_toSlice, ← toNat_toSlice, toNat_mulBasecase, hv]
-  · split
-    · rename_i h
-      obtain ⟨hs, hv⟩ := combaMul_spec w a b h
-      apply UInt32Array.toList_inj.1
-      apply ofLimbs_inj_of_length (by simp [hs])
-      rw [← toNat_toSlice, ← toNat_toSlice, toNat_mulBasecase, hv]
-    · rfl
-
-/-- `mulBasecaseWith` with the thresholds `config.mulRows` and `config.mulCombaW`. -/
-public def mulBasecaseFast (a b : UInt32Array.Slice) : UInt32Array :=
-  mulBasecaseWith config.mulRows config.mulCombaW a b
-
-@[csimp] public theorem mulBasecase_eq_mulBasecaseFast : @mulBasecase = @mulBasecaseFast := by
-  funext a b
-  exact mulBasecase_eq_mulBasecaseWith ..
+/-- `mulBasecase`; the thresholds are not used. -/
+public def mulBasecaseWith (_r _w : Nat) (a b : UInt32Array.Slice) : UInt32Array :=
+  mulBasecase a b
 
 end MPN

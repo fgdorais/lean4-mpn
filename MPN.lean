@@ -48,7 +48,6 @@ public import MPN.Mul.Unbalanced
 public import MPN.ValAt
 public import MPN.Mul.ToomOps
 public import MPN.Mul.Toom
-public import MPN.Mul.DivExact
 public import MPN.FFT.Roots
 public import MPN.UIntArray
 public import MPN.FFT.Fermat
