@@ -146,6 +146,7 @@ above; ratios before `15534f8` for `MPN.Nat` rows were inflated by the hashing c
 
 | date | commit | change | effect |
 |---|---|---|---|
+| 2026-11-01 | `536c9e2` | The linear operations of the Toom methods (`addInto` to `sum`) from `main`'s generic kernels `MPN.Toom.Kernels`, in place on the windows instead of copies of them | From three alternating runs against `e1a5be6`: `mul`, `sqr`, `bmul`, `bsqr`, `div` −5% to +3% from 64 to 4096 limbs |
 | 2026-11-01 | `f045a76`, `main` `baed7bf` | The steps of Zimmermann's square root build `X` and `U` by the new `NatOps.join` (`x βᵏ + y mod βᵏ`, `main`'s `WordArray.joinW`: two copies into one array of zeros) instead of a shift, a cut and an addition | From three alternating runs against `cdbdb43`: `bsqrt` −16% to −18% from 2 to 16 limbs, −13% at 64, −6% at 256, −2% at 1024 |
 | 2026-11-01 | `main` `89944f8` | Zimmermann's square root divides by `2t` once per step, for the quotient and the remainder, instead of by `t` and then by 2 | From three alternating runs against `fede64c`: `bsqrt` −12% at 2 limbs, −4% to −12% from 4 to 64, −7% at 256, −2% at 1024 |
 | 2026-11-01 | `main` `b766b6f` | Division by an unnormalized limb forms each limb of `a 2ˢ` in the loop (`divLoopSh`), like GMP's `mpn_divrem_1`, instead of shifting `a` first and dividing in place: one pass instead of two | From four alternating runs against `2d81648`: `div1u` −17% at 1 limb, −8% to −12% at 2–4, −1% to −5% from 16; `btostr` −3% to −9% from 4 limbs (chunks by `10⁹`); `div1` −6% to −8% up to 4; `bsqrt` −1% to −3% |
