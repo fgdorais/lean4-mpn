@@ -559,8 +559,8 @@ public instance natLimbs32 : NatLimbs UInt32Array where
   val_sub a b h := by
     show MPN.toNat (trim (subVal a b)) = _
     rw [toNat_trim, toNat_subVal _ _ h]
-  lt a b := MPN.lt a b
-  lt_iff a b := MPN.lt_iff a b
+  lt a b := MPN.ltA a b
+  lt_iff a b := MPN.ltA_iff a b
   mul a b := MPN.mul a b
   trimmed_mul a b := isTrimmed_mul a b
   val_mul a b := MPN.toNat_mul a b

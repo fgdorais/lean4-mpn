@@ -546,6 +546,22 @@ private theorem isTrimmed_bitA (f : UInt32 → UInt32 → UInt32) (op : Nat → 
     (a b : UInt32Array) : isTrimmed (bitA f op a b) = true := by
   unfold bitA; dsimp only; split <;> exact isTrimmed_trim _
 
+/-- Whether `a < b`, by `main`'s `WordArray.ltW` from the top limb down; on `Nat` were the sizes not
+`USize`s, which never happens. -/
+public def ltA (a b : UInt32Array) : Bool :=
+  if max a.size b.size < 4294967295 then WordArray.ltW a b (max a.size b.size).toUSize
+  else decide (toNat a < toNat b)
+
+public theorem ltA_iff (a b : UInt32Array) : ltA a b = true ↔ toNat a < toNat b := by
+  unfold ltA
+  split
+  · rename_i h
+    have e := toNat_toUSize (lt_usizeSize h)
+    rw [WordArray.ltW_iff hz32 a b _ (by show a.size < _; have := lt_usizeSize h; lia)
+      (by show b.size < _; have := lt_usizeSize h; lia), e, valAt_ge a _ (by lia),
+      valAt_ge b _ (by lia)]
+  · exact decide_eq_true_iff
+
 /-- `a &&& b`, trimmed. -/
 public def land (a b : UInt32Array) : UInt32Array := bitA (· &&& ·) (· &&& ·) a b
 
