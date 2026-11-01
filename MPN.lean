@@ -23,6 +23,7 @@ public import MPN.LinComb
 public import MPN.Natural
 public import MPN.FFT.Product
 public import MPN.Toom.Ops
+public import MPN.Toom.Kernels
 public import MPN.Toom.Karatsuba
 public import MPN.Toom.Steps
 public import MPN.Toom.Interp

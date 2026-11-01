@@ -29,9 +29,9 @@ with a linear law in the limb `z` of `arr` it replaces and the limb of `a`, like
 `foldUInPlace2_spec`: `P` and `Q` are the values of the accumulator going out and coming in.
 -/
 public theorem foldUInPlace_spec1 {β : Type} (n : USize) (f : (j : USize) → j < n → L → β → L × β)
-    (a : A) (ao : USize) (P Q : β → Nat) (uz ua vz va : Nat) (I : β → Prop)
+    (a : A) (ao : USize) (P Q : β → Nat) (uo uz ua vz va : Nat) (I : β → Prop)
     (inv : ∀ j h z c, I c → I (f j h z c).2)
-    (law : ∀ j h z c, I c → LA.val (f j h z c).1 + 2 ^ LA.w * P (f j h z c).2 +
+    (law : ∀ j h z c, I c → uo * LA.val (f j h z c).1 + 2 ^ LA.w * P (f j h z c).2 +
       uz * LA.val z + ua * LA.val (LA.get a (ao.toNat + j.toNat)) + Q c =
         vz * LA.val z + va * LA.val (LA.get a (ao.toNat + j.toNat)) + 2 ^ LA.w * Q (f j h z c).2 +
           P c)
@@ -40,7 +40,8 @@ public theorem foldUInPlace_spec1 {β : Type} (n : USize) (f : (j : USize) → j
       I (foldUInPlace n f arr rs hr j b).2 ∧
       (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
         LA.get (foldUInPlace n f arr rs hr j b).1 i = LA.get arr i) ∧
-      LimbArray.valAt (foldUInPlace n f arr rs hr j b).1 (rs.toNat + j.toNat) (n.toNat - j.toNat) +
+      uo * LimbArray.valAt (foldUInPlace n f arr rs hr j b).1 (rs.toNat + j.toNat)
+          (n.toNat - j.toNat) +
         2 ^ (LA.w * (n.toNat - j.toNat)) * P (foldUInPlace n f arr rs hr j b).2 +
         uz * LimbArray.valAt arr (rs.toNat + j.toNat) (n.toNat - j.toNat) +
         ua * LimbArray.valAt a (ao.toNat + j.toNat) (n.toNat - j.toNat) + Q b =
@@ -78,7 +79,7 @@ public theorem foldUInPlace_spec1 {β : Type} (n : USize) (f : (j : USize) → j
       rw [hz'] at hl
       rw [hk, LimbArray.valAt_succ, LimbArray.valAt_succ, LimbArray.valAt_succ, hv, Nat.mul_succ,
         Nat.pow_add]
-      show _ + _ * P (foldUInPlace n f (R.uset arr (rs + j) p.1 (hr.uset_bound h)) rs
+      show _ * _ + _ * P (foldUInPlace n f (R.uset arr (rs + j) p.1 (hr.uset_bound h)) rs
         (hr.of_uset ..) (j + 1) p.2).2 + _ + _ + _ = _
       generalize (foldUInPlace n f (R.uset arr (rs + j) p.1 (hr.uset_bound h)) rs
         (hr.of_uset ..) (j + 1) p.2) = q at *
@@ -131,13 +132,13 @@ public theorem mul1Fold_spec (a : A) (ao n : USize) (ha : LoopBound a ao n) (x :
             LA.val (foldUInPlace n (mul1Step A a ao n ha x) arr rs hr j c).2 =
         LimbArray.valAt a (ao.toNat + j.toNat) (n.toNat - j.toNat) * LA.val x + LA.val c := by
   obtain ⟨i₁, -, i₂, i₃⟩ := foldUInPlace_spec1 n (mul1Step A a ao n ha x) a ao LA.val (fun _ => 0)
-    0 0 0 (LA.val x) (fun _ => True) (fun _ _ _ _ _ => trivial)
+    1 0 0 0 (LA.val x) (fun _ => True) (fun _ _ _ _ _ => trivial)
     (fun j h z c _ => by
       have := R.val_mulAdd2 (R.uget a (ao + j) (ha.uset_bound h)) x R.zero c
       rw [congrArg LA.val (uget_get a ao n ha j h), R.val_zero] at this
       simp only [mul1Step]
       lia) arr rs hr j c trivial
-  simp only [Nat.zero_mul, Nat.mul_zero, Nat.add_zero] at i₃
+  simp only [Nat.zero_mul, Nat.mul_zero, Nat.add_zero, Nat.one_mul] at i₃
   exact ⟨i₁, i₂, by grind⟩
 
 /-- The fold of `addMul1Step` from limb `j`: `r + a x + c` and the carry out. -/
@@ -153,7 +154,7 @@ public theorem addMul1Fold_spec (a : A) (ao n : USize) (ha : LoopBound a ao n) (
         LimbArray.valAt arr (rs.toNat + j.toNat) (n.toNat - j.toNat) +
           LimbArray.valAt a (ao.toNat + j.toNat) (n.toNat - j.toNat) * LA.val x + LA.val c := by
   obtain ⟨i₁, -, i₂, i₃⟩ := foldUInPlace_spec1 n (addMul1Step A a ao n ha x) a ao LA.val
-    (fun _ => 0) 0 0 1 (LA.val x) (fun _ => True) (fun _ _ _ _ _ => trivial)
+    (fun _ => 0) 1 0 0 1 (LA.val x) (fun _ => True) (fun _ _ _ _ _ => trivial)
     (fun j h z c _ => by
       have := R.val_mulAdd2 (R.uget a (ao + j) (ha.uset_bound h)) x z c
       rw [congrArg LA.val (uget_get a ao n ha j h)] at this
@@ -176,7 +177,7 @@ public theorem subMul1Fold_spec (a : A) (ao n : USize) (ha : LoopBound a ao n) (
           2 ^ (LA.w * (n.toNat - j.toNat)) *
             LA.val (R.unB (foldUInPlace n (subMul1Step A a ao n ha x) arr rs hr j b).2) := by
   obtain ⟨i₁, -, i₂, i₃⟩ := foldUInPlace_spec1 n (subMul1Step A a ao n ha x) a ao (fun _ => 0)
-    (fun c => LA.val (R.unB c)) 0 (LA.val x) 1 0 (fun _ => True) (fun _ _ _ _ _ => trivial)
+    (fun c => LA.val (R.unB c)) 1 0 (LA.val x) 1 0 (fun _ => True) (fun _ _ _ _ _ => trivial)
     (fun j h z c _ => by
       have := R.val_subMulB z (R.uget a (ao + j) (ha.uset_bound h)) x c
       rw [congrArg LA.val (uget_get a ao n ha j h)] at this
