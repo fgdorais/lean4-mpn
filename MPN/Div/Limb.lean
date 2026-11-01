@@ -13,10 +13,9 @@ public import MPN.Mul
 
 `divRem1 a d` divides `a` by the limb `d`, like GMP's `mpn_divrem_1`, by `main`'s
 `WordArray.divRem1W`: from the top limb down, each step by `UInt32.div2Rem`, one hardware division
-of 64 bits by 32, or for a normalized `d` from `config.div1Recip` limbs by Möller and Granlund's
-step with a precomputed reciprocal, checked. On Zen 3 the divider always wins, so by default it
-never takes the reciprocal, but on a machine with a slower divider `lake exe tune` finds where it
-pays.
+of 64 bits by 32, or from `config.div1Recip` limbs (`config.div1Unnorm` for an unnormalized `d`) by
+Möller and Granlund's step with a precomputed reciprocal, checked. By default it always takes the
+reciprocal, like GMP's `mpn_divrem_1`.
 -/
 
 open ScalarArray
