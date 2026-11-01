@@ -226,22 +226,23 @@ def checkBits (n : Nat) : Bool :=
 #guard (UInt64.div2 0xFFFFFFFFFFFFFFFE 0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF).toNat ==
   ((2 ^ 64 - 2) * 2 ^ 64 + 2 ^ 64 - 1) / (2 ^ 64 - 1)
 
--- `divRem1` on edge values, written at offset 1 of a padded buffer: normalized divisors (the
--- reciprocal steps of `div21`), unnormalized ones (`UInt64.div2`), and the largest quotient limbs.
-#guard [1, 2, 5, 8, 40].all fun n => (edges n).all fun x =>
+-- `divRem1With` on edge values, written at offset 1 of a padded buffer: normalized divisors (the
+-- reciprocal steps of `div21`, from the first limb or never), unnormalized ones (`UInt64.div2`),
+-- and the largest quotient limbs.
+#guard [0, 4294967295].all fun t => [1, 2, 5, 8, 40].all fun n => (edges n).all fun x =>
   [1, 3, 10 ^ 19 - 1, 10 ^ 19, 2 ^ 32, 2 ^ 63 - 1, 2 ^ 63, 2 ^ 63 + 1, 0xF123456789ABCDEF,
     2 ^ 64 - 2, 2 ^ 64 - 1].all fun d =>
     let r := UInt64Array.replicate (n + 2) 0xAAAAAAAAAAAAAAAA
-    let (q, m) := MPN.divRem1 (inner r n) (limbs n x).toUSlice d.toUInt64
+    let (q, m) := MPN.divRem1With t (inner r n) (limbs n x).toUSlice d.toUInt64
     window q 1 n == x / d && m.toNat == x % d && q[0]! == 0xAAAAAAAAAAAAAAAA &&
       q[n + 1]! == 0xAAAAAAAAAAAAAAAA
 
 
 /--
-Checks `divRem` on an `m`-limb `a` and an `n`-limb `b`, written at offset 1 of padded buffers:
-the quotient and the remainder, and the padding unchanged.
+Checks `divRemWith t` on an `m`-limb `a` and an `n`-limb `b`, written at offset 1 of padded
+buffers: the quotient and the remainder, and the padding unchanged.
 -/
-def checkDiv (m n : Nat) : Bool :=
+def checkDiv (t : USize) (m n : Nat) : Bool :=
   let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
   let as := [randomLimbs m 11, 2 ^ (64 * m) - 1, 2 ^ (64 * (m - 1)), 2 ^ (64 * m - 1) + 12345]
   let bs := [randomLimbs n 12, 2 ^ (64 * n) - 1, 2 ^ (64 * (n - 1)), 2 ^ (64 * (n - 1)) + 1,
@@ -250,12 +251,13 @@ def checkDiv (m n : Nat) : Bool :=
     let k := m - n + 1
     let q := UInt64Array.replicate (k + 2) pad
     let r := UInt64Array.replicate (n + 2) pad
-    let (q', r') := MPN.divRem (inner q k) (inner r n) (limbs m x).toUSlice (limbs n y).toUSlice
+    let (q', r') := MPN.divRemWith t (inner q k) (inner r n) (limbs m x).toUSlice
+      (limbs n y).toUSlice
     window q' 1 k == x / y && window r' 1 n == x % y && q'[0]! == pad && q'[k + 1]! == pad &&
       r'[0]! == pad && r'[n + 1]! == pad
 
 #guard [(1, 1), (5, 1), (2, 2), (3, 2), (10, 3), (10, 10), (40, 17), (100, 50), (300, 2)].all
-  fun (m, n) => checkDiv m n
+  fun (m, n) => checkDiv 0 m n && checkDiv 4294967295 m n
 
 -- An estimate one too large after the 3-by-2 correction, so that `addBack` runs: the top limbs of
 -- `2 ^ (64 n - 1) + 2 ^ (64 (n - 2)) - 1` give the estimate `2` for `2 ^ (64 n)`, whose quotient is
