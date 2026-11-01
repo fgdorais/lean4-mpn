@@ -627,6 +627,7 @@ public instance wordArray64 : MPN.WordArray UInt64Array UInt64 where
   unB h := h
   b0 := 0
   addC x y c := (x + y + c, UInt64.addh (UInt64.addh 0 x y) (x + y) c)
+  subC x y c := (x - y - c, UInt64.subh (UInt64.subh 0 x y) (x - y) c)
   isZero x := x == 0
   ofUSize i := i.toUInt64
   wU := 64
@@ -685,6 +686,15 @@ public instance wordArray64 : MPN.WordArray UInt64Array UInt64 where
   ltB_iff x y := by
     show decide (x < y) = true ↔ x.toNat < y.toNat
     rw [decide_eq_true_iff, UInt64.lt_iff_toNat_lt]
+  val_subC x y c := by
+    show (x - y - c).toNat + y.toNat + c.toNat =
+      x.toNat + 2 ^ 64 * (UInt64.subh (UInt64.subh 0 x y) (x - y) c).toNat
+    have := x.toNat_lt; have := y.toNat_lt; have := c.toNat_lt
+    simp only [UInt64.toNat_subh, UInt64.toNat_sub, UInt64.toNat_zero]
+    generalize x.toNat = x at *
+    generalize y.toNat = y at *
+    generalize c.toNat = c at *
+    split <;> split <;> lia
   eqB_iff x y := by
     show (x == y) = true ↔ x.toNat = y.toNat
     rw [beq_iff_eq, UInt64.toNat_inj]

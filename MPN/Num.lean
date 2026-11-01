@@ -69,84 +69,57 @@ public theorem toNat_ofSlice (s : USlice) : (ofSlice s).toNat = s.toNat := by
 
 /-! ## Addition and subtraction -/
 
+/-- `a + b`, for `b.size ≤ a.size`, in `a.size + 1` limbs, by `main`'s `addW`. -/
 private def addAux (a b : UInt64Array) : UInt64Array :=
-  let p := MPN.add (UInt64Array.replicate (a.size + 1) 0).toUSlice a.toUSlice b.toUSlice
-  p.1.set! a.size p.2
+  WordArray.addW (UInt64Array.replicate (a.size + 1) 0) 0 a 0 a.size b 0 b.size
 
-private theorem toNat_addAux (a b : UInt64Array) (hba : b.size ≤ a.size)
-    (hU : a.size + 1 < USize.size) : (addAux a b).toNat = a.toNat + b.toNat := by
-  obtain ⟨z₁, z₂, -⟩ := zeros_spec (a.size + 1) hU
-  obtain ⟨a₁, a₂, a₃⟩ := toUSlice_spec a (by lia)
-  obtain ⟨b₁, b₂, b₃⟩ := toUSlice_spec b (by lia)
-  have h := valAt_add (UInt64Array.replicate (a.size + 1) 0).toUSlice a.toUSlice b.toUSlice 0
-    (USize.le_iff_toNat_le.2 (by rw [a₂, b₂]; exact hba))
-    (USize.le_iff_toNat_le.2 (by rw [a₂, z₂]; lia))
-  rw [z₁, a₂, a₃, b₃, UInt64.toNat_zero, Nat.add_zero] at h
-  rw [addAux, toNat_set_top _ _ _ (by simp) (by simp)]
+private theorem size_addAux (a b : UInt64Array) : (addAux a b).size = a.size + 1 := by
+  show LimbArray.size (addAux a b) = _
+  rw [addAux, WordArray.size_addW]; simp [LimbArray.size]
+
+private theorem toNat_addAux (a b : UInt64Array) (hba : b.size ≤ a.size) :
+    (addAux a b).toNat = a.toNat + b.toNat := by
+  have h := (WordArray.addW_spec (UInt64Array.replicate (a.size + 1) 0) 0 a 0 a.size b 0 b.size
+    (by simp [LimbArray.size]) hba).2
+  rw [toNat_eq_valAt, toNat_eq_valAt, toNat_eq_valAt, size_addAux]
   exact h
 
 /-- `a + b`, in `max a.size b.size + 1` limbs. -/
 public def add (a b : UInt64Array) : UInt64Array :=
   if b.size ≤ a.size then addAux a b else addAux b a
 
-public theorem toNat_add (a b : UInt64Array) (hU : a.size + b.size + 1 < USize.size) :
+public theorem toNat_add (a b : UInt64Array) (_ : a.size + b.size + 1 < USize.size) :
     (add a b).toNat = a.toNat + b.toNat := by
   rw [add]
   split
-  · exact toNat_addAux a b (by lia) (by lia)
-  · rw [toNat_addAux b a (by lia) (by lia), Nat.add_comm]
+  · exact toNat_addAux a b (by lia)
+  · rw [toNat_addAux b a (by lia), Nat.add_comm]
 
 public theorem size_add (a b : UInt64Array) : (add a b).size = max a.size b.size + 1 := by
-  rw [add]; split <;> simp [addAux] <;> lia
+  rw [add]; split <;> rw [size_addAux] <;> lia
 
-/-- `a - b`, in `a.size` limbs, for `b ≤ a`. -/
+/-- `a - b`, in `a.size` limbs, for `b ≤ a`, by `main`'s `subW`. -/
 public def sub (a b : UInt64Array) : UInt64Array :=
-  let b' := if b.size ≤ a.size then b.toUSlice else b.toUSlice.slice 0 a.usize
-  (MPN.sub (UInt64Array.replicate a.size 0).toUSlice a.toUSlice b' 0).1
+  WordArray.subW (UInt64Array.replicate a.size 0) 0 a 0 a.size b 0 (min b.size a.size)
 
 public theorem size_sub (a b : UInt64Array) : (sub a b).size = a.size := by
-  simp [sub]
+  show LimbArray.size (sub a b) = _
+  rw [sub, WordArray.size_subW]; simp [LimbArray.size]
 
 public theorem toNat_sub (a b : UInt64Array) (hle : b.toNat ≤ a.toNat)
-    (ha : a.size < USize.size) (hb : b.size < USize.size) :
+    (_ : a.size < USize.size) (_ : b.size < USize.size) :
     (sub a b).toNat = a.toNat - b.toNat := by
-  obtain ⟨z₁, z₂, -⟩ := zeros_spec a.size ha
-  obtain ⟨a₁, a₂, a₃⟩ := toUSlice_spec a ha
-  obtain ⟨b₁, b₂, b₃⟩ := toUSlice_spec b hb
   have hA : a.toNat < 2 ^ (64 * a.size) := by rw [toNat_eq_valAt]; exact valAt_lt ..
-  have hau : a.usize.toNat = a.size := by
-    simp [usize, Nat.mod_eq_of_lt ha]
-  -- The subtrahend, cut to the size of `a`.
-  have hb' : (if b.size ≤ a.size then b.toUSlice else b.toUSlice.slice 0 a.usize).size.toNat ≤
-        a.size ∧
-      (if b.size ≤ a.size then b.toUSlice else b.toUSlice.slice 0 a.usize).toNat = b.toNat := by
-    split
-    · exact ⟨by rw [b₂]; assumption, b₃⟩
-    · rename_i h
-      rw [USlice.size_slice _ (by simp) (by rw [hau, b₂]; lia), USlice.toNat_slice _ (by simp)
-        (by rw [hau, b₂]; lia), b₁, hau]
-      refine ⟨by simp, ?_⟩
-      simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, array_toUSlice]
-      rw [valAt_mod _ _ (show a.size ≤ b.size by lia), ← toNat_eq_valAt, Nat.mod_eq_of_lt (by lia)]
-  obtain ⟨hs, hv⟩ := hb'
-  have h := valAt_sub (UInt64Array.replicate a.size 0).toUSlice a.toUSlice
-    (if b.size ≤ a.size then b.toUSlice else b.toUSlice.slice 0 a.usize) 0
-    (USize.le_iff_toNat_le.2 (by rw [a₂]; exact hs))
-    (USize.le_iff_toNat_le.2 (by rw [a₂, z₂]; exact Nat.le_refl _))
-  rw [z₁, a₂, a₃, hv, UInt64.toNat_zero, Nat.add_zero] at h
-  have hV := valAt_lt (MPN.sub (UInt64Array.replicate a.size 0).toUSlice a.toUSlice
-    (if b.size ≤ a.size then b.toUSlice else b.toUSlice.slice 0 a.usize) 0).1 0 a.size
-  rw [sub, toNat_eq_valAt, size_sub', z₂]
-  · generalize (MPN.sub _ _ _ _).1.valAt 0 a.size = V at *
-    generalize (MPN.sub _ _ _ _).2.toNat = c at *
-    rcases Nat.eq_zero_or_pos c with hc | hc
-    · subst hc; lia
-    · have := Nat.mul_le_mul_left (2 ^ (64 * a.size)) hc; lia
-where
-  size_sub' : (MPN.sub (UInt64Array.replicate a.size 0).toUSlice a.toUSlice
-      (if b.size ≤ a.size then b.toUSlice else b.toUSlice.slice 0 a.usize) 0).1.size =
-      (UInt64Array.replicate a.size 0).toUSlice.size.toNat := by
-    simp [zeros_spec a.size ha]
+  -- The limbs of `b` above `a.size` are zero.
+  have hb : b.valAt 0 (min b.size a.size) = b.toNat := by
+    rcases Nat.le_total b.size a.size with h | h
+    · rw [Nat.min_eq_left h, toNat_eq_valAt]
+    · rw [Nat.min_eq_right h, valAt_mod _ _ h, ← toNat_eq_valAt, Nat.mod_eq_of_lt (by lia)]
+  have h := (WordArray.subW_spec (UInt64Array.replicate a.size 0) 0 a 0 a.size b 0
+    (min b.size a.size) (by simp [LimbArray.size]) (Nat.min_le_right _ _)
+    (show b.valAt 0 _ ≤ a.valAt 0 a.size by rw [hb, ← toNat_eq_valAt]; exact hle)).2
+  rw [toNat_eq_valAt (sub a b), size_sub, toNat_eq_valAt a, ← hb]
+  exact h
 
 /-! ## Products -/
 

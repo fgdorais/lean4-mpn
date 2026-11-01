@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN.AddSub
+public import MPN.FFT.Fermat
 
 /-!
 # The middle term of Karatsuba's method
@@ -385,7 +386,7 @@ public def karatsubaMid (arr : UInt64Array) (rs k n : USize) (t : UInt64Array) :
     let p := (t.toSlice 0 (midLen k n).toNat).foldlInPlace (2 : UInt64) fun i hi x c =>
       midStep arr rs k n t h i (lt_midLen h hi) x c
     let arr' := p.1.array.copySlice 0 arr (rs.toNat + k.toNat) (midLen k n).toNat
-    if hb : LoopBound arr' rs n then (add1IntoLoop arr' rs n hb (k + midLen k n) (p.2 - 2)).1
+    if hb : LoopBound arr' rs n then (FFT.incrAt arr' rs n hb (k + midLen k n) (p.2 - 2)).1
     else arr'
   else arr
 
@@ -492,9 +493,16 @@ public theorem karatsubaMid_spec (arr : UInt64Array) (rs k n : USize) (t : UInt6
   -- The carry above the window.
   have hkL : (k + midLen k n).toNat = k.toNat + (midLen k n).toNat :=
     USize.toNat_add_of_lt (by lia)
-  obtain ⟨a₁, a₂, a₃⟩ := add1IntoLoop_spec arr' rs n hb (k + midLen k n) (p.2 - 2)
+  obtain ⟨a₁, a₂, a₃⟩ := FFT.incrAt_spec arr' rs n hb (k + midLen k n) (p.2 - 2)
+  generalize FFT.incrAt arr' rs n hb (k + midLen k n) (p.2 - 2) = q at *
+  replace a₁ : q.1.size = arr'.size := a₁
+  replace a₂ : ∀ i, (i < rs.toNat + (k + midLen k n).toNat ∨ rs.toNat + n.toNat ≤ i) →
+      q.1[i]! = arr'[i]! := a₂
+  replace a₃ : q.1.valAt (rs.toNat + (k + midLen k n).toNat) (n.toNat - (k + midLen k n).toNat) +
+      2 ^ (64 * (n.toNat - (k + midLen k n).toNat)) * q.2.toNat =
+        arr'.valAt (rs.toNat + (k + midLen k n).toNat) (n.toNat - (k + midLen k n).toNat) +
+          (p.2 - 2).toNat := a₃
   rw [hkL] at a₂ a₃
-  generalize add1IntoLoop arr' rs n hb (k + midLen k n) (p.2 - 2) = q at *
   refine ⟨by rw [a₁, hcs], fun i hi => ?_, fun Z₁ hT hW => ?_⟩
   · rw [a₂ i (by lia), hc i, ite_eq_right (by lia)]
   -- The value, from its three parts: below the window, the window, and above it.

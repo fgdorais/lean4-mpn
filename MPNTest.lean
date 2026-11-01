@@ -38,45 +38,21 @@ def edges (n : Nat) : List Nat :=
 /-- The limbs `1` to `n` of `r`, a window between two padding limbs. -/
 def inner (r : UInt64Array) (n : Nat) : UInt64Array.USlice := r.uslice 1 (n + 1).toUSize
 
-/-- Checks `addN` and `subN` on `n`-limb numbers written at offset 1 of a 2-limb padded buffer. -/
-def checkAddSub (n : Nat) : Bool :=
-  let r := UInt64Array.replicate (n + 2) 0xAAAAAAAAAAAAAAAA
-  (edges n).all fun x => (edges n).all fun y => [0, 1, 2, 2 ^ 64 - 1].all fun c =>
-    let a := (limbs n x).toUSlice
-    let b := (limbs n y).toUSlice
-    let (s, cs) := MPN.addN (inner r n) a b c.toUInt64
-    let (d, cd) := MPN.subN (inner r n) a b c.toUInt64
-    window s 1 n + 2 ^ (64 * n) * cs.toNat == x + y + c &&
-    window d 1 n + y + c == x + 2 ^ (64 * n) * cd.toNat &&
-    -- The padding limbs are untouched.
-    s[0]! == r[0]! && s[n + 1]! == r[n + 1]! && d[0]! == r[0]! && d[n + 1]! == r[n + 1]!
-
-#guard [1, 2, 3, 5].all checkAddSub
-#guard
-  let e := UInt64Array.empty.toUSlice
-  (MPN.addN e e e 5).2 == 5
-
--- A window shorter than the operands: only its limbs are written.
-#guard
-  let r := UInt64Array.replicate 4 7
-  let a := (limbs 3 (2 ^ 192 - 1)).toUSlice
-  let (s, c) := MPN.addN (inner r 2) a a
-  s.toList == [7, 0xFFFFFFFFFFFFFFFE, 0xFFFFFFFFFFFFFFFF, 7] && c == 1
-
-/-- Checks `add` and `sub` on an `m`-limb `a` and an `n`-limb `b`, with `n ≤ m`. -/
-def checkAddSubGen (m n : Nat) : Bool :=
-  let r := UInt64Array.replicate (m + 2) 0xAAAAAAAAAAAAAAAA
-  (edges m).all fun x => (edges n).all fun y => [0, 1, 2 ^ 64 - 1].all fun c =>
+/--
+Checks `main`'s `addW` and `subW` on an `m`-limb `a` and an `n`-limb `b`, with `n ≤ m`, written at
+offset 1 of a padded buffer.
+-/
+def checkAddSubW (m n : Nat) : Bool :=
+  let r := UInt64Array.replicate (m + 3) 0xAAAAAAAAAAAAAAAA
+  (edges m).all fun x => (edges n).all fun y =>
     let y := y % 2 ^ (64 * n)
-    let a := (limbs m x).toUSlice
-    let b := (limbs n y).toUSlice
-    let (s, cs) := MPN.add (inner r m) a b c.toUInt64
-    let (d, cd) := MPN.sub (inner r m) a b c.toUInt64
-    window s 1 m + 2 ^ (64 * m) * cs.toNat == x + y + c &&
-    window d 1 m + y + c == x + 2 ^ (64 * m) * cd.toNat &&
-    s[0]! == r[0]! && s[m + 1]! == r[m + 1]! && d[0]! == r[0]! && d[m + 1]! == r[m + 1]!
+    let s := MPN.WordArray.addW r 1 (limbs m x) 0 m (limbs n y) 0 n
+    let d := MPN.WordArray.subW r 1 (limbs m x) 0 m (limbs n y) 0 n
+    window s 1 (m + 1) == x + y && (x < y || window d 1 m == x - y) &&
+    -- The padding limbs are untouched.
+    s[0]! == r[0]! && s[m + 2]! == r[m + 2]! && d[0]! == r[0]! && d[m + 1]! == r[m + 1]!
 
-#guard [(1, 0), (1, 1), (3, 1), (3, 2), (4, 4), (5, 0)].all fun (m, n) => checkAddSubGen m n
+#guard [(1, 0), (1, 1), (3, 1), (3, 2), (4, 4), (5, 0)].all fun (m, n) => checkAddSubW m n
 
 /-! Multiplication -/
 

@@ -276,12 +276,14 @@ def main (args : List String) : IO Unit := do
       | "add" =>
         row noNat op n
           (time (fun (x y : UInt64Array) =>
-            MPN.add (UInt64Array.replicate x.size 0).toUSlice x.toUSlice y.toUSlice) checkPair a b)
+            MPN.WordArray.addW (UInt64Array.replicate (x.size + 1) 0) 0 x 0 x.size y 0 y.size)
+            checkArr a b)
           (time (· + ·) checkNat na nb)
       | "sub" =>
         row noNat op n
           (time (fun (x y : UInt64Array) =>
-            MPN.sub (UInt64Array.replicate x.size 0).toUSlice x.toUSlice y.toUSlice) checkPair s b)
+            MPN.WordArray.subW (UInt64Array.replicate x.size 0) 0 x 0 x.size y 0 y.size)
+            checkArr s b)
           (time (· - ·) checkNat ns nb)
       | "shl" =>
         row noNat op n
