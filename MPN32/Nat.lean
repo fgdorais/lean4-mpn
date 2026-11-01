@@ -810,19 +810,12 @@ private theorem toNat_sqrtZimmermann (T : Nat) (x : MPN.W32.Nat) (hx : x.toNat �
 Zimmermann's recursion (`sqrtZimmermann`), with Newton's iteration for roots of up to `T` limbs.
 -/
 public def sqrtWith (Z T : Nat) (n : MPN.W32.Nat) : MPN.W32.Nat :=
-  match n with
-  | small _ => sqrtNewton n
-  | large a _ => if 2 * Z ≤ a.size then sqrtZimmermann T n else sqrtNewton n
+  Dispatch.sqrtBy (fun a => 2 * Z ≤ a.size) (fun a h => sqrtZimmermann T (large a h)) n
 
 @[simp] public theorem toNat_sqrtWith (Z T : Nat) (n : MPN.W32.Nat) :
-    (sqrtWith Z T n).toNat = _root_.Nat.sqrt n.toNat := by
-  unfold sqrtWith
-  split
-  · exact toNat_sqrtNewton _
-  · split
-    · rename_i a ha _
-      exact toNat_sqrtZimmermann _ _ (by simp only [GNat.toNat]; lia)
-    · exact toNat_sqrtNewton _
+    (sqrtWith Z T n).toNat = _root_.Nat.sqrt n.toNat :=
+  Dispatch.toNat_sqrtBy _ _ (fun a h _ => toNat_sqrtZimmermann _ _ (by
+    simp only [GNat.toNat]; have := h.2; lia)) n
 
 /-- `sqrtWith` from roots of `config.sqrtZimmermann` limbs, down to `config.sqrtBase`. -/
 public def sqrt (n : MPN.W32.Nat) : MPN.W32.Nat := sqrtWith config.sqrtZimmermann config.sqrtBase n

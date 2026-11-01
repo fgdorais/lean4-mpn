@@ -648,24 +648,16 @@ roots below `Z` limbs, and from there by Zimmermann's recursion (`sqrtRemWith`),
 iteration for roots of up to `T` limbs (`sqrtBaseN`).
 -/
 public def sqrtWith (Z T : Nat) (n : MPN.W64.Nat) : MPN.W64.Nat :=
-  match n with
-  | small _ => sqrtNewton n
-  | large a _ =>
-    if (a.size ≤ 2 ∨ 2 * Z ≤ a.size) ∧ fits (2 * a.size + 41) then
-      ofLimbs (Limbs64.norm (sqrtRemWith sqrtBaseN T a).1) (Limbs64.isTrim_norm _)
-    else sqrtNewton n
+  Dispatch.sqrtBy (fun a => (a.size ≤ 2 ∨ 2 * Z ≤ a.size) ∧ fits (2 * a.size + 41))
+    (fun a _ => ofLimbs (Limbs64.norm (sqrtRemWith sqrtBaseN T a).1) (Limbs64.isTrim_norm _)) n
 
 @[simp] public theorem toNat_sqrtWith (Z T : Nat) (n : MPN.W64.Nat) :
     (sqrtWith Z T n).toNat = _root_.Nat.sqrt n.toNat := by
-  unfold sqrtWith
-  split
-  · exact toNat_sqrtNewton _
-  · split
-    · rename_i a ha h
-      rw [toNat_ofLimbs, Limbs64.toNat_norm, (toNat_sqrtRemWith sqrtBaseN T
-        (fun N _ _ _ _ _ => sqrtBaseN_spec N) a (by have := lt_of_fits h.2; lia)).1]
-      rfl
-    · exact toNat_sqrtNewton _
+  refine Dispatch.toNat_sqrtBy _ _ (fun a _ h => ?_) n
+  have h := of_decide_eq_true h
+  rw [toNat_ofLimbs, Limbs64.toNat_norm, (toNat_sqrtRemWith sqrtBaseN T
+    (fun N _ _ _ _ _ => sqrtBaseN_spec N) a (by have := lt_of_fits h.2; lia)).1]
+  rfl
 
 /-- `sqrtWith` from roots of `config.sqrtZimmermann` limbs, down to `config.sqrtBase`. -/
 public def sqrt (n : MPN.W64.Nat) : MPN.W64.Nat := sqrtWith config.sqrtZimmermann config.sqrtBase n

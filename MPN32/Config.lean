@@ -7,8 +7,10 @@ module
 public meta import Lean
 public import MPN.Toom.Ops
 public import MPN.Dispatch
+public import MPN.Dispatch.Div
 public meta import MPN.Toom.Ops
 public meta import MPN.Dispatch
+public meta import MPN.Dispatch.Div
 public meta import MPN.ConfigOptions
 
 /-!
@@ -32,7 +34,7 @@ target machine prints the thresholds for that machine and the options that set t
 namespace MPN.W32
 
 /-- The size thresholds, in limbs, at which the arithmetic switches algorithms. -/
-public structure Config extends Dispatch.MulConfig where
+public structure Config extends Dispatch.MulConfig, Dispatch.DivConfig, Dispatch.SqrtConfig where
   mulKaratsuba := 112
   four_le_mulKaratsuba := by decide
   mulToom3 := 640
@@ -77,14 +79,11 @@ public structure Config extends Dispatch.MulConfig where
   /-- The size from which squaring uses the schoolbook square instead of multiplying. -/
   sqrBasecase : Nat := 2
   sqrFFT := 12288
-  /-- The size of the divisor from which division computes its quotient in blocks of half the
-  divisor, with recursive divisions, instead of one limb at a time. -/
-  divDC : Nat := 176
+  divDC := 176
   /-- Blocks of half the divisor need at least `4` limbs, so that the recursion has two. -/
   four_le_divDC : 4 ≤ divDC := by decide
-  /-- The size of the divisor from which division uses Barrett's division with Newton's
-  reciprocal instead of blocks. -/
-  divMu : Nat := 1000000
+  divMu := 1000000
+  divQMu := 1000000
   /-- The size from which division by a normalized limb takes Möller and Granlund's steps with a
   precomputed reciprocal instead of the hardware divider: always, like GMP's `mpn_divrem_1`. -/
   div1Recip : Nat := 0
@@ -96,12 +95,8 @@ public structure Config extends Dispatch.MulConfig where
   reciprocal of the divisor normalized by a shift, with the dividend shifted, instead of the
   hardware divider: always, like GMP's `mpn_divrem_1`. -/
   div1Unnorm : Nat := 0
-  /-- The size of the root, in limbs, from which the square root uses Zimmermann's recursion
-  instead of Newton's iteration: always, like GMP's `mpn_sqrtrem`. -/
-  sqrtZimmermann : Nat := 1
-  /-- The size of the root, in limbs, at or below which Zimmermann's recursion finishes by Newton's
-  iteration: one limb, like GMP's `mpn_sqrtrem`. -/
-  sqrtBase : Nat := 1
+  sqrtZimmermann := 1
+  sqrtBase := 1
   /-- The size of the smaller number from which the greatest common divisor uses half-gcd. -/
   gcdHalf : Nat := 1536
   /-- The size from which decimal strings are written by divide and conquer. -/

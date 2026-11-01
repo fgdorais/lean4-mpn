@@ -310,7 +310,7 @@ def normDiv (div : (u v : UInt32Array.Slice) → 2 ≤ v.size → UInt32Array)
 
 /-- One level of division by blocks (`dcGen`, `main`'s `NatOps.divNorm`) over the schoolbook one. -/
 def divDCStep (u v : UInt32Array.Slice) (_ : 2 ≤ v.size) : UInt32Array :=
-  (dcGen v.size u.copy v).1
+  (dcGen { divDC := v.size, divMu := never, divQMu := never } u.copy v).1
 
 /-- Tunes `divDC`: where one level of division by blocks beats `divRemBasecase`, at `2 n / n`. -/
 def tuneDivDC (log : Bool) : IO Nat := medianOf 3 do

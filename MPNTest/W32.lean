@@ -338,22 +338,6 @@ def sqrFFTConfig : Config := { sqrBasecase := 2, sqrKaratsuba := 4, sqrToom3 := 
     toNat (div (ofNat ones) (ofNat yones)) == ones / yones &&
     toNat (mod (ofNat ones) (ofNat (yones / 2 + 1))) == ones % (yones / 2 + 1)
 
--- Barrett's division with Newton's reciprocal (`divModMu`), on divisors from three limbs, long
--- dividends (several blocks), all ones, and divisors with small top limbs.
-#guard [3, 4, 5, 7, 8, 17, 33, 64, 100, 129].all fun n => [0, 1, 2, n - 1, n, n + 1, 2 * n + 3,
-    5 * n].all fun m =>
-  let x := sample1 (32 * (m + n)) 23
-  let y := sample1 (32 * n) 29
-  let ones := 2 ^ (32 * (m + n)) - 1
-  let yones := 2 ^ (32 * n) - 1
-  let ysmall := 2 ^ (32 * (n - 1)) + 12345
-  let p := divModMu (ofNat x) (ofNat y)
-  let q := divModMu (ofNat ones) (ofNat yones)
-  let r := divModMu (ofNat x) (ofNat ysmall)
-  toNat p.1 == x / y && toNat p.2 == x % y && toNat q.1 == ones / yones &&
-    toNat q.2 == ones % yones && toNat r.1 == x / ysmall && toNat r.2 == x % ysmall &&
-    isTrimmed p.1 && isTrimmed p.2
-
 -- Schoolbook division alone, on divisors that are not normalized and on normalized ones, by the
 -- hardware divider and by the 3-by-2 steps with the reciprocal.
 #guard [0, 4294967295].all fun t => [2, 3, 7].all fun n => [1, 2, 33].all fun m =>
@@ -389,13 +373,17 @@ def sqrFFTConfig : Config := { sqrBasecase := 2, sqrKaratsuba := 4, sqrToom3 := 
   let r := add (add z₀ (shiftLimbs mid k)) (shiftLimbs z₂ (2 * k))
   r == mul a b && toNat r == m * n
 
--- Division by blocks (`main`'s `NatOps.divNorm`) from 4 limbs, over Algorithm D, against `Nat`:
+-- Division by blocks (`main`'s `NatOps.divNorm`) from 4 limbs, over Algorithm D, and Barrett's
+-- division with Newton's reciprocal from 4 limbs, with and without the remainder, against `Nat`:
 -- random operands, all-ones operands, and shapes from one block up.
 def dcCheck (x y : Nat) : Bool :=
   let v : UInt32Array.Slice := ofNat y
   if h : 2 ≤ v.size then
-    let p := divRemNormWith 4 (ofNat x : UInt32Array.Slice).copy v h
-    toNat p.1 == x / y && toNat p.2 == x % y
+    let u := (ofNat x : UInt32Array.Slice).copy
+    [({ divDC := 4, divMu := 1000000, divQMu := 1000000 } : Dispatch.DivConfig),
+        { divDC := 4, divMu := 4, divQMu := 4 }].all fun c =>
+      let p := divRemNormWith c u v h
+      toNat p.1 == x / y && toNat p.2 == x % y && toNat (divQNormWith c u v h) == x / y
   else true
 
 #guard [4, 5, 6, 7, 8, 9, 13, 16, 17, 31, 32, 33, 64].all fun n =>

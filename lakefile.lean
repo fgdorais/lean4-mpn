@@ -30,8 +30,9 @@ changing the options, build once with `-R` to reconfigure.
   have no dots, since TOML passes a quoted key as one name.
   On 32-bit limbs: `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`, `mulToom43`, `mulToom4`,
   `mulToom6`, `mulFFT`, `mulUnbalanced`, `mulRows`, `mulCombaW`, `sqrBasecase`, `sqrRows`,
-  `sqrKaratsuba`, `sqrToom3`, `sqrToom4`, `sqrToom6`, `sqrFFT`, `divDC`, `divMu`, `div1Recip`,
-  `div1Unnorm`, `div32Recip`, `sqrtZimmermann`, `sqrtBase`, `gcdHalf`, `strDC`, `parseDC`.
+  `sqrKaratsuba`, `sqrToom3`, `sqrToom4`, `sqrToom6`, `sqrFFT`, `divDC`, `divMu`, `divQMu`,
+  `div1Recip`, `div1Unnorm`, `div32Recip`, `sqrtZimmermann`, `sqrtBase`, `gcdHalf`, `strDC`,
+  `parseDC`.
   On 64-bit limbs: `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`, `mulToom43`, `mulToom4`,
   `mulToom6`, `mulFFT`, `mulFFTUnbal`, `mulFFTMin`, `mulUnbalanced`, `mulChunkMax`, `sqrKaratsuba`,
   `sqrToom3`, `sqrToom4`, `sqrToom6`, `sqrFFT`, `divDC`, `divMu`, `divQMu`, `div1Recip`,
@@ -70,6 +71,7 @@ def thresholdOptions32 : Array LeanOption :=
     opt `sqrFFT (get_config? w32_sqrFFT) ++
     opt `divDC (get_config? w32_divDC) ++
     opt `divMu (get_config? w32_divMu) ++
+    opt `divQMu (get_config? w32_divQMu) ++
     opt `div1Recip (get_config? w32_div1Recip) ++
     opt `div32Recip (get_config? w32_div32Recip) ++
     opt `div1Unnorm (get_config? w32_div1Unnorm) ++
