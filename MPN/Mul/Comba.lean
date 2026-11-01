@@ -913,12 +913,13 @@ private theorem slice_size_le (a : UInt32Array.Slice) : a.size ≤ a.array.size 
 /--
 All `a.size + b.size` limbs of `a * b` by Comba's method, one column at a time, into
 `a.size + b.size + 1` limbs whose top limb, which only held a carry, is dropped. The columns come
-from `combaOuter` when either operand is shorter than 32 limbs and from `combaOuterW` otherwise:
+from `combaOuter` when either operand is shorter than `w` limbs and from `combaOuterW` otherwise:
 the column loop of `combaOuterW` adds whole products and counts the wraps of its sum, which is
-5–13% faster from 32 limbs, but setting up its unrolled loop for each column made products of 2
-to 16 limbs 5–8% slower, also when both loops shared one function and chose by column length.
+5–13% faster from 32 limbs on Zen 3, but setting up its unrolled loop for each column made
+products of 2 to 16 limbs 5–8% slower, also when both loops shared one function and chose by
+column length.
 -/
-public def combaMul (a b : UInt32Array.Slice) (h : CombaOK a b) : UInt32Array :=
+public def combaMul (w : Nat) (a b : UInt32Array.Slice) (h : CombaOK a b) : UInt32Array :=
   have ha := lt_usizeSize h.2.2.2.1
   have hb := lt_usizeSize h.2.2.2.2
   have hla := slice_size_le a
@@ -934,7 +935,7 @@ public def combaMul (a b : UInt32Array.Slice) (h : CombaOK a b) : UInt32Array :=
   have hr0 : (UInt32Array.replicate (a.size + b.size + 1) 0).size =
       (a.size + b.size - 1).toUSize.toNat + 2 := by
     have := mod_usize (n := a.size + b.size - 1) (by lia); have := h.1; simp; lia
-  if a.size < 32 ∨ b.size < 32 then
+  if a.size < w ∨ b.size < w then
     (combaOuter a.array a.start.toUSize a.size.toUSize ha (limbU_bound a ha)
       b.array b.start.toUSize b.size.toUSize hb (limbU_bound b hb) (a.size + b.size - 1).toUSize
       hkE (.replicate (a.size + b.size + 1) 0) hrs hr0 0 (by simp)).pop
@@ -980,8 +981,8 @@ private theorem pop_of_toNat_eq_mul (a b : UInt32Array.Slice) (r : UInt32Array)
   conv => rhs; rw [← List.dropLast_concat_getLast hne, hlast]
   rw [ofLimbs_concat, UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero]
 
-public theorem combaMul_spec (a b : UInt32Array.Slice) (h : CombaOK a b) :
-    (combaMul a b h).size = a.size + b.size ∧ toNat (combaMul a b h) = toNat a * toNat b := by
+public theorem combaMul_spec (w : Nat) (a b : UInt32Array.Slice) (h : CombaOK a b) :
+    (combaMul w a b h).size = a.size + b.size ∧ toNat (combaMul w a b h) = toNat a * toNat b := by
   have ha := lt_usizeSize h.2.2.2.1
   have hb := lt_usizeSize h.2.2.2.2
   have hla := slice_size_le a
@@ -1008,8 +1009,8 @@ public theorem combaMul_spec (a b : UInt32Array.Slice) (h : CombaOK a b) :
   have hv0 : ofLimbs (UInt32Array.replicate (a.size + b.size + 1) 0).toList =
       weighted a.copy.toList b.copy.toList (0 : USize).toNat := by
     simp [weighted, UInt32Array.toList_replicate, ofLimbs_replicate_zero]
-  by_cases hw : a.size < 32 ∨ b.size < 32
-  · have heq : combaMul a b h = (combaOuter a.array a.start.toUSize a.size.toUSize ha
+  by_cases hw : a.size < w ∨ b.size < w
+  · have heq : combaMul w a b h = (combaOuter a.array a.start.toUSize a.size.toUSize ha
         (limbU_bound a ha) b.array b.start.toUSize b.size.toUSize hb (limbU_bound b hb)
         (a.size + b.size - 1).toUSize hkE (UInt32Array.replicate (a.size + b.size + 1) 0) hrs hr0
         0 (by simp)).pop := by
@@ -1021,7 +1022,7 @@ public theorem combaMul_spec (a b : UInt32Array.Slice) (h : CombaOK a b) :
         a.copy.toList b.copy.toList (by simp [hsa]) (by simp [hsb]) (limbs_read a ha)
         (limbs_read b hb) (by rw [hsa]; have := h.2.2.1; lia) _ hrs hr0 0 (by simp) hv0
         (fun j _ _ => by simp))
-  · have heq : combaMul a b h = (combaOuterW a.array a.start.toUSize a.size.toUSize ha
+  · have heq : combaMul w a b h = (combaOuterW a.array a.start.toUSize a.size.toUSize ha
         (limbU_bound a ha) b.array b.start.toUSize b.size.toUSize hb (limbU_bound b hb)
         (a.size + b.size - 1).toUSize hkE (UInt32Array.replicate (a.size + b.size + 1) 0) hrs hr0
         0 (by simp)).pop := by

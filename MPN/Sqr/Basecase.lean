@@ -8,6 +8,7 @@ public import MPN.Add
 public import MPN.Mul.Limb
 public import MPN.Mul.Comba
 public import MPN.Mul.Rows
+public import MPN.Settings
 
 /-!
 # Schoolbook squaring
@@ -707,21 +708,22 @@ public theorem sqrRowsMul_spec (a : UInt32Array.Slice) (h : SqrRowsOK a) :
 
 /-! ## The compiled square
 
-`sqrBasecaseFast` squares by rows into wide accumulators (`sqrRowsMul`) from 16 limbs, and by
-Comba's method (`csqMul`) below, whose lower fixed cost makes it up to 29% faster there.
-`@[csimp]` makes the compiler use it in place of `sqrBasecase`: both compute all `2 * a.size` limbs
-of the square, and limbs of a given length are determined by their value.
+`sqrBasecaseFast` squares by rows into wide accumulators (`sqrRowsMul`) from `config.sqrRows`
+limbs, and by Comba's method (`csqMul`) below, whose lower fixed cost made it up to 29% faster below
+16 limbs on Zen 3. `@[csimp]` makes the compiler use it in place of `sqrBasecase`: both compute all
+`2 * a.size` limbs of the square, and limbs of a given length are determined by their value.
 -/
 
-/-- `sqrBasecase`, by rows into wide accumulators or by Comba's method when the size allows it. -/
-public def sqrBasecaseFast (a : UInt32Array.Slice) : UInt32Array :=
-  if h : 16 ≤ a.size ∧ SqrRowsOK a then sqrRowsMul a h.2
+/-- `sqrBasecase`, by rows into wide accumulators from `r` limbs, or by Comba's method when the
+size allows it. -/
+public def sqrBasecaseWith (r : Nat) (a : UInt32Array.Slice) : UInt32Array :=
+  if h : r ≤ a.size ∧ SqrRowsOK a then sqrRowsMul a h.2
   else if h : SqrOK a then csqMul a h
   else sqrBasecase a
 
-@[csimp] public theorem sqrBasecase_eq_sqrBasecaseFast : @sqrBasecase = @sqrBasecaseFast := by
-  funext a
-  unfold sqrBasecaseFast
+public theorem sqrBasecase_eq_sqrBasecaseWith (r : Nat) (a : UInt32Array.Slice) :
+    sqrBasecase a = sqrBasecaseWith r a := by
+  unfold sqrBasecaseWith
   obtain ⟨hs', hv'⟩ := sqrBasecase_spec a
   split
   · rename_i h
@@ -736,5 +738,12 @@ public def sqrBasecaseFast (a : UInt32Array.Slice) : UInt32Array :=
       apply ofLimbs_inj_of_length (by simp [hs, hs'])
       rw [← toNat_toSlice, ← toNat_toSlice, hv', hv]
     · rfl
+
+/-- `sqrBasecaseWith` with the threshold `config.sqrRows`. -/
+public def sqrBasecaseFast (a : UInt32Array.Slice) : UInt32Array := sqrBasecaseWith config.sqrRows a
+
+@[csimp] public theorem sqrBasecase_eq_sqrBasecaseFast : @sqrBasecase = @sqrBasecaseFast := by
+  funext a
+  exact sqrBasecase_eq_sqrBasecaseWith ..
 
 end MPN

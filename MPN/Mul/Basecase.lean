@@ -7,6 +7,7 @@ module
 public import MPN.Mul.Limb
 public import MPN.Mul.Comba
 public import MPN.Mul.Rows
+public import MPN.Settings
 
 /-!
 # Schoolbook multiplication
@@ -80,22 +81,25 @@ public theorem toNat_mulBasecase (a b : UInt32Array.Slice) :
 
 /-! ## The compiled product
 
-`mulBasecaseFast` adds rows into wide accumulators (`Mul.Rows`) from 16 limbs in all, and uses
-Comba's method (`Mul.Comba`) below, whose lower fixed cost (one array, no carry pass) makes it up
-to 26% faster there. `@[csimp]` makes the compiler use it in place of `mulBasecase`: both compute
-all `a.size + b.size` limbs of the product, and limbs of a given length are determined by their
-value.
+`mulBasecaseFast` adds rows into wide accumulators (`Mul.Rows`) from `config.mulRows` limbs in all,
+and uses Comba's method (`Mul.Comba`) below, whose lower fixed cost (one array, no carry pass) made
+it up to 26% faster below 16 limbs on Zen 3. `@[csimp]` makes the compiler use it in place of
+`mulBasecase`: both compute all `a.size + b.size` limbs of the product, and limbs of a given length
+are determined by their value.
 -/
 
-/-- `mulBasecase`, by rows into wide accumulators or by Comba's method when the sizes allow it. -/
-public def mulBasecaseFast (a b : UInt32Array.Slice) : UInt32Array :=
-  if h : 16 ≤ a.size + b.size ∧ RowsOK a b then rowsMul a b h.2
-  else if h : CombaOK a b then combaMul a b h
+/--
+`mulBasecase`, by rows into wide accumulators from `r` limbs in all, or by Comba's method, with
+whole products in its columns from `w` limbs, when the sizes allow it.
+-/
+public def mulBasecaseWith (r w : Nat) (a b : UInt32Array.Slice) : UInt32Array :=
+  if h : r ≤ a.size + b.size ∧ RowsOK a b then rowsMul a b h.2
+  else if h : CombaOK a b then combaMul w a b h
   else mulBasecase a b
 
-@[csimp] public theorem mulBasecase_eq_mulBasecaseFast : @mulBasecase = @mulBasecaseFast := by
-  funext a b
-  unfold mulBasecaseFast
+public theorem mulBasecase_eq_mulBasecaseWith (r w : Nat) (a b : UInt32Array.Slice) :
+    mulBasecase a b = mulBasecaseWith r w a b := by
+  unfold mulBasecaseWith
   split
   · rename_i h
     obtain ⟨hs, hv⟩ := rowsMul_spec a b h.2
@@ -104,10 +108,18 @@ public def mulBasecaseFast (a b : UInt32Array.Slice) : UInt32Array :=
     rw [← toNat_toSlice, ← toNat_toSlice, toNat_mulBasecase, hv]
   · split
     · rename_i h
-      obtain ⟨hs, hv⟩ := combaMul_spec a b h
+      obtain ⟨hs, hv⟩ := combaMul_spec w a b h
       apply UInt32Array.toList_inj.1
       apply ofLimbs_inj_of_length (by simp [hs])
       rw [← toNat_toSlice, ← toNat_toSlice, toNat_mulBasecase, hv]
     · rfl
+
+/-- `mulBasecaseWith` with the thresholds `config.mulRows` and `config.mulCombaW`. -/
+public def mulBasecaseFast (a b : UInt32Array.Slice) : UInt32Array :=
+  mulBasecaseWith config.mulRows config.mulCombaW a b
+
+@[csimp] public theorem mulBasecase_eq_mulBasecaseFast : @mulBasecase = @mulBasecaseFast := by
+  funext a b
+  exact mulBasecase_eq_mulBasecaseWith ..
 
 end MPN

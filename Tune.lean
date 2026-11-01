@@ -413,13 +413,62 @@ roots of `T` limbs, beats Newton's iteration.
 def tuneSqrtZimmermann (T : Nat) (log : Bool) : IO Nat := medianOf 3 do
   let sizes := [4, 6, 8, 12, 16, 20, 24, 28, 32, 40, 48, 56, 64, 80, 96, 128, 160, 192, 256]
   match ← crossoverOn (fun x (_ : MPN.Nat) => MPN.Nat.sqrtWith 1000000 T x)
-      (fun x _ => MPN.Nat.sqrtWith 1 T x) checkNat (fun n => (sampleNat (2 * n) 1, sampleNat (2 * n) 1)) sizes (log := log) with
+      (fun x _ => MPN.Nat.sqrtWith 1 T x) checkNat
+      (fun n => (sampleNat (2 * n) 1, sampleNat (2 * n) 1)) sizes (log := log) with
   | some n =>
     if log then IO.println s!"  found {n}"
     return n
   | none =>
     IO.eprintln "warning: Zimmermann's recursion never won up to 256 limbs; using 256"
     return 256
+
+/-- The checksum of a product, in constant time. -/
+def checkArr32 (r : UInt32Array) : UInt32 := r.size.toUInt32 + r[0]!
+
+/--
+Tunes `mulRows`: the size of both operands together from which the schoolbook product by rows into
+wide accumulators beats Comba's method, at `n` by `n` limbs.
+-/
+def tuneMulRows (log : Bool) : IO Nat := medianOf 3 do
+  let sizes := [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20, 24, 32, 40, 48, 64]
+  match ← crossoverOn (fun (a b : UInt32Array) => mulBasecaseWith 1000000 config.mulCombaW a b)
+      (fun a b => mulBasecaseWith 0 config.mulCombaW a b) checkArr32
+      (fun n => (sample n 1, sample n 2)) sizes (log := log) with
+  | some n =>
+    if log then IO.println s!"  found {n}"
+    return 2 * n
+  | none =>
+    IO.eprintln "warning: the product by rows never won up to 64 limbs; using 128"
+    return 128
+
+/--
+Tunes `mulCombaW`: the size of the shorter operand from which Comba's method with whole products
+in its columns beats the one with single products, at `n` by `n` limbs.
+-/
+def tuneMulCombaW (log : Bool) : IO Nat := medianOf 3 do
+  let sizes := [4, 6, 8, 12, 16, 20, 24, 28, 32, 40, 48, 56, 64, 80, 96, 128]
+  match ← crossoverOn (fun (a b : UInt32Array) => mulBasecaseWith 1000000 1000000 a b)
+      (fun a b => mulBasecaseWith 1000000 0 a b) checkArr32
+      (fun n => (sample n 1, sample n 2)) sizes (log := log) with
+  | some n =>
+    if log then IO.println s!"  found {n}"
+    return n
+  | none =>
+    IO.eprintln "warning: whole products in Comba's columns never won up to 128 limbs; using 128"
+    return 128
+
+/-- Tunes `sqrRows`: the size from which the schoolbook square by rows beats Comba's method. -/
+def tuneSqrRows (log : Bool) : IO Nat := medianOf 3 do
+  let sizes := [2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20, 24, 32, 40, 48, 64]
+  match ← crossoverOn (fun (a _ : UInt32Array) => sqrBasecaseWith 1000000 a)
+      (fun a _ => sqrBasecaseWith 0 a) checkArr32 (fun n => (sample n 1, sample n 1)) sizes
+      (log := log) with
+  | some n =>
+    if log then IO.println s!"  found {n}"
+    return n
+  | none =>
+    IO.eprintln "warning: the square by rows never won up to 64 limbs; using 64"
+    return 64
 
 /-- Tunes `strDC`: where writing decimal digits by divide and conquer beats the base case. -/
 def tuneStrDC (log : Bool) : IO Nat := medianOf 3 do
@@ -486,6 +535,12 @@ public def main (args : List String) : IO UInt32 := do
     mulToom6 := max 32 toom6, thirtytwo_le_mulToom6 := by lia } log
   IO.println "mulUnbalanced: halving the longer operand against schoolbook, at 8:1"
   let unbalanced ← tuneUnbalanced (max 4 karatsuba) (by lia) log
+  IO.println "mulRows: the product by rows against Comba's method"
+  let mulRows ← tuneMulRows log
+  IO.println "mulCombaW: whole products in Comba's columns against single products"
+  let mulCombaW ← tuneMulCombaW log
+  IO.println "sqrRows: the square by rows against Comba's method"
+  let sqrRows ← tuneSqrRows log
   IO.println "sqrBasecase: the schoolbook square against multiplying"
   let sqrBasecase ← tuneSqrBasecase log
   IO.println "sqrKaratsuba: one Karatsuba square against the schoolbook square"
@@ -534,7 +589,7 @@ public def main (args : List String) : IO UInt32 := do
     sqrToom4 := max 32 sqrToom4, thirtytwo_le_sqrToom4 := by lia,
     sqrToom6 := max 32 sqrToom6, thirtytwo_le_sqrToom6 := by lia, sqrFFT,
     divDC := max 4 divDC, four_le_divDC := by lia, div1Recip, div32Recip, gcdHalf,
-    strDC, parseDC, sqrtZimmermann, sqrtBase }
+    strDC, parseDC, sqrtZimmermann, sqrtBase, mulRows, mulCombaW, sqrRows }
   IO.println ""
   IO.println s!"Found:   {repr cfg}"
   IO.println s!"Default: {repr ({} : Config)}"
@@ -547,7 +602,8 @@ public def main (args : List String) : IO UInt32 := do
     ("sqrToom6", cfg.sqrToom6), ("sqrFFT", cfg.sqrFFT), ("divDC", cfg.divDC),
     ("div1Recip", cfg.div1Recip), ("div32Recip", cfg.div32Recip), ("gcdHalf", cfg.gcdHalf),
     ("strDC", cfg.strDC), ("parseDC", cfg.parseDC), ("sqrtZimmermann", cfg.sqrtZimmermann),
-    ("sqrtBase", cfg.sqrtBase)]
+    ("sqrtBase", cfg.sqrtBase), ("mulRows", cfg.mulRows), ("mulCombaW", cfg.mulCombaW),
+    ("sqrRows", cfg.sqrRows)]
   IO.println "To compile these into the library, add to its `require` in lakefile.toml:"
   IO.println s!"  options = \{ {", ".intercalate (opts.map fun (k, v) => s!"{k} = \"{v}\"")} }"
   IO.println "or build this package with:"

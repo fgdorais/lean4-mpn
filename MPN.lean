@@ -49,6 +49,7 @@ public import MPN.FFT.Fermat
 public import MPN.FFT.Transform
 public import MPN.FFT.Mul
 public import MPN.Config
+public import MPN.Settings
 public import MPN.Mul
 public import MPN.Sqr.Basecase
 public import MPN.Sqr

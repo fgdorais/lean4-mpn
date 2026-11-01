@@ -8,7 +8,7 @@ public import MPN.Mul.Basecase
 public import MPN.Mul.Unbalanced
 public import MPN.Mul.Toom
 public import MPN.FFT.Mul
-public import MPN.Config
+public import MPN.Settings
 
 /-!
 # Multiplication
@@ -45,9 +45,6 @@ public structure IsMul (f : UInt32Array.Slice → UInt32Array.Slice → UInt32Ar
   toNat_eq (a b : UInt32Array.Slice) : toNat (f a b) = toNat a * toNat b
 
 public theorem isMul_mulBasecase : IsMul mulBasecase := ⟨size_mulBasecase, toNat_mulBasecase⟩
-
-/-- The thresholds of the library, from the `mpn.*` options set when it is compiled. -/
-public def config : Config := mpn_config%
 
 mutual
 

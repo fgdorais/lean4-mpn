@@ -60,6 +60,17 @@ public structure Config extends Toom.Config where
   split pays off through Karatsuba on its pieces.
   -/
   mulUnbalanced : Nat := 204
+  /--
+  The size of both operands together from which the schoolbook product adds rows into wide
+  accumulators instead of Comba's method.
+  -/
+  mulRows : Nat := 16
+  /-- The size of the shorter operand from which Comba's method adds whole products in its
+  columns. -/
+  mulCombaW : Nat := 32
+  /-- The size from which the schoolbook square adds rows into wide accumulators instead of Comba's
+  method. -/
+  sqrRows : Nat := 16
   /-- The size from which squaring uses the schoolbook square instead of multiplying. -/
   sqrBasecase : Nat := 2
   /-- The size from which squaring uses the FFT. -/
@@ -211,6 +222,24 @@ public meta register_option mpn.sqrt.baseThreshold : Nat := {
     Newton's iteration"
 }
 
+public meta register_option mpn.mul.rowsThreshold : Nat := {
+  defValue := ({} : Config).mulRows
+  descr := "the size of both operands together, in limbs, from which the schoolbook product adds \
+    rows into wide accumulators instead of Comba's method"
+}
+
+public meta register_option mpn.mul.combaWideThreshold : Nat := {
+  defValue := ({} : Config).mulCombaW
+  descr := "the size of the shorter operand, in limbs, from which Comba's method adds whole \
+    products in its columns"
+}
+
+public meta register_option mpn.sqr.rowsThreshold : Nat := {
+  defValue := ({} : Config).sqrRows
+  descr := "the size, in limbs, from which the schoolbook square adds rows into wide accumulators \
+    instead of Comba's method"
+}
+
 public meta register_option mpn.gcd.halfThreshold : Nat := {
   defValue := ({} : Config).gcdHalf
   descr := "the size of the smaller number, in limbs, from which the greatest common divisor \
@@ -272,6 +301,9 @@ elab "mpn_config%" : term => do
   let div32Recip := mpn.div.recip32Threshold.get opts
   let sqrtZimmermann := mpn.sqrt.zimmermannThreshold.get opts
   let sqrtBase := mpn.sqrt.baseThreshold.get opts
+  let mulRows := mpn.mul.rowsThreshold.get opts
+  let mulCombaW := mpn.mul.combaWideThreshold.get opts
+  let sqrRows := mpn.sqr.rowsThreshold.get opts
   let gcdHalf := mpn.gcd.halfThreshold.get opts
   let strDC := mpn.str.dcThreshold.get opts
   let parseDC := mpn.str.parseDCThreshold.get opts
@@ -300,6 +332,9 @@ elab "mpn_config%" : term => do
   let d32 := quote div32Recip
   let sz := quote sqrtZimmermann
   let sb := quote sqrtBase
+  let mr := quote mulRows
+  let mw := quote mulCombaW
+  let sr := quote sqrRows
   let gh := quote gcdHalf
   let sd := quote strDC
   let pd := quote parseDC
@@ -324,6 +359,9 @@ elab "mpn_config%" : term => do
                  div32Recip := $d32
                  sqrtZimmermann := $sz
                  sqrtBase := $sb
+                 mulRows := $mr
+                 mulCombaW := $mw
+                 sqrRows := $sr
                  gcdHalf := $gh
                  strDC := $sd
                  parseDC := $pd } : Config))
