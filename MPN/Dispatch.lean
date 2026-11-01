@@ -62,6 +62,7 @@ public structure MulConfig extends Toom.Config where
   sqrFFT : Nat
   /-- The factor `c` of the number of pieces of the FFT: `2ᵏ` for the least `k` with `4ᵏ ≥ c T`. -/
   fftKFactor : Nat
+  deriving Repr
 
 /-- The number of pieces, `2ᵏ`, of an FFT on `T` limbs: the least `k` with `4ᵏ ≥ c T`. -/
 public def fftK (c T : Nat) : Nat := min 30 ((Nat.log2 (c * T - 1) + 2) / 2)

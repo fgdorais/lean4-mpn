@@ -162,7 +162,7 @@ public def mulModB (a b : UInt64Array) (k m : Nat) : UInt64Array :=
   let n := FFT.fftModN k m
   let r := UInt64Array.replicate (m * 2 ^ k + n + 1) 0
   if FFT.FFTOps.FFTModCheck r 0 (m * 2 ^ k + n + 1) a 0 a.size b 0 b.size k m n then
-    FFT.FFTOps.fftMulModAt (FFT.mulP64 config) r 0 a 0 a.size b 0 b.size k m n
+    FFT.FFTOps.fftMulModAt (Dispatch.mulP config.toom) r 0 a 0 a.size b 0 b.size k m n
   else mul a b
 
 public theorem toNat_mulModB (a b : UInt64Array) (k m : Nat)
@@ -173,8 +173,9 @@ public theorem toNat_mulModB (a b : UInt64Array) (k m : Nat)
   dsimp only
   split
   · rename_i h
-    obtain ⟨s₁, -, e⟩ := FFT.FFTOps.fftMulModAt_spec (FFT.mulP64 config) _ _ _ _ _ _ _ _ k m _
-      (FFT.FFTOps.FFTModCheck.params h) (FFT.isMulP64 config _)
+    obtain ⟨s₁, -, e⟩ := FFT.FFTOps.fftMulModAt_spec (Dispatch.mulP config.toom) _ _ _ _ _ _ _ _ k
+      m _
+      (FFT.FFTOps.FFTModCheck.params h) (Dispatch.isMulP config.toom _)
     rw [toNat_eq_valAt, toNat_eq_valAt a, toNat_eq_valAt b]
     change UInt64Array.size _ = UInt64Array.size _ at s₁
     rw [s₁, size_replicate]

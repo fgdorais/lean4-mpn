@@ -6,7 +6,9 @@ module
 
 public meta import Lean
 public import MPN.Toom.Ops
+public import MPN.Dispatch
 public meta import MPN.Toom.Ops
+public meta import MPN.Dispatch
 public meta import MPN.ConfigOptions
 
 /-!
@@ -30,7 +32,7 @@ runs on and the options that set them.
 namespace MPN.W64
 
 /-- The size thresholds, in limbs, at which the arithmetic switches algorithms. -/
-public structure Config extends Toom.Config where
+public structure Config extends Dispatch.MulConfig where
   mulKaratsuba := 64
   four_le_mulKaratsuba := by decide
   mulToom3 := 384
@@ -53,32 +55,13 @@ public structure Config extends Toom.Config where
   thirtytwo_le_sqrToom4 := by decide
   sqrToom6 := 1152
   thirtytwo_le_sqrToom6 := by decide
-  /-- The size of the larger operand from which multiplication uses the FFT. -/
-  mulFFT : Nat := 4096
-  /--
-  The size of the larger operand from which multiplication uses the FFT when the operands differ
-  by `3 : 2` or more, where the Toom methods are slower.
-  -/
-  mulFFTUnbal : Nat := 3072
-  /--
-  The size of the smaller operand below which multiplication does not use the FFT, whose cost
-  follows the total size, where that of schoolbook grows with the smaller operand.
-  -/
-  mulFFTMin : Nat := 320
-  /--
-  The size of the smaller operand from which multiplication splits a larger operand that is at
-  least twice as long into pieces of the size of the smaller one.
-  -/
-  mulUnbalanced : Nat := 96
-  /-- The pieces need at least one limb. -/
-  one_le_mulUnbalanced : 1 ≤ mulUnbalanced := by decide
-  /--
-  The size of the smaller operand from which multiplication no longer splits the larger operand
-  when that one is in the range of the FFT, since one FFT on the whole product is faster.
-  -/
-  mulChunkMax : Nat := 1024
-  /-- The size from which squaring uses the FFT. -/
-  sqrFFT : Nat := 2816
+  mulFFT := 4096
+  mulFFTUnbal := 3072
+  mulFFTMin := 320
+  mulUnbalanced := 96
+  mulChunkMax := 1024
+  sqrFFT := 2816
+  fftKFactor := 10
   /--
   The size of the divisor from which division computes its quotient in blocks of half the
   divisor, with recursive divisions (Burnikel and Ziegler), instead of the schoolbook method.
@@ -132,7 +115,10 @@ public structure Config extends Toom.Config where
   deriving Repr
 
 /-- The thresholds of the Karatsuba and Toom methods of `MPN.Toom`, a projection. -/
-@[inline] public abbrev Config.toom (cfg : Config) : Toom.Config := cfg.toConfig
+@[inline] public abbrev Config.toom (cfg : Config) : Toom.Config := cfg.toMulConfig.toConfig
+
+/-- The thresholds of the choice of a product, `MPN.Dispatch`'s. -/
+@[inline] public abbrev Config.mul (cfg : Config) : Dispatch.MulConfig := cfg.toMulConfig
 
 -- The options `mpn.w64.f`, one for each threshold `f` of `Config`, with its default.
 declare_config_options Config mpn.w64
