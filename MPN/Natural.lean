@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN.Generic.Sqrt
+public import MPN.Log2
 import Std.Data.String.ToNat
 import all Init.Data.Repr
 import all Init.Data.UInt.Log2
