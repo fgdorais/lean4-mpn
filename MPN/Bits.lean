@@ -4,7 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.Linear
+public import MPN.AddSub
+public import MPN.Mul.Basecase
 public import MPN.Shift
 public import MPN.Bitwise
 import all Init.Data.UInt.Log2

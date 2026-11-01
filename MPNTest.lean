@@ -164,27 +164,32 @@ def checkSqrKaratsuba (n : Nat) : Bool :=
 
 /-! Linear passes for the Toom methods -/
 
-/-- Checks `subMul1`, `addMulInto`, `subMulInto`, halving and exact division by 3 on `n` limbs. -/
+/--
+Checks `subMul1` and `main`'s Toom kernels on `n` limbs: `addMulIntoK` and `subMulIntoK` when the
+result fits, `addIntoK`, `subIntoK`, halving by `shlTopK`, exact division by 3 and 5, and `shrK`.
+-/
 def checkLinear (n : Nat) : Bool :=
   [randomLimbs n 3, 2 ^ (64 * n) - 1, 2 ^ (64 * n - 1)].all fun x =>
     let y := randomLimbs (n / 2 + 1) 5 % 2 ^ (64 * n)
     let r := limbs n x
+    let sy := limbs (n / 2 + 1) y
     [1, 3, 16, 81, 2 ^ 64 - 1].all fun m =>
       let (p, cp) := MPN.subMul1 r.toUSlice (limbs n y).toUSlice m.toUInt64
-      let (q, cq) := MPN.addMulInto r.toUSlice (limbs (n / 2 + 1) y).toUSlice m.toUInt64
-      let (s, cs) := MPN.subMulInto r.toUSlice (limbs (n / 2 + 1) y).toUSlice m.toUInt64
+      let q := MPN.WordArray.addMulIntoK r 0 n sy 0 (n / 2 + 1) m
+      let s := MPN.WordArray.subMulIntoK r 0 n sy 0 (n / 2 + 1) m
       window p 0 n + y * m == x + 2 ^ (64 * n) * cp.toNat &&
-      window q 0 n + 2 ^ (64 * n) * cq.toNat == x + y * m &&
-      window s 0 n + y * m == x + 2 ^ (64 * n) * cs.toNat
+      (2 ^ (64 * n) ≤ x + y * m || window q 0 n == x + y * m) &&
+      (x < y * m || window s 0 n == x - y * m)
+    && (2 ^ (64 * n) ≤ x + y || window (MPN.WordArray.addIntoK r 0 n sy 0 (n / 2 + 1)) 0 n == x + y)
+    && (x < y || window (MPN.WordArray.subIntoK r 0 n sy 0 (n / 2 + 1)) 0 n == x - y)
   && [randomLimbs (n - 1) 9, 2 ^ (64 * (n - 1)) - 1].all fun x =>
     let x2 := 2 * (x / 2)
     let x3 := 3 * (x / 3)
     let x5 := 5 * (x / 5)
-    window (MPN.shl63Into (limbs n x2).toUSlice).1 1 (n - 1) == x2 / 2 &&
-    window (MPN.divExact3Into (limbs n x3).toUSlice).1 0 n == x3 / 3 &&
-    window (MPN.divExact5Into (limbs n x5).toUSlice).1 0 n == x5 / 5 &&
-    [1, 2, 7, 63].all fun s => window (MPN.rshiftInto (limbs n x).toUSlice s.toUInt64) 0 n == x / 2
-        ^ s
+    window (MPN.WordArray.shlTopK (limbs n x2) 0 n) 1 (n - 1) == x2 / 2 &&
+    window (MPN.WordArray.divExactK (limbs n x3) 0 n 3) 0 n == x3 / 3 &&
+    window (MPN.WordArray.divExactK (limbs n x5) 0 n 5) 0 n == x5 / 5 &&
+    [1, 2, 7, 63].all fun s => window (MPN.WordArray.shrK (limbs n x) 0 n s) 0 n == x / 2 ^ s
 
 #guard [2, 3, 5, 16, 33].all checkLinear
 

@@ -5,18 +5,19 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN.Bits
-public import MPN.Linear
 public import MPN.Mul.KaratsubaMid
 public import MPN.Sqr.Basecase
 public import MPN.Toom.Ops
+public import MPN.Toom.Kernels
 
 /-!
 # The operations of the Karatsuba and Toom methods
 
-The instance of `MPN.Toom.ToomOps` on `UInt64Array`, from the kernels of this library on `USlice`s.
-Each operation checks that the indices of its windows fit in a `USize` and that the kernel's
-conditions hold; otherwise it writes the value of its specification with `LimbArray.writeNat`,
-which never happens.
+The instance of `MPN.Toom.ToomOps` on `UInt64Array`: the linear operations are `main`'s generic
+kernels (`MPN.Toom.Kernels`); the middle term of Karatsuba's method and the base cases are the
+kernels of this library on `USlice`s. Each of these checks that the indices of its windows fit in
+a `USize` and that the kernel's conditions hold; otherwise it writes the value of its
+specification with `LimbArray.writeNat`, which never happens.
 -/
 
 open ScalarArray UInt64Array MPN.Toom
@@ -69,72 +70,6 @@ private theorem writes_of {d' d : UInt64Array} {o len : Nat} (h₁ : d'.size = d
 
 /-! ## The operations -/
 
-/-- `D + S`. -/
-public def addIntoT (d : UInt64Array) (o len : Nat) (s : UInt64Array) (so sl : Nat) : UInt64Array :=
-  if Fits d ∧ Fits s ∧ o + len ≤ d.size ∧ so + sl ≤ s.size ∧ sl ≤ len then
-    (addInto (winS d o len) (winS s so sl)).1
-  else LimbArray.writeNat d o len (d.valAt o len + s.valAt so sl)
-
-/-- `D - S`. -/
-public def subIntoT (d : UInt64Array) (o len : Nat) (s : UInt64Array) (so sl : Nat) : UInt64Array :=
-  if Fits d ∧ Fits s ∧ o + len ≤ d.size ∧ so + sl ≤ s.size ∧ sl ≤ len then
-    (subInto (winS d o len) (winS s so sl)).1
-  else LimbArray.writeNat d o len (d.valAt o len - s.valAt so sl)
-
-/-- `D + S v`. -/
-public def addMulIntoT (d : UInt64Array) (o len : Nat) (s : UInt64Array) (so sl v : Nat) :
-    UInt64Array :=
-  if Fits d ∧ Fits s ∧ o + len ≤ d.size ∧ so + sl ≤ s.size ∧ sl ≤ len then
-    (addMulInto (winS d o len) (winS s so sl) v.toUInt64).1
-  else LimbArray.writeNat d o len (d.valAt o len + s.valAt so sl * v)
-
-/-- `D - S v`. -/
-public def subMulIntoT (d : UInt64Array) (o len : Nat) (s : UInt64Array) (so sl v : Nat) :
-    UInt64Array :=
-  if Fits d ∧ Fits s ∧ o + len ≤ d.size ∧ so + sl ≤ s.size ∧ sl ≤ len then
-    (subMulInto (winS d o len) (winS s so sl) v.toUInt64).1
-  else LimbArray.writeNat d o len (d.valAt o len - s.valAt so sl * v)
-
-/-- `D 2⁶³`, wrapped. -/
-public def shlTopT (d : UInt64Array) (o len : Nat) : UInt64Array :=
-  if Fits d ∧ o + len ≤ d.size then (shl63Into (winS d o len)).1
-  else LimbArray.writeNat d o len (d.valAt o len * 2 ^ 63 % 2 ^ (64 * len))
-
-/-- `D / 2ˢ`. -/
-public def shrT (d : UInt64Array) (o len s : Nat) : UInt64Array :=
-  if Fits d ∧ o + len ≤ d.size ∧ 0 < s ∧ s < 64 then
-    rshiftInto (winS d o len) s.toUInt64
-  else LimbArray.writeNat d o len (d.valAt o len / 2 ^ s)
-
-/-- The inverse of an odd `q` modulo `2⁶⁴`, by Newton's iteration from `q`, exact to 3 bits. -/
-public def inv64 (q : UInt64) : UInt64 :=
-  let x := q * (2 - q * q)
-  let x := x * (2 - q * x)
-  let x := x * (2 - q * x)
-  let x := x * (2 - q * x)
-  x * (2 - q * x)
-
-/-- `D / q`, exactly, for an odd `q`. -/
-public def divExactT (d : UInt64Array) (o len q : Nat) : UInt64Array :=
-  if Fits d ∧ o + len ≤ d.size ∧ q.toUInt64 * inv64 q.toUInt64 = 1 ∧ q % 2 = 1 ∧
-      q.toUInt64.toNat = q then
-    (divExactInto (winS d o len) q.toUInt64 (inv64 q.toUInt64)).1
-  else LimbArray.writeNat d o len (d.valAt o len / q)
-
-/-- `0`. -/
-public def zeroIntoT (d : UInt64Array) (o len : Nat) : UInt64Array :=
-  if Fits d ∧ o + len ≤ d.size then zeroInto (winS d o len)
-  else LimbArray.writeNat d o len 0
-
-/-- `x + y` in a new array of `xl + 1` limbs. -/
-public def sumT (x : UInt64Array) (xo xl : Nat) (y : UInt64Array) (yo yl : Nat) : UInt64Array :=
-  let r := UInt64Array.replicate (xl + 1) 0
-  if Fits x ∧ Fits y ∧ Fits r ∧ xo + xl ≤ x.size ∧ yo + yl ≤ y.size ∧ yl ≤ xl then
-    let p := add (r.uslice 0 xl.toUSize) (winS x xo xl) (winS y yo yl)
-    p.1.set! xl p.2
-  else
-    LimbArray.writeNat r 0 (xl + 1) (x.valAt xo xl + y.valAt yo yl)
-
 /-- The middle term of Karatsuba's method. -/
 public def midT (d : UInt64Array) (o k n : Nat) (t : UInt64Array) : UInt64Array :=
   if Fits d ∧ o + n ≤ d.size ∧ 3 * k ≤ n ∧ n ≤ 4 * k + 2 ∧ t.size = k + k + 2 ∧
@@ -168,166 +103,6 @@ private theorem toNat_toUInt64 {v : Nat} (h : v < 2 ^ 64) : v.toUInt64.toNat = v
 
 private theorem le_usize {a b : USlice} {x y : Nat} (ha : a.size.toNat = x) (hb : b.size.toNat = y)
     (h : y ≤ x) : b.size ≤ a.size := USize.le_iff_toNat_le.2 (by lia)
-
-public theorem addIntoT_spec (d : UInt64Array) (o len : Nat) (s : UInt64Array) (so sl : Nat)
-    (h : o + len ≤ d.size) (hlt : d.valAt o len + s.valAt so sl < 2 ^ (64 * len)) :
-    Writes (addIntoT d o len s so sl) d o len ∧
-      (addIntoT d o len s so sl).valAt o len = d.valAt o len + s.valAt so sl := by
-  rw [addIntoT]
-  split
-  · rename_i hg
-    obtain ⟨d₁, d₂, d₃, d₄⟩ := winS_spec d o len hg.1.lt h
-    obtain ⟨s₁, s₂, s₃, s₄⟩ := winS_spec s so sl hg.2.1.lt hg.2.2.2.1
-    have hb := le_usize d₃ s₃ hg.2.2.2.2
-    have := addInto_exact _ _ hb (by rw [d₁, d₂, d₃, s₄]; exact hlt)
-    rw [d₁, d₂, d₃, s₄] at this
-    refine ⟨writes_of (by rw [size_addInto, d₁]) fun i hi => ?_, this⟩
-    rw [getElem!_addInto _ _ _ i (by rw [d₂, d₃]; exact hi), d₁]
-  · exact fallback _ _ _ _ h hlt
-
-public theorem subIntoT_spec (d : UInt64Array) (o len : Nat) (s : UInt64Array) (so sl : Nat)
-    (h : o + len ≤ d.size) (hle : s.valAt so sl ≤ d.valAt o len) :
-    Writes (subIntoT d o len s so sl) d o len ∧
-      (subIntoT d o len s so sl).valAt o len = d.valAt o len - s.valAt so sl := by
-  rw [subIntoT]
-  split
-  · rename_i hg
-    obtain ⟨d₁, d₂, d₃, d₄⟩ := winS_spec d o len hg.1.lt h
-    obtain ⟨s₁, s₂, s₃, s₄⟩ := winS_spec s so sl hg.2.1.lt hg.2.2.2.1
-    have hb := le_usize d₃ s₃ hg.2.2.2.2
-    have := subInto_exact _ _ hb (by rw [d₁, d₂, d₃, s₄]; exact hle)
-    rw [d₁, d₂, d₃, s₄] at this
-    refine ⟨writes_of (by rw [size_subInto, d₁]) fun i hi => ?_, this⟩
-    rw [getElem!_subInto _ _ _ i (by rw [d₂, d₃]; exact hi), d₁]
-  · exact fallback _ _ _ _ h (Nat.lt_of_le_of_lt (Nat.sub_le ..) (valAt_lt ..))
-
-public theorem addMulIntoT_spec (d : UInt64Array) (o len : Nat) (s : UInt64Array) (so sl v : Nat)
-    (h : o + len ≤ d.size) (hv : v < 2 ^ 64)
-    (hlt : d.valAt o len + s.valAt so sl * v < 2 ^ (64 * len)) :
-    Writes (addMulIntoT d o len s so sl v) d o len ∧
-      (addMulIntoT d o len s so sl v).valAt o len = d.valAt o len + s.valAt so sl * v := by
-  rw [addMulIntoT]
-  split
-  · rename_i hg
-    obtain ⟨d₁, d₂, d₃, d₄⟩ := winS_spec d o len hg.1.lt h
-    obtain ⟨s₁, s₂, s₃, s₄⟩ := winS_spec s so sl hg.2.1.lt hg.2.2.2.1
-    have hb := le_usize d₃ s₃ hg.2.2.2.2
-    have := addMulInto_exact _ _ v.toUInt64 hb (by rw [d₁, d₂, d₃, s₄, toNat_toUInt64 hv]; exact hlt)
-    rw [d₁, d₂, d₃, s₄, toNat_toUInt64 hv] at this
-    refine ⟨writes_of (by rw [size_addMulInto, d₁]) fun i hi => ?_, this⟩
-    rw [getElem!_addMulInto _ _ _ i (by rw [d₂, d₃]; exact hi), d₁]
-  · exact fallback _ _ _ _ h hlt
-
-public theorem subMulIntoT_spec (d : UInt64Array) (o len : Nat) (s : UInt64Array) (so sl v : Nat)
-    (h : o + len ≤ d.size) (hv : v < 2 ^ 64) (hle : s.valAt so sl * v ≤ d.valAt o len) :
-    Writes (subMulIntoT d o len s so sl v) d o len ∧
-      (subMulIntoT d o len s so sl v).valAt o len = d.valAt o len - s.valAt so sl * v := by
-  rw [subMulIntoT]
-  split
-  · rename_i hg
-    obtain ⟨d₁, d₂, d₃, d₄⟩ := winS_spec d o len hg.1.lt h
-    obtain ⟨s₁, s₂, s₃, s₄⟩ := winS_spec s so sl hg.2.1.lt hg.2.2.2.1
-    have hb := le_usize d₃ s₃ hg.2.2.2.2
-    have := subMulInto_exact _ _ v.toUInt64 hb (by rw [d₁, d₂, d₃, s₄, toNat_toUInt64 hv]; exact hle)
-    rw [d₁, d₂, d₃, s₄, toNat_toUInt64 hv] at this
-    refine ⟨writes_of (by rw [size_subMulInto, d₁]) fun i hi => ?_, this⟩
-    rw [getElem!_subMulInto _ _ _ i (by rw [d₂, d₃]; exact hi), d₁]
-  · exact fallback _ _ _ _ h (Nat.lt_of_le_of_lt (Nat.sub_le ..) (valAt_lt ..))
-
-public theorem shlTopT_spec (d : UInt64Array) (o len : Nat) (h : o + len ≤ d.size) :
-    Writes (shlTopT d o len) d o len ∧
-      (shlTopT d o len).valAt o len = d.valAt o len * 2 ^ 63 % 2 ^ (64 * len) := by
-  rw [shlTopT]
-  split
-  · rename_i hg
-    obtain ⟨d₁, d₂, d₃, d₄⟩ := winS_spec d o len hg.1.lt h
-    have := valAt_shl63Into (winS d o len)
-    rw [d₁, d₂, d₃] at this
-    refine ⟨writes_of (by rw [size_shl63Into, d₁]) fun i hi => ?_, ?_⟩
-    · rw [getElem!_shl63Into _ i (by rw [d₂, d₃]; exact hi), d₁]
-    · rw [← this, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (valAt_lt ..)]
-  · exact fallback _ _ _ _ h (Nat.mod_lt _ (Nat.two_pow_pos _))
-
-public theorem shrT_spec (d : UInt64Array) (o len s : Nat) (h : o + len ≤ d.size) (hs₀ : 0 < s)
-    (hs : s < 64) :
-    Writes (shrT d o len s) d o len ∧ (shrT d o len s).valAt o len = d.valAt o len / 2 ^ s := by
-  rw [shrT]
-  split
-  · rename_i hg
-    obtain ⟨d₁, d₂, d₃, d₄⟩ := winS_spec d o len hg.1.lt h
-    have hs' := toNat_toUInt64 (v := s) (by lia)
-    have := valAt_rshiftInto (winS d o len) s.toUInt64 (by rw [hs']; exact hs₀) (by rw [hs']; exact hs)
-    rw [d₁, d₂, d₃, hs'] at this
-    refine ⟨writes_of (by rw [size_rshiftInto, d₁]) fun i hi => ?_, this⟩
-    rw [getElem!_rshiftInto _ _ (by rw [hs']; exact hs₀) (by rw [hs']; exact hs) i
-      (by rw [d₂, d₃]; exact hi), d₁]
-  · exact fallback _ _ _ _ h (Nat.lt_of_le_of_lt (Nat.div_le_self ..) (valAt_lt ..))
-
-public theorem divExactT_spec (d : UInt64Array) (o len q : Nat) (h : o + len ≤ d.size)
-    (hq : q % 2 = 1) (hd : d.valAt o len % q = 0) :
-    Writes (divExactT d o len q) d o len ∧ (divExactT d o len q).valAt o len = d.valAt o len / q := by
-  rw [divExactT]
-  split
-  · rename_i hg
-    obtain ⟨hS, -, hinv, -, hq'⟩ := hg
-    obtain ⟨d₁, d₂, d₃, d₄⟩ := winS_spec d o len hS.lt h
-    have hi : q.toUInt64.toNat * (inv64 q.toUInt64).toNat % 2 ^ 64 = 1 := by
-      have := congrArg UInt64.toNat hinv
-      rwa [UInt64.toNat_mul] at this
-    have := valAt_divExactInto (winS d o len) q.toUInt64 (inv64 q.toUInt64) hi (by rw [hq']; exact hq)
-      (by rw [d₁, d₂, d₃, hq']; exact hd)
-    rw [d₁, d₂, d₃, hq'] at this
-    refine ⟨writes_of (by rw [size_divExactInto, d₁]) fun i hi' => ?_, this⟩
-    rw [getElem!_divExactInto _ _ _ hi i (by rw [d₂, d₃]; exact hi'), d₁]
-  · exact fallback _ _ _ _ h (Nat.lt_of_le_of_lt (Nat.div_le_self ..) (valAt_lt ..))
-
-public theorem zeroIntoT_spec (d : UInt64Array) (o len : Nat) (h : o + len ≤ d.size) :
-    Writes (zeroIntoT d o len) d o len ∧ (zeroIntoT d o len).valAt o len = 0 := by
-  rw [zeroIntoT]
-  split
-  · rename_i hg
-    obtain ⟨d₁, d₂, d₃, d₄⟩ := winS_spec d o len hg.1.lt h
-    obtain ⟨z₁, z₂, z₃⟩ := zeroInto_spec (winS d o len)
-    rw [d₁, d₂, d₃] at *
-    exact ⟨writes_of z₁ fun i hi => z₂ i hi, z₃⟩
-  · exact fallback _ _ _ _ h (Nat.two_pow_pos _)
-
-public theorem sumT_spec (x : UInt64Array) (xo xl : Nat) (y : UInt64Array) (yo yl : Nat)
-    (hyx : yl ≤ xl) :
-    (sumT x xo xl y yo yl).size = xl + 1 ∧
-      (sumT x xo xl y yo yl).valAt 0 (xl + 1) = x.valAt xo xl + y.valAt yo yl := by
-  rw [sumT]
-  generalize hR : UInt64Array.replicate (xl + 1) 0 = R
-  have hRs : R.size = xl + 1 := by rw [← hR]; simp
-  split
-  · rename_i hg
-    obtain ⟨hx, hy, hS, hxo, hyo, -⟩ := hg
-    obtain ⟨x₁, x₂, x₃, x₄⟩ := winS_spec x xo xl hx.lt hxo
-    obtain ⟨y₁, y₂, y₃, y₄⟩ := winS_spec y yo yl hy.lt hyo
-    dsimp only
-    obtain ⟨r₁, r₂, r₃, r₄⟩ := winS_spec R 0 xl hS.lt (by lia)
-    have hw : R.uslice 0 xl.toUSize = winS R 0 xl := by
-      simp only [winS, Nat.zero_add]; rfl
-    rw [hw]
-    have hv := MPN.valAt_add (winS R 0 xl) (winS x xo xl) (winS y yo yl) 0
-      (le_usize x₃ y₃ (by lia)) (le_usize r₃ x₃ (by lia))
-    rw [r₂, x₃, x₄, y₄, UInt64.toNat_zero, Nat.add_zero] at hv
-    have hsz : (add (winS R 0 xl) (winS x xo xl) (winS y yo yl) 0).1.size = xl + 1 := by
-      rw [size_add, r₁, hRs]
-    refine ⟨by rw [size_set!, hsz], ?_⟩
-    rw [UInt64Array.valAt_add, valAt_one, Nat.zero_add, getElem!_set!_self _ _ _ (by lia), ← hv]
-    congr 1
-    exact valAt_congr _ fun i _ hi => getElem!_set!_of_ne _ _ (by lia)
-  · have hz : 0 + (xl + 1) ≤ R.size := by lia
-    refine ⟨(LimbArray.size_writeNat (A := UInt64Array) ..).trans hRs,
-      (LimbArray.valAt_writeNat _ _ _ (x.valAt xo xl + y.valAt yo yl) hz).trans ?_⟩
-    apply Nat.mod_eq_of_lt
-    show _ < 2 ^ (64 * (xl + 1))
-    have := valAt_lt x xo xl
-    have := valAt_lt y yo yl
-    have : 2 ^ (64 * yl) ≤ 2 ^ (64 * xl) := Nat.pow_le_pow_right (by decide) (by lia)
-    rw [Nat.mul_succ, Nat.pow_add]
-    lia
 
 public theorem midT_spec (d : UInt64Array) (o k n : Nat) (t : UInt64Array) (h : o + n ≤ d.size) :
     Writes (midT d o k n t) d o n ∧
@@ -405,24 +180,28 @@ public instance toomOps64 : ToomOps UInt64Array UInt64 where
     show (UInt64Array.replicate n 0)[i]!.toNat = 0
     have := valAt_replicate_zero n i 1
     rwa [valAt_one] at this
-  addInto := addIntoT
-  addInto_spec := addIntoT_spec
-  subInto := subIntoT
-  subInto_spec := subIntoT_spec
-  addMulInto := addMulIntoT
-  addMulInto_spec := addMulIntoT_spec
-  subMulInto := subMulIntoT
-  subMulInto_spec := subMulIntoT_spec
-  shlTop := shlTopT
-  shlTop_spec := shlTopT_spec
-  shr := shrT
-  shr_spec := shrT_spec
-  divExact := divExactT
-  divExact_spec d o len q h hq _ hd := divExactT_spec d o len q h hq hd
-  zeroInto := zeroIntoT
-  zeroInto_spec := zeroIntoT_spec
-  sum := sumT
-  sum_spec := sumT_spec
+  addInto := WordArray.addIntoK
+  addInto_spec := WordArray.addIntoK_spec
+  subInto := WordArray.subIntoK
+  subInto_spec := WordArray.subIntoK_spec
+  addMulInto := WordArray.addMulIntoK
+  addMulInto_spec := WordArray.addMulIntoK_spec
+  subMulInto := WordArray.subMulIntoK
+  subMulInto_spec := WordArray.subMulIntoK_spec
+  shlTop := WordArray.shlTopK
+  shlTop_spec := WordArray.shlTopK_spec
+  shr := WordArray.shrK
+  shr_spec := WordArray.shrK_spec
+  divExact := WordArray.divExactK
+  divExact_spec := WordArray.divExactK_spec
+  zeroInto := WordArray.zeroIntoK
+  zeroInto_spec := WordArray.zeroIntoK_spec
+  sum x xo xl y yo yl := WordArray.sumK (UInt64Array.replicate (xl + 1) 0) x xo xl y yo yl
+  sum_spec x xo xl y yo yl hyl := WordArray.sumK_spec _ x xo xl y yo yl hyl (by simp [LimbArray.size])
+    (fun i => by
+      show (UInt64Array.replicate (xl + 1) 0)[i]!.toNat = 0
+      have := valAt_replicate_zero (xl + 1) i 1
+      rwa [valAt_one] at this)
   mid := midT
   mid_spec := midT_spec
   mulBase := mulBaseT
