@@ -4,8 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-import MPN
-
+import MPN32
 /-!
 # Threshold tuning
 
@@ -15,7 +14,7 @@ into the library: for a project that requires it, and on the command line. Pinni
 core, for example with `taskset -c 2`, gives steadier results.
 -/
 
-open ScalarArray MPN
+open ScalarArray MPN MPN.W32
 
 namespace Tune
 
@@ -325,16 +324,16 @@ def tuneDivDC (log : Bool) : IO Nat := medianOf 3 do
     return 488
 
 /-- A constant-time check of a number. -/
-def checkNat : MPN.Nat → UInt32
+def checkNat : MPN.W32.Nat → UInt32
   | .small w => w.toUInt32
   | .large a _ => a.size.toUInt32 + a[0]!
 
 /-- `n` pseudorandom limbs as a number. -/
-def sampleNat (n seed : Nat) : MPN.Nat := MPN.Nat.ofNat (MPN.toNat (sample n seed))
+def sampleNat (n seed : Nat) : MPN.W32.Nat := MPN.W32.Nat.ofNat (MPN.W32.toNat (sample n seed))
 
 /-- Decimal digits by `toDecimalWith strDC`, of a trimmed array. -/
 def decimalWith (strDC : Nat) (a _ : UInt32Array) : String :=
-  if h : isTrimmed a = true then MPN.Nat.toDecimalWith strDC a h else ""
+  if h : isTrimmed a = true then MPN.W32.Nat.toDecimalWith strDC a h else ""
 
 /--
 Tunes `gcdHalf`: where half-gcd beats Lehmer's algorithm on two numbers of `n` limbs, with half-gcd
@@ -342,7 +341,7 @@ from `n` limbs, so that the numbers it reduces finish by Lehmer's algorithm.
 -/
 def tuneGcdHalf (log : Bool) : IO Nat := medianOf 3 do
   let sizes := (List.range 32).map (1024 + 512 * ·)
-  match ← crossoverOn (MPN.Nat.gcdWith 1000000000) (fun x y => MPN.Nat.gcdWith x.limbs.size x y) checkNat
+  match ← crossoverOn (MPN.W32.Nat.gcdWith 1000000000) (fun x y => MPN.W32.Nat.gcdWith x.limbs.size x y) checkNat
       (fun n => (sampleNat n 1, sampleNat n 2)) sizes (confirm := 2) (log := log) with
   | some n =>
     if log then IO.println s!"  found {n}"
@@ -413,8 +412,8 @@ below, beats Newton's iteration on the whole root.
 -/
 def tuneSqrtBase (log : Bool) : IO Nat := medianOf 3 do
   let sizes := [4, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32, 40, 48, 56, 64, 80, 96, 128]
-  match ← crossoverOn (fun x (_ : MPN.Nat) => MPN.Nat.sqrtWith 1 1000000 x)
-      (fun x _ => MPN.Nat.sqrtWith 1 (x.limbs.size / 2 - 1) x) checkNat
+  match ← crossoverOn (fun x (_ : MPN.W32.Nat) => MPN.W32.Nat.sqrtWith 1 1000000 x)
+      (fun x _ => MPN.W32.Nat.sqrtWith 1 (x.limbs.size / 2 - 1) x) checkNat
       (fun n => (sampleNat (2 * n) 1, sampleNat (2 * n) 1)) sizes (log := log) with
   | some n =>
     if log then IO.println s!"  found {n}"
@@ -429,8 +428,8 @@ roots of `T` limbs, beats Newton's iteration.
 -/
 def tuneSqrtZimmermann (T : Nat) (log : Bool) : IO Nat := medianOf 3 do
   let sizes := [4, 6, 8, 12, 16, 20, 24, 28, 32, 40, 48, 56, 64, 80, 96, 128, 160, 192, 256]
-  match ← crossoverOn (fun x (_ : MPN.Nat) => MPN.Nat.sqrtWith 1000000 T x)
-      (fun x _ => MPN.Nat.sqrtWith 1 T x) checkNat
+  match ← crossoverOn (fun x (_ : MPN.W32.Nat) => MPN.W32.Nat.sqrtWith 1000000 T x)
+      (fun x _ => MPN.W32.Nat.sqrtWith 1 T x) checkNat
       (fun n => (sampleNat (2 * n) 1, sampleNat (2 * n) 1)) sizes (log := log) with
   | some n =>
     if log then IO.println s!"  found {n}"
@@ -507,8 +506,8 @@ def tuneParseDC (log : Bool) : IO Nat := medianOf 3 do
   let sizes := (List.range 48).map (128 + 64 * ·)
   let digits (n : Nat) : String :=
     String.ofList ((List.range (9 * n)).map fun i => Char.ofNat (48 + (i * 7 + i / 3) % 10))
-  match ← crossoverOn (fun t (_ : String) => MPN.Nat.ofStringWith 1000000000 t)
-      (fun t _ => MPN.Nat.ofStringWith 0 t) (fun r => checkNat r.get!)
+  match ← crossoverOn (fun t (_ : String) => MPN.W32.Nat.ofStringWith 1000000000 t)
+      (fun t _ => MPN.W32.Nat.ofStringWith 0 t) (fun r => checkNat r.get!)
       (fun n => (digits n, digits n)) sizes (log := log) with
   | some n =>
     if log then IO.println s!"  found {n}"

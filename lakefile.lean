@@ -40,37 +40,37 @@ def thresholdOptions : Array LeanOption :=
   let opt (key : Name) (val? : Option String) : Array LeanOption :=
     match val? with
     | some val =>
-      #[{ name := `weak.mpn ++ key,
+      #[{ name := `weak.mpn.w32 ++ key,
           value := match val.toNat? with | some n => .ofNat n | none => .ofString val }]
     | none => #[]
-  opt `mul.karatsubaThreshold (get_config? mulKaratsuba) ++
-    opt `mul.toom3Threshold (get_config? mulToom3) ++
-    opt `mul.toom32Threshold (get_config? mulToom32) ++
-    opt `mul.toom42Threshold (get_config? mulToom42) ++
-    opt `mul.toom43Threshold (get_config? mulToom43) ++
-    opt `mul.toom4Threshold (get_config? mulToom4) ++
-    opt `mul.toom6Threshold (get_config? mulToom6) ++
-    opt `mul.fftThreshold (get_config? mulFFT) ++
-    opt `mul.unbalancedThreshold (get_config? mulUnbalanced) ++
-    opt `sqr.basecaseThreshold (get_config? sqrBasecase) ++
-    opt `mul.rowsThreshold (get_config? mulRows) ++
-    opt `mul.combaWideThreshold (get_config? mulCombaW) ++
-    opt `sqr.rowsThreshold (get_config? sqrRows) ++
-    opt `sqr.karatsubaThreshold (get_config? sqrKaratsuba) ++
-    opt `sqr.toom3Threshold (get_config? sqrToom3) ++
-    opt `sqr.toom4Threshold (get_config? sqrToom4) ++
-    opt `sqr.toom6Threshold (get_config? sqrToom6) ++
-    opt `sqr.fftThreshold (get_config? sqrFFT) ++
-    opt `div.dcThreshold (get_config? divDC) ++
-    opt `div.muThreshold (get_config? divMu) ++
-    opt `div.recip1Threshold (get_config? div1Recip) ++
-    opt `div.recip32Threshold (get_config? div32Recip) ++
-    opt `div.recip1UnnormThreshold (get_config? div1Unnorm) ++
-    opt `sqrt.zimmermannThreshold (get_config? sqrtZimmermann) ++
-    opt `sqrt.baseThreshold (get_config? sqrtBase) ++
-    opt `gcd.halfThreshold (get_config? gcdHalf) ++
-    opt `str.dcThreshold (get_config? strDC) ++
-    opt `str.parseDCThreshold (get_config? parseDC)
+  opt `mul.karatsubaThreshold (get_config? w32_mulKaratsuba) ++
+    opt `mul.toom3Threshold (get_config? w32_mulToom3) ++
+    opt `mul.toom32Threshold (get_config? w32_mulToom32) ++
+    opt `mul.toom42Threshold (get_config? w32_mulToom42) ++
+    opt `mul.toom43Threshold (get_config? w32_mulToom43) ++
+    opt `mul.toom4Threshold (get_config? w32_mulToom4) ++
+    opt `mul.toom6Threshold (get_config? w32_mulToom6) ++
+    opt `mul.fftThreshold (get_config? w32_mulFFT) ++
+    opt `mul.unbalancedThreshold (get_config? w32_mulUnbalanced) ++
+    opt `sqr.basecaseThreshold (get_config? w32_sqrBasecase) ++
+    opt `mul.rowsThreshold (get_config? w32_mulRows) ++
+    opt `mul.combaWideThreshold (get_config? w32_mulCombaW) ++
+    opt `sqr.rowsThreshold (get_config? w32_sqrRows) ++
+    opt `sqr.karatsubaThreshold (get_config? w32_sqrKaratsuba) ++
+    opt `sqr.toom3Threshold (get_config? w32_sqrToom3) ++
+    opt `sqr.toom4Threshold (get_config? w32_sqrToom4) ++
+    opt `sqr.toom6Threshold (get_config? w32_sqrToom6) ++
+    opt `sqr.fftThreshold (get_config? w32_sqrFFT) ++
+    opt `div.dcThreshold (get_config? w32_divDC) ++
+    opt `div.muThreshold (get_config? w32_divMu) ++
+    opt `div.recip1Threshold (get_config? w32_div1Recip) ++
+    opt `div.recip32Threshold (get_config? w32_div32Recip) ++
+    opt `div.recip1UnnormThreshold (get_config? w32_div1Unnorm) ++
+    opt `sqrt.zimmermannThreshold (get_config? w32_sqrtZimmermann) ++
+    opt `sqrt.baseThreshold (get_config? w32_sqrtBase) ++
+    opt `gcd.halfThreshold (get_config? w32_gcdHalf) ++
+    opt `str.dcThreshold (get_config? w32_strDC) ++
+    opt `str.parseDCThreshold (get_config? w32_parseDC)
 
 /-- `-march=<value>` when the `march` option is given. -/
 def marchArgs : Array String :=
@@ -87,6 +87,10 @@ require «lean4-scalar-arrays» from git
 
 @[default_target]
 lean_lib MPN where
+  moreLeancArgs := marchArgs
+
+@[default_target]
+lean_lib MPN32 where
   leanOptions := thresholdOptions
   moreLeancArgs := marchArgs
 

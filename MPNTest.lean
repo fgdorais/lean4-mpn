@@ -2,9 +2,8 @@
 Copyright © 2026 François G. Dorais. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 -/
-import MPN
-
-open ScalarArray MPN
+import MPN32
+open ScalarArray MPN MPN.W32
 
 /-! Conversion -/
 
@@ -408,32 +407,32 @@ def bigNatValues : List Nat :=
     2 ^ 96 - 1, 2 ^ 96, sample1 200 61, sample1 1000 67, 3 ^ 200]
 
 #guard bigNatValues.all fun a => bigNatValues.all fun b =>
-  let x := MPN.Nat.ofNat a
-  let y := MPN.Nat.ofNat b
+  let x := MPN.W32.Nat.ofNat a
+  let y := MPN.W32.Nat.ofNat b
   (x + y).toNat == a + b && (x - y).toNat == a - b && (x * y).toNat == a * b &&
     (x / y).toNat == a / b && (x % y).toNat == a % b &&
     decide (x < y) == decide (a < b) && decide (x ≤ y) == decide (a ≤ b) &&
     decide (x = y) == decide (a = b) && (x == y || hash x != hash y || a != b) &&
     (x.toNat == a && toString x == toString a) &&
-    (MPN.Nat.gcd x y).toNat == Nat.gcd a b && (MPN.Nat.lcm x y).toNat == Nat.lcm a b
+    (MPN.W32.Nat.gcd x y).toNat == Nat.gcd a b && (MPN.W32.Nat.lcm x y).toNat == Nat.lcm a b
 
 -- Division of up to four limbs by a word of two limbs, on words alone (`divRem128`).
 #guard [2 ^ 64, 2 ^ 64 + 12345, 2 ^ 96 - 1, 2 ^ 96, 2 ^ 127 + 2 ^ 64 + 7, 2 ^ 128 - 1,
     sample1 96 71, sample1 128 73, sample1 120 79].all fun a =>
   [2 ^ 32, 2 ^ 32 + 1, 2 ^ 33 - 1, 2 ^ 63, 2 ^ 63 + 2 ^ 31, 2 ^ 64 - 1, 3 * 2 ^ 40 + 5].all fun b =>
-    (MPN.Nat.ofNat a / MPN.Nat.ofNat b).toNat == a / b &&
-      (MPN.Nat.ofNat a % MPN.Nat.ofNat b).toNat == a % b
+    (MPN.W32.Nat.ofNat a / MPN.W32.Nat.ofNat b).toNat == a / b &&
+      (MPN.W32.Nat.ofNat a % MPN.W32.Nat.ofNat b).toNat == a % b
 
 -- Division of more than four limbs by a word of two limbs, normalized on the fly (`div2`).
 #guard [2 ^ 128, 2 ^ 160 - 1, sample1 160 83, sample1 300 89, sample1 641 97, 2 ^ 1024 - 1].all
   fun a => [2 ^ 32, 2 ^ 32 + 1, 2 ^ 63, 2 ^ 64 - 1, 10 ^ 18, 3 * 2 ^ 40 + 5].all fun b =>
-    (MPN.Nat.ofNat a / MPN.Nat.ofNat b).toNat == a / b &&
-      (MPN.Nat.ofNat a % MPN.Nat.ofNat b).toNat == a % b
+    (MPN.W32.Nat.ofNat a / MPN.W32.Nat.ofNat b).toNat == a / b &&
+      (MPN.W32.Nat.ofNat a % MPN.W32.Nat.ofNat b).toNat == a % b
 
 -- Literals and the representation.
-#guard ((12345678901234567890123 : MPN.Nat) * 1000).toNat == 12345678901234567890123000
-#guard (MPN.Nat.ofNat (2 ^ 64 - 1) + 1).toNat == 2 ^ 64
-#guard (MPN.Nat.ofNat (2 ^ 64) - 1).toNat == 2 ^ 64 - 1
+#guard ((12345678901234567890123 : MPN.W32.Nat) * 1000).toNat == 12345678901234567890123000
+#guard (MPN.W32.Nat.ofNat (2 ^ 64 - 1) + 1).toNat == 2 ^ 64
+#guard (MPN.W32.Nat.ofNat (2 ^ 64) - 1).toNat == 2 ^ 64 - 1
 
 -- `gcd` below `2⁹⁶` (`gcd2`) and just above: common factors, a second number of one word, below
 -- and above `2³²` (`rem2`), zero, equal numbers.
@@ -442,14 +441,14 @@ def bigNatValues : List Nat :=
     (2 ^ 96 - 1, 2 ^ 96 - 1), (2 ^ 128 - 1, 2 ^ 64 + 1), (2 ^ 127 + 7, 3 ^ 40), (sample1 120 81, sample1 70 83),
     (2 ^ 100 * 3, 2 ^ 90 * 9), (2 ^ 128 - 1, 2 ^ 128 - 1), (2 ^ 100, 0), (0, 2 ^ 70 + 1),
     (sample1 128 85, 12345), (sample1 65 87 * 6, sample1 60 89 * 6)].all fun (a, b) =>
-  (MPN.Nat.gcd (MPN.Nat.ofNat a) (MPN.Nat.ofNat b)).toNat == Nat.gcd a b
+  (MPN.W32.Nat.gcd (MPN.W32.Nat.ofNat a) (MPN.W32.Nat.ofNat b)).toNat == Nat.gcd a b
 
 -- `gcd` with large common factors.
 #guard [1, 5, 40].all fun k =>
   let g := sample1 (32 * k) 71
   let a := g * sample1 300 73
   let b := g * sample1 250 79
-  (MPN.Nat.gcd (MPN.Nat.ofNat a) (MPN.Nat.ofNat b)).toNat == Nat.gcd a b
+  (MPN.W32.Nat.gcd (MPN.W32.Nat.ofNat a) (MPN.W32.Nat.ofNat b)).toNat == Nat.gcd a b
 
 -- Half-gcd (`gcdWith` from 4 limbs) on random numbers of many sizes, common factors, Fibonacci
 -- numbers (the longest runs of quotients 1) and equal sizes.
@@ -458,10 +457,10 @@ def bigNatValues : List Nat :=
   let b := sample1 (32 * (n - d)) (n + 5)
   let g := sample1 (32 * (n / 4 + 1)) 7
   let fib := (List.range (n * 46)).foldl (fun (p : Nat × Nat) _ => (p.2, p.1 + p.2)) (0, 1)
-  (MPN.Nat.gcdWith 4 (MPN.Nat.ofNat a) (MPN.Nat.ofNat b)).toNat == Nat.gcd a b &&
-    (MPN.Nat.gcdWith 4 (MPN.Nat.ofNat (a * g)) (MPN.Nat.ofNat (b * g))).toNat ==
+  (MPN.W32.Nat.gcdWith 4 (MPN.W32.Nat.ofNat a) (MPN.W32.Nat.ofNat b)).toNat == Nat.gcd a b &&
+    (MPN.W32.Nat.gcdWith 4 (MPN.W32.Nat.ofNat (a * g)) (MPN.W32.Nat.ofNat (b * g))).toNat ==
       Nat.gcd (a * g) (b * g) &&
-    (MPN.Nat.gcdWith 4 (MPN.Nat.ofNat fib.2) (MPN.Nat.ofNat fib.1)).toNat == Nat.gcd fib.2 fib.1
+    (MPN.W32.Nat.gcdWith 4 (MPN.W32.Nat.ofNat fib.2) (MPN.W32.Nat.ofNat fib.1)).toNat == Nat.gcd fib.2 fib.1
 
 -- Decimal strings by divide and conquer (`toDecimalWith` from 2 limbs) on random numbers, powers
 -- of ten and their neighbors, which exercise the leading and padded zeros.
@@ -470,7 +469,7 @@ def bigNatValues : List Nat :=
   let t := 10 ^ (9 * n)
   [x, t, t - 1, t + 1, 10 ^ (9 * n + 5) + 7, 2 ^ (32 * n) - 1].all fun v =>
     let a := trim (ofNat v)
-    MPN.Nat.toDecimalWith 2 a (isTrimmed_trim _) == Nat.repr v
+    MPN.W32.Nat.toDecimalWith 2 a (isTrimmed_trim _) == Nat.repr v
 
 -- Decimal strings read by divide and conquer (`ofStringWith` from 18 digits), with underscores,
 -- leading zeros, powers of ten, and strings that are not numbers.
@@ -481,24 +480,24 @@ def bigNatValues : List Nat :=
     let str := toString v
     let under := String.ofList ((str.toList.zip (List.range str.length)).flatMap fun (c, i) =>
       if i % 7 = 3 then ['_', c] else [c])
-    (MPN.Nat.ofStringWith 2 str).map (·.toNat) == some v &&
-      (MPN.Nat.ofStringWith 2 ("000" ++ str)).map (·.toNat) == some v &&
-      (MPN.Nat.ofStringWith 2 under).map (·.toNat) == under.toNat? &&
-      (MPN.Nat.ofStringWith 2 (str ++ "x")).isNone
+    (MPN.W32.Nat.ofStringWith 2 str).map (·.toNat) == some v &&
+      (MPN.W32.Nat.ofStringWith 2 ("000" ++ str)).map (·.toNat) == some v &&
+      (MPN.W32.Nat.ofStringWith 2 under).map (·.toNat) == under.toNat? &&
+      (MPN.W32.Nat.ofStringWith 2 (str ++ "x")).isNone
 
 -- Shifts, bitwise operations, `log2`, `sqrt` and `pow` against `Nat`.
 #guard bigNatValues.all fun a =>
-  let x := MPN.Nat.ofNat a
+  let x := MPN.W32.Nat.ofNat a
   [0, 1, 5, 31, 32, 33, 63, 64, 65, 100, 200].all (fun k =>
     (x <<< k).toNat == a <<< k && (x >>> k).toNat == a >>> k) &&
-  x.log2 == a.log2 && (MPN.Nat.sqrt x).toNat == Nat.sqrt a &&
+  x.log2 == a.log2 && (MPN.W32.Nat.sqrt x).toNat == Nat.sqrt a &&
   [0, 1, 2, 3, 7, 10].all (fun k => (x ^ k).toNat == a ^ k) &&
   bigNatValues.all fun b =>
-    let y := MPN.Nat.ofNat b
+    let y := MPN.W32.Nat.ofNat b
     (x &&& y).toNat == (a &&& b) && (x ||| y).toNat == (a ||| b) && (x ^^^ y).toNat == (a ^^^ b)
 
 #guard [2 ^ 128 - 1, 2 ^ 128, 10 ^ 50, sample1 3000 83].all fun a =>
-  (MPN.Nat.sqrt (MPN.Nat.ofNat a)).toNat == Nat.sqrt a
+  (MPN.W32.Nat.sqrt (MPN.W32.Nat.ofNat a)).toNat == Nat.sqrt a
 
 -- Decimal strings: chunk boundaries, inner zero chunks, and what `String.toNat?` accepts.
 def decimalValues : List Nat :=
@@ -506,13 +505,13 @@ def decimalValues : List Nat :=
     2 ^ 64 * 10 ^ 9, sample1 3000 89]
 
 #guard decimalValues.all fun a =>
-  let x := MPN.Nat.ofNat a
+  let x := MPN.W32.Nat.ofNat a
   toString x == toString a && reprStr x == reprStr a &&
-    (MPN.Nat.ofString? (toString a)).map (·.toNat) == some a
+    (MPN.W32.Nat.ofString? (toString a)).map (·.toNat) == some a
 
 #guard ["", "_", "_1", "1_", "1__0", "abc", "12a", "-1", " 1", "000", "007", "1_000",
     "18446744073709551616", "18_446_744_073_709_551_615", "123456789012345678901234567890"].all
-  fun s => (MPN.Nat.ofString? s).map (·.toNat) == s.toNat?
+  fun s => (MPN.W32.Nat.ofString? s).map (·.toNat) == s.toNat?
 
 -- Division by two limbs (`divRem2`): edge cases of the divisor and of the dividend.
 #guard
@@ -530,7 +529,7 @@ def decimalValues : List Nat :=
 #guard [2 ^ 32 + 1, 2 ^ 64 - 1, 2 ^ 64, 3 ^ 50, sample1 100 109, sample1 500 113, 2 ^ 700 - 1,
     sample1 1300 127, sample1 2600 131, 2 ^ 4000 - 1, sample1 12000 137].all
   fun r => [r * r - 1, r * r, r * r + 1, r * r + 2 * r, (r + 1) * (r + 1) - 1].all fun a =>
-    (MPN.Nat.sqrt (MPN.Nat.ofNat a)).toNat == Nat.sqrt a
+    (MPN.W32.Nat.sqrt (MPN.W32.Nat.ofNat a)).toNat == Nat.sqrt a
 
 -- Comba's columns (`mulBasecase` compiles to `combaMul`): all-ones limbs give the largest column
 -- sums and carries, and the most wraps from 32 limbs; unbalanced shapes give columns of every
