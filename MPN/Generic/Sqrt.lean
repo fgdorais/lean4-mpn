@@ -229,12 +229,10 @@ public def sqrtRemAux (base : α → α × α) (T : Nat) (N : α) (n : Nat) : α
     let l := n / 2
     let p := sqrtRemAux base T (o.hi (l + l) N) (n - l)
     let X := o.add (o.shl l p.2) (o.lo l (o.hi l N))
-    -- `X` by `2 t` from `X = q₁ t + r₁`: `q = ⌊q₁ / 2⌋`, `u = (q₁ mod 2) t + r₁`, so that the
-    -- divisor is `t`, whose top limb is at least `B / 2`.
-    let d₁ := o.divRem X p.1
-    let h := o.divRem d₁.1 (o.add o.one o.one)
-    let q := h.1
-    let u := if o.le o.one h.2 then o.add p.1 d₁.2 else d₁.2
+    -- `X` by `2 t`, in one division.
+    let d := o.divRem X (o.add p.1 p.1)
+    let q := d.1
+    let u := d.2
     let s := o.add (o.shl l p.1) q
     let U := o.add (o.shl l u) (o.lo l N)
     let q₂ := o.sqr q
@@ -327,29 +325,11 @@ public theorem sqrtRemAux_spec (base : α → α × α) (T : Nat)
       rw [o.val_add, o.val_shl, hB', i₄, hA₁v]
     generalize o.add (o.shl l p.2) (o.lo l (o.hi l N)) = X at hXv ⊢
     generalize hXn : (N₁ - t * t) * B + o.val N / B % B = Xn at hXv
-    obtain ⟨e₁, e₂⟩ := o.val_divRem X p.1 (by rw [i₃]; lia)
-    rw [hXv, i₃] at e₁ e₂
-    generalize o.divRem X p.1 = d at e₁ e₂ ⊢
-    have h2 : o.val (o.add o.one o.one) = 2 := by rw [o.val_add, o.val_one]
-    obtain ⟨f₁, f₂⟩ := o.val_divRem d.1 (o.add o.one o.one) (by rw [h2]; lia)
-    rw [e₁, h2, Nat.div_div_eq_div_mul, Nat.mul_comm t 2] at f₁
-    rw [e₁, h2] at f₂
-    generalize o.divRem d.1 (o.add o.one o.one) = hd at f₁ f₂ ⊢
-    -- `u = (q₁ mod 2) t + r₁ = X mod 2 t`.
-    have huv : o.val (if o.le o.one hd.2 = true then o.add p.1 d.2 else d.2) = Xn % (2 * t) := by
-      have hmod : Xn % (2 * t) = Xn / t % 2 * t + Xn % t := by
-        rw [Nat.mul_comm 2 t, Nat.mod_mul, Nat.mul_comm t]; lia
-      have hm2 := Nat.mod_lt (Xn / t) (show 0 < 2 by decide)
-      split
-      · rename_i hc
-        rw [o.le_iff, o.val_one, f₂] at hc
-        have hb : Xn / t % 2 = 1 := by lia
-        rw [o.val_add, i₃, e₂, hmod, hb, Nat.one_mul]
-      · rename_i hc
-        rw [o.le_iff, o.val_one, f₂] at hc
-        have hb : Xn / t % 2 = 0 := by lia
-        rw [e₂, hmod, hb, Nat.zero_mul, Nat.zero_add]
-    generalize (if o.le o.one hd.2 = true then o.add p.1 d.2 else d.2) = u at huv ⊢
+    have h2t : o.val (o.add p.1 p.1) = 2 * t := by rw [o.val_add, i₃]; lia
+    obtain ⟨f₁, huv⟩ := o.val_divRem X (o.add p.1 p.1) (by rw [h2t]; lia)
+    rw [hXv, h2t] at f₁ huv
+    generalize o.divRem X (o.add p.1 p.1) = hd at f₁ huv ⊢
+    generalize hd.2 = u at huv ⊢
     -- `s = t B' + q` and `U = u B' + a₀`.
     have hsv : o.val (o.add (o.shl l p.1) hd.1) = t * B + Xn / (2 * t) := by
       rw [o.val_add, o.val_shl, hB', i₃, f₁]
