@@ -46,8 +46,8 @@ so five runs make the tables reliable. Within one run, distrust a row whose spre
 |---|---|---|---|
 | `add`, `sub` | `MPN.add`, `MPN.sub` | `n` and `n` limbs (`sub`: `n + 1` and `n`) | `addN`/`subN`, then `add1`/`sub1`, on `USlice`s with `USize` indices |
 | `shl`, `shr` | `MPN.lshift`, `MPN.rshift` | `n` limbs, by 13 bits | one pass, `USize` indices; `Nat`'s `<<<` and `>>>` |
-| `div1` | `MPN.divRem1` by `0xF123456789ABCDEF` | `n` limbs by a normalized limb | one pass from the top, `UInt64.div2` (128 by 64 bits) per limb, and from `div1Recip` = 12 limbs the checked 2-by-1 steps with a reciprocal (`main`'s `WordArray.divRem1W`) |
-| `div1u` | `MPN.divRem1` by `0x0123456789ABCDEF` | `n` limbs by an unnormalized limb | as `div1`, and from `div1Unnorm` = 48 limbs the same steps on the dividend shifted in place (`divRem1U`) |
+| `div1` | `MPN.divRem1` by `0xF123456789ABCDEF` | `n` limbs by a normalized limb | one pass from the top, `UInt64.div2` (128 by 64 bits) per limb, and the checked 2-by-1 steps with a reciprocal (always, `div1Recip` = 0, like GMP) (`main`'s `WordArray.divRem1W`) |
+| `div1u` | `MPN.divRem1` by `0x0123456789ABCDEF` | `n` limbs by an unnormalized limb | as `div1`, with the same steps on the dividend shifted in place (`divRem1U`; always, `div1Unnorm` = 0, like GMP) |
 | `div` | `MPN.Num.div` | `2 n` by `n` limbs | the quotient alone: Barrett's division without the last remainder (`divQMuW`) from `divQMu = 5632` limbs in the divisor, below as `divmod` |
 | `divmod` | `MPN.Num.divMod` | `2 n` by `n` limbs | Barrett's division with wrapped remainders (`divMuW`) from `divMu = 8192` limbs in the divisor, divide and conquer (`divNorm`) from `divDC = 512`, schoolbook below; `Nat` computes the quotient only |
 | `sbdiv` | `MPN.divRem` | `2 n` by `n` limbs | schoolbook (Algorithm D), normalized |

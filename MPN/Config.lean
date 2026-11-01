@@ -19,8 +19,10 @@ algorithms take a `Config` as a parameter, and the library's own `MPN.config` is
 set keep the defaults of `Config`. Each threshold carries the proof of the condition its algorithm
 needs, so an invalid value is rejected when the library is compiled.
 
-The defaults were measured on an AMD Ryzen 5 5600X. `lake exe tune` prints the thresholds for the
-machine it runs on and the options that set them.
+The defaults were measured on an AMD Ryzen 5 5600X, except where GMP chooses an algorithm on
+modern platforms whatever the size: the reciprocal steps of division and Zimmermann's square root,
+which the defaults take always, like GMP. `lake exe tune` prints the thresholds for the machine it
+runs on and the options that set them.
 -/
 
 namespace MPN
@@ -92,30 +94,31 @@ public structure Config extends Toom.Config where
   divQMu : Nat := 5632
   /--
   The size from which division by a normalized limb takes Möller and Granlund's steps with a
-  precomputed reciprocal instead of the hardware divider.
+  precomputed reciprocal instead of the hardware divider: always, like GMP's `mpn_divrem_1`.
   -/
-  div1Recip : Nat := 12
+  div1Recip : Nat := 0
   /--
   The size from which division by an unnormalized limb takes the steps with a precomputed
   reciprocal of the divisor normalized by a shift, with the dividend shifted, instead of the
-  hardware divider.
+  hardware divider: always, like GMP's `mpn_divrem_1`.
   -/
-  div1Unnorm : Nat := 48
+  div1Unnorm : Nat := 0
   /--
   The size of the divisor from which schoolbook division estimates the quotient limbs by GMP's
-  3-by-2 step with a precomputed reciprocal instead of the hardware divider.
+  3-by-2 step with a precomputed reciprocal instead of the hardware divider: always, like GMP's
+  `mpn_sbpi1_div_qr`.
   -/
-  div32Recip : Nat := 48
+  div32Recip : Nat := 0
   /--
   The size of the root, in limbs, from which the square root uses Zimmermann's recursion instead
-  of Newton's iteration.
+  of Newton's iteration: always, like GMP's `mpn_sqrtrem`.
   -/
-  sqrtZimmermann : Nat := 48
+  sqrtZimmermann : Nat := 1
   /--
   The size of the root, in limbs, at or below which Zimmermann's recursion finishes by Newton's
-  iteration; roots of one limb are by `sqrt2`.
+  iteration; roots of one limb are by `sqrt2`, which is where GMP's `mpn_sqrtrem` stops.
   -/
-  sqrtBase : Nat := 19
+  sqrtBase : Nat := 1
   /-- The size of the smaller number from which the greatest common divisor uses half-gcd. -/
   gcdHalf : Nat := 1024
   /-- The size from which decimal strings are written by divide and conquer. -/
