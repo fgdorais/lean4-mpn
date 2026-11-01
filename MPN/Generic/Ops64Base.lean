@@ -6,6 +6,7 @@ module
 
 public import MPN.Generic.Ops
 public import MPN.Num
+public import MPN.Join
 
 /-!
 # The operations of the 64-bit instance of `NatOps`
@@ -285,6 +286,52 @@ public def hi64 (k : Nat) (x : UInt64Array) : UInt64Array :=
 public def shl64 (k : Nat) (x : UInt64Array) : UInt64Array :=
   if fits (k + x.size + 2) then Num.shl x (64 * k) else ofNat (x.toNat * 2 ^ (64 * k))
 
+private theorem toNat_toUSize' {n : Nat} (h : n < USize.size) : n.toUSize.toNat = n := by
+  rw [Nat.toUSize_eq, USize.toNat_ofNat_of_lt' h]
+
+private theorem join_ok (k : Nat) (x y : UInt64Array) (h : fits (k + x.size + y.size + 1) = true) :
+    WordArray.JoinOK k.toUSize x 0 x.size.toUSize y 0 y.size.toUSize
+      (UInt64Array.replicate (k + x.size) 0) := by
+  have hU := lt_of_fits h
+  have e₁ := toNat_toUSize' (show k < USize.size by lia)
+  have e₂ := toNat_toUSize' (show x.size < USize.size by lia)
+  have e₃ := toNat_toUSize' (show y.size < USize.size by lia)
+  refine ⟨⟨?_, ?_⟩, ⟨?_, ?_⟩, ?_, ?_, fun i => ?_⟩
+  · show _ ≤ x.size; rw [USize.toNat_zero, e₂]; lia
+  · rw [USize.toNat_zero, e₂]; lia
+  · show _ ≤ y.size; rw [USize.toNat_zero, e₃]; lia
+  · rw [USize.toNat_zero, e₃]; lia
+  · rw [e₁, e₂]; lia
+  · show (UInt64Array.replicate _ 0).size = _; rw [UInt64Array.size_replicate, e₁, e₂]
+  · show ((UInt64Array.replicate (k + x.size) 0)[i]!).toNat = 0
+    by_cases hi : i < k + x.size
+    · rw [getElem!_pos _ i (by simpa using hi), UInt64Array.getElem_replicate]; rfl
+    · rw [getElem!_neg _ i (by simpa using hi)]; rfl
+
+/-- `x βᵏ + y mod βᵏ`, by `main`'s `WordArray.joinW` in one array. -/
+public def join64 (k : Nat) (x y : UInt64Array) : UInt64Array :=
+  if h : fits (k + x.size + y.size + 1) then
+    WordArray.joinW UInt64Array k.toUSize x 0 x.size.toUSize y 0 y.size.toUSize
+      (UInt64Array.replicate (k + x.size) 0) (join_ok k x y h)
+  else ofNat (x.toNat * 2 ^ (64 * k) + y.toNat % 2 ^ (64 * k))
+
+public theorem val_join64 (k : Nat) (x y : UInt64Array) :
+    (join64 k x y).toNat = x.toNat * (2 ^ 64) ^ k + y.toNat % (2 ^ 64) ^ k := by
+  rw [← Nat.pow_mul, join64]
+  split
+  · rename_i h
+    have hU := lt_of_fits h
+    have e₁ := toNat_toUSize' (show k < USize.size by lia)
+    have e₂ := toNat_toUSize' (show x.size < USize.size by lia)
+    have e₃ := toNat_toUSize' (show y.size < USize.size by lia)
+    obtain ⟨j₁, j₂⟩ := WordArray.joinW_spec (A := UInt64Array) k.toUSize x 0 x.size.toUSize y 0
+      y.size.toUSize _ (join_ok k x y h)
+    simp only [e₁, e₂, e₃, USize.toNat_zero] at j₁ j₂
+    rw [toNat_eq_valAt, toNat_eq_valAt, toNat_eq_valAt]
+    rw [show (WordArray.joinW UInt64Array _ x 0 _ y 0 _ _ _).size = k + x.size from j₁]
+    exact j₂
+  · exact toNat_ofNat _
+
 /-- `βᵏ`. -/
 public def pow64 (k : Nat) : UInt64Array := shl64 k Num.one
 
@@ -370,6 +417,8 @@ public theorem val_divBase64 (x y : UInt64Array) (hy : y.toNat ≠ 0) :
     · rw [size_ofNatN]
   shl := shl64
   val_shl := val_shl64
+  join := join64
+  val_join := val_join64
   pow := pow64
   val_pow k := by rw [pow64, val_shl64, Num.toNat_one, Nat.one_mul]
   one := Num.one
