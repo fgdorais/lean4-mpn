@@ -27,6 +27,7 @@ public import MPN.FFT.Product
 public import MPN.FFT.Kernels
 public import MPN.Toom.Ops
 public import MPN.Toom.Kernels
+public import MPN.AddSubW
 public import MPN.Toom.Karatsuba
 public import MPN.Toom.Steps
 public import MPN.Toom.Interp

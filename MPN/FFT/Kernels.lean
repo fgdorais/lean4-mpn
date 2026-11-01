@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.Toom.Kernels
+public import MPN.AddSubW
 public import MPN.FFT.Product
 
 /-!
@@ -159,12 +159,6 @@ public theorem window (h : ReduceOK arr n d P) {a : A} (ha : LA.size a = LA.size
 
 end ReduceOK
 
-variable (A) in
-/-- The step of `reduceK`: limb `lo + j` of `P` minus limb `hi + j`, with a borrow. -/
-@[inline, expose] public def subNStep (P : A) (lo hi n : USize) (hl : LoopBound P lo n)
-    (hh : LoopBound P hi n) (j : USize) (h : j < n) (_z c : L) : L × L :=
-  R.subMulB (R.uget P (lo + j) (hl.uset_bound h)) (R.uget P (hi + j) (hh.uset_bound h)) R.one c
-
 /--
 Writes `P % F` into the window at `d`, for `P` of `2 n + 2` limbs: `P_lo - P_mid + P_hi`, with the
 borrow of `P_lo - P_mid` and the limb `P_hi` added by `incrAt`, then `normAt`.
@@ -172,9 +166,9 @@ borrow of `P_lo - P_mid` and the limb `P_hi` added by `incrAt`, then `normAt`.
 public def reduceK (arr : A) (n d : Nat) (P : A) : A :=
   if h : winOK arr d (n + 1) = true ∧ winOK P 0 (2 * n + 2) = true then
     have hb := reduceOK_of h
-    F.foldThen n.toUSize (subNStep A P 0 n.toUSize n.toUSize hb.lo hb.hi) arr d.toUSize hb.dn 0
-      R.b0 fun a ha c =>
-        let c := R.add (R.unB c) (R.uget P (2 * n).toUSize hb.idx2n)
+    F.foldThen n.toUSize (subNStep A P 0 P n.toUSize n.toUSize hb.lo hb.hi) arr d.toUSize hb.dn 0
+      R.zero fun a ha c =>
+        let c := R.add (c) (R.uget P (2 * n).toUSize hb.idx2n)
         let a₁ := R.uset a (d + n).toUSize R.zero (hb.idxTop ha)
         let a₂ := (FFT.incrAt a₁ d.toUSize (n + 1).toUSize
           (hb.lb1 (by rw [R.size_uset, ha])) 0 c).1
@@ -215,19 +209,19 @@ private theorem reduce_aux (arr : A) (n d : Nat) (P : A) (hb : ReduceOK arr n d 
     (hPv : valAt P 0 (2 * n + 2) ≤ 2 ^ (LA.w * n) * 2 ^ (LA.w * n))
     (a : A) (ha : LA.size a = LA.size arr) (c : L)
     (a₂ : ∀ i, (i < d ∨ d + n ≤ i) → LA.get a i = LA.get arr i)
-    (a₃ : valAt a d n + valAt P n n = valAt P 0 n + 2 ^ (LA.w * n) * LA.val (R.unB c)) :
+    (a₃ : valAt a d n + valAt P n n = valAt P 0 n + 2 ^ (LA.w * n) * LA.val c) :
     LA.size (FFT.normAt (FFT.incrAt (R.uset a (d + n).toUSize R.zero (hb.idxTop ha)) d.toUSize
         (n + 1).toUSize (hb.lb1 (by rw [R.size_uset, ha])) 0
-        (R.add (R.unB c) (R.uget P (2 * n).toUSize hb.idx2n))).1 n.toUSize d.toUSize
+        (R.add (c) (R.uget P (2 * n).toUSize hb.idx2n))).1 n.toUSize d.toUSize
           (hb.window (by rw [(FFT.incrAt_spec ..).1, R.size_uset, ha]))) = LA.size arr ∧
       (∀ i, (i < d ∨ d + n + 1 ≤ i) →
         LA.get (FFT.normAt (FFT.incrAt (R.uset a (d + n).toUSize R.zero (hb.idxTop ha))
           d.toUSize (n + 1).toUSize (hb.lb1 (by rw [R.size_uset, ha])) 0
-          (R.add (R.unB c) (R.uget P (2 * n).toUSize hb.idx2n))).1 n.toUSize d.toUSize
+          (R.add (c) (R.uget P (2 * n).toUSize hb.idx2n))).1 n.toUSize d.toUSize
             (hb.window (by rw [(FFT.incrAt_spec ..).1, R.size_uset, ha]))) i = LA.get arr i) ∧
       win (FFT.normAt (FFT.incrAt (R.uset a (d + n).toUSize R.zero (hb.idxTop ha))
           d.toUSize (n + 1).toUSize (hb.lb1 (by rw [R.size_uset, ha])) 0
-          (R.add (R.unB c) (R.uget P (2 * n).toUSize hb.idx2n))).1 n.toUSize d.toUSize
+          (R.add (c) (R.uget P (2 * n).toUSize hb.idx2n))).1 n.toUSize d.toUSize
             (hb.window (by rw [(FFT.incrAt_spec ..).1, R.size_uset, ha]))) n d =
         valAt P 0 (2 * n + 2) % fermatW LA.w n := by
   have hB4 := four_le (R := R)
@@ -265,8 +259,8 @@ private theorem reduce_aux (arr : A) (n d : Nat) (P : A) (hb : ReduceOK arr n d 
     · exact e
     · have := Nat.mul_le_mul_left (2 ^ LA.w) e; lia
   simp only [hP₁, Nat.mul_zero, Nat.add_zero] at hPv' hhi
-  have hc₁ : LA.val (R.unB c) ≤ 1 := by
-    rcases Nat.lt_or_ge (LA.val (R.unB c)) 2 with e | e
+  have hc₁ : LA.val c ≤ 1 := by
+    rcases Nat.lt_or_ge (LA.val c) 2 with e | e
     · lia
     · have := Nat.mul_le_mul_left (2 ^ (LA.w * n)) e
       have := valAt_lt a d n
@@ -274,18 +268,18 @@ private theorem reduce_aux (arr : A) (n d : Nat) (P : A) (hb : ReduceOK arr n d 
       lia
   have hP2 : R.uget P (2 * n).toUSize hb.idx2n = LA.get P (2 * n) := by
     rw [R.uget_eq, hb.h2n]
-  have hc : LA.val (R.add (R.unB c) (R.uget P (2 * n).toUSize hb.idx2n)) =
-      LA.val (R.unB c) + LA.val (LA.get P (2 * n)) := by
+  have hc : LA.val (R.add (c) (R.uget P (2 * n).toUSize hb.idx2n)) =
+      LA.val c + LA.val (LA.get P (2 * n)) := by
     rw [R.val_add, hP2, Nat.mod_eq_of_lt (by lia)]
   -- The increment by the borrow and `P_hi`.
   obtain ⟨i₁, i₂, i₃⟩ := FFT.incrAt_spec (R.uset a (d + n).toUSize R.zero (hb.idxTop ha))
     d.toUSize (n + 1).toUSize (hb.lb1 (by rw [R.size_uset, ha])) 0
-    (R.add (R.unB c) (R.uget P (2 * n).toUSize hb.idx2n))
+    (R.add (c) (R.uget P (2 * n).toUSize hb.idx2n))
   simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, hd', hn1, R.size_uset] at i₁ i₂ i₃
   rw [t₁, hc] at i₃
   generalize FFT.incrAt (R.uset a (d + n).toUSize R.zero (hb.idxTop ha)) d.toUSize
     (n + 1).toUSize (hb.lb1 (by rw [R.size_uset, ha])) 0
-    (R.add (R.unB c) (R.uget P (2 * n).toUSize hb.idx2n)) = q at *
+    (R.add (c) (R.uget P (2 * n).toUSize hb.idx2n)) = q at *
   -- No carry out of the window.
   have hq := valAt_lt a d n
   have hB1 : 2 ^ (LA.w * (n + 1)) = 2 ^ (LA.w * n) * 2 ^ LA.w := by
@@ -313,7 +307,7 @@ private theorem reduce_aux (arr : A) (n d : Nat) (P : A) (hb : ReduceOK arr n d 
     generalize valAt P 0 n = Plo at *
     generalize valAt P n n = Pmid at *
     generalize valAt a d n = V at *
-    generalize LA.val (R.unB c) = cb at *
+    generalize LA.val c = cb at *
     generalize 2 ^ (LA.w * n) = Bn at *
     rw [reduce_eq a₃ hc₁ hhi hq, Nat.add_mul_mod_self_left]
 
@@ -332,17 +326,17 @@ public theorem reduceK_spec (arr : A) (n d : Nat) (P : A) (_ : LA.size arr < USi
     dsimp only
     rw [F.foldThen_eq, foldUInPlaceThen]
     obtain ⟨f₁, -, f₂, f₃⟩ := foldUInPlace_spec2 n.toUSize
-      (subNStep A P 0 n.toUSize n.toUSize hb.lo hb.hi) P 0 P n.toUSize (fun _ => 0)
-      (fun c => LA.val (R.unB c)) 1 0 0 1 0 1 0 (fun _ => True) (fun _ _ _ _ _ => trivial)
+      (subNStep A P 0 P n.toUSize n.toUSize hb.lo hb.hi) P 0 P n.toUSize (fun _ => 0)
+      LA.val 1 0 0 1 0 1 0 (fun _ => True) (fun _ _ _ _ _ => trivial)
       (fun j hj z c _ => by
-        have e := R.val_subMulB (R.uget P (0 + j) (hb.lo.uset_bound hj))
-          (R.uget P (n.toUSize + j) (hb.hi.uset_bound hj)) R.one c
-        simp only [subNStep, R.uget_eq, R.val_one, Nat.mul_one, hb.lo.toNat_add hj,
+        have e := R.val_subC (R.uget P (0 + j) (hb.lo.uset_bound hj))
+          (R.uget P (n.toUSize + j) (hb.hi.uset_bound hj)) c
+        simp only [subNStep, R.uget_eq, hb.lo.toNat_add hj,
           hb.hi.toNat_add hj] at e ⊢
         lia)
-      arr d.toUSize hb.dn 0 R.b0 trivial
+      arr d.toUSize hb.dn 0 R.zero trivial
     simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, Nat.zero_add, hb.hn, hb.hd,
-      Nat.one_mul, Nat.zero_mul, Nat.mul_zero, R.val_unB_b0] at f₂ f₃
+      Nat.one_mul, Nat.zero_mul, Nat.mul_zero, R.val_zero] at f₂ f₃
     exact reduce_aux arr n d P hb hn hPv _ f₁ _ f₂ (by lia)
   · refine ⟨size_writeNat .., fun i hi => get_writeNat _ _ _ _ _ (by lia), ?_⟩
     rw [win, valAt_writeNat arr d (n + 1) _ (by lia), Nat.mod_eq_of_lt]
