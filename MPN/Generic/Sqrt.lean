@@ -228,13 +228,13 @@ public def sqrtRemAux (base : α → α × α) (T : Nat) (N : α) (n : Nat) : α
   else
     let l := n / 2
     let p := sqrtRemAux base T (o.hi (l + l) N) (n - l)
-    let X := o.add (o.shl l p.2) (o.lo l (o.hi l N))
+    let X := o.join l p.2 (o.hi l N)
     -- `X` by `2 t`, in one division.
     let d := o.divRem X (o.add p.1 p.1)
     let q := d.1
     let u := d.2
     let s := o.add (o.shl l p.1) q
-    let U := o.add (o.shl l u) (o.lo l N)
+    let U := o.join l u N
     let q₂ := o.sqr q
     if o.le q₂ U then (s, o.sub U q₂)
     else (o.sub s o.one, o.sub (o.add U (o.sub (o.add s s) o.one)) q₂)
@@ -320,10 +320,9 @@ public theorem sqrtRemAux_spec (base : α → α × α) (T : Nat)
       rw [o.val_lo, o.val_hi, hB']
     have hA₀v : o.val (o.lo l N) = o.val N % B := by rw [o.val_lo, hB']
     -- `X = r' B' + a₁`, and its quotient and remainder by `2 t`.
-    have hXv : o.val (o.add (o.shl l p.2) (o.lo l (o.hi l N))) =
-        (N₁ - t * t) * B + o.val N / B % B := by
-      rw [o.val_add, o.val_shl, hB', i₄, hA₁v]
-    generalize o.add (o.shl l p.2) (o.lo l (o.hi l N)) = X at hXv ⊢
+    have hXv : o.val (o.join l p.2 (o.hi l N)) = (N₁ - t * t) * B + o.val N / B % B := by
+      rw [o.val_join, hB', i₄, o.val_hi, hB']
+    generalize o.join l p.2 (o.hi l N) = X at hXv ⊢
     generalize hXn : (N₁ - t * t) * B + o.val N / B % B = Xn at hXv
     have h2t : o.val (o.add p.1 p.1) = 2 * t := by rw [o.val_add, i₃]; lia
     obtain ⟨f₁, huv⟩ := o.val_divRem X (o.add p.1 p.1) (by rw [h2t]; lia)
@@ -334,9 +333,9 @@ public theorem sqrtRemAux_spec (base : α → α × α) (T : Nat)
     have hsv : o.val (o.add (o.shl l p.1) hd.1) = t * B + Xn / (2 * t) := by
       rw [o.val_add, o.val_shl, hB', i₃, f₁]
     generalize o.add (o.shl l p.1) hd.1 = sv at hsv ⊢
-    have hUv : o.val (o.add (o.shl l u) (o.lo l N)) = Xn % (2 * t) * B + o.val N % B := by
-      rw [o.val_add, o.val_shl, hB', huv, hA₀v]
-    generalize o.add (o.shl l u) (o.lo l N) = U at hUv ⊢
+    have hUv : o.val (o.join l u N) = Xn % (2 * t) * B + o.val N % B := by
+      rw [o.val_join, hB', huv]
+    generalize o.join l u N = U at hUv ⊢
     have hq₂v : o.val (o.sqr hd.1) = Xn / (2 * t) * (Xn / (2 * t)) := by
       rw [o.val_sqr, f₁]
     generalize o.sqr hd.1 = q₂ at hq₂v ⊢

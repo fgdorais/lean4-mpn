@@ -26,6 +26,7 @@ public import MPN.FFT.Windows
 public import MPN.FFT.Fermat
 public import MPN.Div.ByLimb
 public import MPN.WordSqrt
+public import MPN.Join
 public import MPN.Div.Schoolbook
 public import MPN.LinComb
 public import MPN.Natural

@@ -50,6 +50,9 @@ public structure NatOps (α : Type) where
   /-- `x Bᵏ`. -/
   shl : Nat → α → α
   val_shl (k : Nat) (x : α) : val (shl k x) = val x * B ^ k
+  /-- `x Bᵏ + y % Bᵏ`: `x` above the low `k` limbs of `y`, which an array builds in one pass. -/
+  join : Nat → α → α → α
+  val_join (k : Nat) (x y : α) : val (join k x y) = val x * B ^ k + val y % B ^ k
   /-- `Bᵏ`. -/
   pow : Nat → α
   val_pow (k : Nat) : val (pow k) = B ^ k
