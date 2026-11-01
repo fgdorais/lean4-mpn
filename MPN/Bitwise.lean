@@ -13,7 +13,8 @@ public import MPN.LinComb
 `log2W a o n` is `Nat.log2` of the `n` limbs of `a` from `o`, from the top nonzero limb down, which
 for trimmed limbs is the top one; `bitW f a b r n` writes `f` of the limbs of `a` and `b`, zero past
 their ends (`LinComb.limbU`), into the first `n` limbs of `r`, in one in-place fold: with `f` the
-instance's `land`, `lor` or `xor`, the value is the bitwise operation on the values (`valAt_bitW`).
+instance's `land`, `lor` or `xor`, the value is the bitwise operation on the values (`valAt_bitW`);
+and `ltW a b n` compares, from the top limb down.
 -/
 
 namespace MPN
@@ -88,6 +89,77 @@ public theorem log2W_eq (a : A) (o j : USize) (h : LoopBound a o j) :
     rw [show j.toNat = (j.toNat - 1) + 1 by lia, LimbArray.valAt_add, LimbArray.valAt_one,
       show j.toNat - 1 + 1 - 1 = j.toNat - 1 by lia,
       log2_top (LimbArray.valAt_lt ..) hx]
+
+/-! ## Comparison -/
+
+/--
+Whether `a < b` on limbs `0` to `j - 1`, zero past their ends (`LinComb.limbU`), from the top limb
+down, like GMP's `mpn_cmp`: one comparison of limbs for each equal limb, and `ltB` at the first
+limb that differs, which on trimmed limbs of different sizes is the top one.
+-/
+@[expose, specialize] public def ltW (a b : A) (j : USize) : Bool :=
+  if hj : j = 0 then false
+  else
+    let x := LinComb.limbU a (j - 1)
+    let y := LinComb.limbU b (j - 1)
+    if R.eqB x y then ltW a b (j - 1) else R.ltB x y
+termination_by j.toNat
+decreasing_by
+  have := toNat_pred' (pos_of_ne hj)
+  have : j.toNat ≠ 0 := fun e => hj (USize.toNat_inj.1 (by rw [e]; rfl))
+  lia
+
+omit F in
+public theorem ltW_iff (hz : ∀ a i, LA.size a ≤ i → LA.val (LA.get a i) = 0) (a b : A) (j : USize)
+    (ha : LA.size a < USize.size) (hb : LA.size b < USize.size) :
+    ltW a b j = true ↔ LimbArray.valAt a 0 j.toNat < LimbArray.valAt b 0 j.toNat := by
+  induction j using ltW.induct (R := R) a b with
+  | case1 =>
+    rw [ltW]
+    simp
+  | case2 j hj x y he ih =>
+    rw [ltW, dite_eq_right hj]
+    simp only [x, y] at he ⊢
+    rw [ite_eq_left he, ih]
+    have hp := toNat_pred' (pos_of_ne hj)
+    have : j.toNat ≠ 0 := fun e => hj (USize.toNat_inj.1 (by rw [e]; rfl))
+    rw [R.eqB_iff, LinComb.val_limbU hz _ _ ha, LinComb.val_limbU hz _ _ hb, hp] at he
+    obtain ⟨m, hm⟩ : ∃ m, j.toNat = m + 1 := ⟨j.toNat - 1, by lia⟩
+    simp only [hm, Nat.add_sub_cancel] at he ⊢
+    rw [hp, hm, Nat.add_sub_cancel, LimbArray.valAt_add, LimbArray.valAt_add b,
+      LimbArray.valAt_one, LimbArray.valAt_one, Nat.zero_add, he]
+    lia
+  | case3 j hj x y he =>
+    rw [ltW, dite_eq_right hj]
+    simp only [x, y] at he ⊢
+    rw [ite_eq_right he, R.ltB_iff]
+    have hp := toNat_pred' (pos_of_ne hj)
+    have : j.toNat ≠ 0 := fun e => hj (USize.toNat_inj.1 (by rw [e]; rfl))
+    rw [R.eqB_iff, LinComb.val_limbU hz _ _ ha, LinComb.val_limbU hz _ _ hb, hp] at he
+    rw [LinComb.val_limbU hz _ _ ha, LinComb.val_limbU hz _ _ hb, hp]
+    obtain ⟨m, hm⟩ : ∃ m, j.toNat = m + 1 := ⟨j.toNat - 1, by lia⟩
+    simp only [hm, Nat.add_sub_cancel] at he ⊢
+    rw [LimbArray.valAt_add, LimbArray.valAt_add b, LimbArray.valAt_one, LimbArray.valAt_one,
+      Nat.zero_add]
+    have h₁ := LimbArray.valAt_lt a 0 m
+    have h₂ := LimbArray.valAt_lt b 0 m
+    generalize LimbArray.valAt a 0 m = X at *
+    generalize LimbArray.valAt b 0 m = Y at *
+    generalize LA.val (LA.get a m) = u at *
+    generalize LA.val (LA.get b m) = v at *
+    generalize 2 ^ (LA.w * m) = P at *
+    constructor
+    · intro h
+      have := Nat.mul_le_mul_left P (Nat.succ_le_of_lt h)
+      rw [Nat.mul_succ] at this
+      lia
+    · intro h
+      rcases Nat.lt_or_ge u v with e | e
+      · exact e
+      · have : v < u := by lia
+        have := Nat.mul_le_mul_left P (Nat.succ_le_of_lt this)
+        rw [Nat.mul_succ] at this
+        lia
 
 /-! ## Bitwise operations -/
 
