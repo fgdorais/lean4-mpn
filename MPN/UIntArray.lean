@@ -7,6 +7,8 @@ module
 public import ScalarArray.UInt32
 public import MPN.LimbArray
 public import MPN.WordArray
+import all Init.Data.UInt.Log2
+import all Init.Data.Fin.Log2
 public import MPN.UInt
 
 /-!
@@ -572,6 +574,9 @@ limbs of any width. Its in-place loop reading other windows of the array it writ
 `wordFolds32`).
 -/
 
+/-- `log2` of a word is `Nat.log2` of its value. -/
+public theorem _root_.UInt32.toNat_log2' (x : UInt32) : x.log2.toNat = x.toNat.log2 := by rfl
+
 /-- The reads, writes and word operations of `UInt32Array`, for the loops of `main`. -/
 public instance wordArray32 : MPN.WordArray UInt32Array UInt32 where
   uget a i h := a.uget i h
@@ -593,6 +598,9 @@ public instance wordArray32 : MPN.WordArray UInt32Array UInt32 where
   ltB x y := decide (x < y)
   eqB x y := x == y
   land x y := x &&& y
+  lor x y := x ||| y
+  xor x y := x ^^^ y
+  log2 x := x.log2.toNat
   ofBool b := b.toUInt32
   subMulB z y x h := z.subMulBiased y x h
   unB h := ~~~h
@@ -653,6 +661,10 @@ public instance wordArray32 : MPN.WordArray UInt32Array UInt32 where
   toNat_wU := by
     show (32 : USize).toNat = 32
     rw [USize.toNat_ofNat, Nat.mod_eq_of_lt (by cases USize.size_eq <;> simp_all [USize.size])]
+  val_land x y := UInt32.toNat_and x y
+  val_lor x y := UInt32.toNat_or x y
+  val_xor x y := UInt32.toNat_xor x y
+  log2_eq x := UInt32.toNat_log2' x
   w_ge := by decide
 
 /-- The loop of `foldlInPlace2` from index `k` is `main`'s `foldUInPlace2` from `j₀ + k`. -/
