@@ -356,10 +356,13 @@ wrapped product (`FFTOps.fftMulModAt`) when the product is longer than the modul
     (bo bl : Nat) : A :=
   let k := fftK cfg.fftKFactor n
   let m := (n + 2 ^ k - 1) / 2 ^ k
-  let nn := FFTOps.fftModN LA.w k m
-  let r := W.zeros (m * 2 ^ k + nn + 1)
-  if m * 2 ^ k < al + bl ∧ FFTOps.FFTModCheck r 0 (m * 2 ^ k + nn + 1) a ao al b bo bl k m nn then
-    FFTOps.fftMulModAt (mulP cfg.toConfig) r 0 a ao al b bo bl k m nn
+  if m * 2 ^ k < al + bl then
+    -- The window of the FFT, allocated only when the product wraps.
+    let nn := FFTOps.fftModN LA.w k m
+    let r := W.zeros (m * 2 ^ k + nn + 1)
+    if FFTOps.FFTModCheck r 0 (m * 2 ^ k + nn + 1) a ao al b bo bl k m nn then
+      FFTOps.fftMulModAt (mulP cfg.toConfig) r 0 a ao al b bo bl k m nn
+    else mul cfg (W.zeros (al + bl)) 0 a ao al b bo bl
   else mul cfg (W.zeros (al + bl)) 0 a ao al b bo bl
 
 public theorem mulModW_spec (cfg : MulConfig) (n : Nat) (a : A) (ao al : Nat) (b : A)
@@ -367,16 +370,22 @@ public theorem mulModW_spec (cfg : MulConfig) (n : Nat) (a : A) (ao al : Nat) (b
     valAt (mulModW cfg n a ao al b bo bl) 0 (LA.size (mulModW cfg n a ao al b bo bl)) %
         (2 ^ (LA.w * modSize cfg.fftKFactor n) - 1) =
       valAt a ao al * valAt b bo bl % (2 ^ (LA.w * modSize cfg.fftKFactor n) - 1) := by
+  have hmul : valAt (mul cfg (W.zeros (al + bl)) 0 a ao al b bo bl) 0
+      (LA.size (mul cfg (W.zeros (al + bl)) 0 a ao al b bo bl)) =
+        valAt a ao al * valAt b bo bl := by
+    obtain ⟨⟨s₁, -⟩, e⟩ := mul_spec cfg (W.zeros (al + bl)) 0 a ao al b bo bl
+      (by rw [W.size_zeros]; lia)
+    rw [s₁, W.size_zeros, e]
   unfold mulModW modSize
   dsimp only
   split
-  · rename_i h
-    obtain ⟨s₁, -, e⟩ := FFTOps.fftMulModAt_spec (mulP cfg.toConfig) _ _ _ _ _ _ _ _ _ _ _
-      (FFTOps.FFTModCheck.params h.2) (isMulP _ _)
-    rw [s₁, W.size_zeros]
-    exact e
-  · obtain ⟨⟨s₁, -⟩, e⟩ := mul_spec cfg (W.zeros (al + bl)) 0 a ao al b bo bl
-      (by rw [W.size_zeros]; lia)
-    rw [s₁, W.size_zeros, e]
+  · split
+    · rename_i h
+      obtain ⟨s₁, -, e⟩ := FFTOps.fftMulModAt_spec (mulP cfg.toConfig) _ _ _ _ _ _ _ _ _ _ _
+        (FFTOps.FFTModCheck.params h) (isMulP _ _)
+      rw [s₁, W.size_zeros]
+      exact e
+    · rw [hmul]
+  · rw [hmul]
 
 end MPN.Dispatch
