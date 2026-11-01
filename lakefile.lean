@@ -102,9 +102,9 @@ lean_lib MPNTest where
   precompileModules := true
 
 /-- Times the library against `Nat`: `lake exe bench [--no-nat] [op…] [size…]`, see BENCH.md. -/
-lean_exe bench where
-  root := `Bench
+lean_exe bench64 where
+  root := `Bench.W64
 
 /-- Measures the thresholds of `MPN.Config` on this machine: `lake exe tune [--verbose]`. -/
-lean_exe tune where
-  root := `Tune
+lean_exe tune64 where
+  root := `Tune.W64
