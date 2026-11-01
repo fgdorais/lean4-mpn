@@ -1,11 +1,105 @@
 import Lake
-open Lake DSL
+open Lean Lake DSL
+
+/-!
+# Build configuration
+
+A project that depends on this library can configure how it is built, which Lake otherwise does
+with this package's own settings, by passing options with its `require`. In a `lakefile.toml`:
+
+```toml
+[[require]]
+name = "lean4-mpn"
+git = "https://github.com/fgdorais/lean4-mpn"
+rev = "main32"
+options = { march = "native", mulKaratsuba = "48" }
+```
+
+or in a `lakefile.lean`, `require «lean4-mpn» from git "…" @ "main32" with
+NameMap.empty |>.insert `march "native"`. The same options work on the command line with `-K`,
+for example `lake build -R -K march=native`. Lake keeps the configuration it elaborated, so after
+changing the options, build once with `-R` to reconfigure.
+
+* `march`: compiles the library's C code with `-march=<value>`, for example `native`, which lets
+  the C compiler use the vector instructions of the machine (5–12% faster products on AVX2). The
+  binaries then run only on processors with those instructions.
+* `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`, `mulToom43`, `mulToom4`, `mulToom6`,
+  `mulFFT`, `mulUnbalanced`, `mulRows`, `mulCombaW`, `sqrBasecase`, `sqrRows`, `sqrKaratsuba`,
+  `sqrToom3`, `sqrToom4`, `sqrToom6`, `sqrFFT`, `divDC`, `divMu`, `div1Recip`, `div1Unnorm`,
+  `div32Recip`, `sqrtZimmermann`, `sqrtBase`, `gcdHalf`, `strDC`, `parseDC`: the thresholds, by the
+  names of the fields of `MPN.Config`. The keys have no dots, since TOML passes a quoted key as one
+  name.
+-/
+
+/--
+The thresholds given as options, as the `mpn.*` options of the library. The options are typed,
+so a value is passed as a number; one that is not a number is passed as a string, which the
+library then rejects when it reads its options.
+-/
+def thresholdOptions : Array LeanOption :=
+  let opt (key : Name) (val? : Option String) : Array LeanOption :=
+    match val? with
+    | some val =>
+      #[{ name := `weak.mpn.w32 ++ key,
+          value := match val.toNat? with | some n => .ofNat n | none => .ofString val }]
+    | none => #[]
+  opt `mul.karatsubaThreshold (get_config? w32_mulKaratsuba) ++
+    opt `mul.toom3Threshold (get_config? w32_mulToom3) ++
+    opt `mul.toom32Threshold (get_config? w32_mulToom32) ++
+    opt `mul.toom42Threshold (get_config? w32_mulToom42) ++
+    opt `mul.toom43Threshold (get_config? w32_mulToom43) ++
+    opt `mul.toom4Threshold (get_config? w32_mulToom4) ++
+    opt `mul.toom6Threshold (get_config? w32_mulToom6) ++
+    opt `mul.fftThreshold (get_config? w32_mulFFT) ++
+    opt `mul.unbalancedThreshold (get_config? w32_mulUnbalanced) ++
+    opt `sqr.basecaseThreshold (get_config? w32_sqrBasecase) ++
+    opt `mul.rowsThreshold (get_config? w32_mulRows) ++
+    opt `mul.combaWideThreshold (get_config? w32_mulCombaW) ++
+    opt `sqr.rowsThreshold (get_config? w32_sqrRows) ++
+    opt `sqr.karatsubaThreshold (get_config? w32_sqrKaratsuba) ++
+    opt `sqr.toom3Threshold (get_config? w32_sqrToom3) ++
+    opt `sqr.toom4Threshold (get_config? w32_sqrToom4) ++
+    opt `sqr.toom6Threshold (get_config? w32_sqrToom6) ++
+    opt `sqr.fftThreshold (get_config? w32_sqrFFT) ++
+    opt `div.dcThreshold (get_config? w32_divDC) ++
+    opt `div.muThreshold (get_config? w32_divMu) ++
+    opt `div.recip1Threshold (get_config? w32_div1Recip) ++
+    opt `div.recip32Threshold (get_config? w32_div32Recip) ++
+    opt `div.recip1UnnormThreshold (get_config? w32_div1Unnorm) ++
+    opt `sqrt.zimmermannThreshold (get_config? w32_sqrtZimmermann) ++
+    opt `sqrt.baseThreshold (get_config? w32_sqrtBase) ++
+    opt `gcd.halfThreshold (get_config? w32_gcdHalf) ++
+    opt `str.dcThreshold (get_config? w32_strDC) ++
+    opt `str.parseDCThreshold (get_config? w32_parseDC)
+
+/-- `-march=<value>` when the `march` option is given. -/
+def marchArgs : Array String :=
+  match get_config? march with
+  | some m => #[s!"-march={m}"]
+  | none => #[]
 
 package «lean4-mpn» where
   version := v!"0.1.0"
+  testDriver := "MPNTest"
 
 require «lean4-scalar-arrays» from git
   "https://github.com/fgdorais/lean4-scalar-arrays" @ "main"
 
 @[default_target]
-lean_lib MPN
+lean_lib MPN where
+  moreLeancArgs := marchArgs
+
+@[default_target]
+lean_lib MPN32 where
+  leanOptions := thresholdOptions
+  moreLeancArgs := marchArgs
+
+@[default_target]
+lean_lib MPNTest where
+  precompileModules := true
+
+lean_exe tune32 where
+  root := `Tune.W32
+
+lean_exe bench32 where
+  root := `Bench.W32
