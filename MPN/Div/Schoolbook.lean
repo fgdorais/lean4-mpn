@@ -77,42 +77,6 @@ private theorem mul_words (q v₂ : L) :
   rw [R.val_mulh, R.val_mul, Nat.mul_comm]
   exact Nat.div_add_mod ..
 
-/-- The quotient and remainder of `div2`. -/
-private theorem div2_rem (hi lo d : L) (h : LA.val hi < LA.val d) :
-    LA.val (R.sub lo (R.mul (R.div2 hi lo d) d)) = (LA.val hi * 2 ^ LA.w + LA.val lo) % LA.val d ∧
-      LA.val d * LA.val (R.div2 hi lo d) + LA.val (R.sub lo (R.mul (R.div2 hi lo d) d)) =
-        LA.val hi * 2 ^ LA.w + LA.val lo := by
-  have hq := R.val_div2 hi lo d h
-  have hd := LA.val_lt d; have hl := LA.val_lt lo
-  rw [R.val_sub, R.val_mul, hq]
-  generalize LA.val hi = H at *
-  generalize LA.val lo = Lo at *
-  generalize LA.val d = D at *
-  generalize 2 ^ LA.w = B at *
-  have hD : 0 < D := by lia
-  have e := Nat.div_add_mod (H * B + Lo) D
-  have hr := Nat.mod_lt (H * B + Lo) hD
-  generalize (H * B + Lo) / D = q at *
-  generalize (H * B + Lo) % D = r at *
-  -- `m` is `q D` modulo `B`, and `m + r` is `Lo` or `Lo + B`.
-  have hB : 0 < B := by lia
-  have hm := Nat.mod_lt (q * D) hB
-  have hmr : (q * D % B + r) % B = Lo := by
-    rw [Nat.mod_add_mod, Nat.mul_comm, e, Nat.mul_comm, Nat.mul_add_mod, Nat.mod_eq_of_lt hl]
-  have hk := carry_le (s := q * D % B + r) (B := B) (by lia)
-  have e₂ := Nat.mod_add_div (q * D % B + r) B
-  rw [hmr] at e₂
-  generalize q * D % B = m at *
-  generalize (m + r) / B = k at *
-  have h₁ : (Lo + (B - m)) % B = r := by
-    rcases Nat.lt_or_ge k 1 with h₀ | h₁
-    · obtain rfl : k = 0 := by lia
-      rw [show Lo + (B - m) = r + B * 1 by lia, Nat.add_mul_mod_self_left,
-        Nat.mod_eq_of_lt (by lia)]
-    · obtain rfl : k = 1 := by lia
-      rw [show Lo + (B - m) = r by lia, Nat.mod_eq_of_lt (by lia)]
-  exact ⟨h₁, by rw [h₁]; exact e⟩
-
 /-! ## The estimate of a quotient limb -/
 
 variable (A) in
