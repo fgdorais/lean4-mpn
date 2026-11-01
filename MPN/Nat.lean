@@ -496,56 +496,20 @@ public def modW (a : UInt32Array) (b : UInt64) : UInt64 :=
   if a.size ≤ 4 ∧ 4294967296 ≤ b then (divRem128 a b).2.2 else (divRemWord a b).2
 
 /-- `⌊log₂ a⌋`, from the top limb. -/
-public def log2A (a : UInt32Array) : Nat := 32 * (a.size - 1) + (a.getD (a.size - 1) 0).toNat.log2
+public def log2A (a : UInt32Array) : Nat :=
+  if h : a.size < 4294967295 then
+    WordArray.log2W a 0 a.size.toUSize (by
+      have e := toNat_toUSize (lt_usizeSize h)
+      exact ⟨by simp [e]; exact Nat.le_refl _, by simp [e]; exact lt_usizeSize h⟩)
+  else (MPN.toNat a).log2
 
-public theorem log2A_eq (a : UInt32Array) (ha : isTrimmed a = true) (hb : 2 ^ 64 ≤ MPN.toNat a) :
+public theorem log2A_eq (a : UInt32Array) (_ha : isTrimmed a = true) (_hb : 2 ^ 64 ≤ MPN.toNat a) :
     log2A a = (MPN.toNat a).log2 := by
-  have hpos : 0 < a.size := by
-    rcases Nat.eq_zero_or_pos a.size with h | h
-    · rw [toNat_of_size_eq_zero (by simpa using h)] at hb
-      lia
-    · exact h
-  simp only [log2A]
-  -- `a = L + β^(n - 1) t` with `L < β^(n - 1)` and `t ≠ 0` the top limb.
-  have hsplit := toNat_slice_add_toNat_slice a (a.size - 1) (by simp)
-  have hL := toNat_lt (a.toSlice.slice 0 (a.size - 1))
-  have htop : MPN.toNat (a.toSlice.slice (a.size - 1) a.toSlice.size) =
-      (a.getD (a.size - 1) 0).toNat := by
-    rw [toNat_of_size_eq_one (by simp; lia)]
-    simp [UInt32Array.getD_eq_getD_getElem?, show a.size - 1 < a.size by lia]
-  have ht : (a.getD (a.size - 1) 0).toNat ≠ 0 := by
-    have := ha
-    rw [isTrimmed_iff, IsTrimmed, List.getLast?_eq_getElem?] at this
-    simp only [UInt32Array.length_toList] at this
-    rw [List.getElem?_eq_getElem (by simp; lia)] at this
-    intro h0
-    apply this
-    simp only [UInt32Array.getElem_toList]
-    congr 1
-    apply UInt32.toNat_inj.1
-    rw [UInt32.toNat_zero, ← h0]
-    simp [UInt32Array.getD_eq_getD_getElem?, show a.size - 1 < a.size by lia]
-  simp only [UInt32Array.Slice.size_slice, UInt32Array.size_toSlice] at hL
-  rw [show min (a.size - 1) (min a.size a.size - 0) - 0 = a.size - 1 by lia] at hL
-  rw [htop] at hsplit
-  have hlo := Nat.log2_self_le ht
-  have hhi := @Nat.lt_log2_self (a.getD (a.size - 1) 0).toNat
-  generalize (a.getD (a.size - 1) 0).toNat = t at *
-  symm
-  rw [Nat.log2_eq_iff (by lia)]
-  have hP : 2 ^ (32 * (a.size - 1) + t.log2) = 2 ^ (32 * (a.size - 1)) * 2 ^ t.log2 :=
-    Nat.pow_add _ _ _
-  have hP1 : 2 ^ (32 * (a.size - 1) + t.log2 + 1) =
-      2 ^ (32 * (a.size - 1)) * 2 ^ (t.log2 + 1) := by
-    rw [Nat.add_assoc, Nat.pow_add]
-  constructor
-  · rw [hP, ← hsplit]
-    have := Nat.mul_le_mul_left (2 ^ (32 * (a.size - 1))) hlo
-    lia
-  · rw [hP1, ← hsplit]
-    have := Nat.mul_le_mul_left (2 ^ (32 * (a.size - 1))) (Nat.succ_le_of_lt hhi)
-    rw [Nat.mul_succ] at this
-    lia
+  by_cases h : a.size < 4294967295
+  · simp only [log2A, h, ↓reduceDIte]
+    rw [WordArray.log2W_eq, toNat_array_eq_valAt, toNat_toUSize (lt_usizeSize h)]
+    rfl
+  · simp only [log2A, h, ↓reduceDIte]
 
 end Nat
 
@@ -673,8 +637,8 @@ public protected abbrev Nat := GNat UInt32Array
 
 namespace Nat
 
-export GNat (small large ofLimbs wideOf toNat_wideOf add sub mul div mod blt decEq shiftLeft shiftRight land
-  lor xor sqr pow sqrtNewton toNat_ofNat toNat_small toNat_inj ofNat_toNat trimmed_limbs
+export GNat (small large ofLimbs wideOf toNat_wideOf add sub mul div mod blt decEq shiftLeft
+  shiftRight land lor xor sqr pow sqrtNewton toNat_ofNat toNat_small toNat_inj ofNat_toNat trimmed_limbs
   toNat_add toNat_sub toNat_mul toNat_div toNat_mod blt_iff toNat_shiftLeft toNat_shiftRight
   toNat_land toNat_lor toNat_xor log2_eq toNat_sqr toNat_pow toNat_sqrtNewton repr_eq ofString?_eq
   toNat_hAdd toNat_hSub toNat_hMul toNat_hDiv toNat_hMod toNat_ofNat' lt_iff_toNat_lt
@@ -949,7 +913,8 @@ public theorem v2_words (x : MPN.Nat) (h : fits2 x = true) :
   | small w => simp [hiWord, loWord, GNat.toNat]
   | large a ha =>
     simp only [fits2, decide_eq_true_eq] at h
-    show (word2 (a.getD 2 0) (a.getD 3 0)).toNat * 2 ^ 64 + (word2 (a.getD 0 0) (a.getD 1 0)).toNat =
+    show (word2 (a.getD 2 0) (a.getD 3 0)).toNat * 2 ^ 64 +
+        (word2 (a.getD 0 0) (a.getD 1 0)).toNat =
       MPN.toNat a
     simp only [toNat_word2, toNat_four a (by lia)]
     lia

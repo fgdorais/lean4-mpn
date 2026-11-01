@@ -6,6 +6,7 @@ module
 
 public import MPN.Mul.Limb
 public import MPN.Shift
+public import MPN.Bitwise
 public import MPN.ValAt
 
 /-!
@@ -18,6 +19,7 @@ public import MPN.ValAt
   into fresh limbs, by `WordArray.rshiftW` (or `copyW`).
 * `shrLimbs`, a right shift in place from the top limb down, divides the interpolation values of
   the Toom methods by powers of 2 and is the exact division by 2, 4 and 8.
+* `land`, `lor` and `xor` of arrays, limb by limb, by `main`'s `WordArray.bitW`.
 
 Both results are trimmed.
 -/
@@ -478,86 +480,95 @@ public theorem isTrimmed_shiftRight (a : UInt32Array.Slice) (n : Nat) :
     · simp only [shiftRight, hq, h', ↓reduceDIte]; exact isTrimmed_trim _
   · simp only [shiftRight, hq, ↓reduceDIte]; rw [isTrimmed_iff]; simp
 
-/-! ## Bitwise operations -/
+/-! ## Bitwise operations
 
-/-- Bit `j` of a number is bit `j % 32` of its limb `j / 32`. -/
-public theorem testBit_ofLimbs (l : List UInt32) (j : Nat) :
-    (ofLimbs l).testBit j = (l.getD (j / 32) 0).toNat.testBit (j % 32) := by
-  induction l generalizing j with
-  | nil => simp
-  | cons x l ih =>
-    rw [ofLimbs_cons, Nat.add_comm, Nat.testBit_two_pow_mul_add _ x.toNat_lt]
-    by_cases hj : j < 32
-    · rw [ite_eq_left hj, Nat.div_eq_of_lt hj, Nat.mod_eq_of_lt hj]
-      rfl
-    · rw [ite_eq_right hj, ih]
-      have h₁ : j / 32 = (j - 32) / 32 + 1 := by lia
-      have h₂ : j % 32 = (j - 32) % 32 := by lia
-      rw [h₁, h₂, List.getD_cons_succ]
+`main`'s `WordArray.bitW` into fresh zeros, by the instance's `land`, `lor` and `xor`.
+-/
 
-/-- The limbs `f (a i) (b i)`, trimmed, for a limbwise operation `f` with `f 0 0 = 0`. -/
-def bitwiseLimbs (f : UInt32 → UInt32 → UInt32) (a b : UInt32Array.Slice) : UInt32Array :=
-  trim (UInt32Array.ofFn (n := max a.size b.size) fun i => f (a.getD i 0) (b.getD i 0))
+private theorem hz32 : ∀ (a : UInt32Array) (i : Nat), LimbArray.size a ≤ i →
+    LimbArray.val UInt32Array (LimbArray.get a i) = 0 := fun a i h => by
+  show a[i]!.toNat = 0
+  rw [getElem!_neg a i (Nat.not_lt.2 h)]; rfl
 
-private theorem getD_bitwiseLimbs (f : UInt32 → UInt32 → UInt32) (hf : f 0 0 = 0)
-    (a b : UInt32Array.Slice) (k : Nat) :
-    (UInt32Array.ofFn (n := max a.size b.size) fun i => f (a.getD i 0) (b.getD i 0)).toList.getD
-      k 0 = f (a.getD k 0) (b.getD k 0) := by
-  rw [UInt32Array.toList_ofFn, List.getD_eq_getElem?_getD]
-  by_cases hk : k < max a.size b.size
-  · rw [List.getElem?_ofFn]
-    simp [hk]
-  · rw [List.getElem?_ofFn]
-    simp only [hk, ↓reduceDIte, Option.getD_none]
-    rw [UInt32Array.Slice.getD_eq, UInt32Array.Slice.getD_eq]
-    simp only [show ¬ k < a.size by lia, show ¬ k < b.size by lia, ↓reduceDIte]
-    exact hf.symm
+/-- The value of an array over `n ≥ a.size` limbs. -/
+private theorem valAt_ge (a : UInt32Array) (n : Nat) (h : a.size ≤ n) :
+    LimbArray.valAt a 0 n = toNat a := by
+  rw [toNat_array_eq_valAt, show n = a.size + (n - a.size) by lia]
+  show _ = LimbArray.valAt a 0 a.size
+  rw [LimbArray.valAt_add, LimbArray.valAt_eq_zero (n - a.size) (fun i h₁ _ => hz32 a i (by
+    show a.size ≤ i; lia)), Nat.mul_zero, Nat.add_zero]
 
-private theorem testBit_bitwiseLimbs (f : UInt32 → UInt32 → UInt32) (hf : f 0 0 = 0)
-    (a b : UInt32Array.Slice) (j : Nat) :
-    (toNat (bitwiseLimbs f a b)).testBit j =
-      (f (a.getD (j / 32) 0) (b.getD (j / 32) 0)).toNat.testBit (j % 32) := by
-  rw [bitwiseLimbs, toNat_trim, toNat_toSlice, testBit_ofLimbs, getD_bitwiseLimbs f hf]
+/--
+Limb-wise `f` of `a` and `b`, zero past their ends, trimmed, for an `f` whose value is the
+bitwise `op`; on `Nat` were the sizes not `USize`s, which never happens.
+-/
+@[inline] def bitA (f : UInt32 → UInt32 → UInt32) (op : Nat → Nat → Nat) (a b : UInt32Array) :
+    UInt32Array :=
+  let n := max a.size b.size
+  if h : n < 4294967295 then
+    trim (WordArray.bitW f a b (UInt32Array.replicate n 0) n.toUSize (by
+      have e := toNat_toUSize (lt_usizeSize h)
+      exact ⟨by show _ ≤ (UInt32Array.replicate n 0).size; simp [e],
+        by simp [e]; exact lt_usizeSize h⟩))
+  else trim (ofNat (op (toNat a) (toNat b)))
 
-private theorem testBit_toNat (a : UInt32Array.Slice) (j : Nat) :
-    (toNat a).testBit j = (a.getD (j / 32) 0).toNat.testBit (j % 32) := by
-  rw [toNat, testBit_ofLimbs, ← getD_eq_getD_toList_copy]
+private theorem toNat_bitA (f : UInt32 → UInt32 → UInt32) (op : Nat → Nat → Nat)
+    (hw : ∀ (a b r : UInt32Array) (n : USize) (hr : WordArray.LoopBound r 0 n),
+      LimbArray.size a < USize.size → LimbArray.size b < USize.size →
+      LimbArray.valAt (WordArray.bitW f a b r n hr) 0 n.toNat =
+        op (LimbArray.valAt a 0 n.toNat) (LimbArray.valAt b 0 n.toNat))
+    (a b : UInt32Array) : toNat (bitA f op a b) = op (toNat a) (toNat b) := by
+  by_cases h : max a.size b.size < 4294967295
+  · have e := toNat_toUSize (lt_usizeSize h)
+    have hr : WordArray.LoopBound (UInt32Array.replicate (max a.size b.size) 0) 0
+        (max a.size b.size).toUSize :=
+      ⟨by show _ ≤ (UInt32Array.replicate _ 0).size; simp [e], by simp [e]; exact lt_usizeSize h⟩
+    have eq : bitA f op a b = trim (WordArray.bitW f a b
+        (UInt32Array.replicate (max a.size b.size) 0) (max a.size b.size).toUSize hr) := by
+      simp only [bitA, h, ↓reduceDIte]
+    have h' := hw a b _ _ hr (by show a.size < _; have := lt_usizeSize h; lia)
+      (by show b.size < _; have := lt_usizeSize h; lia)
+    have hs := WordArray.size_bitW f a b _ _ hr
+    rw [e] at h'
+    rw [eq]
+    generalize WordArray.bitW f a b (UInt32Array.replicate (max a.size b.size) 0)
+      (max a.size b.size).toUSize hr = c at h' hs ⊢
+    rw [toNat_trim, toNat_array_eq_valAt, show c.size = LimbArray.size c from rfl, hs,
+      show LimbArray.size (UInt32Array.replicate (max a.size b.size) 0) = max a.size b.size by
+        show (UInt32Array.replicate _ 0).size = _; simp]
+    show LimbArray.valAt c 0 _ = _
+    rw [h', valAt_ge a _ (by lia), valAt_ge b _ (by lia)]
+  · have eq : bitA f op a b = trim (ofNat (op (toNat a) (toNat b))) := by
+      simp only [bitA, h, ↓reduceDIte]
+    rw [eq, toNat_trim, toNat_ofNat]
+
+private theorem isTrimmed_bitA (f : UInt32 → UInt32 → UInt32) (op : Nat → Nat → Nat)
+    (a b : UInt32Array) : isTrimmed (bitA f op a b) = true := by
+  unfold bitA; dsimp only; split <;> exact isTrimmed_trim _
 
 /-- `a &&& b`, trimmed. -/
-public def land (a b : UInt32Array.Slice) : UInt32Array := bitwiseLimbs (· &&& ·) a b
+public def land (a b : UInt32Array) : UInt32Array := bitA (· &&& ·) (· &&& ·) a b
 
 /-- `a ||| b`, trimmed. -/
-public def lor (a b : UInt32Array.Slice) : UInt32Array := bitwiseLimbs (· ||| ·) a b
+public def lor (a b : UInt32Array) : UInt32Array := bitA (· ||| ·) (· ||| ·) a b
 
 /-- `a ^^^ b`, trimmed. -/
-public def xor (a b : UInt32Array.Slice) : UInt32Array := bitwiseLimbs (· ^^^ ·) a b
+public def xor (a b : UInt32Array) : UInt32Array := bitA (· ^^^ ·) (· ^^^ ·) a b
 
-@[simp] public theorem toNat_land (a b : UInt32Array.Slice) :
-    toNat (land a b) = toNat a &&& toNat b := by
-  apply Nat.eq_of_testBit_eq
-  intro j
-  rw [land, testBit_bitwiseLimbs _ (by decide), UInt32.toNat_and, Nat.testBit_and, Nat.testBit_and,
-    testBit_toNat, testBit_toNat]
+@[simp] public theorem toNat_land (a b : UInt32Array) : toNat (land a b) = toNat a &&& toNat b :=
+  toNat_bitA _ _ (fun a b r n hr ha hb => WordArray.valAt_bitW_land hz32 a b r n hr ha hb) a b
 
-@[simp] public theorem toNat_lor (a b : UInt32Array.Slice) :
-    toNat (lor a b) = toNat a ||| toNat b := by
-  apply Nat.eq_of_testBit_eq
-  intro j
-  rw [lor, testBit_bitwiseLimbs _ (by decide), UInt32.toNat_or, Nat.testBit_or, Nat.testBit_or,
-    testBit_toNat, testBit_toNat]
+@[simp] public theorem toNat_lor (a b : UInt32Array) : toNat (lor a b) = toNat a ||| toNat b :=
+  toNat_bitA _ _ (fun a b r n hr ha hb => WordArray.valAt_bitW_lor hz32 a b r n hr ha hb) a b
 
-@[simp] public theorem toNat_xor (a b : UInt32Array.Slice) :
-    toNat (xor a b) = toNat a ^^^ toNat b := by
-  apply Nat.eq_of_testBit_eq
-  intro j
-  rw [xor, testBit_bitwiseLimbs _ (by decide), UInt32.toNat_xor, Nat.testBit_xor, Nat.testBit_xor,
-    testBit_toNat, testBit_toNat]
+@[simp] public theorem toNat_xor (a b : UInt32Array) : toNat (xor a b) = toNat a ^^^ toNat b :=
+  toNat_bitA _ _ (fun a b r n hr ha hb => WordArray.valAt_bitW_xor hz32 a b r n hr ha hb) a b
 
-public theorem isTrimmed_land (a b : UInt32Array.Slice) : isTrimmed (land a b) = true :=
-  isTrimmed_trim _
-public theorem isTrimmed_lor (a b : UInt32Array.Slice) : isTrimmed (lor a b) = true :=
-  isTrimmed_trim _
-public theorem isTrimmed_xor (a b : UInt32Array.Slice) : isTrimmed (xor a b) = true :=
-  isTrimmed_trim _
+public theorem isTrimmed_land (a b : UInt32Array) : isTrimmed (land a b) = true :=
+  isTrimmed_bitA _ _ a b
+public theorem isTrimmed_lor (a b : UInt32Array) : isTrimmed (lor a b) = true :=
+  isTrimmed_bitA _ _ a b
+public theorem isTrimmed_xor (a b : UInt32Array) : isTrimmed (xor a b) = true :=
+  isTrimmed_bitA _ _ a b
 
 end MPN
