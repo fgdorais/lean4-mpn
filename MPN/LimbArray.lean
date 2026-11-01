@@ -155,6 +155,35 @@ public theorem valAt_writeNat (a : A) (o len v : Nat) (h : o + len ≤ R.size a)
       ih _ _ _ (by rw [R.size_set]; lia), Nat.mul_succ, Nat.pow_add, Nat.mul_comm (2 ^ (R.w * len)),
       Nat.mod_mul]
 
+/-! ## The compiled value
+
+`valAt` goes one limb at a time, multiplying a growing `Nat` at each, which takes quadratic time.
+Its compiled twin splits the limbs in halves and joins them with a shift, which `Nat` does in
+linear time, so that the value takes `O(n log n)`. `@[csimp]` makes the compiler use it.
+-/
+
+/-- `valAt` by halves. -/
+@[expose] public def valAtFast (a : A) (lo n : Nat) : Nat :=
+  if n = 0 then 0
+  else if n = 1 then R.val (R.get a lo)
+  else valAtFast a lo (n / 2) + valAtFast a (lo + n / 2) (n - n / 2) <<< (R.w * (n / 2))
+termination_by n
+
+public theorem valAtFast_eq (a : A) (lo n : Nat) : valAtFast a lo n = valAt a lo n := by
+  induction n using Nat.strongRecOn generalizing lo with
+  | ind n ih =>
+    rw [valAtFast]
+    split
+    · subst n; simp
+    · split
+      · subst n; simp
+      · rw [ih _ (by lia), ih _ (by lia), Nat.shiftLeft_eq, Nat.mul_comm (valAt a _ _),
+          ← valAt_add, show n / 2 + (n - n / 2) = n by lia]
+
+@[csimp] public theorem valAt_eq_valAtFast : @valAt = @valAtFast := by
+  funext A L R a lo n
+  exact (valAtFast_eq a lo n).symm
+
 end LimbArray
 
 end MPN
