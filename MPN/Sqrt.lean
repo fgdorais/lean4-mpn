@@ -112,7 +112,7 @@ public def sqrtBase (N : UInt64Array) : UInt64Array × UInt64Array :=
   let S := word (sqrt2 (Num.limbAt N 1) (Num.limbAt N 0))
   (S, if fits (N.size + 4) then Num.sub N (Num.sqr S) else ops64.sub N (ops64.mul S S))
 
-private theorem sqrtBase_spec (N : UInt64Array) (hN : N.toNat < (2 ^ 64) ^ (2 * 1)) :
+public theorem sqrtBase_spec (N : UInt64Array) (hN : N.toNat < (2 ^ 64) ^ (2 * 1)) :
     (sqrtBase N).1.toNat = Nat.sqrt N.toNat ∧
       (sqrtBase N).2.toNat = N.toNat - Nat.sqrt N.toNat * Nat.sqrt N.toNat := by
   -- `N = hi β + lo`, the limbs past the end being zero.
@@ -160,26 +160,35 @@ private theorem sqrtBase_spec (N : UInt64Array) (hN : N.toNat < (2 ^ 64) ^ (2 * 
 
 /--
 `(⌊√a⌋, a - ⌊√a⌋²)`. The value is normalized by `4ᶜ` to `2 n` limbs with `β^(2n) ≤ 4 N`, the
-root of `N` by `sqrtRemAux` is shifted back by `c` bits, and the remainder is `a - s²`.
+root of `N` by `sqrtRemAux` with `base` for roots of up to `T` limbs is shifted back by `c` bits,
+and the remainder is `a - s²`.
 -/
-public def sqrtRem (a : UInt64Array) : UInt64Array × UInt64Array :=
+public def sqrtRemWith (base : UInt64Array → UInt64Array × UInt64Array) (T : Nat)
+    (a : UInt64Array) : UInt64Array × UInt64Array :=
   let L := MPN.log2 a.toUSlice
   if L = 0 then (Num.low a 1, UInt64Array.replicate 0 0)
   else
     let n := L / 128 + 1
     let c := (128 * n - 1 - L) / 2
     let N := Num.low (Num.shl a (2 * c)) (2 * n)
-    let S := Num.shr (Num.fitTo (ops64.sqrtRemAux sqrtBase 1 N n).1 n) c
+    let S := Num.shr (Num.fitTo (ops64.sqrtRemAux base T N n).1 n) c
     (S, Num.sub a (Num.sqr S))
 
-public theorem toNat_sqrtRem (a : UInt64Array) (hU : 2 * a.size + 40 < USize.size) :
-    (sqrtRem a).1.toNat = _root_.Nat.sqrt a.toNat ∧
-      (sqrtRem a).2.toNat = a.toNat - _root_.Nat.sqrt a.toNat * _root_.Nat.sqrt a.toNat := by
+/-- `sqrtRemWith` is exact when `base` is on the roots it takes. -/
+public theorem toNat_sqrtRemWith (base : UInt64Array → UInt64Array × UInt64Array) (T : Nat)
+    (hbase : ∀ N n, 1 ≤ n → (n ≤ T ∨ n ≤ 1) → N.toNat < (2 ^ 64) ^ (2 * n) →
+      (2 ^ 64) ^ (2 * n) ≤ 4 * N.toNat →
+      (base N).1.toNat = _root_.Nat.sqrt N.toNat ∧
+        (base N).2.toNat = N.toNat - _root_.Nat.sqrt N.toNat * _root_.Nat.sqrt N.toNat)
+    (a : UInt64Array) (hU : 2 * a.size + 40 < USize.size) :
+    (sqrtRemWith base T a).1.toNat = _root_.Nat.sqrt a.toNat ∧
+      (sqrtRemWith base T a).2.toNat =
+        a.toNat - _root_.Nat.sqrt a.toNat * _root_.Nat.sqrt a.toNat := by
   have ha : a.size < USize.size := by lia
   have hA : a.toNat < 2 ^ (64 * a.size) := by rw [toNat_eq_valAt]; exact valAt_lt ..
   have hL : MPN.log2 a.toUSlice = _root_.Nat.log2 a.toNat := by
     rw [log2_eq, toUSlice_toNat a ha]
-  unfold sqrtRem
+  unfold sqrtRemWith
   dsimp only
   rw [hL]
   generalize hl : _root_.Nat.log2 a.toNat = L
@@ -232,11 +241,10 @@ public theorem toNat_sqrtRem (a : UInt64Array) (hU : 2 * a.size + 40 < USize.siz
     have hNv : (Num.low (Num.shl a (2 * c)) (2 * n)).toNat = a.toNat * 2 ^ (2 * c) := by
       rw [Num.toNat_low _ _ (by lia), hshv, Nat.mod_eq_of_lt (by
         rw [show 64 * (2 * n) = 128 * n by lia]; exact hNlt)]
-    obtain ⟨i₃, -⟩ := ops64.sqrtRemAux_spec sqrtBase 1
-      (fun N n hn h hlt _ => by
-        have : n = 1 := by lia
-        subst this
-        exact sqrtBase_spec N hlt)
+    obtain ⟨i₃, -⟩ := ops64.sqrtRemAux_spec base T
+      (fun N n hn h hlt hge => by
+        simp only [ops64_val, show ops64.B = 2 ^ 64 from rfl] at hlt hge ⊢
+        exact hbase N n hn h hlt hge)
       ⟨2 ^ 63, by decide⟩ n _ (by lia)
       (by simp only [ops64_val]; rw [hNv, show ops64.B = 2 ^ 64 from rfl, ← Nat.pow_mul,
         show 64 * (2 * n) = 128 * n by lia]; exact hNlt)
@@ -244,7 +252,7 @@ public theorem toNat_sqrtRem (a : UInt64Array) (hU : 2 * a.size + 40 < USize.siz
         show 64 * (2 * n) = 128 * n by lia]; exact hNge)
     simp only [ops64_val] at i₃
     rw [hNv] at i₃
-    generalize (ops64.sqrtRemAux sqrtBase 1 (Num.low (Num.shl a (2 * c)) (2 * n)) n).1 = S₀ at i₃
+    generalize (ops64.sqrtRemAux base T (Num.low (Num.shl a (2 * c)) (2 * n)) n).1 = S₀ at i₃
     -- The root fits in `n` limbs.
     have hrt : Nat.sqrt (a.toNat * 2 ^ (2 * c)) < 2 ^ (64 * n) := by
       apply sqrt_lt_of
@@ -259,5 +267,16 @@ public theorem toNat_sqrtRem (a : UInt64Array) (hU : 2 * a.size + 40 < USize.siz
     refine ⟨hSv, ?_⟩
     rw [Num.toNat_sub _ _ (by rw [Num.toNat_sqr _ (by lia), hSv]; exact Nat.sqrt_le _) ha
       (by have := Num.size_sqr_le (Num.shr S c); lia), Num.toNat_sqr _ (by lia), hSv]
+
+/-- `(⌊√a⌋, a - ⌊√a⌋²)` by `sqrtRemWith`, down to roots of one limb, by `sqrtBase`. -/
+public def sqrtRem (a : UInt64Array) : UInt64Array × UInt64Array := sqrtRemWith sqrtBase 1 a
+
+public theorem toNat_sqrtRem (a : UInt64Array) (hU : 2 * a.size + 40 < USize.size) :
+    (sqrtRem a).1.toNat = _root_.Nat.sqrt a.toNat ∧
+      (sqrtRem a).2.toNat = a.toNat - _root_.Nat.sqrt a.toNat * _root_.Nat.sqrt a.toNat :=
+  toNat_sqrtRemWith sqrtBase 1 (fun N n _ h hlt _ => by
+    have : n = 1 := by lia
+    subst this
+    exact sqrtBase_spec N hlt) a hU
 
 end MPN

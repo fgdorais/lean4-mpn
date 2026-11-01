@@ -613,23 +613,65 @@ public abbrev ofString? (s : String) : Option MPN.Nat := GNat.ofString? s
 @[simp] public theorem toNat_ofLimbs (a : UInt64Array) (h : Limbs64.isTrim a = true) :
     (ofLimbs a h : MPN.Nat).toNat = a.toNat := GNat.toNat_ofLimbs a h
 
-/-- `⌊√n⌋`: on words by `Nat.sqrt`, and above by Zimmermann's recursion (`sqrtRem`). -/
-public def sqrt (n : MPN.Nat) : MPN.Nat :=
+/--
+`(⌊√N⌋, N - ⌊√N⌋²)`, the base of Zimmermann's recursion in `sqrtWith`: by `sqrtBase` for two
+limbs, and above by Newton's iteration (`sqrtNewton`).
+-/
+public def sqrtBaseN (N : UInt64Array) : UInt64Array × UInt64Array :=
+  if N.size ≤ 2 then MPN.sqrtBase N
+  else
+    let S := (sqrtNewton (ofLimbs (Limbs64.norm N) (Limbs64.isTrim_norm _))).limbs
+    (S, ops64.sub N (ops64.sqr S))
+
+private theorem sqrtBaseN_spec (N : UInt64Array) :
+    (sqrtBaseN N).1.toNat = _root_.Nat.sqrt N.toNat ∧
+      (sqrtBaseN N).2.toNat = N.toNat - _root_.Nat.sqrt N.toNat * _root_.Nat.sqrt N.toNat := by
+  unfold sqrtBaseN
+  split
+  · rename_i h
+    apply MPN.sqrtBase_spec
+    have := valAt_lt N 0 N.size
+    rw [toNat_eq_valAt, show ((2 : Nat) ^ 64) ^ (2 * 1) = 2 ^ (64 * 2) by rw [← Nat.pow_mul]]
+    exact Nat.lt_of_lt_of_le this (Nat.pow_le_pow_right (by decide) (by lia : 64 * N.size ≤ 64 * 2))
+  · have hS : (sqrtNewton (ofLimbs (Limbs64.norm N) (Limbs64.isTrim_norm _))).limbs.toNat =
+        _root_.Nat.sqrt N.toNat := by
+      rw [show ∀ x : MPN.Nat, x.limbs.toNat = x.toNat from GNat.val_limbs, toNat_sqrtNewton,
+        toNat_ofLimbs, Limbs64.toNat_norm]
+    refine ⟨hS, ?_⟩
+    dsimp only
+    rw [← ops64_val, ops64.val_sub _ _ (by rw [ops64.val_sqr, ops64_val, hS]; exact Nat.sqrt_le _),
+      ops64.val_sqr, ops64_val, ops64_val, hS]
+
+/--
+`⌊√n⌋`: on words by `Nat.sqrt`, on two limbs by `sqrt2`, by Newton's iteration (`sqrtNewton`) for
+roots below `Z` limbs, and from there by Zimmermann's recursion (`sqrtRemWith`), with Newton's
+iteration for roots of up to `T` limbs (`sqrtBaseN`).
+-/
+public def sqrtWith (Z T : Nat) (n : MPN.Nat) : MPN.Nat :=
   match n with
   | small _ => sqrtNewton n
   | large a _ =>
-    if fits (2 * a.size + 41) then ofLimbs (Limbs64.norm (sqrtRem a).1) (Limbs64.isTrim_norm _)
+    if (a.size ≤ 2 ∨ 2 * Z ≤ a.size) ∧ fits (2 * a.size + 41) then
+      ofLimbs (Limbs64.norm (sqrtRemWith sqrtBaseN T a).1) (Limbs64.isTrim_norm _)
     else sqrtNewton n
 
-@[simp] public theorem toNat_sqrt (n : MPN.Nat) : (sqrt n).toNat = _root_.Nat.sqrt n.toNat := by
-  unfold sqrt
+@[simp] public theorem toNat_sqrtWith (Z T : Nat) (n : MPN.Nat) :
+    (sqrtWith Z T n).toNat = _root_.Nat.sqrt n.toNat := by
+  unfold sqrtWith
   split
   · exact toNat_sqrtNewton _
   · split
     · rename_i a ha h
-      rw [toNat_ofLimbs, Limbs64.toNat_norm, (toNat_sqrtRem a (by have := lt_of_fits h; lia)).1]
+      rw [toNat_ofLimbs, Limbs64.toNat_norm, (toNat_sqrtRemWith sqrtBaseN T
+        (fun N _ _ _ _ _ => sqrtBaseN_spec N) a (by have := lt_of_fits h.2; lia)).1]
       rfl
     · exact toNat_sqrtNewton _
+
+/-- `sqrtWith` from roots of `config.sqrtZimmermann` limbs, down to `config.sqrtBase`. -/
+public def sqrt (n : MPN.Nat) : MPN.Nat := sqrtWith config.sqrtZimmermann config.sqrtBase n
+
+@[simp] public theorem toNat_sqrt (n : MPN.Nat) : (sqrt n).toNat = _root_.Nat.sqrt n.toNat :=
+  toNat_sqrtWith ..
 
 end Nat
 

@@ -100,6 +100,16 @@ public structure Config extends Toom.Config where
   3-by-2 step with a precomputed reciprocal instead of the hardware divider.
   -/
   div32Recip : Nat := 48
+  /--
+  The size of the root, in limbs, from which the square root uses Zimmermann's recursion instead
+  of Newton's iteration.
+  -/
+  sqrtZimmermann : Nat := 48
+  /--
+  The size of the root, in limbs, at or below which Zimmermann's recursion finishes by Newton's
+  iteration; roots of one limb are by `sqrt2`.
+  -/
+  sqrtBase : Nat := 19
   /-- The size of the smaller number from which the greatest common divisor uses half-gcd. -/
   gcdHalf : Nat := 1024
   /-- The size from which decimal strings are written by divide and conquer. -/
@@ -231,6 +241,17 @@ public meta register_option mpn.div.recip32Threshold : Nat := {
     with a precomputed reciprocal"
 }
 
+public meta register_option mpn.sqrt.zimmermannThreshold : Nat := {
+  defValue := ({} : Config).sqrtZimmermann
+  descr := "the size of the root, in limbs, from which the square root uses Zimmermann's recursion"
+}
+
+public meta register_option mpn.sqrt.baseThreshold : Nat := {
+  defValue := ({} : Config).sqrtBase
+  descr := "the size of the root, in limbs, at or below which Zimmermann's recursion finishes by \
+    Newton's iteration"
+}
+
 public meta register_option mpn.gcd.halfThreshold : Nat := {
   defValue := ({} : Config).gcdHalf
   descr := "the size of the smaller number, in limbs, from which gcd uses half-gcd"
@@ -297,6 +318,8 @@ elab "mpn_config%" : term => do
   let divQMu := mpn.div.quotMuThreshold.get opts
   let div1Recip := mpn.div.recip1Threshold.get opts
   let div32Recip := mpn.div.recip32Threshold.get opts
+  let sqrtZimmermann := mpn.sqrt.zimmermannThreshold.get opts
+  let sqrtBase := mpn.sqrt.baseThreshold.get opts
   let gcdHalf := mpn.gcd.halfThreshold.get opts
   let strDC := mpn.str.dcThreshold.get opts
   let parseDC := mpn.str.parseDCThreshold.get opts
@@ -322,6 +345,8 @@ elab "mpn_config%" : term => do
   let divQMuStx := quote divQMu
   let div1RecipStx := quote div1Recip
   let div32RecipStx := quote div32Recip
+  let sqrtZimmermannStx := quote sqrtZimmermann
+  let sqrtBaseStx := quote sqrtBase
   let gcdHalfStx := quote gcdHalf
   let strDCStx := quote strDC
   let parseDCStx := quote parseDC
@@ -347,6 +372,8 @@ elab "mpn_config%" : term => do
                  divQMu := $divQMuStx
                  div1Recip := $div1RecipStx
                  div32Recip := $div32RecipStx
+                 sqrtZimmermann := $sqrtZimmermannStx
+                 sqrtBase := $sqrtBaseStx
                  gcdHalf := $gcdHalfStx
                  strDC := $strDCStx
                  parseDC := $parseDCStx } : Config))
