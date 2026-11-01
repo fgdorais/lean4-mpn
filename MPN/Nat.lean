@@ -380,7 +380,8 @@ public instance natLimbs64 : NatLimbs UInt64Array where
   trimmed := Limbs64.isTrim
   eq_of_val _ _ ha hb h := Limbs64.eq_of_toNat ha hb h
   decEq := inferInstance
-  hash a := hash a.toSlice
+  -- In constant time, like `Nat`'s, which is the low word: the size and the bottom and top limbs.
+  hash a := mixHash (hash a.size) (mixHash (hash a[0]!) (hash a[a.size - 1]!))
   ofNat n := Limbs64.norm (ofNat n)
   trimmed_ofNat _ := Limbs64.isTrim_norm _
   val_ofNat n := by show (Limbs64.norm (ofNat n)).toNat = n; rw [Limbs64.toNat_norm, toNat_ofNat]
