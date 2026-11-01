@@ -103,7 +103,7 @@ def noToom (c : Config) : Config :=
     mulToom43 := never, thirtytwo_le_mulToom43 := (by decide),
     mulToom4 := never, thirtytwo_le_mulToom4 := (by decide),
     mulToom6 := never, thirtytwo_le_mulToom6 := (by decide),
-    mulUnbalanced := never, mulFFT := 1000000 }
+    mulUnbalanced := never, one_le_mulUnbalanced := (by decide), mulFFT := 1000000 }
 
 /--
 The smallest size from which the dispatcher with `fast n` beats it with `slow`, on operands of
@@ -134,7 +134,7 @@ Tunes `mulUnbalanced`: where splitting beats schoolbook on operands of `8 n` and
 Karatsuba from `karatsuba` limbs on the pieces.
 -/
 def tuneUnbalanced (karatsuba : Nat) (h : 4 ≤ karatsuba) (log : Bool) : IO Nat := medianOf 3 do
-  let cfg : Config := { mulKaratsuba := karatsuba, four_le_mulKaratsuba := h, mulUnbalanced := 0 }
+  let cfg : Config := { mulKaratsuba := karatsuba, four_le_mulKaratsuba := h, mulUnbalanced := 1 }
   let sizes := (List.range 40).map (karatsuba + 8 * ·)
   match ← crossover (fun a b => mulBasecase b a) (fun a b => mulLimbsWith cfg a b) sizes
       (shape := fun n => (8 * n, n)) (log := log) with
@@ -197,7 +197,7 @@ def tuneToom4 (karatsuba toom3 toom32 toom42 toom43 : Nat) (h : 4 ≤ karatsuba)
 def tuneToom6 (base : Config) (log : Bool) : IO Nat :=
   let cfg := { base with
     mulToom6 := never, thirtytwo_le_mulToom6 := (by decide), mulUnbalanced := never,
-    mulFFT := 1000000 }
+    one_le_mulUnbalanced := (by decide), mulFFT := 1000000 }
   tuneWith "Toom-6" cfg
     (fun n => { cfg with mulToom6 := max 32 n, thirtytwo_le_mulToom6 := by lia })
     ((List.range 48).map (768 + 64 * ·)) (log := log)
@@ -210,7 +210,7 @@ def tuneFFT (base : Config) (log : Bool) : IO Nat := medianOf 3 do
   -- A threshold for the FFT beyond every size tried, so that only the others recurse.
   let cfg : Config := { base with mulFFT := 1000000 }
   let fftStep (a b : UInt32Array.Slice) : UInt32Array :=
-    FFT.fftMul a b (FFT.fftK (a.size + b.size)) fun x y _ => mulLimbsWith cfg x y
+    FFT.fftMul cfg a b (FFT.fftK (a.size + b.size))
   let sizes := (List.range 20).map (6144 + 2048 * ·)
   match ← crossover (fun a b => mulLimbsWith cfg a b) fftStep sizes (confirm := 2) (log := log) with
   | some n =>
@@ -289,7 +289,7 @@ def tuneSqrFFT (base : Config) (log : Bool) : IO Nat := medianOf 3 do
   -- A threshold for the FFT beyond every size tried, so that only the others recurse.
   let cfg : Config := { base with sqrFFT := 1000000 }
   let fftSqrStep (a _ : UInt32Array.Slice) : UInt32Array :=
-    FFT.fftSqr a (FFT.fftK (a.size + a.size)) fun x _ => sqrLimbsWith cfg x
+    FFT.fftSqr cfg a (FFT.fftK (a.size + a.size))
   let sizes := (List.range 20).map (6144 + 2048 * ·)
   match ← crossover (fun a _ => sqrLimbsWith cfg a) fftSqrStep sizes (confirm := 2)
       (log := log) with
@@ -601,8 +601,8 @@ public def main (args : List String) : IO UInt32 := do
     mulToom42 := max 12 toom42, twelve_le_mulToom42 := by lia,
     mulToom43 := max 32 toom43, thirtytwo_le_mulToom43 := by lia,
     mulToom4 := max 32 toom4, thirtytwo_le_mulToom4 := by lia,
-    mulToom6 := max 32 toom6, thirtytwo_le_mulToom6 := by lia, mulFFT := fft,
-    mulUnbalanced := unbalanced
+    mulToom6 := max 32 toom6, thirtytwo_le_mulToom6 := by lia, mulFFT := fft, mulFFTMin := fft,
+    mulUnbalanced := max 1 unbalanced, one_le_mulUnbalanced := by lia
     sqrBasecase, sqrKaratsuba := max 4 sqrKaratsuba, four_le_sqrKaratsuba := by lia,
     sqrToom3 := max 12 sqrToom3, twelve_le_sqrToom3 := by lia,
     sqrToom4 := max 32 sqrToom4, thirtytwo_le_sqrToom4 := by lia,
@@ -615,7 +615,7 @@ public def main (args : List String) : IO UInt32 := do
   IO.println ""
   let opts := [("mulKaratsuba", cfg.mulKaratsuba), ("mulToom3", cfg.mulToom3),
     ("mulToom32", cfg.mulToom32), ("mulToom42", cfg.mulToom42), ("mulToom43", cfg.mulToom43),
-    ("mulToom4", cfg.mulToom4), ("mulToom6", cfg.mulToom6), ("mulFFT", cfg.mulFFT),
+    ("mulToom4", cfg.mulToom4), ("mulToom6", cfg.mulToom6), ("mulFFT", cfg.mulFFT), ("mulFFTMin", cfg.mulFFTMin),
     ("mulUnbalanced", cfg.mulUnbalanced), ("sqrBasecase", cfg.sqrBasecase),
     ("sqrKaratsuba", cfg.sqrKaratsuba), ("sqrToom3", cfg.sqrToom3), ("sqrToom4", cfg.sqrToom4),
     ("sqrToom6", cfg.sqrToom6), ("sqrFFT", cfg.sqrFFT), ("divDC", cfg.divDC),
@@ -627,5 +627,5 @@ public def main (args : List String) : IO UInt32 := do
   IO.println "To compile these into the library, add to its `require` in lakefile.toml:"
   IO.println s!"  options = \{ {", ".intercalate (opts.map fun (k, v) => s!"w32_{k} = \"{v}\"")} }"
   IO.println "or build this package with:"
-  IO.println s!"  lake build -R {" ".intercalate (opts.map fun (k, v) => s!"-K {k}={v}")}"
+  IO.println s!"  lake build -R {" ".intercalate (opts.map fun (k, v) => s!"-K w32_{k}={v}")}"
   return 0

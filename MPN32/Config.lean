@@ -6,7 +6,9 @@ module
 
 public meta import Lean
 public import MPN.Toom.Ops
+public import MPN.Dispatch
 public meta import MPN.Toom.Ops
+public meta import MPN.Dispatch
 public meta import MPN.ConfigOptions
 
 /-!
@@ -30,7 +32,7 @@ target machine prints the thresholds for that machine and the options that set t
 namespace MPN.W32
 
 /-- The size thresholds, in limbs, at which the arithmetic switches algorithms. -/
-public structure Config extends Toom.Config where
+public structure Config extends Dispatch.MulConfig where
   mulKaratsuba := 112
   four_le_mulKaratsuba := by decide
   mulToom3 := 640
@@ -53,17 +55,14 @@ public structure Config extends Toom.Config where
   thirtytwo_le_sqrToom4 := by decide
   sqrToom6 := 2496
   thirtytwo_le_sqrToom6 := by decide
-  /--
-  The size of the shorter operand from which multiplication uses the FFT when the longer one is
-  less than twice as long.
-  -/
-  mulFFT : Nat := 14336
-  /--
-  The size of the shorter operand from which multiplication splits a longer operand that is at
-  least twice as long, instead of using schoolbook. It only matters above `mulKaratsuba`, since the
-  split pays off through Karatsuba on its pieces.
-  -/
-  mulUnbalanced : Nat := 204
+  -- The FFT from `mulFFT` limbs in the shorter operand (`mulFFTMin`), for operands of comparable
+  -- sizes, and longer operands at least twice as long always split (`mulFFTUnbal`, `mulChunkMax`).
+  mulFFT := 14336
+  mulFFTUnbal := 1000000
+  mulFFTMin := 14336
+  mulUnbalanced := 204
+  mulChunkMax := 1000000
+  fftKFactor := 5
   /--
   The size of both operands together from which the schoolbook product adds rows into wide
   accumulators instead of Comba's method.
@@ -77,8 +76,7 @@ public structure Config extends Toom.Config where
   sqrRows : Nat := 16
   /-- The size from which squaring uses the schoolbook square instead of multiplying. -/
   sqrBasecase : Nat := 2
-  /-- The size from which squaring uses the FFT. -/
-  sqrFFT : Nat := 12288
+  sqrFFT := 12288
   /-- The size of the divisor from which division computes its quotient in blocks of half the
   divisor, with recursive divisions, instead of one limb at a time. -/
   divDC : Nat := 176
@@ -114,7 +112,10 @@ public structure Config extends Toom.Config where
   deriving Repr
 
 /-- The thresholds of the Karatsuba and Toom methods of `MPN.Toom`, a projection. -/
-@[inline] public abbrev Config.toom (cfg : Config) : Toom.Config := cfg.toConfig
+@[inline] public abbrev Config.toom (cfg : Config) : Toom.Config := cfg.toMulConfig.toConfig
+
+/-- The thresholds of the choice of a product, `MPN.Dispatch`'s. -/
+@[inline] public abbrev Config.mul (cfg : Config) : Dispatch.MulConfig := cfg.toMulConfig
 
 -- The options `mpn.w32.f`, one for each threshold `f` of `Config`, with its default.
 declare_config_options Config mpn.w32

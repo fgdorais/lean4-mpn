@@ -18,9 +18,9 @@ smaller squares instead of products.
 * below `cfg.sqrBasecase` limbs: `mulBasecase a a`, since the extra passes of the schoolbook
   square cost more than they save on small numbers;
 * below `cfg.sqrKaratsuba` limbs: the schoolbook `sqrBasecase`;
-* below `cfg.sqrFFT` limbs: `sqrToomL`, `main`'s Toom squares and Karatsuba, from the thresholds
-  `cfg.sqrKaratsuba`, `cfg.sqrToom3`, `cfg.sqrToom4` and `cfg.sqrToom6`;
-* otherwise: `fftSqr`, with one forward transform and squares for the pointwise products.
+* otherwise: `MPN`'s `Dispatch.sqr` into a new array, the FFT from `cfg.sqrFFT` limbs and the Toom
+  squares and Karatsuba below, from the thresholds `cfg.sqrKaratsuba`, `cfg.sqrToom3`,
+  `cfg.sqrToom4` and `cfg.sqrToom6`.
 -/
 
 open ScalarArray
@@ -29,40 +29,34 @@ namespace MPN.W32
 
 /-- All `2 * a.size` limbs of `a * a`, untrimmed, with the thresholds of `cfg`. -/
 public def sqrLimbsWith (cfg : Config) (a : UInt32Array.Slice) : UInt32Array :=
-  if cfg.sqrFFT ≤ a.size then
-    FFT.fftSqr a (FFT.fftK (a.size + a.size)) fun x _ => sqrLimbsWith cfg x
-  else if cfg.sqrKaratsuba ≤ a.size then
-    sqrToomL cfg a
+  if cfg.sqrKaratsuba ≤ a.size then
+    Dispatch.sqr cfg.mul (UInt32Array.replicate (a.size + a.size) 0) 0 a.array a.start a.size
   else if cfg.sqrBasecase ≤ a.size then
     sqrBasecase a
   else
     mulBasecase a a
-termination_by a.size
 
 public theorem sqrLimbsWith_spec (cfg : Config) (a : UInt32Array.Slice) :
     (sqrLimbsWith cfg a).size = a.size + a.size ∧
       toNat (sqrLimbsWith cfg a) = toNat a * toNat a := by
-  induction a using sqrLimbsWith.induct cfg with
-  | case1 a hf ih =>
-    rw [toNat_toSlice, sqrLimbsWith]
-    simp only [hf, ↓reduceIte]
-    rw [← toNat_toSlice]
-    exact FFT.fftSqr_spec a _ _ fun x hx => ih x hx
-  | case2 a hf h =>
-    rw [toNat_toSlice, sqrLimbsWith]
-    simp only [hf, h, ↓reduceIte]
-    rw [← toNat_toSlice]
-    exact sqrToomL_spec cfg a
-  | case3 a hf h₁ h =>
-    rw [toNat_toSlice, sqrLimbsWith]
-    simp only [hf, h₁, h, ↓reduceIte]
-    rw [← toNat_toSlice]
-    exact sqrBasecase_spec a
-  | case4 a hf h₁ h =>
-    rw [toNat_toSlice, sqrLimbsWith]
-    simp only [hf, h₁, h, ↓reduceIte]
-    rw [← toNat_toSlice]
-    exact ⟨size_mulBasecase a a, toNat_mulBasecase a a⟩
+  by_cases h₁ : cfg.sqrKaratsuba ≤ a.size
+  · have e : sqrLimbsWith cfg a = Dispatch.sqr cfg.mul (UInt32Array.replicate (a.size + a.size) 0)
+        0 a.array a.start a.size := by simp only [sqrLimbsWith, h₁, ↓reduceIte]
+    obtain ⟨⟨s₁, -⟩, s₂⟩ := Dispatch.sqr_spec cfg.mul (UInt32Array.replicate (a.size + a.size) 0)
+      0 a.array a.start a.size (by simp [LimbArray.size])
+    have hs : (Dispatch.sqr cfg.mul (UInt32Array.replicate (a.size + a.size) 0) 0 a.array a.start
+        a.size).size = a.size + a.size := s₁.trans (by simp [LimbArray.size])
+    rw [e]
+    refine ⟨hs, ?_⟩
+    rw [toNat_array_eq_valAt, hs, toNat_eq_valAt a]
+    exact s₂
+  · by_cases h₂ : cfg.sqrBasecase ≤ a.size
+    · have e : sqrLimbsWith cfg a = sqrBasecase a := by
+        simp only [sqrLimbsWith, h₁, h₂, ↓reduceIte]
+      rw [e]; exact sqrBasecase_spec a
+    · have e : sqrLimbsWith cfg a = mulBasecase a a := by
+        simp only [sqrLimbsWith, h₁, h₂, ↓reduceIte]
+      rw [e]; exact ⟨size_mulBasecase a a, toNat_mulBasecase a a⟩
 
 /-- All `2 * a.size` limbs of `a * a`, untrimmed, like GMP's `mpn_sqr`. -/
 public def sqrLimbs (a : UInt32Array.Slice) : UInt32Array := sqrLimbsWith config a

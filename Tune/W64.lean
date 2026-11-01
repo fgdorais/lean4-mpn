@@ -484,5 +484,5 @@ public def main (args : List String) : IO UInt32 := do
   IO.println "To compile these into the library, add to its `require` in lakefile.toml:"
   IO.println s!"  options = \{ {", ".intercalate (opts.map fun (k, v) => s!"w64_{k} = \"{v}\"")} }"
   IO.println "or build this package with:"
-  IO.println s!"  lake build -R {" ".intercalate (opts.map fun (k, v) => s!"-K {k}={v}")}"
+  IO.println s!"  lake build -R {" ".intercalate (opts.map fun (k, v) => s!"-K w64_{k}={v}")}"
   return 0
