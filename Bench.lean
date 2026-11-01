@@ -161,7 +161,9 @@ def ops : List String :=
   ["add", "sub", "shl", "shr", "div1", "sbdiv", "div", "divmod", "sqrt", "mulmod", "gcd", "str", "parse",
     "mul1", "addmul1", "mul", "sqr", "kara", "toom", "kara2", "toom2", "fft", "fft2",
     "auto", "ksqr", "fftsqr", "toomsqr", "autosqr", "mulref", "badd", "bsub", "bmul", "bdiv",
-    "bgcd", "bshl", "bshr", "band", "bor", "bxor", "bsqrt", "btostr", "bofstr"]
+    "bgcd", "bshl", "bshr", "band", "bor", "bxor", "bmod",
+    "bsqr", "bpow", "blcm", "blog2", "bcmp", "beq", "bhash", "bsqrt", "btostr", "bofstr", "btonat",
+    "bofnat"]
 
 def main (args : List String) : IO Unit := do
   let noNat := args.contains "--no-nat"
@@ -201,6 +203,51 @@ def main (args : List String) : IO Unit := do
       | "bxor" =>
         let (x, y) := (MPN.Nat.ofNat na, MPN.Nat.ofNat nb)
         row noNat op n (time (· ^^^ ·) checkBig x y) (time (· ^^^ ·) checkNat na nb)
+      | "bmod" =>
+        -- `2 n` by `n` limbs.
+        let na2 := toNat (sample (2 * n) 4)
+        let (x, y) := (MPN.Nat.ofNat na2, MPN.Nat.ofNat nb)
+        row noNat op n (time (· % ·) checkBig x y) (time (· % ·) checkNat na2 nb)
+      | "bsqr" =>
+        let x := MPN.Nat.ofNat na
+        row noNat op n (time (fun x _ => MPN.Nat.sqr x) checkBig x x)
+          (time (fun x _ => x * x) checkNat na na)
+      | "bpow" =>
+        let x := MPN.Nat.ofNat na
+        row noNat op n (time (fun (x : MPN.Nat) _ => x ^ 3) checkBig x x)
+          (time (fun x _ => x ^ 3) checkNat na na)
+      | "blcm" =>
+        let (x, y) := (MPN.Nat.ofNat na, MPN.Nat.ofNat nb)
+        row noNat op n (time MPN.Nat.lcm checkBig x y) (time Nat.lcm checkNat na nb)
+      | "blog2" =>
+        let x := MPN.Nat.ofNat na
+        row noNat op n (time (fun (x : MPN.Nat) _ => x.log2) checkNat x x)
+          (time (fun x _ => x.log2) checkNat na na)
+      | "bcmp" =>
+        -- `x < x + 1`, which differ in the lowest limb, so both compare every limb.
+        let (x, y) := (MPN.Nat.ofNat na, MPN.Nat.ofNat (na + 1))
+        let nc := na + 1
+        row noNat op n (time (fun x y => decide (x < y)) (fun b => if b then 1 else 0) x y)
+          (time (fun x y => decide (x < y)) (fun b => if b then 1 else 0) na nc)
+      | "beq" =>
+        -- Two copies of the same number, so both compare every limb; the second from another
+        -- expression, which the compiler does not share with the first.
+        let nc := 2 * na / 2
+        let (x, y) := (MPN.Nat.ofNat na, MPN.Nat.ofNat nc)
+        row noNat op n (time (fun x y => decide (x = y)) (fun b => if b then 1 else 0) x y)
+          (time (fun x y => decide (x = y)) (fun b => if b then 1 else 0) na nc)
+      | "bhash" =>
+        let x := MPN.Nat.ofNat na
+        row noNat op n (time (fun (x : MPN.Nat) _ => hash x) id x x)
+          (time (fun (x : Nat) _ => hash x) id na na)
+      | "btonat" =>
+        -- `Nat` has nothing to convert: its column is one linear pass, `x + 1`.
+        let x := MPN.Nat.ofNat na
+        row noNat op n (time (fun (x : MPN.Nat) _ => x.toNat) checkNat x x)
+          (time (fun x _ => x + 1) checkNat na na)
+      | "bofnat" =>
+        row noNat op n (time (fun x _ => MPN.Nat.ofNat x) checkBig na na)
+          (time (fun x _ => x + 1) checkNat na na)
       | "bgcd" =>
         let (x, y) := (MPN.Nat.ofNat na, MPN.Nat.ofNat nb)
         row noNat op n (time MPN.Nat.gcd checkBig x y) (time Nat.gcd checkNat na nb)

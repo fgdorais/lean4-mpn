@@ -76,7 +76,7 @@ so five runs make the tables reliable. Within one run, distrust a row whose spre
 | `sqr` | `MPN.sqrBasecase` | `n` limbs | the cross products once by rows (`mul1`, `addMul1`), then doubled with the diagonal in one pass |
 | `ksqr` | `MPN.sqrKaratsuba` | `n` limbs | Karatsuba with three squares from 96 limbs (`sqrKaratsuba`), `sqrBasecase` below |
 | `mulref` | `Bench.refMul` | `n` by `n` limbs | schoolbook by rows, a hand-written loop with `Nat` indices and the arithmetic of `addMul1`; not part of the library, kept as a control since its code does not change |
-| `badd`, `bsub`, `bmul`, `bdiv`, `bgcd`, `bshl`, `bshr`, `band`, `bor`, `bxor`, `bsqrt`, `btostr`, `bofstr` | `MPN.Nat` | `n` and `n` limbs (`bdiv`, `bsqrt`: `2n` limbs) | the verified natural numbers, `main`'s `GNat` on the instance `natLimbs64`: one word below `2⁶⁴`, otherwise trimmed limbs through `MPN.Num`; the time includes trimming the result |
+| `badd`, `bsub`, `bmul`, `bdiv`, `bmod`, `bsqr`, `bpow` (`x³`), `blcm`, `blog2`, `bcmp` (`x < x + 1`), `beq` (two copies), `bhash`, `bgcd`, `bshl`, `bshr`, `band`, `bor`, `bxor`, `bsqrt`, `btostr`, `bofstr`, `btonat`, `bofnat` | `MPN.Nat` | `n` and `n` limbs (`bdiv`, `bsqrt`: `2n` limbs) | the verified natural numbers, `main`'s `GNat` on the instance `natLimbs64`: one word below `2⁶⁴`, otherwise trimmed limbs through `MPN.Num`; the time includes trimming the result |
 
 ## Current results
 
