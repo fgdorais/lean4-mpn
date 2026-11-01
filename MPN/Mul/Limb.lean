@@ -6,6 +6,8 @@ module
 
 public import MPN.Basic
 public import MPN.UInt
+public import MPN.UIntArray
+public import MPN.MulLimbW
 
 /-!
 # Multiplication by a limb
@@ -39,70 +41,131 @@ public def addMul1 (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UI
 /-! ## The compiled loop
 
 `addMul1Loop` uses `Nat` indices into slices, which keeps its proofs simple. `addMul1Fast`
-computes the same as `addMul1` with `foldInPlace`, which updates the array in place with one
-exclusivity check and `USize` indices, and `@[csimp]` makes the compiler use it in place of
-`addMul1`, with a proof that the two return the same result. `foldInPlace` needs the arrays to fit
-in a `USize`, which every array in memory does; the other case falls back to `addMul1`'s loop.
-This comes before the rest of the file so that `mul1` and `mulRow` are compiled with it.
+computes the same as `addMul1` with `main`'s generic pass `WordArray.addMul1W`, which updates the
+array in place with one exclusivity check and `USize` indices, and `@[csimp]` makes the compiler
+use it in place of `addMul1`, with a proof that the two return the same result. The pass needs the
+arrays to fit in a `USize`, which every array in memory does; the other case falls back to
+`addMul1`'s loop. This comes before the rest of the file so that `mul1` and `mulRow` are compiled
+with it.
 -/
+
+/-- The bounds of the generic passes over `n` limbs of `a`, into `r` from limb `off`. -/
+public theorem loopBound_window (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (n : Nat)
+    (hn : n ≤ a.size) (h : off + n ≤ r.size)
+    (hs : r.size < 4294967295 ∧ a.array.size < 4294967295) :
+    WordArray.LoopBound r off.toUSize n.toUSize ∧
+      WordArray.LoopBound a.array a.start.toUSize n.toUSize := by
+  have := USize.le_size
+  have := a.stop_le_array_size
+  have := a.start_le_stop
+  have := a.size_eq
+  simp only [WordArray.LoopBound]
+  rw [toNat_toUSize (by lia), toNat_toUSize (by lia), toNat_toUSize (by lia)]
+  exact ⟨⟨h, by lia⟩, ⟨show a.start + n ≤ a.array.size by lia, by lia⟩⟩
+
+/-- A fold of `main` on an array equal to another. -/
+private theorem fold_congr {β : Type} {n : USize}
+    {f : (j : USize) → j < n → UInt32 → β → UInt32 × β} {arr arr' : UInt32Array} {rs : USize}
+    {hr : WordArray.LoopBound arr rs n} {j : USize} {b b' : β} (e : arr = arr') (eb : b = b') :
+    WordArray.foldUInPlace n f arr rs hr j b =
+      WordArray.foldUInPlace n f arr' rs (e ▸ hr) j b' := by
+  subst e eb; rfl
+
+/-- The limbs of a slice `b` read from `arr`, as the generic passes read them. -/
+private theorem uget_slice (arr : UInt32Array) (ao n : USize) (ha : WordArray.LoopBound arr ao n)
+    (b : UInt32Array.Slice) (hb : ∀ k (hk : k < b.size), b[k] = arr[ao.toNat + k]!) (j : USize)
+    (hj : j < n) (k : Nat) (hjk : j.toNat = k) (hk : k < b.size) :
+    WordArray.uget arr (ao + j) (ha.uset_bound hj) = b[k] := by
+  rw [hb k hk, WordArray.uget_eq, ha.toNat_add hj, hjk]; rfl
+
+/-- The limbs of the window of `r`, as the generic passes read them. -/
+private theorem uget_window (r : UInt32Array) (ro n : USize) (hr : WordArray.LoopBound r ro n)
+    (off : Nat) (hro : ro.toNat = off) (j : USize) (hj : j < n) (k : Nat) (hjk : j.toNat = k)
+    (hk : off + k < r.size) :
+    WordArray.uget r (ro + j) (hr.uset_bound hj) = r[off + k] := by
+  rw [WordArray.uget_eq, hr.toNat_add hj, hro, hjk]
+  exact getElem!_pos r (off + k) hk
+
+private theorem uset_window (r : UInt32Array) (ro n : USize) (hr : WordArray.LoopBound r ro n)
+    (off : Nat) (hro : ro.toNat = off) (j : USize) (hj : j < n) (k : Nat) (hjk : j.toNat = k)
+    (v : UInt32) (hk : off + k < r.size) :
+    WordArray.uset r (ro + j) v (hr.uset_bound hj) = r.set (off + k) v hk :=
+  uset_eq_set r (ro + j) (off + k) (by rw [hr.toNat_add hj, hro, hjk]) v _
+
+/-- The next index of a fold. -/
+private theorem toNat_succ {n j : USize} (hj : j < n) {k : Nat} (hjk : j.toNat = k) :
+    (j + 1).toNat = k + 1 := by
+  rw [USize.toNat_add_one_of_lt hj, hjk]
 
 /--
-The step of the fold of `addMul1Fast`: adds limb `k` of the slice `arr[st...st + len]` times `x`
-to `y`.
+The generic fold of `addMul1Step` over the limbs of `b` read from `arr`, from limb `k` on, is
+`addMul1Loop` from limb `k` on.
 -/
-@[inline] def addMul1Step (arr : UInt32Array) (st len : USize) (has : arr.size < USize.size)
-    (h : st.toNat + len.toNat ≤ arr.size) (x : UInt32) (k : USize) (hk : k.toNat < len.toNat)
-    (y c : UInt32) : UInt32 × UInt32 :=
-  (limbU arr st len has h k hk).mulAddAdd x y c
+private theorem fold_addMul1 (arr : UInt32Array) (ao n : USize) (ha : WordArray.LoopBound arr ao n)
+    (x : UInt32) (off : Nat) (b : UInt32Array.Slice) (hn : n.toNat = b.size)
+    (hb : ∀ k (hk : k < b.size), b[k] = arr[ao.toNat + k]!) (ro : USize) (hro : ro.toNat = off)
+    (r : UInt32Array) (k : Nat) (c : UInt32) (h : off + b.size ≤ r.size) :
+    ∀ (hr : WordArray.LoopBound r ro n) (j : USize), j.toNat = k →
+      WordArray.foldUInPlace n (WordArray.addMul1Step UInt32Array arr ao n ha x) r ro hr j c =
+        addMul1Loop r off b x k c h := by
+  induction r, k, c, h using addMul1Loop.induct off b x with
+  | case1 r k c h hk p ih =>
+    intro hr j hjk
+    have hj : j < n := USize.lt_iff_toNat_lt.2 (by lia)
+    rw [WordArray.foldUInPlace_lt _ _ _ _ _ _ _ hj, addMul1Loop, dite_eq_left hk]
+    simp only [WordArray.addMul1Step, uget_slice arr ao n ha b hb j hj k hjk hk,
+      uget_window r ro n hr off hro j hj k hjk (by lia)]
+    exact (fold_congr (uset_window r ro n hr off hro j hj k hjk _ (by lia)) rfl).trans
+      (ih _ _ (toNat_succ hj hjk))
+  | case2 r k c h hk =>
+    intro hr j hjk
+    rw [WordArray.foldUInPlace_ge _ _ _ _ _ _ _ (fun e => hk (by
+      have := USize.lt_iff_toNat_lt.1 e; lia)), addMul1Loop, dite_eq_right hk]
 
-/-- `addMul1` as a `foldInPlace`, which the compiler uses in its place. -/
+/-- `addMul1` by `main`'s `addMul1W`, which the compiler uses in its place. -/
 public def addMul1Fast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UInt32)
     (h : off + a.size ≤ r.size) : UInt32Array × UInt32 :=
   if hs : r.size < 4294967295 ∧ a.array.size < 4294967295 then
-    let arr := a.array
-    let st := a.start.toUSize
-    r.foldInPlace off.toUSize a.size.toUSize 0
-      (addMul1Step arr st a.size.toUSize (lt_usizeSize hs.2) (limbU_bound a (lt_usizeSize hs.2)) x)
-      (by
-        have := USize.le_size
-        have := a.stop_le_array_size
-        have := a.start_le_stop
-        have := a.size_eq
-        rw [toNat_toUSize (by lia), toNat_toUSize (by lia)]
-        exact h)
+    WordArray.addMul1W r off.toUSize a.array a.start.toUSize a.size.toUSize x 0
+      (loopBound_window r off a a.size (Nat.le_refl _) h hs).1
+      (loopBound_window r off a a.size (Nat.le_refl _) h hs).2
   else
     addMul1Loop r off a x 0 0 h
 
-/-- The fold of `addMul1Fast` from limb `k` on is `addMul1Loop` from limb `k` on. -/
-private theorem foldInPlace_loop_addMul1 (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
-    (x : UInt32) (has : a.array.size < USize.size) (s n : Nat) (hs : s = off) (hn : n = a.size)
-    (k : Nat) (c : UInt32) (h : off + a.size ≤ r.size) (h' hlen) :
-    UInt32Array.foldInPlace.loop a.size.toUSize
-        (addMul1Step a.array a.start.toUSize a.size.toUSize has (limbU_bound a has) x) s n r h'
-        hlen k c =
-      addMul1Loop r off a x k c h := by
-  subst s n
-  induction r, k, c, h using addMul1Loop.induct off a x with
-  | case1 r k c h hk p ih =>
-    rw [UInt32Array.foldInPlace.loop, addMul1Loop]
-    simp only [hk, ↓reduceDIte]
-    simp only [addMul1Step, limbU_eq a has k _ hk]
-    exact ih _
-  | case2 r k c h hk =>
-    rw [UInt32Array.foldInPlace.loop, addMul1Loop]
-    simp only [hk, ↓reduceDIte]
+/-- The bounds of `addMul1Fast` on its slice, as the generic passes read them. -/
+private theorem slice_eq (a : UInt32Array.Slice) (n : Nat) (hn : n ≤ a.size)
+    (has : a.array.size < 4294967295) :
+    n.toUSize.toNat = n ∧ a.start.toUSize.toNat = a.start := by
+  have := USize.le_size
+  have := a.stop_le_array_size
+  have := a.start_le_stop
+  have := a.size_eq
+  exact ⟨toNat_toUSize (by lia), toNat_toUSize (by lia)⟩
+
+private theorem toNat_off (r : UInt32Array) (off n : Nat) (h : off + n ≤ r.size)
+    (hs : r.size < 4294967295) : off.toUSize.toNat = off := by
+  have := USize.le_size
+  exact toNat_toUSize (by lia)
+
+/-- `addMul1` is the generic fold, when the arrays fit in a `USize`. -/
+private theorem addMul1_fold (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UInt32)
+    (h : off + a.size ≤ r.size) (hs : r.size < 4294967295 ∧ a.array.size < 4294967295) :
+    WordArray.foldUInPlace a.size.toUSize
+        (WordArray.addMul1Step UInt32Array a.array a.start.toUSize a.size.toUSize
+          (loopBound_window r off a a.size (Nat.le_refl _) h hs).2 x) r off.toUSize
+        (loopBound_window r off a a.size (Nat.le_refl _) h hs).1 0 0 =
+      addMul1 r off a x h := by
+  obtain ⟨hn, hst⟩ := slice_eq a a.size (Nat.le_refl _) hs.2
+  exact fold_addMul1 _ _ _ _ x off a hn (fun k hk => by
+      rw [hst, UInt32Array.Slice.getElem_eq_getElem!]) _
+    (toNat_off r off a.size h hs.1) r 0 0 h _ 0 rfl
 
 @[csimp] public theorem addMul1_eq_addMul1Fast : @addMul1 = @addMul1Fast := by
   funext r off a x h
-  rw [addMul1, addMul1Fast]
+  rw [addMul1Fast]
   split
   · rename_i hs
-    have := USize.le_size
-    have := a.stop_le_array_size
-    have := a.start_le_stop
-    have := a.size_eq
-    exact (foldInPlace_loop_addMul1 r off a x (lt_usizeSize hs.2) _ _ (toNat_toUSize (by lia))
-      (toNat_toUSize (by lia)) 0 0 h _ _).symm
+    rw [WordArray.addMul1W, WordArray.foldThen_eq', addMul1_fold r off a x h hs]
   · rfl
 
 /-! ## Correctness -/
@@ -187,24 +250,17 @@ public def addMul1Set (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x :
   p.1.set (off + a.size) p.2 (by rw [size_addMul1]; exact h)
 
 /--
-`addMul1Set` with `foldInPlaceThen`, which the compiler uses in its place: the loop stores the
+`addMul1Set` by `main`'s generic fold, which the compiler uses in its place: the loop stores the
 carry itself, so no pair of the new limbs and the carry is allocated.
 -/
 public def addMul1SetFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UInt32)
     (h : off + a.size < r.size) : UInt32Array :=
   if hs : r.size < 4294967295 ∧ a.array.size < 4294967295 then
-    let arr := a.array
-    let st := a.start.toUSize
-    r.foldInPlaceThen off.toUSize a.size.toUSize 0
-      (addMul1Step arr st a.size.toUSize (lt_usizeSize hs.2) (limbU_bound a (lt_usizeSize hs.2)) x)
-      (fun r' c => if h' : off + a.size < r'.size then r'.set (off + a.size) c h' else r')
-      (by
-        have := USize.le_size
-        have := a.stop_le_array_size
-        have := a.start_le_stop
-        have := a.size_eq
-        rw [toNat_toUSize (by lia), toNat_toUSize (by lia)]
-        lia)
+    WordFolds.foldThen a.size.toUSize
+      (WordArray.addMul1Step UInt32Array a.array a.start.toUSize a.size.toUSize
+        (loopBound_window r off a a.size (Nat.le_refl _) (by lia) hs).2 x) r off.toUSize
+      (loopBound_window r off a a.size (Nat.le_refl _) (by lia) hs).1 0 0
+      (fun r' e c => r'.set (off + a.size) c (by have : r'.size = r.size := e; lia))
   else
     let p := addMul1Loop r off a x 0 0 (by lia)
     if h' : off + a.size < p.1.size then p.1.set (off + a.size) p.2 h' else p.1
@@ -215,19 +271,8 @@ public def addMul1SetFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) 
   rw [addMul1Set, addMul1SetFast]
   split
   · rename_i hs
-    have := USize.le_size
-    have := a.stop_le_array_size
-    have := a.start_le_stop
-    have := a.size_eq
-    rw [UInt32Array.foldInPlaceThen_eq]
-    have heq : r.foldInPlace off.toUSize a.size.toUSize 0
-        (addMul1Step a.array a.start.toUSize a.size.toUSize (lt_usizeSize hs.2)
-          (limbU_bound a (lt_usizeSize hs.2)) x)
-        (by rw [toNat_toUSize (by lia), toNat_toUSize (by lia)]; lia) =
-        addMul1 r off a x (by lia) :=
-      foldInPlace_loop_addMul1 r off a x (lt_usizeSize hs.2) _ _ (toNat_toUSize (by lia))
-        (toNat_toUSize (by lia)) 0 0 (by lia) _ _
-    simp only [heq, hsz, h, ↓reduceDIte]
+    rw [WordArray.foldThen_eq']
+    simp only [addMul1_fold r off a x (by lia) hs]
   · simp only [addMul1] at hsz ⊢
     simp only [hsz, h, ↓reduceDIte]
 
@@ -249,60 +294,32 @@ public theorem addMul1SetPre_eq (r : UInt32Array) (off : Nat) (a : UInt32Array.S
       addMul1Set r off (a.slice 0 n) x (by rw [UInt32Array.Slice.size_slice]; lia) := by
   rw [addMul1SetPre]
 
-private theorem prefix_bound (a : UInt32Array.Slice) (n : Nat) (hn : n ≤ a.size)
-    (has : a.array.size < USize.size) :
-    a.start.toUSize.toNat + n.toUSize.toNat ≤ a.array.size := by
-  have := a.stop_le_array_size
-  have := a.start_le_stop
-  have := a.size_eq
-  rw [toNat_toUSize (by lia), toNat_toUSize (by lia)]
-  lia
-
-private theorem limbU_prefix_eq (a : UInt32Array.Slice) (n : Nat) (hn : n ≤ a.size)
-    (has : a.array.size < USize.size) (k : Nat) (hk) (hk' : k < n) :
-    limbU a.array a.start.toUSize n.toUSize has (prefix_bound a n hn has) k.toUSize hk =
-      (a.slice 0 n)[k]'(by rw [UInt32Array.Slice.size_slice]; lia) := by
-  have := a.stop_le_array_size
-  have := a.start_le_stop
-  have := a.size_eq
-  rw [limbU_eq_getElem _ _ _ _ _ _ _ (a.start + k)
-    (by rw [toNat_toUSize (by lia), toNat_toUSize (by lia)]), UInt32Array.Slice.getElem_slice]
-  simp only [Nat.zero_add]
-  rfl
-
-/-- The fold of `addMul1SetPreFast` from limb `k` on is `addMul1Loop` on the prefix. -/
-private theorem foldInPlace_loop_addMul1Pre (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
-    (n : Nat) (hn : n ≤ a.size) (x : UInt32) (has : a.array.size < USize.size) (s m : Nat)
-    (hs : s = off) (hm : m = n) (k : Nat) (c : UInt32) (h : off + (a.slice 0 n).size ≤ r.size)
-    (h' hlen) :
-    UInt32Array.foldInPlace.loop n.toUSize
-        (addMul1Step a.array a.start.toUSize n.toUSize has (prefix_bound a n hn has) x) s m r h'
-        hlen k c =
-      addMul1Loop r off (a.slice 0 n) x k c h := by
+/-- `addMul1` on the first `n` limbs of `a` is the generic fold over the array of `a`. -/
+private theorem addMul1Pre_fold (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (n : Nat)
+    (x : UInt32) (hn : n ≤ a.size) (h : off + n ≤ r.size)
+    (hs : r.size < 4294967295 ∧ a.array.size < 4294967295) (h') :
+    WordArray.foldUInPlace n.toUSize
+        (WordArray.addMul1Step UInt32Array a.array a.start.toUSize n.toUSize
+          (loopBound_window r off a n hn h hs).2 x) r off.toUSize
+        (loopBound_window r off a n hn h hs).1 0 0 =
+      addMul1 r off (a.slice 0 n) x h' := by
   have hsz : (a.slice 0 n).size = n := by rw [UInt32Array.Slice.size_slice]; lia
-  subst s m
-  induction r, k, c, h using addMul1Loop.induct off (a.slice 0 n) x with
-  | case1 r k c h hk p ih =>
-    rw [UInt32Array.foldInPlace.loop, addMul1Loop]
-    simp only [show k < n by lia, hk, ↓reduceDIte]
-    simp only [addMul1Step, limbU_prefix_eq a n hn has k _ (by lia)]
-    exact ih _
-  | case2 r k c h hk =>
-    rw [UInt32Array.foldInPlace.loop, addMul1Loop]
-    simp only [show ¬ k < n by lia, hk, ↓reduceDIte]
+  obtain ⟨hn', hst⟩ := slice_eq a n hn hs.2
+  exact fold_addMul1 _ _ _ _ x off (a.slice 0 n) (by rw [hn', hsz])
+    (fun k hk => by
+      rw [UInt32Array.Slice.getElem_slice, UInt32Array.Slice.getElem_eq_getElem!, hst,
+        Nat.zero_add])
+    _ (toNat_off r off n h hs.1) r 0 0 h' _ 0 rfl
 
-/-- `addMul1SetPre` with `foldInPlaceThen` over the array of `a`, used by the compiler. -/
+/-- `addMul1SetPre` by `main`'s generic fold over the array of `a`, used by the compiler. -/
 public def addMul1SetPreFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (n : Nat)
     (x : UInt32) (hn : n ≤ a.size) (h : off + n < r.size) : UInt32Array :=
   if hs : r.size < 4294967295 ∧ a.array.size < 4294967295 then
-    let arr := a.array
-    let st := a.start.toUSize
-    r.foldInPlaceThen off.toUSize n.toUSize 0
-      (addMul1Step arr st n.toUSize (lt_usizeSize hs.2) (prefix_bound a n hn (lt_usizeSize hs.2)) x)
-      (fun r' c => if h' : off + n < r'.size then r'.set (off + n) c h' else r')
-      (by
-        have := USize.le_size
-        rw [toNat_toUSize (by lia), toNat_toUSize (by lia)]; lia)
+    WordFolds.foldThen n.toUSize
+      (WordArray.addMul1Step UInt32Array a.array a.start.toUSize n.toUSize
+        (loopBound_window r off a n hn (by lia) hs).2 x) r off.toUSize
+      (loopBound_window r off a n hn (by lia) hs).1 0 0
+      (fun r' e c => r'.set (off + n) c (by have : r'.size = r.size := e; lia))
   else
     addMul1Set r off (a.slice 0 n) x (by rw [UInt32Array.Slice.size_slice]; lia)
 
@@ -310,21 +327,11 @@ public def addMul1SetPreFast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slic
     @addMul1SetPre = @addMul1SetPreFast := by
   funext r off a n x hn h
   have hsz : (a.slice 0 n).size = n := by rw [UInt32Array.Slice.size_slice]; lia
-  have hsize := size_addMul1 r off (a.slice 0 n) x (by lia)
   rw [addMul1SetPre, addMul1SetPreFast]
   split
   · rename_i hs
-    have := USize.le_size
-    rw [UInt32Array.foldInPlaceThen_eq]
-    have heq : r.foldInPlace off.toUSize n.toUSize 0
-        (addMul1Step a.array a.start.toUSize n.toUSize (lt_usizeSize hs.2)
-          (prefix_bound a n hn (lt_usizeSize hs.2)) x)
-        (by rw [toNat_toUSize (by lia), toNat_toUSize (by lia)]; lia) =
-        addMul1 r off (a.slice 0 n) x (by lia) :=
-      foldInPlace_loop_addMul1Pre r off a n hn x (lt_usizeSize hs.2) _ _ (toNat_toUSize (by lia))
-        (toNat_toUSize (by lia)) 0 0 (by lia) _ _
-    rw [heq, addMul1Set]
-    simp only [hsz, hsize, h, ↓reduceDIte]
+    rw [WordArray.foldThen_eq', addMul1Set]
+    simp only [addMul1Pre_fold r off a n x hn (by lia) hs (by lia), hsz]
   · rfl
 
 /-- When the limb at `off + a.size` is zero, `addMul1Set` adds `a * x` at limb `off`. -/
@@ -394,87 +401,60 @@ public def subMul1 (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UI
     (h : off + a.size ≤ r.size) : UInt32Array × UInt32 :=
   subMul1Loop r off a x 0 0 h
 
-/--
-The step of the fold of `subMul1Fast`: subtracts limb `k` of the slice `arr[st...st + len]` times
-`x` from `y`, with the borrow carried as `2³² - 1` minus it (`UInt32.subMulBiased`).
--/
-@[inline] public def subMul1Step (arr : UInt32Array) (st len : USize) (has : arr.size < USize.size)
-    (h : st.toNat + len.toNat ≤ arr.size) (x : UInt32) (k : USize) (hk : k.toNat < len.toNat)
-    (y h' : UInt32) : UInt32 × UInt32 :=
-  y.subMulBiased (limbU arr st len has h k hk) x h'
+/-- The step of `main`'s `subMul1W`, with the borrow carried as `2³² - 1` minus it. -/
+private theorem subMulB_not (z y x c : UInt32) :
+    WordArray.subMulB UInt32Array z y x (~~~c) = ((z.subMul y x c).1, ~~~(z.subMul y x c).2) :=
+  UInt32.subMulBiased_not z y x c
 
-/-- `subMul1` as a `foldInPlace`, which the compiler uses in its place, as for `addMul1Fast`. -/
+/--
+The generic fold of `subMul1Step` over the limbs of `b` read from `arr`, from limb `k` on, with
+the borrow `c` carried as `~~~c`, is `subMul1Loop` from limb `k` on.
+-/
+private theorem fold_subMul1 (arr : UInt32Array) (ao n : USize) (ha : WordArray.LoopBound arr ao n)
+    (x : UInt32) (off : Nat) (b : UInt32Array.Slice) (hn : n.toNat = b.size)
+    (hb : ∀ k (hk : k < b.size), b[k] = arr[ao.toNat + k]!) (ro : USize) (hro : ro.toNat = off)
+    (r : UInt32Array) (k : Nat) (c : UInt32) (h : off + b.size ≤ r.size) :
+    ∀ (hr : WordArray.LoopBound r ro n) (j : USize), j.toNat = k →
+      WordArray.foldUInPlace n (WordArray.subMul1Step UInt32Array arr ao n ha x) r ro hr j (~~~c) =
+        ((subMul1Loop r off b x k c h).1, ~~~(subMul1Loop r off b x k c h).2) := by
+  induction r, k, c, h using subMul1Loop.induct off b x with
+  | case1 r k c h hk p ih =>
+    intro hr j hjk
+    have hj : j < n := USize.lt_iff_toNat_lt.2 (by lia)
+    rw [WordArray.foldUInPlace_lt _ _ _ _ _ _ _ hj, subMul1Loop, dite_eq_left hk]
+    simp only [WordArray.subMul1Step, uget_slice arr ao n ha b hb j hj k hjk hk,
+      uget_window r ro n hr off hro j hj k hjk (by lia), subMulB_not]
+    exact (fold_congr (uset_window r ro n hr off hro j hj k hjk _ (by lia)) rfl).trans
+      (ih _ _ (toNat_succ hj hjk))
+  | case2 r k c h hk =>
+    intro hr j hjk
+    rw [WordArray.foldUInPlace_ge _ _ _ _ _ _ _ (fun e => hk (by
+      have := USize.lt_iff_toNat_lt.1 e; lia)), subMul1Loop, dite_eq_right hk]
+
+/-- `subMul1` by `main`'s generic fold, which the compiler uses in its place. -/
 public def subMul1Fast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x : UInt32)
     (h : off + a.size ≤ r.size) : UInt32Array × UInt32 :=
   if hs : r.size < 4294967295 ∧ a.array.size < 4294967295 then
-    let arr := a.array
-    let st := a.start.toUSize
-    r.foldInPlaceThen off.toUSize a.size.toUSize 0xFFFFFFFF
-      (subMul1Step arr st a.size.toUSize (lt_usizeSize hs.2) (limbU_bound a (lt_usizeSize hs.2)) x)
-      (fun r' h' => (r', ~~~h'))
-      (by
-        have := USize.le_size
-        have := a.stop_le_array_size
-        have := a.start_le_stop
-        have := a.size_eq
-        rw [toNat_toUSize (by lia), toNat_toUSize (by lia)]
-        exact h)
+    WordFolds.foldThen a.size.toUSize
+      (WordArray.subMul1Step UInt32Array a.array a.start.toUSize a.size.toUSize
+        (loopBound_window r off a a.size (Nat.le_refl _) h hs).2 x) r off.toUSize
+      (loopBound_window r off a a.size (Nat.le_refl _) h hs).1 0 0xFFFFFFFF
+      (fun r' _ c => (r', ~~~c))
   else
     subMul1Loop r off a x 0 0 h
-
-/--
-The fold of `subMul1Fast` from limb `k` on, with the borrow `c` carried as `~~~c`, is
-`subMul1Loop` from limb `k` on.
--/
-private theorem foldInPlace_loop_subMul1 (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
-    (x : UInt32) (has : a.array.size < USize.size) (s n : Nat) (hs : s = off) (hn : n = a.size)
-    (k : Nat) (c : UInt32) (h : off + a.size ≤ r.size) (h' hlen) :
-    UInt32Array.foldInPlace.loop a.size.toUSize
-        (subMul1Step a.array a.start.toUSize a.size.toUSize has (limbU_bound a has) x) s n r h'
-        hlen k (~~~c) =
-      ((subMul1Loop r off a x k c h).1, ~~~(subMul1Loop r off a x k c h).2) := by
-  subst s n
-  induction r, k, c, h using subMul1Loop.induct off a x with
-  | case1 r k c h hk p ih =>
-    rw [UInt32Array.foldInPlace.loop, subMul1Loop]
-    simp only [hk, ↓reduceDIte]
-    simp only [subMul1Step, limbU_eq a has k _ hk, UInt32.subMulBiased_not]
-    exact ih _
-  | case2 r k c h hk =>
-    rw [UInt32Array.foldInPlace.loop, subMul1Loop]
-    simp only [hk, ↓reduceDIte]
 
 @[csimp] public theorem subMul1_eq_subMul1Fast : @subMul1 = @subMul1Fast := by
   funext r off a x h
   rw [subMul1, subMul1Fast]
   split
   · rename_i hs
-    have := USize.le_size
-    have := a.stop_le_array_size
-    have := a.start_le_stop
-    have := a.size_eq
-    rw [UInt32Array.foldInPlaceThen_eq, UInt32Array.foldInPlace,
-      show (0xFFFFFFFF : UInt32) = ~~~0 from rfl,
-      foldInPlace_loop_subMul1 r off a x (lt_usizeSize hs.2) _ _ (toNat_toUSize (by lia))
-        (toNat_toUSize (by lia)) 0 0 h _ _]
+    obtain ⟨hn, hst⟩ := slice_eq a a.size (Nat.le_refl _) hs.2
+    rw [WordArray.foldThen_eq', show (0xFFFFFFFF : UInt32) = ~~~0 from rfl,
+      fold_subMul1 _ _ _ _ x off a hn (fun k hk => by
+          rw [hst, UInt32Array.Slice.getElem_eq_getElem!]) _
+        (toNat_off r off a.size h hs.1) r 0 0 h _ 0 rfl]
     simp
   · rfl
-
-/--
-`subMul1` as the fold of `subMul1Fast`, for callers that end the fold themselves with
-`foldInPlaceThen`, as division does.
--/
-public theorem subMul1_eq_foldInPlace (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
-    (x : UInt32) (h : off + a.size ≤ r.size)
-    (hs : r.size < 4294967295 ∧ a.array.size < 4294967295) (hf) :
-    subMul1 r off a x h =
-      ((r.foldInPlace off.toUSize a.size.toUSize 0xFFFFFFFF
-          (subMul1Step a.array a.start.toUSize a.size.toUSize (lt_usizeSize hs.2)
-            (limbU_bound a (lt_usizeSize hs.2)) x) hf).1,
-        ~~~(r.foldInPlace off.toUSize a.size.toUSize 0xFFFFFFFF
-          (subMul1Step a.array a.start.toUSize a.size.toUSize (lt_usizeSize hs.2)
-            (limbU_bound a (lt_usizeSize hs.2)) x) hf).2) := by
-  rw [subMul1_eq_subMul1Fast, subMul1Fast, dite_eq_left hs, UInt32Array.foldInPlaceThen_eq]
 
 private theorem subMul1Loop_spec (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
     (x : UInt32) (j : Nat) (c : UInt32) (h : off + a.size ≤ r.size) (hj : j ≤ a.size) :
