@@ -6,6 +6,7 @@ module
 
 public import MPN.FFT.Transform
 public import MPN.FFT.Product
+public import MPN.FFT.Kernels
 public import MPN.Mul.Toom
 public import MPN.Sqr.Karatsuba
 
@@ -13,8 +14,8 @@ public import MPN.Sqr.Karatsuba
 # FFT multiplication
 
 Schönhage–Strassen multiplication on 64-bit limbs: `main`'s `MPN.FFT.Product` on the instance
-`fftOps64` of `FFTOps`, whose operations are the in-place loops of `MPN.AddSub` and
-`MPN.FFT.Fermat` with `Nat` offsets, with `mulToom` and `sqrKaratsuba` for the pointwise products.
+`fftOps64` of `FFTOps`, whose operations are `main`'s generic kernels (`MPN.FFT.Kernels`), with
+`mulToom` and `sqrKaratsuba` for the pointwise products.
 `fftMulAt`, `fftMulModAt` and `fftSqrAt` take `USlice`s; `fftMul`, `fftSqr` and the dispatchers
 `MPN.mul` and `MPN.sqr` choose the parameters.
 -/
@@ -22,29 +23,6 @@ Schönhage–Strassen multiplication on 64-bit limbs: `main`'s `MPN.FFT.Product`
 open ScalarArray UInt64Array
 
 namespace MPN.FFT
-
-/-- `main`'s `incrAt_spec` on `UInt64Array`. -/
-private theorem incrAt_spec' (arr : UInt64Array) (o len : USize) (h : LoopBound arr o len)
-    (j : USize) (c : UInt64) :
-    (incrAt arr o len h j c).1.size = arr.size ∧
-      (∀ i, (i < o.toNat + j.toNat ∨ o.toNat + len.toNat ≤ i) →
-        (incrAt arr o len h j c).1[i]! = arr[i]!) ∧
-      (incrAt arr o len h j c).1.valAt (o.toNat + j.toNat) (len.toNat - j.toNat) +
-          2 ^ (64 * (len.toNat - j.toNat)) * (incrAt arr o len h j c).2.toNat =
-        arr.valAt (o.toNat + j.toNat) (len.toNat - j.toNat) + c.toNat :=
-  incrAt_spec arr o len h j c
-
-/-- The value of a window: its low `n` limbs and its top limb. -/
-private theorem valAt_top64 (a : UInt64Array) (o n : Nat) :
-    a.valAt o (n + 1) = a.valAt o n + 2 ^ (64 * n) * a[o + n]!.toNat := valAt_top a o n
-
-/-- `main`'s `normAt_spec` on `UInt64Array`. -/
-private theorem normAt_spec' (arr : UInt64Array) (n o : USize) (h : Win arr n o)
-    (hn : 1 ≤ n.toNat) :
-    (normAt arr n o h).size = arr.size ∧
-      (∀ i, (i < o.toNat ∨ o.toNat + n.toNat + 1 ≤ i) → (normAt arr n o h)[i]! = arr[i]!) ∧
-      (normAt arr n o h).valAt o.toNat (n.toNat + 1) = arr.valAt o.toNat (n.toNat + 1) % fermat n.toNat :=
-  normAt_spec arr n o h hn
 
 variable (cfg : Config)
 
@@ -111,309 +89,6 @@ public theorem pieceSl_spec (a : USlice) (m i : Nat) (hS : a.array.size < USize.
   · rw [Nat.min_eq_left h]
   · rw [show a.size.toNat - i * m = 0 by lia, Nat.min_zero, valAt_zero, valAt_zero]
 
-/-! ## The operations of `FFTOps` -/
-
-/-- Adds `b` to the limbs `o` to `o + len - 1` of `arr`, with the carry out. -/
-public def addAt (arr : UInt64Array) (o len : Nat) (b : USlice) : UInt64Array × UInt64 :=
-  addInto (sl arr o len) b 0
-
-public theorem addAt_spec (arr : UInt64Array) (o len : Nat) (b : USlice) (h : o + len ≤ arr.size)
-    (hS : arr.size < USize.size) (hb : b.size.toNat ≤ len) :
-    (addAt arr o len b).1.size = arr.size ∧
-      (∀ i, (i < o ∨ o + len ≤ i) → (addAt arr o len b).1[i]! = arr[i]!) ∧
-      (addAt arr o len b).1.valAt o len + 2 ^ (64 * len) * (addAt arr o len b).2.toNat =
-        arr.valAt o len + b.toNat := by
-  obtain ⟨s₁, s₂, s₃, s₄⟩ := sl_spec arr o len h hS
-  have hb' : b.size ≤ (sl arr o len).size := USize.le_iff_toNat_le.2 (by rw [s₃]; exact hb)
-  refine ⟨by rw [addAt, size_addInto, s₁], fun i hi => ?_, ?_⟩
-  · rw [addAt, getElem!_addInto _ _ _ i (by rw [s₂, s₃]; exact hi), s₁]
-  · have := valAt_addInto (sl arr o len) b 0 hb'
-    rw [s₂, s₃, s₁, UInt64.toNat_zero, Nat.add_zero] at this
-    exact this
-
-/-- `normAt` with `Nat` offsets, which checks its bounds. -/
-public def normG (arr : UInt64Array) (n d : Nat) : UInt64Array :=
-  if h : Win arr n.toUSize d.toUSize then normAt arr n.toUSize d.toUSize h else arr
-
-public theorem normG_spec (arr : UInt64Array) (n d : Nat) (hS : arr.size < USize.size)
-    (hd : d + n + 1 ≤ arr.size) (hn : 1 ≤ n) :
-    (normG arr n d).size = arr.size ∧
-      (∀ i, (i < d ∨ d + n + 1 ≤ i) → (normG arr n d)[i]! = arr[i]!) ∧
-      win (normG arr n d) n d = win arr n d % fermat n := by
-  have hn' : n.toUSize.toNat = n := by rw [USize.toNat_ofNat', Nat.mod_eq_of_lt (by lia)]
-  have hd' : d.toUSize.toNat = d := by rw [USize.toNat_ofNat', Nat.mod_eq_of_lt (by lia)]
-  have w : Win arr n.toUSize d.toUSize := ⟨by rw [hn', hd']; exact hd, hS⟩
-  rw [normG, dite_eq_left w]
-  have := normAt_spec' arr n.toUSize d.toUSize w (by lia)
-  simp only [hn', hd'] at this
-  exact this
-
-/-- The value of `reduceAt`: `P_lo - P_mid + P_hi`, plus a multiple of `F`. -/
-private theorem reduce_eq {V Plo Pmid c H Bn : Nat} (h : V + Pmid = Plo + Bn * c) (hc : c ≤ 1)
-    (hH : H ≤ 1) (hV : V < Bn) :
-    Plo + Bn * Pmid + Bn * Bn * H = V + (c + H) + (Bn + 1) * (Pmid - c + H * (Bn - 1)) := by
-  obtain ⟨B', rfl⟩ : ∃ B', Bn = B' + 1 := ⟨Bn - 1, by lia⟩
-  rcases Nat.lt_or_ge c 1 with ec | ec <;> rcases Nat.lt_or_ge H 1 with eH | eH
-  · obtain rfl : c = 0 := by lia
-    obtain rfl : H = 0 := by lia
-    grind
-  · obtain rfl : c = 0 := by lia
-    obtain rfl : H = 1 := by lia
-    grind
-  · obtain rfl : c = 1 := by lia
-    obtain rfl : H = 0 := by lia
-    obtain ⟨P', rfl⟩ : ∃ P', Pmid = P' + 1 := ⟨Pmid - 1, by lia⟩
-    grind
-  · obtain rfl : c = 1 := by lia
-    obtain rfl : H = 1 := by lia
-    obtain ⟨P', rfl⟩ : ∃ P', Pmid = P' + 1 := ⟨Pmid - 1, by lia⟩
-    grind
-
-/-- Writes `P % F` into the window at `d`, for `P` of `2 n + 2` limbs: `P_lo - P_mid + P_hi`. -/
-public def reduceAt (arr : UInt64Array) (n d : Nat) (P : UInt64Array) : UInt64Array :=
-  let q := subN (sl arr d n) (sl P 0 n) (sl P n n) 0
-  -- The carry first, so that the pair is dead when the array is written.
-  let c := q.2 + P[2 * n]!
-  let a := q.1
-  let a := if h : (d + n).toUSize.toNat < a.size then a.uset (d + n).toUSize 0 h else a
-  let a := if h : LoopBound a d.toUSize (n + 1).toUSize
-    then (incrAt a d.toUSize (n + 1).toUSize h 0 c).1 else a
-  normG a n d
-
-set_option maxHeartbeats 400000 in
-public theorem reduceAt_spec (arr : UInt64Array) (n d : Nat) (P : UInt64Array)
-    (hS : arr.size < USize.size) (hd : d + n + 1 ≤ arr.size) (hn : 1 ≤ n)
-    (hP : P.size = 2 * n + 2) (hPS : P.size < USize.size)
-    (hPv : P.valAt 0 (2 * n + 2) ≤ 2 ^ (64 * n) * 2 ^ (64 * n)) :
-    (reduceAt arr n d P).size = arr.size ∧
-      (∀ i, (i < d ∨ d + n + 1 ≤ i) → (reduceAt arr n d P)[i]! = arr[i]!) ∧
-      win (reduceAt arr n d P) n d = P.valAt 0 (2 * n + 2) % fermat n := by
-  obtain ⟨r₁, r₂, r₃, -⟩ := sl_spec arr d n (by lia) hS
-  obtain ⟨a₁, a₂, a₃, -⟩ := sl_spec P 0 n (by lia) hPS
-  obtain ⟨b₁, b₂, b₃, -⟩ := sl_spec P n n (by lia) hPS
-  have hdn : (d + n).toUSize.toNat = d + n := by rw [USize.toNat_ofNat', Nat.mod_eq_of_lt (by lia)]
-  have hd' : d.toUSize.toNat = d := by rw [USize.toNat_ofNat', Nat.mod_eq_of_lt (by lia)]
-  have hn1 : (n + 1).toUSize.toNat = n + 1 := by
-    rw [USize.toNat_ofNat', Nat.mod_eq_of_lt (by lia)]
-  -- `P_lo - P_mid`.
-  have hs₁ := size_subN (sl arr d n) (sl P 0 n) (sl P n n) 0
-  have hs₂ := valAt_subN (sl arr d n) (sl P 0 n) (sl P n n) 0
-  simp only [r₂, r₃, a₁, a₂, a₃, b₁, b₂, b₃, Nat.min_self, UInt64.toNat_zero, Nat.add_zero,
-    r₁] at hs₁ hs₂
-  have hs₃ := fun i hi => getElem!_subN (sl arr d n) (sl P 0 n) (sl P n n) 0 i hi
-  simp only [r₂, r₃, a₃, b₃, Nat.min_self, r₁] at hs₃
-  dsimp only [reduceAt]
-  generalize subN (sl arr d n) (sl P 0 n) (sl P n n) 0 = q at *
-  -- The top limb.
-  have hidx : (d + n).toUSize.toNat < q.1.size := by rw [hdn, hs₁]; lia
-  rw [dite_eq_left hidx]
-  have t₁ : (q.1.uset (d + n).toUSize 0 hidx).valAt d (n + 1) = q.1.valAt d n := by
-    rw [valAt_top64, getElem!_uset, valAt_uset_of _ _ _ _ _ _ (by rw [hdn]; lia)]
-    simp only [hdn, ↓reduceIte, UInt64.toNat_zero, Nat.mul_zero, Nat.add_zero]
-  have hlb : LoopBound (q.1.uset (d + n).toUSize 0 hidx) d.toUSize (n + 1).toUSize := by
-    constructor <;> simp only [size_uset, hd', hn1, hs₁] <;> lia
-  rw [dite_eq_left hlb]
-  -- The increment by the borrow and `P_hi`.
-  have hP₃ := valAt_lt P 0 n
-  have hP₄ := valAt_lt P n n
-  have hPv' : P.valAt 0 (2 * n + 2) = P.valAt 0 n + 2 ^ (64 * n) * P.valAt n n +
-      2 ^ (64 * n) * 2 ^ (64 * n) * (P[2 * n]!.toNat + 2 ^ 64 * P[2 * n + 1]!.toNat) := by
-    have e₁ := UInt64Array.valAt_add P 0 n (n + 2)
-    have e₂ := UInt64Array.valAt_add P n n 2
-    have e₃ := valAt_succ P (n + n) 1
-    have e₄ := valAt_one P (n + n + 1)
-    rw [show n + (n + 2) = 2 * n + 2 by lia, Nat.zero_add] at e₁
-    rw [e₂, e₃, e₄, show n + n = 2 * n by lia] at e₁
-    rw [e₁]
-    grind
-  have hB : 1 ≤ 2 ^ (64 * n) := Nat.one_le_two_pow
-  have hhi : P[2 * n]!.toNat + 2 ^ 64 * P[2 * n + 1]!.toNat ≤ 1 := by
-    rcases Nat.lt_or_ge (P[2 * n]!.toNat + 2 ^ 64 * P[2 * n + 1]!.toNat) 2 with e | e
-    · lia
-    · have := Nat.mul_le_mul_left (2 ^ (64 * n) * 2 ^ (64 * n)) e
-      have : 1 ≤ 2 ^ (64 * n) * 2 ^ (64 * n) := Nat.mul_le_mul hB hB
-      lia
-  have hP₁ : P[2 * n + 1]!.toNat = 0 := by
-    rcases Nat.eq_zero_or_pos P[2 * n + 1]!.toNat with e | e
-    · exact e
-    · have := Nat.mul_le_mul_left (2 ^ 64) e; lia
-  simp only [hP₁, Nat.mul_zero, Nat.add_zero] at hPv' hhi
-  have hc₁ : q.2.toNat ≤ 1 := by
-    rcases Nat.lt_or_ge q.2.toNat 2 with e | e
-    · lia
-    · have := Nat.mul_le_mul_left (2 ^ (64 * n)) e
-      have := valAt_lt q.1 d n
-      lia
-  have hc : (q.2 + P[2 * n]!).toNat = q.2.toNat + P[2 * n]!.toNat := by
-    rw [UInt64.toNat_add, Nat.mod_eq_of_lt (by lia)]
-  obtain ⟨i₁, i₂, i₃⟩ := incrAt_spec' _ d.toUSize (n + 1).toUSize hlb 0 (q.2 + P[2 * n]!)
-  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, hd', hn1, size_uset] at i₁ i₂ i₃
-  rw [t₁, hc] at i₃
-  generalize incrAt (q.1.uset (d + n).toUSize 0 hidx) d.toUSize (n + 1).toUSize hlb 0
-    (q.2 + P[2 * n]!) = q' at *
-  -- No carry out of the window.
-  have hq' := valAt_lt q.1 d n
-  have hB1 : 2 ^ (64 * (n + 1)) = 2 ^ (64 * n) * 2 ^ 64 := by rw [Nat.mul_succ, Nat.pow_add]
-  have hc' : q'.2.toNat = 0 := by
-    rcases Nat.eq_zero_or_pos q'.2.toNat with e | e
-    · exact e
-    · have := Nat.mul_le_mul_left (2 ^ (64 * (n + 1))) e
-      rw [hB1] at this
-      have : 2 ^ (64 * n) * 2 ≤ 2 ^ (64 * n) * 2 ^ 64 := Nat.mul_le_mul_left _ (by decide)
-      lia
-  rw [hc', Nat.mul_zero, Nat.add_zero] at i₃
-  obtain ⟨n₁, n₂, n₃⟩ := normG_spec q'.1 n d (by rw [i₁, hs₁]; exact hS) (by rw [i₁, hs₁]; exact hd)
-    hn
-  refine ⟨by rw [n₁, i₁, hs₁], fun i hi => ?_, ?_⟩
-  · rw [n₂ i hi, i₂ i hi, getElem!_uset, ite_eq_right_iff.2 (fun e => by rw [hdn] at e; lia),
-      hs₃ i (by lia)]
-  · rw [n₃, win, i₃]
-    simp only [fermat]
-    rw [hPv']
-    generalize P[2 * n]!.toNat = H at *
-    generalize P.valAt 0 n = Plo at *
-    generalize P.valAt n n = Pmid at *
-    generalize q.1.valAt d n = V at *
-    generalize q.2.toNat = c at *
-    generalize 2 ^ (64 * n) = Bn at *
-    rw [reduce_eq hs₂ hc₁ hhi hq', Nat.add_mul_mod_self_left]
-
-/-- The algebra of `addCoef`: the carry out of the region is zero. -/
-private theorem add_coef_eq {L₀ W R W' R' V c c' Po Pl Pr : Nat}
-    (hw : W' + Pl * c = W + V) (hr : R' + Pr * c' = R + c)
-    (hlt : L₀ + Po * (W + Pl * R) + Po * V < Po * Pl * Pr) :
-    L₀ + Po * (W' + Pl * R') = L₀ + Po * (W + Pl * R) + Po * V := by
-  have hc' : c' = 0 := by
-    rcases Nat.eq_zero_or_pos c' with e | e
-    · exact e
-    · exfalso
-      have h₁ : Po * (Pl * Pr) ≤ Po * (Pl * (Pr * c')) :=
-        Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ (Nat.le_mul_of_pos_right _ e))
-      have h₂ : Po * (W + Pl * R) + Po * V = Po * (W' + Pl * R') + Po * (Pl * (Pr * c')) := by
-        grind
-      grind
-  subst hc'
-  grind
-
-/--
-Adds the window of `len₀` limbs at `so` of `src` to the region of `T` limbs at `o` of `arr`, from
-its limb `off` on, with the carry out of the window into the rest of the region, stopping as soon
-as it is zero. Only the limbs of the window inside the region are added.
--/
-public def addCoef (arr : UInt64Array) (o T off : Nat) (src : UInt64Array) (so len₀ : Nat) :
-    UInt64Array :=
-  let len := min len₀ (T - off)
-  let q := addAt arr (o + off) len (sl src so len)
-  -- The carry first, so that the pair is dead when the array is written.
-  let c := q.2
-  let a := q.1
-  if h : LoopBound a (o + off + len).toUSize (T - off - len).toUSize
-  then (incrAt a (o + off + len).toUSize (T - off - len).toUSize h 0 c).1 else a
-
-set_option maxHeartbeats 400000 in
-public theorem addCoef_spec (arr : UInt64Array) (o T off : Nat) (src : UInt64Array) (so len₀ : Nat)
-    (hS : arr.size < USize.size) (hT : o + T ≤ arr.size) (hoff : off ≤ T)
-    (hsS : src.size < USize.size) (hs : so + len₀ ≤ src.size)
-    (hV : arr.valAt o T + 2 ^ (64 * off) * src.valAt so len₀ < 2 ^ (64 * T)) :
-    (addCoef arr o T off src so len₀).size = arr.size ∧
-      (∀ i, (i < o ∨ o + T ≤ i) → (addCoef arr o T off src so len₀)[i]! = arr[i]!) ∧
-      (addCoef arr o T off src so len₀).valAt o T =
-        arr.valAt o T + 2 ^ (64 * off) * src.valAt so len₀ := by
-  -- Only the limbs inside the region count.
-  have hsplitT : 2 ^ (64 * T) = 2 ^ (64 * off) * 2 ^ (64 * (T - off)) := by
-    rw [← Nat.pow_add]; congr 1; lia
-  have hVr : src.valAt so len₀ < 2 ^ (64 * (T - off)) := by
-    rw [hsplitT] at hV
-    rcases Nat.lt_or_ge (src.valAt so len₀) (2 ^ (64 * (T - off))) with e | e
-    · exact e
-    · have := Nat.mul_le_mul_left (2 ^ (64 * off)) e; lia
-  have hV' : src.valAt so (min len₀ (T - off)) = src.valAt so len₀ := by
-    rcases Nat.le_total len₀ (T - off) with h | h
-    · rw [Nat.min_eq_left h]
-    · rw [Nat.min_eq_right h]
-      have e := UInt64Array.valAt_add src so (T - off) (len₀ - (T - off))
-      rw [show T - off + (len₀ - (T - off)) = len₀ by lia] at e
-      have hP := Nat.two_pow_pos (64 * (T - off))
-      rcases Nat.eq_zero_or_pos (src.valAt (so + (T - off)) (len₀ - (T - off))) with e₀ | e₀
-      · rw [e, e₀, Nat.mul_zero, Nat.add_zero]
-      · have := Nat.mul_le_mul_left (2 ^ (64 * (T - off))) e₀; lia
-  obtain ⟨b₁, -, -, b₄⟩ := sl_spec src so (min len₀ (T - off)) (by lia) hsS
-  obtain ⟨a₁, a₂, a₃⟩ := addAt_spec arr (o + off) (min len₀ (T - off))
-    (sl src so (min len₀ (T - off))) (by lia) hS
-    (by rw [(sl_spec src so _ (by lia) hsS).2.2.1]; exact Nat.le_refl _)
-  rw [b₄, hV'] at a₃
-  dsimp only [addCoef]
-  generalize addAt arr (o + off) (min len₀ (T - off)) (sl src so (min len₀ (T - off))) = q at *
-  have ho₁ : (o + off + min len₀ (T - off)).toUSize.toNat = o + off + min len₀ (T - off) := by
-    rw [USize.toNat_ofNat', Nat.mod_eq_of_lt (by lia)]
-  have ho₂ : (T - off - min len₀ (T - off)).toUSize.toNat = T - off - min len₀ (T - off) := by
-    rw [USize.toNat_ofNat', Nat.mod_eq_of_lt (by lia)]
-  have hlb : LoopBound q.1 (o + off + min len₀ (T - off)).toUSize
-      (T - off - min len₀ (T - off)).toUSize := by
-    refine ⟨?_, ?_⟩
-    · rw [ho₁, ho₂, a₁]; lia
-    · rw [ho₁, ho₂]; lia
-  rw [dite_eq_left hlb]
-  obtain ⟨i₁, i₂, i₃⟩ := incrAt_spec' q.1 _ _ hlb 0 q.2
-  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, ho₁, ho₂] at i₁ i₂ i₃
-  refine ⟨by rw [i₁, a₁], fun i hi => by rw [i₂ i (by lia), a₂ i (by lia)], ?_⟩
-  -- The region in three parts: below `off`, the window, and the rest.
-  have hreg : ∀ a : UInt64Array, a.valAt o T = a.valAt o off + 2 ^ (64 * off) *
-      (a.valAt (o + off) (min len₀ (T - off)) + 2 ^ (64 * min len₀ (T - off)) *
-        a.valAt (o + off + min len₀ (T - off)) (T - off - min len₀ (T - off))) := by
-    intro a
-    rw [← UInt64Array.valAt_add, ← UInt64Array.valAt_add]
-    congr 1; lia
-  have hlo₁ : (incrAt q.1 _ _ hlb 0 q.2).1.valAt o off = arr.valAt o off :=
-    UInt64Array.valAt_congr _ fun i _ _ => by rw [i₂ i (by lia), a₂ i (by lia)]
-  have hw₁ : (incrAt q.1 _ _ hlb 0 q.2).1.valAt (o + off) (min len₀ (T - off)) =
-      q.1.valAt (o + off) (min len₀ (T - off)) :=
-    UInt64Array.valAt_congr _ fun i _ _ => i₂ i (by lia)
-  have hr₁ : q.1.valAt (o + off + min len₀ (T - off)) (T - off - min len₀ (T - off)) =
-      arr.valAt (o + off + min len₀ (T - off)) (T - off - min len₀ (T - off)) :=
-    UInt64Array.valAt_congr _ fun i _ _ => a₂ i (by lia)
-  rw [hr₁] at i₃
-  rw [hreg, hreg arr, hlo₁, hw₁]
-  have hsplit2 : 2 ^ (64 * (T - off)) = 2 ^ (64 * min len₀ (T - off)) *
-      2 ^ (64 * (T - off - min len₀ (T - off))) := by rw [← Nat.pow_add]; congr 1; lia
-  rw [hsplitT, hsplit2, ← Nat.mul_assoc, hreg arr] at hV
-  exact add_coef_eq a₃ i₃ hV
-
-/-- `addAt` of a range of `src`, when it does not carry out. -/
-public def addRangeG (arr : UInt64Array) (o len : Nat) (src : UInt64Array) (so slen : Nat) :
-    UInt64Array :=
-  (addAt arr o len (sl src so slen)).1
-
-public theorem addRangeG_spec (arr : UInt64Array) (o len : Nat) (src : UInt64Array) (so slen : Nat)
-    (hS : arr.size < USize.size) (h : o + len ≤ arr.size) (hsS : src.size < USize.size)
-    (hs : so + slen ≤ src.size) (hl : slen ≤ len)
-    (hV : arr.valAt o len + src.valAt so slen < 2 ^ (64 * len)) :
-    (addRangeG arr o len src so slen).size = arr.size ∧
-      (∀ i, (i < o ∨ o + len ≤ i) → (addRangeG arr o len src so slen)[i]! = arr[i]!) ∧
-      (addRangeG arr o len src so slen).valAt o len = arr.valAt o len + src.valAt so slen := by
-  obtain ⟨-, -, b₃, b₄⟩ := sl_spec src so slen hs hsS
-  obtain ⟨a₁, a₂, a₃⟩ := addAt_spec arr o len (sl src so slen) h hS (by rw [b₃]; exact hl)
-  rw [b₄] at a₃
-  have hc : (addAt arr o len (sl src so slen)).2.toNat = 0 := by
-    rcases Nat.eq_zero_or_pos (addAt arr o len (sl src so slen)).2.toNat with e | e
-    · exact e
-    · have := Nat.mul_le_mul_left (2 ^ (64 * len)) e; lia
-  rw [hc, Nat.mul_zero, Nat.add_zero] at a₃
-  exact ⟨a₁, a₂, a₃⟩
-
-/-- `zeroInto` with `Nat` offsets. -/
-public def zeroRangeG (arr : UInt64Array) (o len : Nat) : UInt64Array := zeroInto (sl arr o len)
-
-public theorem zeroRangeG_spec (arr : UInt64Array) (o len : Nat) (hS : arr.size < USize.size)
-    (h : o + len ≤ arr.size) :
-    (zeroRangeG arr o len).size = arr.size ∧
-      (∀ i, (i < o ∨ o + len ≤ i) → (zeroRangeG arr o len)[i]! = arr[i]!) ∧
-      (zeroRangeG arr o len).valAt o len = 0 := by
-  obtain ⟨s₁, s₂, s₃, -⟩ := sl_spec arr o len h hS
-  obtain ⟨z₁, z₂, z₃⟩ := zeroInto_spec (sl arr o len)
-  rw [s₁, s₂, s₃] at *
-  exact ⟨z₁, z₂, z₃⟩
-
 /-! ## The instance -/
 
 /-- The operations of `FFTOps` on 64-bit limbs. -/
@@ -423,14 +98,14 @@ public instance fftOps64 : FFTOps UInt64Array UInt64 where
   val_get_zeros n i := by
     have := valAt_replicate_zero n i 1
     rwa [valAt_one] at this
-  addRange := addRangeG
-  addRange_spec := addRangeG_spec
-  reduce := reduceAt
-  reduce_spec := reduceAt_spec
-  addCoef := addCoef
-  addCoef_spec := addCoef_spec
-  zeroRange := zeroRangeG
-  zeroRange_spec := zeroRangeG_spec
+  addRange := WordArray.addIntoK
+  addRange_spec := WordArray.addRange_spec
+  reduce := WordArray.reduceK
+  reduce_spec := WordArray.reduceK_spec
+  addCoef := WordArray.addCoefK
+  addCoef_spec := WordArray.addCoefK_spec
+  zeroRange := WordArray.zeroIntoK
+  zeroRange_spec := WordArray.zeroRange_spec
 
 /-- The pointwise products of the FFT: `mulToom` into `P`. -/
 public def mulP64 (cfg : Config) (P arr : UInt64Array) (x y n : Nat) : UInt64Array :=
@@ -785,7 +460,8 @@ public def chunkLoop (cfg : Config) (T c rs : Nat) (a b : USlice) :
       (UInt64Array.replicate ((FFT.pieceSl a c i).size.toNat + b.size.toNat) 0).toUSlice
       (FFT.pieceSl a c i) b
     chunkLoop cfg T c rs a b
-      (addCoef arr rs T (i * c) P 0 ((FFT.pieceSl a c i).size.toNat + b.size.toNat)) (i + 1) cnt
+      (WordArray.addCoefK arr rs T (i * c) P 0 ((FFT.pieceSl a c i).size.toNat + b.size.toNat))
+        (i + 1) cnt
 
 set_option maxHeartbeats 400000 in
 public theorem chunkLoop_spec (T c rs : Nat) (a b : USlice) (hc : 1 ≤ c)
@@ -831,12 +507,17 @@ public theorem chunkLoop_spec (T c rs : Nat) (a b : USlice) (hc : 1 ≤ c)
     generalize mulBal cfg (UInt64Array.replicate ((FFT.pieceSl a c i).size.toNat + b.size.toNat)
       0).toUSlice (FFT.pieceSl a c i) b = P at *
     -- Added from limb `i c` on.
-    obtain ⟨c₁, c₂, c₃⟩ := addCoef_spec arr rs T (i * c) P 0
-      ((FFT.pieceSl a c i).size.toNat + b.size.toNat) hS hT (by lia) (by rw [hsz]; exact hlen)
-      (by rw [hsz]; lia) (by rw [hv]; lia)
+    obtain ⟨c₁, c₂, c₃⟩ := WordArray.addCoefK_spec arr rs T (i * c) P 0
+      ((FFT.pieceSl a c i).size.toNat + b.size.toNat) hS hT (by lia)
+      (show P.size < _ by rw [hsz]; exact hlen) (show 0 + _ ≤ P.size by rw [hsz]; lia)
+      (show arr.valAt rs T + 2 ^ (64 * (i * c)) * P.valAt 0 _ < 2 ^ (64 * T) by rw [hv]; lia)
+    generalize WordArray.addCoefK arr rs T (i * c) P 0
+      ((FFT.pieceSl a c i).size.toNat + b.size.toNat) = A at *
+    replace c₁ : A.size = arr.size := c₁
+    replace c₂ : ∀ t, (t < rs ∨ rs + T ≤ t) → A[t]! = arr[t]! := c₂
+    replace c₃ : A.valAt rs T = arr.valAt rs T + 2 ^ (64 * (i * c)) *
+        P.valAt 0 ((FFT.pieceSl a c i).size.toNat + b.size.toNat) := c₃
     rw [hv] at c₃
-    generalize addCoef arr rs T (i * c) P 0 ((FFT.pieceSl a c i).size.toNat + b.size.toNat) = A
-      at *
     obtain ⟨i₁, i₂, i₃⟩ := ih A (i + 1) (by rw [c₁]; exact hS) (by rw [c₁]; exact hT) (by lia)
       (by rw [c₃]; lia)
     refine ⟨i₁.trans c₁, fun t ht => by rw [i₂ t ht, c₂ t ht], ?_⟩
