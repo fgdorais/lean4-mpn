@@ -609,6 +609,10 @@ public instance wordArray64 : MPN.WordArray UInt64Array UInt64 where
   mulh := UInt64.mulh
   div2 := UInt64.div2
   div2Rem h l d := let q := UInt64.div2 h l d; (q, l - q * d)
+  mulAdd2 y x z c :=
+    let p := y * x
+    let t := p + c
+    (t + z, UInt64.addh (UInt64.addh (y.mulh x) p c) t z)
   ltB x y := decide (x < y)
   eqB x y := x == y
   land x y := x &&& y
@@ -644,6 +648,18 @@ public instance wordArray64 : MPN.WordArray UInt64Array UInt64 where
   val_mulh := UInt64.toNat_mulh
   val_div2 h l d hd := UInt64.toNat_div2 h l d hd
   val_div2Rem h l d hd := ⟨UInt64.toNat_div2 h l d hd, (UInt64.toNat_div2_rem h l d hd).1⟩
+  val_mulAdd2 y x z c := by
+    show (y * x + c + z).toNat +
+        2 ^ 64 * (UInt64.addh (UInt64.addh (y.mulh x) (y * x) c) (y * x + c) z).toNat =
+      y.toNat * x.toNat + z.toNat + c.toNat
+    have : y.toNat * x.toNat ≤ (2 ^ 64 - 1) * (2 ^ 64 - 1) :=
+      Nat.mul_le_mul (by have := y.toNat_lt; lia) (by have := x.toNat_lt; lia)
+    have := c.toNat_lt; have := z.toNat_lt
+    simp only [UInt64.toNat_addh, UInt64.toNat_mulh, UInt64.toNat_add, UInt64.toNat_mul]
+    generalize y.toNat * x.toNat = p at *
+    generalize c.toNat = c at *
+    generalize z.toNat = z at *
+    lia
   val_unB_b0 := rfl
   val_subMulB z y x c := by
     show (z - (y * x + c)).toNat + y.toNat * x.toNat + c.toNat =
@@ -758,7 +774,7 @@ private theorem loop2_eq {β : Type} (n : USize)
 
 
 /-- `main`'s plain in-place loop is the one of `UInt64Array`. -/
-private theorem foldUInPlace_main {β : Type} (n : USize)
+public theorem foldUInPlace_main {β : Type} (n : USize)
     (f : (j : USize) → j < n → UInt64 → β → UInt64 × β) (arr : UInt64Array) (rs : USize)
     (hr : LoopBound arr rs n) (j : USize) (b : β) :
     MPN.WordArray.foldUInPlace n f arr rs hr j b = foldUInPlace n f arr rs hr j b := by
