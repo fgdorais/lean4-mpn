@@ -16,7 +16,7 @@ The `min` of `USize`s, on their values, closes the file.
 
 
 /-- Adds the high word of `x + y`, which is its carry out, to `c`. -/
-@[inline]
+@[inline, expose]
 public def UInt32.addh (c x y : UInt32) : UInt32 :=
   let t := x.toUInt64 + y.toUInt64
   c + (t >>> 32).toUInt32
@@ -34,7 +34,7 @@ public theorem UInt32.toNat_addh (c x y : UInt32) :
 Subtracts the high word of `x - y`, computed in double width, from `b`. The high word is all ones
 when `x - y` borrows, so this adds the borrow to `b`.
 -/
-@[inline]
+@[inline, expose]
 public def UInt32.subh (b x y : UInt32) : UInt32 :=
   let t := x.toUInt64 - y.toUInt64
   b - (t >>> 32).toUInt32
@@ -59,7 +59,7 @@ public theorem UInt32.toNat_subh (b x y : UInt32) :
     lia
 
 /-- The high word of `x * y`. -/
-@[inline]
+@[inline, expose]
 public def UInt32.mulh (x y : UInt32) : UInt32 :=
   let t := x.toUInt64 * y.toUInt64
   (t >>> 32).toUInt32
@@ -77,7 +77,7 @@ public theorem UInt32.toNat_mulh (x y : UInt32) :
 The low word of the quotient of `hi β + lo` by `d`, where `β = 2³²`, or `0` when `d = 0`. When
 `hi < d` the quotient fits in a word, and `lo - q d` is the remainder (`toNat_div2_rem`).
 -/
-@[inline]
+@[inline, expose]
 public def UInt32.div2 (hi lo d : UInt32) : UInt32 :=
   (((hi.toUInt64 <<< 32) + lo.toUInt64) / d.toUInt64).toUInt32
 
