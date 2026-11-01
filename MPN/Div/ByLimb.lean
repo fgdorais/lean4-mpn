@@ -308,6 +308,23 @@ private theorem divRem1W_plain (r : A) (ro : USize) (a : A) (ao n : USize)
   rw [R.val_zero, Nat.zero_mul, Nat.zero_add] at this
   exact this
 
+public theorem divRem1W_frame (t : USize) (r : A) (ro : USize) (a : A) (ao n : USize)
+    (hr : LoopBound r ro n) (ha : LoopBound a ao n) (d : L) :
+    LA.size (divRem1W A t r ro a ao n hr ha d).1 = LA.size r ∧
+      ∀ i, (i < ro.toNat ∨ ro.toNat + n.toNat ≤ i) →
+        LA.get (divRem1W A t r ro a ao n hr ha d).1 i = LA.get r i := by
+  unfold divRem1W
+  split
+  · dsimp only
+    obtain ⟨f₁, f₂⟩ := divLoop_frame (div21 A (recip21 A d) d) r ro a ao n hr ha R.zero
+    split
+    · exact ⟨f₁, f₂⟩
+    · obtain ⟨g₁, g₂⟩ := divLoop_frame (divStep A d)
+        (divLoop A (div21 A (recip21 A d) d) r ro a ao n hr ha R.zero).1 ro a ao n
+        (hr.of_size f₁) ha R.zero
+      exact ⟨by rw [g₁, f₁], fun i hi => by rw [g₂ i hi, f₂ i hi]⟩
+  · exact divLoop_frame ..
+
 public theorem divRem1W_spec (t : USize) (r : A) (ro : USize) (a : A) (ao n : USize)
     (hr : LoopBound r ro n) (ha : LoopBound a ao n) (d : L) (hd : 0 < LA.val d) :
     LA.size (divRem1W A t r ro a ao n hr ha d).1 = LA.size r ∧
@@ -317,25 +334,19 @@ public theorem divRem1W_spec (t : USize) (r : A) (ro : USize) (a : A) (ao n : US
           LA.val (divRem1W A t r ro a ao n hr ha d).2 = LimbArray.valAt a ao.toNat n.toNat ∧
       LA.val (divRem1W A t r ro a ao n hr ha d).2 < LA.val d := by
   have hz : LA.val (R.zero : L) < LA.val d := by rw [R.val_zero]; exact hd
+  refine ⟨(divRem1W_frame ..).1, (divRem1W_frame ..).2, ?_⟩
   unfold divRem1W
   split
   · dsimp only
     split
     · rename_i hlt
       have hlt' := (R.ltB_iff ..).1 hlt
-      obtain ⟨f₁, f₂⟩ := divLoop_frame (div21 A (recip21 A d) d) r ro a ao n hr ha R.zero
-      refine ⟨f₁, f₂, ?_, hlt'⟩
+      refine ⟨?_, hlt'⟩
       have := divLoop_spec _ d (fun c x _ h => (div21_spec _ d c x h).2)
         (.inr fun c x h => (div21_spec _ d c x h).1) r ro a ao n hr ha _ hz hlt'
       rw [R.val_zero, Nat.zero_mul, Nat.zero_add] at this
       exact this
-    · obtain ⟨f₁, f₂⟩ := divLoop_frame (div21 A (recip21 A d) d) r ro a ao n hr ha R.zero
-      obtain ⟨g₁, g₂⟩ := divLoop_frame (divStep A d)
-        (divLoop A (div21 A (recip21 A d) d) r ro a ao n hr ha R.zero).1 ro a ao n
-        (hr.of_size f₁) ha R.zero
-      exact ⟨by rw [g₁, f₁], fun i hi => by rw [g₂ i hi, f₂ i hi],
-        divRem1W_plain _ ro a ao n _ ha d hd⟩
-  · obtain ⟨f₁, f₂⟩ := divLoop_frame (divStep A d) r ro a ao n hr ha R.zero
-    exact ⟨f₁, f₂, divRem1W_plain r ro a ao n hr ha d hd⟩
+    · exact divRem1W_plain _ ro a ao n _ ha d hd
+  · exact divRem1W_plain r ro a ao n hr ha d hd
 
 end MPN.WordArray
