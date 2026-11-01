@@ -161,6 +161,15 @@ def main (args : List String) : IO Unit := do
       | "bdiv" =>
         let (x, y) := (MPN.Nat.ofNat na2, MPN.Nat.ofNat nb)
         row noNat op n (time (· / ·) checkBig x y) (time (· / ·) checkNat na2 nb)
+      | "band" =>
+        let (x, y) := (MPN.Nat.ofNat na, MPN.Nat.ofNat nb)
+        row noNat op n (time (· &&& ·) checkBig x y) (time (· &&& ·) checkNat na nb)
+      | "bor" =>
+        let (x, y) := (MPN.Nat.ofNat na, MPN.Nat.ofNat nb)
+        row noNat op n (time (· ||| ·) checkBig x y) (time (· ||| ·) checkNat na nb)
+      | "bxor" =>
+        let (x, y) := (MPN.Nat.ofNat na, MPN.Nat.ofNat nb)
+        row noNat op n (time (· ^^^ ·) checkBig x y) (time (· ^^^ ·) checkNat na nb)
       | "bgcd" =>
         let (x, y) := (MPN.Nat.ofNat na, MPN.Nat.ofNat nb)
         row noNat op n (time MPN.Nat.gcd checkBig x y) (time Nat.gcd checkNat na nb)

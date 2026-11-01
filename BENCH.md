@@ -9,7 +9,8 @@ the history at the end records what changed and by how much.
 ```sh
 lake build bench                      # `lake build` alone does not rebuild it
 taskset -c 2 .lake/build/bin/bench > bench.txt
-taskset -c 2 .lake/build/bin/bench badd bsub bmul bdiv bgcd bshl bshr bsqrt btostr bofstr \
+taskset -c 2 .lake/build/bin/bench badd bsub bmul bdiv bgcd bshl bshr band bor bxor bsqrt btostr \
+  bofstr \
   btonat bofnat 1 2 4 8 16 32 64 128 256 512 1024 >> bench.txt
 scripts/bench_md.py bench.txt         # the two tables below
 ```
@@ -50,6 +51,7 @@ rather than the ratios.
 | `badd` … `bdiv` | `MPN.Nat` `+ - * /` | as above (`bdiv`: `2n` by `n`) | word fast path, then as above |
 | `bgcd` | `MPN.Nat.gcd` | `n` and `n` limbs | Lehmer with word cofactors, Euclid on words |
 | `bshl`, `bshr` | `MPN.Nat` `<<<`, `>>>` 37 | `n` limbs | one pass in place |
+| `band`, `bor`, `bxor` | `MPN.Nat` `&&&`, `\|\|\|`, `^^^` | `n` and `n` limbs | one pass into fresh zeros (`WordArray.bitW`) |
 | `bsqrt` | `MPN.Nat.sqrt` | `2n` limbs | Newton at growing precision; Zimmermann from `2n = 80` limbs |
 | `btostr` | `toString` | `n` limbs | chunks of 9 digits, `divRem1` by `10⁹` |
 | `bofstr` | `MPN.Nat.ofString?` | the digits of `n` limbs | a fold over the characters, 9 digits per chunk |
@@ -139,6 +141,7 @@ above; ratios before `15534f8` for `MPN.Nat` rows were inflated by the hashing c
 
 | date | commit | change | effect |
 |---|---|---|---|
+| 2026-10-31 | `ca4cc18`+ | New rows `band`, `bor`, `bxor` (`MPN.Nat` `&&&`, `\|\|\|`, `^^^`); against `Nat` they are 0.2–0.8× from 2 to 64 limbs, 1.3–1.8× from 256 (GMP has half as many limbs), 1.7× at one limb (16 against 9 ns) | Measured on the commit before `ca4cc18` with these rows: `bitW` made them 87–88% faster at 16 limbs and 95–97% at 256 and 4096 (65 µs → 2.1–2.5 µs at 4096); the old operations built an array by `ofFn` of `getD` of slices |
 | 2026-10-31 | `ca4cc18` | `log2A` from `main`'s `WordArray.log2W` and `land`, `lor`, `xor` (now on arrays) from `WordArray.bitW`, by the new `log2`, `lor` and `xor` of `WordArray` | From three alternating runs against `68afc79`: `bsqrt`, `bgcd`, `bdiv`, `btostr` ±1.7% from 4 to 1024 limbs |
 | 2026-10-31 | `cae9cbe` | `shiftLeft` and `shiftRight` from `main`'s `MPN.Shift`: the limbs of the slice shifted into fresh limbs by `WordArray.lshiftW` and `rshiftW` (inlined; `copyW` for whole limbs), read where they are instead of copied first; the guards compare with `2³² − 1` (with `USize.size`, a `Nat` computed at run time, `bshl` was 20% slower at 16 limbs) | From three alternating runs against `6a76c65`: `bshl` −27% at 256 limbs, −41% at 1024, ±1% to 64; `bshr` −11% at 256, −27% at 1024, +5% at 64; `shr` −8.5% at 256, −27% at 1024, +9% to +10% at 16 and 64 (5 ns); `bgcd` ±1%, +3% at 4 limbs |
 | 2026-10-31 | `9bd8680` | Decimal strings by divide and conquer from `main`'s `DecChunks.toDecimalWith` and `DecChunks.ofDecimalWith` on `ops32`, which converts slices by copying them | From three alternating runs against `11cd33b`: `btostr` and `bofstr` −1% to +1.3% from 16 to 4096 limbs |
