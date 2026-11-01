@@ -684,6 +684,7 @@ public instance wordArray64 : MPN.WordArray UInt64Array UInt64 where
   val_lor x y := UInt64.toNat_or x y
   val_xor x y := UInt64.toNat_xor x y
   log2_eq x := UInt64.toNat_log2' x
+  val_ofBool b := by cases b <;> rfl
   w_ge := by decide
 
 /-- The loop of `foldlInPlace2` from index `k` is `main`'s `foldUInPlace2` from `j₀ + k`. -/
