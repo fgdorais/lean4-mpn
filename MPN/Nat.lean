@@ -519,7 +519,8 @@ public instance natLimbs32 : NatLimbs UInt32Array where
   trimmed := isTrimmed
   eq_of_val a b ha hb h := by rw [← ofNat_toNat ha, ← ofNat_toNat hb]; exact congrArg _ h
   decEq := inferInstance
-  hash a := hash a
+  -- In constant time, like `Nat`'s, which is the low word: the size and the bottom and top limbs.
+  hash a := mixHash (hash a.size) (mixHash (hash a[0]!) (hash a[a.size - 1]!))
   ofNat := MPN.ofNat
   trimmed_ofNat := isTrimmed_ofNat
   val_ofNat := MPN.toNat_ofNat
