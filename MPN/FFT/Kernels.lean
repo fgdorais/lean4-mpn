@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.Toom.Kernels
+public import MPN.AddSubW
 public import MPN.FFT.Product
 
 /-!
@@ -159,12 +159,6 @@ public theorem window (h : ReduceOK arr n d P) {a : A} (ha : LA.size a = LA.size
 
 end ReduceOK
 
-variable (A) in
-/-- The step of `reduceK`: limb `lo + j` of `P` minus limb `hi + j`, with a borrow. -/
-@[inline, expose] public def subNStep (P : A) (lo hi n : USize) (hl : LoopBound P lo n)
-    (hh : LoopBound P hi n) (j : USize) (h : j < n) (_z c : L) : L × L :=
-  R.subMulB (R.uget P (lo + j) (hl.uset_bound h)) (R.uget P (hi + j) (hh.uset_bound h)) R.one c
-
 /--
 Writes `P % F` into the window at `d`, for `P` of `2 n + 2` limbs: `P_lo - P_mid + P_hi`, with the
 borrow of `P_lo - P_mid` and the limb `P_hi` added by `incrAt`, then `normAt`.
@@ -172,7 +166,7 @@ borrow of `P_lo - P_mid` and the limb `P_hi` added by `incrAt`, then `normAt`.
 public def reduceK (arr : A) (n d : Nat) (P : A) : A :=
   if h : winOK arr d (n + 1) = true ∧ winOK P 0 (2 * n + 2) = true then
     have hb := reduceOK_of h
-    F.foldThen n.toUSize (subNStep A P 0 n.toUSize n.toUSize hb.lo hb.hi) arr d.toUSize hb.dn 0
+    F.foldThen n.toUSize (subNStep A P 0 P n.toUSize n.toUSize hb.lo hb.hi) arr d.toUSize hb.dn 0
       R.b0 fun a ha c =>
         let c := R.add (R.unB c) (R.uget P (2 * n).toUSize hb.idx2n)
         let a₁ := R.uset a (d + n).toUSize R.zero (hb.idxTop ha)
@@ -332,7 +326,7 @@ public theorem reduceK_spec (arr : A) (n d : Nat) (P : A) (_ : LA.size arr < USi
     dsimp only
     rw [F.foldThen_eq, foldUInPlaceThen]
     obtain ⟨f₁, -, f₂, f₃⟩ := foldUInPlace_spec2 n.toUSize
-      (subNStep A P 0 n.toUSize n.toUSize hb.lo hb.hi) P 0 P n.toUSize (fun _ => 0)
+      (subNStep A P 0 P n.toUSize n.toUSize hb.lo hb.hi) P 0 P n.toUSize (fun _ => 0)
       (fun c => LA.val (R.unB c)) 1 0 0 1 0 1 0 (fun _ => True) (fun _ _ _ _ _ => trivial)
       (fun j hj z c _ => by
         have e := R.val_subMulB (R.uget P (0 + j) (hb.lo.uset_bound hj))
