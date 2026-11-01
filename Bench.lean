@@ -170,6 +170,42 @@ def main (args : List String) : IO Unit := do
       | "bxor" =>
         let (x, y) := (MPN.Nat.ofNat na, MPN.Nat.ofNat nb)
         row noNat op n (time (· ^^^ ·) checkBig x y) (time (· ^^^ ·) checkNat na nb)
+      | "bmod" =>
+        -- `2 n` by `n` limbs.
+        let (x, y) := (MPN.Nat.ofNat na2, MPN.Nat.ofNat nb)
+        row noNat op n (time (· % ·) checkBig x y) (time (· % ·) checkNat na2 nb)
+      | "bsqr" =>
+        let x := MPN.Nat.ofNat na
+        row noNat op n (time (fun x _ => MPN.Nat.sqr x) checkBig x x)
+          (time (fun x _ => x * x) checkNat na na)
+      | "bpow" =>
+        let x := MPN.Nat.ofNat na
+        row noNat op n (time (fun (x : MPN.Nat) _ => x ^ 3) checkBig x x)
+          (time (fun x _ => x ^ 3) checkNat na na)
+      | "blcm" =>
+        let (x, y) := (MPN.Nat.ofNat na, MPN.Nat.ofNat nb)
+        row noNat op n (time MPN.Nat.lcm checkBig x y) (time Nat.lcm checkNat na nb)
+      | "blog2" =>
+        let x := MPN.Nat.ofNat na
+        row noNat op n (time (fun (x : MPN.Nat) _ => x.log2) checkNat x x)
+          (time (fun x _ => x.log2) checkNat na na)
+      | "bcmp" =>
+        -- `x < x + 1`, which differ in the lowest limb, so both compare every limb.
+        let (x, y) := (MPN.Nat.ofNat na, MPN.Nat.ofNat (na + 1))
+        let nc := na + 1
+        row noNat op n (time (fun x y => decide (x < y)) (fun b => if b then 1 else 0) x y)
+          (time (fun x y => decide (x < y)) (fun b => if b then 1 else 0) na nc)
+      | "beq" =>
+        -- Two copies of the same number, so both compare every limb; the second from another
+        -- expression, which the compiler does not share with the first.
+        let nc := 2 * na / 2
+        let (x, y) := (MPN.Nat.ofNat na, MPN.Nat.ofNat nc)
+        row noNat op n (time (fun x y => decide (x = y)) (fun b => if b then 1 else 0) x y)
+          (time (fun x y => decide (x = y)) (fun b => if b then 1 else 0) na nc)
+      | "bhash" =>
+        let x := MPN.Nat.ofNat na
+        row noNat op n (time (fun (x : MPN.Nat) _ => hash x) (·.toUInt32) x x)
+          (time (fun (x : Nat) _ => hash x) (·.toUInt32) na na)
       | "bgcd" =>
         let (x, y) := (MPN.Nat.ofNat na, MPN.Nat.ofNat nb)
         row noNat op n (time MPN.Nat.gcd checkBig x y) (time Nat.gcd checkNat na nb)

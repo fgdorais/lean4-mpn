@@ -9,8 +9,8 @@ the history at the end records what changed and by how much.
 ```sh
 lake build bench                      # `lake build` alone does not rebuild it
 taskset -c 2 .lake/build/bin/bench > bench.txt
-taskset -c 2 .lake/build/bin/bench badd bsub bmul bdiv bgcd bshl bshr band bor bxor bsqrt btostr \
-  bofstr \
+taskset -c 2 .lake/build/bin/bench badd bsub bmul bdiv bmod bsqr bpow blcm blog2 bcmp beq bhash \
+  bgcd bshl bshr band bor bxor bsqrt btostr bofstr \
   btonat bofnat 1 2 4 8 16 32 64 128 256 512 1024 >> bench.txt
 scripts/bench_md.py bench.txt         # the two tables below
 ```
@@ -49,6 +49,9 @@ rather than the ratios.
 | `div` | `div`, the quotient | `2n` by `n` limbs | `divRem1`, `divRem2`, Algorithm D, Burnikel–Ziegler from 176 (`main`'s `NatOps.divNorm`) |
 | `shr` | `shiftRight` by 37 bits | `n` limbs | one pass in place |
 | `badd` … `bdiv` | `MPN.Nat` `+ - * /` | as above (`bdiv`: `2n` by `n`) | word fast path, then as above |
+| `bmod`, `bsqr`, `bpow` | `MPN.Nat` `%`, `sqr`, `x³` | as `bdiv`, `bmul` | the division, the square, squares and products |
+| `blcm`, `blog2` | `MPN.Nat.lcm`, `log2` | `n` limbs | the gcd, a division and a product; the top limb |
+| `bcmp`, `beq`, `bhash` | `x < x + 1`, `x = x'` (two copies), `hash` | `n` limbs | every limb compared or hashed |
 | `bgcd` | `MPN.Nat.gcd` | `n` and `n` limbs | Lehmer with word cofactors, Euclid on words |
 | `bshl`, `bshr` | `MPN.Nat` `<<<`, `>>>` 37 | `n` limbs | one pass in place |
 | `band`, `bor`, `bxor` | `MPN.Nat` `&&&`, `\|\|\|`, `^^^` | `n` and `n` limbs | one pass into fresh zeros (`WordArray.bitW`) |
