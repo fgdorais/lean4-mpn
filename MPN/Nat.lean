@@ -146,60 +146,70 @@ public theorem eq_of_toNat {a b : UInt64Array} (ha : isTrim a = true) (hb : isTr
 
 /-! ## Bitwise operations -/
 
-/-- Limb-wise `f` of `a` and `b`, zero past their ends, trimmed. -/
-@[inline] public def bitA (f : UInt64 → UInt64 → UInt64) (a b : UInt64Array) : UInt64Array :=
-  norm (UInt64Array.ofFn (n := max a.size b.size) fun i => f (Num.limbAt a i) (Num.limbAt b i))
+/--
+Limb-wise `f` of `a` and `b`, zero past their ends, trimmed, by `main`'s `WordArray.bitW`, for an
+`f` whose value is the bitwise `op`; on `Nat` were the sizes not `USize`s, which never happens.
+-/
+@[inline] public def bitA (f : UInt64 → UInt64 → UInt64) (op : Nat → Nat → Nat)
+    (a b : UInt64Array) : UInt64Array :=
+  let n := max a.size b.size
+  if h : fits (n + 1) then
+    norm (WordArray.bitW f a b (UInt64Array.replicate n 0) n.toUSize (by
+      have := lt_of_fits h
+      have e : n.toUSize.toNat = n := by rw [USize.toNat_ofNat', Nat.mod_eq_of_lt (by lia)]
+      exact ⟨by show _ ≤ (UInt64Array.replicate n 0).size; simp [e], by simp [e]; lia⟩))
+  else norm (ofNat (op a.toNat b.toNat))
 
-private theorem testBit_bitA (f : UInt64 → UInt64 → UInt64) (g : Bool → Bool → Bool)
-    (hf : ∀ x y : UInt64, ∀ k, (f x y).toNat.testBit k = g (x.toNat.testBit k) (y.toNat.testBit k))
-    (hg : g false false = false) (a b : UInt64Array) (j : Nat) :
-    (bitA f a b).toNat.testBit j = g (a.toNat.testBit j) (b.toNat.testBit j) := by
-  rw [bitA, toNat_norm]
-  generalize hc : UInt64Array.ofFn (n := max a.size b.size)
-    (fun i => f (Num.limbAt a i) (Num.limbAt b i)) = c
-  have hcs : c.size = max a.size b.size := by rw [← hc, size_ofFn]
-  have hca : c.toNat = c.valAt 0 (max a.size b.size) := by rw [toNat_eq_valAt, hcs]
-  have haa : a.toNat = a.valAt 0 (max a.size b.size) := (Num.valAt_ge a _ (by lia)).symm
-  have hbb : b.toNat = b.valAt 0 (max a.size b.size) := (Num.valAt_ge b _ (by lia)).symm
-  rw [hca, haa, hbb]
-  by_cases hj : j < 64 * max a.size b.size
-  · have t₁ := LimbArray.testBit_valAt c hj
-    have t₂ := LimbArray.testBit_valAt a hj
-    have t₃ := LimbArray.testBit_valAt b hj
-    change (UInt64Array.valAt c 0 _).testBit j = (c[j / 64]!).toNat.testBit (j % 64) at t₁
-    change (UInt64Array.valAt a 0 _).testBit j = (a[j / 64]!).toNat.testBit (j % 64) at t₂
-    change (UInt64Array.valAt b 0 _).testBit j = (b[j / 64]!).toNat.testBit (j % 64) at t₃
-    have hq : j / 64 < max a.size b.size := by lia
-    have hcq : c[j / 64]! = f (Num.limbAt a (j / 64)) (Num.limbAt b (j / 64)) := by
-      rw [getElem!_eq_getElem _ _ (by rw [hcs]; exact hq)]
-      subst hc
-      simp
-    rw [t₁, t₂, t₃, hcq, hf, Num.limbAt_eq, Num.limbAt_eq]
-  · have h₁ : 2 ^ (64 * max a.size b.size) ≤ 2 ^ j := Nat.pow_le_pow_right (by decide) (by lia)
-    rw [Nat.testBit_lt_two_pow (Nat.lt_of_lt_of_le (valAt_lt ..) h₁),
-      Nat.testBit_lt_two_pow (Nat.lt_of_lt_of_le (valAt_lt ..) h₁),
-      Nat.testBit_lt_two_pow (Nat.lt_of_lt_of_le (valAt_lt ..) h₁), hg]
+public theorem isTrim_bitA (f : UInt64 → UInt64 → UInt64) (op : Nat → Nat → Nat)
+    (a b : UInt64Array) : isTrim (bitA f op a b) = true := by
+  unfold bitA; dsimp only; split <;> exact isTrim_norm _
 
-public theorem isTrim_bitA (f : UInt64 → UInt64 → UInt64) (a b : UInt64Array) :
-    isTrim (bitA f a b) = true := isTrim_norm _
+private theorem hz64 : ∀ (a : UInt64Array) (i : Nat), LimbArray.size a ≤ i →
+    LimbArray.val UInt64Array (LimbArray.get a i) = 0 := fun a i h => by
+  show a[i]!.toNat = 0
+  rw [getElem!_neg a i (Nat.not_lt.2 h)]; rfl
+
+/-- The value of `bitA`, from the value of `bitW` with `max a.size b.size` limbs. -/
+private theorem toNat_bitA (f : UInt64 → UInt64 → UInt64) (op : Nat → Nat → Nat)
+    (hw : ∀ (a b r : UInt64Array) (n : USize) (hr : WordArray.LoopBound r 0 n),
+      LimbArray.size a < USize.size → LimbArray.size b < USize.size →
+      LimbArray.valAt (WordArray.bitW f a b r n hr) 0 n.toNat =
+        op (LimbArray.valAt a 0 n.toNat) (LimbArray.valAt b 0 n.toNat))
+    (a b : UInt64Array) : (bitA f op a b).toNat = op a.toNat b.toNat := by
+  unfold bitA
+  dsimp only
+  split
+  · rename_i h
+    have := lt_of_fits h
+    have e : (max a.size b.size).toUSize.toNat = max a.size b.size := by
+      rw [USize.toNat_ofNat', Nat.mod_eq_of_lt (by lia)]
+    have hr : WordArray.LoopBound (UInt64Array.replicate (max a.size b.size) 0) 0
+        (max a.size b.size).toUSize :=
+      ⟨by show _ ≤ (UInt64Array.replicate _ 0).size; simp [e], by simp [e]; lia⟩
+    have h' := hw a b _ _ hr (by show a.size < _; lia) (by show b.size < _; lia)
+    have hs := WordArray.size_bitW f a b _ _ hr
+    rw [e] at h'
+    generalize WordArray.bitW f a b (UInt64Array.replicate (max a.size b.size) 0)
+      (max a.size b.size).toUSize _ = c at h' hs ⊢
+    rw [toNat_norm, toNat_eq_valAt, show c.size = LimbArray.size c from rfl, hs,
+      show LimbArray.size (UInt64Array.replicate (max a.size b.size) 0) = max a.size b.size by
+        show (UInt64Array.replicate _ 0).size = _; simp]
+    show LimbArray.valAt c 0 _ = _
+    rw [h', show LimbArray.valAt a 0 (max a.size b.size) = a.toNat from Num.valAt_ge a _ (by lia),
+      show LimbArray.valAt b 0 (max a.size b.size) = b.toNat from Num.valAt_ge b _ (by lia)]
+  · rw [toNat_norm, toNat_ofNat]
 
 public theorem toNat_land (a b : UInt64Array) :
-    (bitA (· &&& ·) a b).toNat = a.toNat &&& b.toNat :=
-  Nat.eq_of_testBit_eq fun j => by
-    rw [testBit_bitA _ (· && ·) (fun x y k => by rw [UInt64.toNat_and, Nat.testBit_and]) rfl,
-      Nat.testBit_and]
+    (bitA (· &&& ·) (· &&& ·) a b).toNat = a.toNat &&& b.toNat :=
+  toNat_bitA _ _ (fun a b r n hr ha hb => WordArray.valAt_bitW_land hz64 a b r n hr ha hb) a b
 
 public theorem toNat_lor (a b : UInt64Array) :
-    (bitA (· ||| ·) a b).toNat = a.toNat ||| b.toNat :=
-  Nat.eq_of_testBit_eq fun j => by
-    rw [testBit_bitA _ (· || ·) (fun x y k => by rw [UInt64.toNat_or, Nat.testBit_or]) rfl,
-      Nat.testBit_or]
+    (bitA (· ||| ·) (· ||| ·) a b).toNat = a.toNat ||| b.toNat :=
+  toNat_bitA _ _ (fun a b r n hr ha hb => WordArray.valAt_bitW_lor hz64 a b r n hr ha hb) a b
 
 public theorem toNat_xor (a b : UInt64Array) :
-    (bitA (· ^^^ ·) a b).toNat = a.toNat ^^^ b.toNat :=
-  Nat.eq_of_testBit_eq fun j => by
-    rw [testBit_bitA _ (fun x y => x ^^ y) (fun x y k => by rw [UInt64.toNat_xor, Nat.testBit_xor])
-      rfl, Nat.testBit_xor]
+    (bitA (· ^^^ ·) (· ^^^ ·) a b).toNat = a.toNat ^^^ b.toNat :=
+  toNat_bitA _ _ (fun a b r n hr ha hb => WordArray.valAt_bitW_xor hz64 a b r n hr ha hb) a b
 
 /-! ## Words and guarded operations
 
@@ -390,7 +400,8 @@ public instance natLimbs64 : NatLimbs UInt64Array where
     rw [decide_eq_true_iff]
     have := (Limbs64.size_one_iff h)
     have : 1 ≤ a.size := by
-      simp only [Limbs64.isTrim, Bool.or_eq_true, beq_iff_eq, Bool.and_eq_true, decide_eq_true_eq] at h
+      simp only [Limbs64.isTrim, Bool.or_eq_true, beq_iff_eq, Bool.and_eq_true,
+        decide_eq_true_eq] at h
       lia
     change a.size ≤ 1 ↔ a.toNat < 2 ^ 64
     constructor
@@ -452,21 +463,22 @@ public instance natLimbs64 : NatLimbs UInt64Array where
       split
       · split <;> exact Limbs64.isTrim_norm _
       · exact Limbs64.isTrim_norm _
-    rw [Limbs64.toNat_toWord _ ht (by rw [hm]; exact Nat.lt_trans (Nat.mod_lt _ hb') b.toNat_lt), hm]
+    rw [Limbs64.toNat_toWord _ ht (by rw [hm]; exact Nat.lt_trans (Nat.mod_lt _ hb') b.toNat_lt),
+      hm]
   shl := Limbs64.shl
   trimmed_shl a n := by unfold Limbs64.shl; split <;> exact Limbs64.isTrim_norm _
   val_shl := Limbs64.toNat_shl
   shr := Limbs64.shr
   trimmed_shr a n := by unfold Limbs64.shr; split <;> exact Limbs64.isTrim_norm _
   val_shr := Limbs64.toNat_shr
-  land := Limbs64.bitA (· &&& ·)
-  trimmed_land _ _ := Limbs64.isTrim_bitA _ _ _
+  land := Limbs64.bitA (· &&& ·) (· &&& ·)
+  trimmed_land _ _ := Limbs64.isTrim_bitA _ _ _ _
   val_land := Limbs64.toNat_land
-  lor := Limbs64.bitA (· ||| ·)
-  trimmed_lor _ _ := Limbs64.isTrim_bitA _ _ _
+  lor := Limbs64.bitA (· ||| ·) (· ||| ·)
+  trimmed_lor _ _ := Limbs64.isTrim_bitA _ _ _ _
   val_lor := Limbs64.toNat_lor
-  xor := Limbs64.bitA (· ^^^ ·)
-  trimmed_xor _ _ := Limbs64.isTrim_bitA _ _ _
+  xor := Limbs64.bitA (· ^^^ ·) (· ^^^ ·)
+  trimmed_xor _ _ := Limbs64.isTrim_bitA _ _ _ _
   val_xor := Limbs64.toNat_xor
   log2 := Limbs64.log2
   log2_eq a _ _ := Limbs64.log2_eq' a
@@ -478,7 +490,8 @@ public instance natLimbs64 : NatLimbs UInt64Array where
 namespace Limbs64
 
 /-- The `GNat` of an array, trimmed. -/
-@[inline] public def toGNat (x : UInt64Array) : GNat UInt64Array := GNat.ofLimbs (norm x) (isTrim_norm x)
+@[inline] public def toGNat (x : UInt64Array) : GNat UInt64Array :=
+  GNat.ofLimbs (norm x) (isTrim_norm x)
 
 @[simp] public theorem toNat_toGNat (x : UInt64Array) : (toGNat x).toNat = x.toNat := by
   rw [toGNat, GNat.toNat_ofLimbs]; exact toNat_norm x

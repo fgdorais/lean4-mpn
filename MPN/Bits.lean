@@ -6,6 +6,7 @@ module
 
 public import MPN.Linear
 public import MPN.Shift
+public import MPN.Bitwise
 import all Init.Data.UInt.Log2
 import all Init.Data.Fin.Log2
 
@@ -504,78 +505,13 @@ public theorem valAt_shiftRight (r a : USlice) (k : Nat)
 
 /-! ## Base-two logarithm -/
 
-private theorem pred_lt {a : USlice} {j : USize} (hj : ¬j = 0) (h : j ≤ a.size) :
-    j - 1 < a.size := by
-  have := toNat_pred hj
-  have : j.toNat ≠ 0 := fun e => hj (USize.toNat_inj.1 (by rw [e]; rfl))
-  have := USize.le_iff_toNat_le.1 h
-  rw [USize.lt_iff_toNat_lt]
-  lia
-
-/-- `Nat.log2` of limbs `0` to `j - 1` of `a`, from the top nonzero limb. -/
-public def log2Loop (a : USlice) (j : USize) (h : j ≤ a.size) : Nat :=
-  if hj : j = 0 then 0
-  else
-    let x := a[j - 1]'(pred_lt hj h)
-    if x = 0 then log2Loop a (j - 1) (USize.le_of_lt (pred_lt hj h))
-    else 64 * (j - 1).toNat + x.log2.toNat
-termination_by j.toNat
-decreasing_by
-  have := toNat_pred hj
-  have : j.toNat ≠ 0 := fun e => hj (USize.toNat_inj.1 (by rw [e]; rfl))
-  lia
-
-/-- `log2` of a value with its top limb `x ≠ 0` above `e` bits. -/
-private theorem log2_top {L x e : Nat} (hL : L < 2 ^ e) (hx : x ≠ 0) :
-    _root_.Nat.log2 (L + 2 ^ e * x) = e + _root_.Nat.log2 x := by
-  have h₁ := Nat.log2_self_le hx
-  have h₂ := Nat.lt_log2_self (n := x)
-  have hpos : L + 2 ^ e * x ≠ 0 := by
-    have := Nat.two_pow_pos e
-    have := Nat.mul_le_mul_left (2 ^ e) (show 1 ≤ x by lia)
-    lia
-  rw [Nat.log2_eq_iff hpos]
-  rw [Nat.pow_add, Nat.add_assoc, Nat.pow_add]
-  have h₃ := Nat.mul_le_mul_left (2 ^ e) h₁
-  have h₄ := Nat.mul_le_mul_left (2 ^ e) (show x + 1 ≤ 2 ^ (_root_.Nat.log2 x + 1) from h₂)
-  rw [Nat.pow_add] at h₄
-  constructor
-  · lia
-  · rw [Nat.mul_add, Nat.mul_one] at h₄
-    lia
-
-private theorem _root_.UInt64.toNat_log2 (x : UInt64) : x.log2.toNat = _root_.Nat.log2 x.toNat :=
-  rfl
-
-private theorem log2Loop_eq (a : USlice) (j : USize) (h : j ≤ a.size) :
-    log2Loop a j h = _root_.Nat.log2 (a.array.valAt a.start.toNat j.toNat) := by
-  induction j, h using log2Loop.induct a with
-  | case1 h =>
-    rw [log2Loop]
-    simp
-  | case2 j h hj x hx ih =>
-    rw [log2Loop, dite_eq_right hj]
-    simp only [x] at hx ⊢
-    rw [ite_eq_left hx, ih]
-    have hp := toNat_pred hj
-    have : j.toNat ≠ 0 := fun e => hj (USize.toNat_inj.1 (by rw [e]; rfl))
-    rw [show j.toNat = (j - 1).toNat + 1 by lia, UInt64Array.valAt_add, valAt_one,
-      ← USlice.getElem_eq_getElem! a (j - 1) (pred_lt hj h), hx]
-    simp
-  | case3 j h hj x hx =>
-    rw [log2Loop, dite_eq_right hj]
-    simp only [x] at hx ⊢
-    rw [ite_eq_right hx, UInt64.toNat_log2]
-    have hp := toNat_pred hj
-    have : j.toNat ≠ 0 := fun e => hj (USize.toNat_inj.1 (by rw [e]; rfl))
-    rw [show j.toNat = (j - 1).toNat + 1 by lia, UInt64Array.valAt_add, valAt_one,
-      ← USlice.getElem_eq_getElem! a (j - 1) (pred_lt hj h),
-      log2_top (valAt_lt ..) (fun e => hx (UInt64.toNat_inj.1 (by rw [e]; rfl)))]
-
-/-- `Nat.log2 a.toNat`: the position of the top bit of `a`, or `0` when `a` is zero. -/
-public def log2 (a : USlice) : Nat := log2Loop a a.size (USize.le_refl _)
+/-- `Nat.log2 a.toNat`: the position of the top bit of `a`, or `0` when `a` is zero, by `main`'s
+`WordArray.log2W` from the top limb down. -/
+public def log2 (a : USlice) : Nat :=
+  WordArray.log2W a.array a.start a.size (a.loopBound (USize.le_refl _))
 
 @[simp] public theorem log2_eq (a : USlice) : log2 a = _root_.Nat.log2 a.toNat := by
-  rw [log2, log2Loop_eq, USlice.toNat_eq_valAt]
+  rw [log2, WordArray.log2W_eq, USlice.toNat_eq_valAt]
+  rfl
 
 end MPN
