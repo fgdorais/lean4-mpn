@@ -346,12 +346,19 @@ public theorem toNat_shr (a : UInt64Array) (n : Nat) : (shr a n).toNat = a.toNat
 
 /-- `⌊log₂ a⌋`. -/
 public def log2 (a : UInt64Array) : Nat :=
-  if fits a.size then MPN.log2 a.toUSlice else a.toNat.log2
+  if h : fits a.size then
+    WordArray.log2W a 0 a.size.toUSize (by
+      have e : a.size.toUSize.toNat = a.size := by
+        rw [USize.toNat_ofNat', Nat.mod_eq_of_lt (lt_of_fits h)]
+      exact ⟨by simp [e]; exact Nat.le_refl _, by simp [e]; exact lt_of_fits h⟩)
+  else a.toNat.log2
 
 public theorem log2_eq' (a : UInt64Array) : log2 a = a.toNat.log2 := by
   unfold log2
   split
-  · rename_i h; rw [log2_eq, toUSlice_toNat a (lt_of_fits h)]
+  · rename_i h
+    rw [WordArray.log2W_eq, toNat_eq_valAt, USize.toNat_ofNat', Nat.mod_eq_of_lt (lt_of_fits h)]
+    rfl
   · rfl
 
 /-- The limbs of a string of decimal digits, `[0]` for one that `String.isNat` rejects. -/
