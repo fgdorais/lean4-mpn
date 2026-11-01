@@ -25,6 +25,7 @@ public import MPN.LinComb
 public import MPN.Natural
 public import MPN.FFT.Product
 public import MPN.FFT.Kernels
+public import MPN.Dispatch
 public import MPN.Toom.Ops
 public import MPN.Toom.Kernels
 public import MPN.AddSubW
