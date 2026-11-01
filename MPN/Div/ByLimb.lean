@@ -14,13 +14,13 @@ public import MPN.Bitwise
 followed by the next limb, by `d`. The remainder stays below `d`, so this two-limb number is below
 `d β` and its quotient fits in a limb.
 
-The step is `div2` (`divStep`), or for a normalized `d`, with its top bit set, Möller and
+The step is `div2Rem` (`divStep`), or for a normalized `d`, with its top bit set, Möller and
 Granlund's 2-by-1 step with the precomputed reciprocal `⌊(β² - 1) / d⌋ - β` (`div21`, GMP's
 `udiv_qr_2by1`), whose one double product and two corrections cost less than a hardware divider.
 `div21` checks its result exactly, `q d + r = c β + x` with `r < d`, by one more double product
 off the dependency chain, so that neither the reciprocal nor the error bound of the step needs a
 proof. A failed check gives the remainder `d`, which makes every later check fail too, so that the
-division checks the last remainder once and divides again with `div2` if it is not below `d`, which
+division checks the last remainder once and divides again with `div2Rem` if it is not below `d`, which
 never happens.
 -/
 
@@ -31,17 +31,16 @@ variable {A L : Type} [LA : LimbArray A L] [R : WordArray A L]
 /-! ## The steps -/
 
 variable (A) in
-/-- The quotient limb and remainder of `c β + x` by `d`, for `c < d`, by `div2`. -/
-@[inline, expose] public def divStep (d c x : L) : L × L :=
-  let q := R.div2 c x d
-  (q, R.sub x (R.mul q d))
+/-- The quotient limb and remainder of `c β + x` by `d`, for `c < d`, by `div2Rem`. -/
+@[inline, expose] public def divStep (d c x : L) : L × L := R.div2Rem c x d
 
 public theorem divStep_spec (d c x : L) (h : LA.val c < LA.val d) :
     LA.val (divStep A d c x).2 < LA.val d ∧
       LA.val d * LA.val (divStep A d c x).1 + LA.val (divStep A d c x).2 =
         LA.val c * 2 ^ LA.w + LA.val x := by
-  obtain ⟨h₁, h₂⟩ := div2_rem (R := R) c x d h
-  exact ⟨by rw [divStep, h₁]; exact Nat.mod_lt _ (by lia), h₂⟩
+  obtain ⟨h₁, h₂⟩ := R.val_div2Rem c x d h
+  rw [divStep, h₁, h₂]
+  exact ⟨Nat.mod_lt _ (by lia), Nat.div_add_mod ..⟩
 
 variable (A) in
 /-- Whether `q d + r = c β + x` and `r < d`, exactly. -/
@@ -282,7 +281,7 @@ variable (A) in
 Writes the limbs of `a / d`, for limbs `ao` to `ao + n - 1` of `a`, into limbs `ro` to `ro + n - 1`
 of `r` and returns `a % d`, like GMP's `mpn_divrem_1`. It requires `0 < d`. From `t` limbs and for
 a normalized `d` it takes the steps with the reciprocal (`div21`), which then pays for its division;
-if their remainder is not below `d`, a check failed, and it divides again by `div2`, into the
+if their remainder is not below `d`, a check failed, and it divides again by `div2Rem`, into the
 array of the first pass.
 -/
 @[inline, expose] public def divRem1W (t : USize) (r : A) (ro : USize) (a : A) (ao n : USize)

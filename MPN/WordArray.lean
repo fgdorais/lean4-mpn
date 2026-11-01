@@ -103,6 +103,8 @@ public class WordArray (A : Type) (L : outParam Type) [LA : LimbArray A L] where
   mulh : L → L → L
   /-- `⌊(h 2ʷ + l) / d⌋`, for `h < d`: `div2 h l d`. -/
   div2 : L → L → L → L
+  /-- The quotient and remainder of `h 2ʷ + l` by `d`, for `h < d`: one step of division. -/
+  div2Rem : L → L → L → L × L
   /-- Whether `x < y`. -/
   ltB : L → L → Bool
   /-- Whether `x = y`. -/
@@ -149,6 +151,9 @@ public class WordArray (A : Type) (L : outParam Type) [LA : LimbArray A L] where
   val_mulh : ∀ x y, LA.val (mulh x y) = LA.val x * LA.val y / 2 ^ LA.w
   val_div2 : ∀ h l d, LA.val h < LA.val d →
     LA.val (div2 h l d) = (LA.val h * 2 ^ LA.w + LA.val l) / LA.val d
+  val_div2Rem : ∀ h l d, LA.val h < LA.val d →
+    LA.val (div2Rem h l d).1 = (LA.val h * 2 ^ LA.w + LA.val l) / LA.val d ∧
+      LA.val (div2Rem h l d).2 = (LA.val h * 2 ^ LA.w + LA.val l) % LA.val d
   ltB_iff : ∀ x y, ltB x y = true ↔ LA.val x < LA.val y
   val_subMulB : ∀ z y x h, LA.val (subMulB z y x h).1 + LA.val y * LA.val x + LA.val (unB h) =
     LA.val z + 2 ^ LA.w * LA.val (unB (subMulB z y x h).2)
