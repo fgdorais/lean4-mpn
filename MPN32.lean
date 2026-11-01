@@ -18,7 +18,6 @@ public import MPN32.Sub
 public import MPN32.Cmp
 public import MPN32.Mul.Limb
 public import MPN32.Mul.Basecase
-public import MPN32.ValAt
 public import MPN32.Mul.ToomOps
 public import MPN32.Arch.UIntArray
 public import MPN32.FFT.Transform
