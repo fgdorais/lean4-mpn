@@ -47,6 +47,7 @@ rather than the ratios.
 | `mul` | `mulLimbs` | `n` by `n` limbs | schoolbook by rows into wide accumulators (Comba below 16 limbs in all), Karatsuba from 112, Toom-4 from 608 (Toom-3 from 640 when Toom-4 is set higher), Toom-6 from 1792; Toom-4 by 3 from 272 between 6:5 and 15:8, Toom-3 by 2 from 192 between 4:3 and 15:8 below that, Toom-4 by 2 from 304 up to 2:1; the FFT from 14336 (beyond the table) |
 | `sqr` | `sqr` | `n` limbs | schoolbook square by rows into wide accumulators (Comba's square below 16 limbs), Karatsuba from 160, Toom-4 from 832 (Toom-3 from 944 when Toom-4 is set higher), Toom-6 from 2496, the FFT from 12288 (beyond the table) |
 | `div` | `div`, the quotient | `2n` by `n` limbs | `divRem1`, `divRem2`, Algorithm D, Burnikel–Ziegler from 176 (`main`'s `NatOps.divNorm`) |
+| `div1` | `divRem1` by `0xF1234567` | `n` limbs | from the top limb down, one hardware division of 64 bits by 32 per limb (`main`'s `WordArray.divRem1W`) |
 | `shr` | `shiftRight` by 37 bits | `n` limbs | one pass in place |
 | `badd` … `bdiv` | `MPN.Nat` `+ - * /` | as above (`bdiv`: `2n` by `n`) | word fast path, then as above |
 | `bmod`, `bsqr`, `bpow` | `MPN.Nat` `%`, `sqr`, `x³` | as `bdiv`, `bmul` | the division, the square, squares and products |
@@ -144,6 +145,7 @@ above; ratios before `15534f8` for `MPN.Nat` rows were inflated by the hashing c
 
 | date | commit | change | effect |
 |---|---|---|---|
+| 2026-10-31 | `0934d5d` | `divRem1` from `main`'s `WordArray.divRem1W` (the loop from the top down over any step, with the new `div2Rem` of a limb: here one division of 64 bits by 32 for the quotient and the remainder), replacing the loop proved through lists; new row `div1`. `main`'s checked 2-by-1 step with the reciprocal stays off: on 32-bit limbs it was 4–16% slower than the divider from 16 limbs | From three alternating runs against `18d2419`: `div1` −9% at 4 limbs, −4% at 16, −1% at 128, ±0 from 512; `btostr` −3% to −6% from 4 limbs |
 | 2026-10-31 | `18d2419`, `main` `log2` | `MPN.Nat`'s hash of a large number from its size and its bottom and top limbs, in constant time like `Nat`'s (its low word), instead of every limb; `GNat.log2` of words by `UInt64.log2` instead of `Nat.log2` of a `Nat`, a GMP number from `2⁶³` | `bhash` 0.22–0.23× `Nat` from 2 to 4096 limbs (was 0.21× at 2 limbs up to 71× at 4096); `blog2` at 2 limbs (a word) 74.5 → 24 ns |
 | 2026-10-31 | `8b71401` | The comparison of `MPN.Nat` by `main`'s `WordArray.ltW` (`ltA`): from the top limb down by `uget`, one comparison for each equal limb, instead of `getD` of slices and two comparisons | `bcmp` −62% at 4 limbs, −73% at 16, −80% at 256, −81% at 4096: 1.5–3.0× `Nat` (was 2.8–15.6×); `bsub` −18% at 4 and 16 limbs, `bgcd` −9% to −12% to 256; `bsub` +9% and `bgcd` +2% at 4096 |
 | 2026-10-31 | `main` `pow` | `GNat.pow` stops at the exponent 1: it squared `x` for an exponent 0 that it then dropped, so `x³` took a square of twice the length that it never used | `bpow` −56% at 2 limbs, −50% at 16, −41% at 256 and 4096; 2.5×, 4.4× and 5.0× `Nat` at 16, 256 and 4096 limbs (was 5.2×, 7.2× and 8.5×) |
