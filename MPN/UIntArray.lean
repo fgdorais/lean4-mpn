@@ -596,6 +596,7 @@ public instance wordArray32 : MPN.WordArray UInt32Array UInt32 where
   mulh := UInt32.mulh
   div2 := UInt32.div2
   div2Rem := UInt32.div2Rem
+  mulAdd2 y x z c := y.mulAddAdd x z c
   ltB x y := decide (x < y)
   eqB x y := x == y
   land x y := x &&& y
@@ -630,6 +631,11 @@ public instance wordArray32 : MPN.WordArray UInt32Array UInt32 where
   val_mulh := UInt32.toNat_mulh
   val_div2 h l d hd := UInt32.toNat_div2 h l d hd
   val_div2Rem h l d hd := UInt32.toNat_div2Rem h l d hd
+  val_mulAdd2 y x z c := by
+    have := UInt32.mulAddAdd_spec y x z c
+    show (y.mulAddAdd x z c).1.toNat + 2 ^ 32 * (y.mulAddAdd x z c).2.toNat =
+      y.toNat * x.toNat + z.toNat + c.toNat
+    lia
   val_subMulB z y x h := by
     show (z.subMulBiased y x h).1.toNat + y.toNat * x.toNat + (~~~h).toNat =
       z.toNat + 2 ^ 32 * (~~~(z.subMulBiased y x h).2).toNat
