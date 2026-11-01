@@ -3,12 +3,18 @@ name: Bench
 on:
   workflow_dispatch:
     inputs:
+      width:
+        description: "The limb width, 32 or 64"
+        required: false
+        default: "64"
+        type: choice
+        options: [ "64", "32" ]
       ops:
-        description: "Operations, separated by spaces (empty: the limb operations)"
+        description: "Operations, separated by spaces (empty: the default ones of the width)"
         required: false
         default: ""
       sizes:
-        description: "Sizes in limbs, separated by spaces (empty: 1 to 4096)"
+        description: "Sizes in limbs, separated by spaces (empty: the default ones of the width)"
         required: false
         default: ""
 
@@ -25,7 +31,7 @@ jobs:
         with:
           auto-config: false
           build: true
-          build-args: "bench"
+          build-args: "bench${{ inputs.width }}"
 
       # Shared runners are noisy and their machines vary, so these numbers are a sanity check, not
       # the ones in BENCH.md. The tables go into the run's summary, the raw output into the log
@@ -38,7 +44,7 @@ jobs:
           cpu="Runner: $(nproc) cores, $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2)"
           echo "$cpu" | tee bench.txt
           # shellcheck disable=SC2086
-          taskset -c 0 .lake/build/bin/bench $OPS $SIZES | tee -a bench.txt
+          taskset -c 0 .lake/build/bin/bench${{ inputs.width }} $OPS $SIZES | tee -a bench.txt
           {
             echo '## Bench on the runner'
             echo

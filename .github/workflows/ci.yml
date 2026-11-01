@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ "main", "main32", "main64" ]
+    branches: [ "main", "unified" ]
   pull_request:
-    branches: [ "main", "main32", "main64" ]
+    branches: [ "main", "unified" ]
   workflow_dispatch:
 
 concurrency:
@@ -30,4 +30,4 @@ jobs:
 
       # `lake build` does not build the executables.
       - name: build tune and bench
-        run: lake build --wfail tune bench
+        run: lake build --wfail tune32 bench32 tune64 bench64

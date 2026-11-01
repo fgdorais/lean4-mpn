@@ -1,4 +1,4 @@
-# Lean 4 / MPN
+# MPN32: 32-bit limbs
 
 Verified arbitrary-precision natural numbers for Lean 4, stored as `UInt32` limbs in the unboxed
 arrays of [lean4-scalar-arrays](https://github.com/fgdorais/lean4-scalar-arrays). Each operation is
@@ -9,22 +9,23 @@ depending on the sizes, and splits very unbalanced products into nearly balanced
 the same algorithms. Division is Knuth's Algorithm D, and divide-and-conquer (Burnikel–Ziegler) for
 large divisors.
 
-`MPN.Nat` packages this as a `Nat`-like type, with a fast path on machine words below `2⁶⁴`
+`MPN32.Nat` packages this as a `Nat`-like type, with a fast path on machine words below `2⁶⁴`
 and the usual instances (`+ - * / %`, comparisons, `DecidableEq`, `Hashable`, literals, shifts,
 bitwise operations, `^`, `ToString`, `Repr`), as well as `gcd`, `lcm`, `log2`, `sqrt` and
-`ofString?`: every operation is proved to agree with `Nat` through `MPN.Nat.toNat`, which is a
+`ofString?`: every operation is proved to agree with `Nat` through `MPN.W32.Nat.toNat`, which is a
 bijection, and `toString` and `ofString?` with `Nat.repr` and `String.toNat?`.
 
-This is the `main32` branch. The part that does not depend on the width of a limb (finite sums,
-polynomials, the FFT, Karatsuba and the Toom methods, and the base-generic algorithms of
-`MPN.Generic`) lives on `main`, which this branch merges, with instances for 32-bit limbs such as
-`toomOps32` (`MPN.Mul.ToomOps`); `main64` is the same on `UInt64` limbs.
+This is the library `MPN32` (namespace `MPN.W32`). The part that does not depend on the width of a
+limb (finite sums, polynomials, the FFT, Karatsuba and the Toom methods, the kernels over
+`WordArray` and the base-generic algorithms of `MPN.Generic`) is the shared library `MPN`, with
+instances for 32-bit limbs here such as `toomOps32` (`MPN32.Mul.ToomOps`); `MPN64` is the same on
+`UInt64` limbs.
 
 ## Tuning
 
 Multiplication, squaring, division, the greatest common divisor and decimal strings switch
-algorithms at size thresholds collected in `MPN.Config`. The defaults were measured on one
-machine; `lake exe tune` measures them on yours in several minutes (all but `divMu`, which is off
+algorithms at size thresholds collected in `MPN32.Config`. The defaults were measured on one
+machine; `lake exe tune32` measures them on yours in several minutes (all but `divMu`, which is off
 by default) and prints the options that set them. A project that depends on this library passes
 them with its `require`, together with `march`, which compiles the library's C code for a
 given processor:
@@ -33,11 +34,11 @@ given processor:
 [[require]]
 name = "lean4-mpn"
 git = "https://github.com/fgdorais/lean4-mpn"
-rev = "main32"
-options = { march = "native", mulKaratsuba = "64", mulToom3 = "480", divDC = "176" }
+rev = "unified"
+options = { march = "native", w32_mulKaratsuba = "64", w32_mulToom3 = "480", w32_divDC = "176" }
 ```
 
-The keys are the fields of `MPN.Config`: `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`,
+The keys are the fields of `MPN32.Config`: `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`,
 `mulToom43`, `mulToom4`, `mulToom6`, `mulFFT`, `mulUnbalanced`, `mulRows`, `mulCombaW`,
 `sqrBasecase`, `sqrRows`, `sqrKaratsuba`, `sqrToom3`, `sqrToom4`, `sqrToom6`, `sqrFFT`, `divDC`,
 `divMu`, `div1Recip`, `div1Unnorm`, `div32Recip`, `sqrtZimmermann`, `sqrtBase`, `gcdHalf`, `strDC`
@@ -54,21 +55,21 @@ Write the main file of a program that uses the library as a `module`, with a `pu
 ```lean
 module
 
-import MPN
+import MPN32
 
-public def main : IO Unit := IO.println (MPN.Nat.ofNat (2 ^ 100))
+public def main : IO Unit := IO.println (MPN.W32.Nat.ofNat (2 ^ 100))
 ```
 
-`MPN.Config` imports `Lean` at compile time for its thresholds, and a main file that is not a
+`MPN32.Config` imports `Lean` at compile time for its thresholds, and a main file that is not a
 `module` initializes everything its imports use at compile time too: the executable then links
 all of Lean (about 120 MB) and spends about 20 ms initializing it at startup.
 
 ## Benchmark
 
-`lake exe bench` times addition, subtraction, multiplication by a limb, multiplication, squaring
+`lake exe bench32` times addition, subtraction, multiplication by a limb, multiplication, squaring
 and division against the same operations on `Nat`, which Lean implements with GMP, from 1 to 4096
-limbs; the `MPN.Nat` operations are `badd`, `bsub`, `bmul`, `bdiv`, `bgcd`, `bshl`, `bshr`,
+limbs; the `MPN32.Nat` operations are `badd`, `bsub`, `bmul`, `bdiv`, `bgcd`, `bshl`, `bshr`,
 `bsqrt`, `btostr`, `bofstr`, and the conversions `btonat` and `bofnat`. Arguments select
-operations and sizes: `lake exe bench mul div 64 256` runs only those, and `--no-nat` skips `Nat`,
+operations and sizes: `lake exe bench32 mul div 64 256` runs only those, and `--no-nat` skips `Nat`,
 which is useful under a profiler. Current results, how to read them, and the history of
 performance changes are in [BENCH.md](BENCH.md).
