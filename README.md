@@ -1,5 +1,9 @@
 # Lean 4 / MPN
 
+> **Frozen.** This branch is no longer developed: the 32-bit library now lives in the branch
+> [`unified`](https://github.com/fgdorais/lean4-mpn/tree/unified), as the library `MPN32` (namespace
+> `MPN.W32`), next to `MPN64` and the shared `MPN`.
+
 Verified arbitrary-precision natural numbers for Lean 4, stored as `UInt32` limbs in the unboxed
 arrays of [lean4-scalar-arrays](https://github.com/fgdorais/lean4-scalar-arrays). Each operation is
 proved correct against `Nat`, the specification being the value of the list of limbs. Addition and
