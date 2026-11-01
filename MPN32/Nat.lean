@@ -20,6 +20,7 @@ public import MPN.Generic.HGCD
 public import MPN.Generic.Radix
 public import MPN.Generic.Sqrt
 public import MPN.Natural
+public import MPN.Bridge
 public import MPN.WordSqrt
 import Std.Data.String.ToNat
 import all Init.Data.Repr
@@ -676,22 +677,29 @@ public theorem ofStringWith_eq (parseDC : _root_.Nat) (s : String) :
   · rename_i h
     rw [String.toNat?_eq_none (by simpa using h), Option.map_none]
 
-/-! ## Square roots by Zimmermann's recursion -/
+/-! ## The bridge to `ops32` and square roots by Zimmermann's recursion -/
 
-/-- `toNat` of the slice of the limbs. -/
-private theorem toNat_limbs_toSlice (x : MPN.W32.Nat) : MPN.W32.toNat x.limbs.toSlice = x.toNat :=
-  toNat_limbs x
+/--
+The bridge from `MPN.W32.Nat` to `ops32`: the slice of the limbs, and back from a copy, trimmed.
+-/
+@[expose] public def bridge32 : Bridge UInt32Array UInt32Array.Slice where
+  o := ops32
+  w := 32
+  B_eq := rfl
+  one_le_w := by decide
+  toO a := a.toSlice
+  val_toO _ := rfl
+  ofO S := ofLimbs (trim S.copy) (isTrimmed_trim _)
+  toNat_ofO S := by rw [toNat_ofLimbs, toNat_trim, toNat_copy, ops32_val]
 
-/-- `(⌊√N⌋, N - ⌊√N⌋²)` by Newton's iteration (`sqrtNewton`), the base of Zimmermann's step. -/
-public def sqrtBase (N : UInt32Array.Slice) : UInt32Array.Slice × UInt32Array.Slice :=
-  if N.size ≤ 2 then
-    let c := N.copy
-    let s := WordArray.sqrt2W UInt32Array (c.getD 1 0) (c.getD 0 0)
-    let n : UInt64 := (c.getD 1 0).toUInt64 * 4294967296 + (c.getD 0 0).toUInt64
-    ((limbsOfWord s.toUInt64).toSlice, (limbsOfWord (n - s.toUInt64 * s.toUInt64)).toSlice)
-  else
-    let S := (sqrtNewton (ofLimbs (trim N.copy) (isTrimmed_trim _))).limbs.toSlice
-    (S, ops32.sub N (ops32.sqr S))
+@[simp] public theorem bridge32_o : bridge32.o = ops32 := rfl
+
+/-- `(⌊√N⌋, N - ⌊√N⌋²)` for `N` of at most two limbs, on words by `WordArray.sqrt2W`. -/
+public def sqrtTwo (N : UInt32Array.Slice) : UInt32Array.Slice × UInt32Array.Slice :=
+  let c := N.copy
+  let s := WordArray.sqrt2W UInt32Array (c.getD 1 0) (c.getD 0 0)
+  let n : UInt64 := (c.getD 1 0).toUInt64 * 4294967296 + (c.getD 0 0).toUInt64
+  ((limbsOfWord s.toUInt64).toSlice, (limbsOfWord (n - s.toUInt64 * s.toUInt64)).toSlice)
 
 /-- The value of a slice of at most two limbs. -/
 private theorem toNat_le_two (N : UInt32Array.Slice) (h : N.size ≤ 2) :
@@ -706,104 +714,60 @@ private theorem toNat_le_two (N : UInt32Array.Slice) (h : N.size ≤ 2) :
   simp only [UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero] at hv
   lia
 
+private theorem sqrtTwo_spec (N : UInt32Array.Slice) (h2 : N.size ≤ 2) :
+    MPN.W32.toNat (sqrtTwo N).1 = _root_.Nat.sqrt (MPN.W32.toNat N) ∧
+      MPN.W32.toNat (sqrtTwo N).2 = MPN.W32.toNat N -
+        _root_.Nat.sqrt (MPN.W32.toNat N) * _root_.Nat.sqrt (MPN.W32.toNat N) := by
+  unfold sqrtTwo
+  rw [toNat_le_two N h2]
+  dsimp only
+  generalize N.copy.getD 1 0 = hi
+  generalize N.copy.getD 0 0 = lo
+  have hs : (WordArray.sqrt2W UInt32Array hi lo).toNat =
+      _root_.Nat.sqrt (hi.toNat * 2 ^ 32 + lo.toNat) :=
+    WordArray.val_sqrt2W (A := UInt32Array) hi lo
+  generalize WordArray.sqrt2W UInt32Array hi lo = r at hs
+  have hhi := hi.toNat_lt; have hlo := lo.toNat_lt; have hr := r.toNat_lt
+  have hn : ((hi.toUInt64 * 4294967296 + lo.toUInt64 : UInt64)).toNat =
+      hi.toNat * 2 ^ 32 + lo.toNat := by
+    simp only [UInt64.toNat_add, UInt64.toNat_mul, UInt32.toNat_toUInt64, UInt64.reduceToNat]
+    lia
+  have hsq : (r.toUInt64 * r.toUInt64).toNat = r.toNat * r.toNat := by
+    rw [UInt64.toNat_mul, UInt32.toNat_toUInt64]
+    exact Nat.mod_eq_of_lt (by have := Nat.mul_lt_mul'' hr hr; simpa using this)
+  have hle := Nat.sqrt_le (hi.toNat * 2 ^ 32 + lo.toNat)
+  rw [← hs] at hle
+  rw [(limbsOfWord_spec _).1, (limbsOfWord_spec _).1, UInt32.toNat_toUInt64,
+    UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.2 (by rw [hn, hsq]; exact hle)), hn, hsq,
+    hs]
+  exact ⟨rfl, rfl⟩
+
+/--
+`(⌊√N⌋, N - ⌊√N⌋²)`, the base of Zimmermann's step: by `sqrtTwo` for two limbs, and by Newton's
+iteration (`Bridge.newtonBase`) above.
+-/
+public def sqrtBase (N : UInt32Array.Slice) : UInt32Array.Slice × UInt32Array.Slice :=
+  bridge32.newtonBase sqrtTwo (fun N => N.size ≤ 2) N
+
 private theorem sqrtBase_spec (N : UInt32Array.Slice) :
     MPN.W32.toNat (sqrtBase N).1 = _root_.Nat.sqrt (MPN.W32.toNat N) ∧
       MPN.W32.toNat (sqrtBase N).2 =
         MPN.W32.toNat N - _root_.Nat.sqrt (MPN.W32.toNat N) * _root_.Nat.sqrt (MPN.W32.toNat N) := by
-  unfold sqrtBase
-  split
-  · rename_i h2
-    rw [toNat_le_two N h2]
-    dsimp only
-    generalize N.copy.getD 1 0 = hi
-    generalize N.copy.getD 0 0 = lo
-    have hs : (WordArray.sqrt2W UInt32Array hi lo).toNat =
-        _root_.Nat.sqrt (hi.toNat * 2 ^ 32 + lo.toNat) :=
-      WordArray.val_sqrt2W (A := UInt32Array) hi lo
-    generalize WordArray.sqrt2W UInt32Array hi lo = r at hs
-    have hhi := hi.toNat_lt; have hlo := lo.toNat_lt; have hr := r.toNat_lt
-    have hn : ((hi.toUInt64 * 4294967296 + lo.toUInt64 : UInt64)).toNat =
-        hi.toNat * 2 ^ 32 + lo.toNat := by
-      simp only [UInt64.toNat_add, UInt64.toNat_mul, UInt32.toNat_toUInt64, UInt64.reduceToNat]
-      lia
-    have hsq : (r.toUInt64 * r.toUInt64).toNat = r.toNat * r.toNat := by
-      rw [UInt64.toNat_mul, UInt32.toNat_toUInt64]
-      exact Nat.mod_eq_of_lt (by have := Nat.mul_lt_mul'' hr hr; simpa using this)
-    have hle := Nat.sqrt_le (hi.toNat * 2 ^ 32 + lo.toNat)
-    rw [← hs] at hle
-    rw [(limbsOfWord_spec _).1, (limbsOfWord_spec _).1, UInt32.toNat_toUInt64,
-      UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.2 (by rw [hn, hsq]; exact hle)), hn, hsq,
-      hs]
-    exact ⟨rfl, rfl⟩
-  · have hS : MPN.W32.toNat (sqrtNewton (ofLimbs (trim N.copy) (isTrimmed_trim _))).limbs.toSlice =
-        _root_.Nat.sqrt (MPN.W32.toNat N) := by
-      rw [toNat_limbs_toSlice, toNat_sqrtNewton, toNat_ofLimbs, toNat_trim, toNat_copy]
-    refine ⟨hS, ?_⟩
-    dsimp only
-    rw [← ops32_val,
-      ops32.val_sub _ _ (by rw [ops32.val_sqr, ops32_val, hS]; exact Nat.sqrt_le _),
-      ops32.val_sqr, ops32_val, ops32_val, hS]
+  have h := bridge32.newtonBase_spec sqrtTwo (fun N => N.size ≤ 2) (fun N h => by
+    simp only [bridge32_o, ops32_val]; exact sqrtTwo_spec N (by simpa using h)) N
+  simp only [bridge32_o, ops32_val] at h
+  exact h
 
 /--
-`⌊√x⌋` by Zimmermann's recursion (`NatOps.sqrtRemAux`) on `N = x 4ᶜ` of `2 n` limbs with
-`β^(2n) ≤ 4 N`, then `⌊√N⌋ / 2ᶜ`, with Newton's iteration for roots of up to `T` limbs.
+`⌊√x⌋` by Zimmermann's recursion over `bridge32` (`Bridge.sqrtZ`), with Newton's iteration for
+roots of up to `T` limbs.
 -/
-public def sqrtZimmermann (T : Nat) (x : MPN.W32.Nat) : MPN.W32.Nat :=
-  let L := GNat.log2 x
-  let n := L / 64 + 1
-  let c := (64 * n - 1 - L) / 2
-  let S := (ops32.sqrtRemAux sqrtBase T (shiftLeft x (2 * c)).limbs.toSlice n).1
-  shiftRight (ofLimbs (trim S.copy) (isTrimmed_trim _)) c
-
-/-- `N = X 4ᶜ` has `2 n` limbs and `β^(2n) ≤ 4 N`, for the `n` and `c` of `sqrtZimmermann`. -/
-private theorem sqrtZimmermann_bounds (X : Nat) (hx : X ≠ 0) :
-    X * 2 ^ (2 * ((64 * (X.log2 / 64 + 1) - 1 - X.log2) / 2)) < 2 ^ (64 * (X.log2 / 64 + 1)) ∧
-      2 ^ (64 * (X.log2 / 64 + 1)) ≤
-        4 * (X * 2 ^ (2 * ((64 * (X.log2 / 64 + 1) - 1 - X.log2) / 2))) := by
-  have hlo : 2 ^ X.log2 ≤ X := Nat.log2_self_le hx
-  have hhi : X < 2 ^ (X.log2 + 1) := Nat.lt_log2_self
-  generalize X.log2 = L at *
-  generalize hn : L / 64 + 1 = n
-  generalize hc : (64 * n - 1 - L) / 2 = c
-  have hc₁ : 64 * n - 2 ≤ L + 2 * c := by lia
-  have hc₂ : L + 2 * c + 1 ≤ 64 * n := by lia
-  constructor
-  · calc X * 2 ^ (2 * c) < 2 ^ (L + 1) * 2 ^ (2 * c) :=
-          Nat.mul_lt_mul_of_pos_right hhi (Nat.two_pow_pos _)
-      _ = 2 ^ (L + 2 * c + 1) := by rw [← Nat.pow_add]; congr 1; lia
-      _ ≤ 2 ^ (64 * n) := Nat.pow_le_pow_right (by decide) hc₂
-  · calc 2 ^ (64 * n) ≤ 2 ^ (L + 2 * c + 2) := Nat.pow_le_pow_right (by decide) (by lia)
-      _ = 4 * (2 ^ L * 2 ^ (2 * c)) := by
-          rw [show (4 : Nat) = 2 ^ 2 by rfl, ← Nat.pow_add, ← Nat.pow_add]; congr 1; lia
-      _ ≤ 4 * (X * 2 ^ (2 * c)) := Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ hlo)
-
-private theorem toNat_sqrtZimmermann_of (T : Nat) (x : MPN.W32.Nat) (n c : Nat)
-    (hNlt : x.toNat * 2 ^ (2 * c) < 2 ^ (64 * n))
-    (hNge : 2 ^ (64 * n) ≤ 4 * (x.toNat * 2 ^ (2 * c))) :
-    (shiftRight (ofLimbs (trim (ops32.sqrtRemAux sqrtBase T
-      (shiftLeft x (2 * c)).limbs.toSlice n).1.copy) (isTrimmed_trim _)) c).toNat =
-      _root_.Nat.sqrt x.toNat := by
-  have hn : 1 ≤ n := by
-    refine Nat.pos_of_ne_zero fun h => ?_
-    rw [h] at hNlt hNge
-    have : x.toNat ≠ 0 := by intro h'; rw [h'] at hNge; simp at hNge
-    have := Nat.le_mul_of_pos_right x.toNat (Nat.two_pow_pos (2 * c))
-    simp at hNlt; lia
-  have hNv : ops32.val (shiftLeft x (2 * c)).limbs.toSlice = x.toNat * 2 ^ (2 * c) := by
-    rw [ops32_val, toNat_limbs_toSlice, toNat_shiftLeft]
-  have hB : ops32.B ^ (2 * n) = 2 ^ (64 * n) := by
-    rw [show ops32.B = 2 ^ 32 from rfl, ← Nat.pow_mul]; congr 1; lia
-  obtain ⟨i₃, -⟩ := ops32.sqrtRemAux_spec sqrtBase T
-    (fun N _ _ _ _ _ => by simp only [ops32_val]; exact sqrtBase_spec N)
-    ⟨2 ^ 31, by decide⟩ n _ hn (by rw [hNv, hB]; exact hNlt) (by rw [hNv, hB]; exact hNge)
-  rw [hNv, ops32_val] at i₃
-  rw [toNat_shiftRight, toNat_ofLimbs, toNat_trim, toNat_copy, i₃, sqrt_mul_four_pow]
+public def sqrtZimmermann (T : Nat) (x : MPN.W32.Nat) : MPN.W32.Nat := bridge32.sqrtZ sqrtBase T x
 
 private theorem toNat_sqrtZimmermann (T : Nat) (x : MPN.W32.Nat) (hx : x.toNat ≠ 0) :
-    (sqrtZimmermann T x).toNat = _root_.Nat.sqrt x.toNat := by
-  obtain ⟨h₁, h₂⟩ := sqrtZimmermann_bounds x.toNat hx
-  rw [← log2_eq] at h₁ h₂
-  exact toNat_sqrtZimmermann_of T x _ _ h₁ h₂
+    (sqrtZimmermann T x).toNat = _root_.Nat.sqrt x.toNat :=
+  bridge32.toNat_sqrtZ sqrtBase T (fun N _ _ _ _ _ => by
+    simp only [bridge32_o, ops32_val]; exact sqrtBase_spec N) x hx
 
 /--
 `⌊√n⌋`: by Newton's iteration (`sqrtNewton`) for roots below `Z` limbs, and from there by
@@ -1048,40 +1012,23 @@ public def steps32 : ops32.SmallSteps :=
 /-- The size below which half-gcd computes its matrices by Lehmer's steps alone. -/
 public def hgcdBase : Nat := 128
 
-/-- One reduction of `x ≥ y` by half-gcd (`NatOps.hgcdReduce`), trimmed. -/
+/-- One reduction of `x ≥ y` by half-gcd over `bridge32` (`Bridge.hgcd`). -/
 public def hgcdNat (x y : MPN.W32.Nat) : MPN.W32.Nat × MPN.W32.Nat :=
-  let p := ops32.hgcdReduce (ops32.smallBase steps32) hgcdBase x.limbs.toSlice y.limbs.toSlice
-  (ofLimbs (trim p.1.copy) (isTrimmed_trim _), ofLimbs (trim p.2.copy) (isTrimmed_trim _))
+  bridge32.hgcd (ops32.smallBase steps32) hgcdBase x y
 
 public theorem gcd_hgcdNat (x y : MPN.W32.Nat) :
     _root_.Nat.gcd (hgcdNat x y).1.toNat (hgcdNat x y).2.toNat =
-      _root_.Nat.gcd x.toNat y.toNat := by
-  have h := ops32.gcd_hgcdReduce (ops32.smallBase steps32) (ops32.smallBase_ok steps32) hgcdBase
-    x.limbs.toSlice
-    y.limbs.toSlice
-  simp only [ops32_val] at h
-  simp only [hgcdNat, toNat_ofLimbs, toNat_trim, toNat_copy]
-  rw [h, toNat_toSlice, toNat_toSlice, ← toNat_toSlice, ← toNat_toSlice, toNat_limbs, toNat_limbs]
+      _root_.Nat.gcd x.toNat y.toNat :=
+  bridge32.gcd_hgcd _ (ops32.smallBase_ok steps32) hgcdBase x y
 
-/-- Lehmer's step on the limbs of `x ≥ y` (`LehmerStep.lehmerStep`). -/
+/-- Lehmer's step on the limbs of `x ≥ y` (`Bridge.lehmer`). -/
 public def lehmer (x y : MPN.W32.Nat) : Option (MPN.W32.Nat × MPN.W32.Nat) :=
-  match h : LehmerStep.lehmerStep x.limbs y.limbs with
-  | some p => some (ofLimbs p.1 (LehmerStep.lehmerStep_spec _ _ p h).2.1,
-      ofLimbs p.2 (LehmerStep.lehmerStep_spec _ _ p h).2.2)
-  | none => none
+  Bridge.lehmer (fun a h => ofLimbs a h) x y
 
-public theorem gcd_lehmer (x y : MPN.W32.Nat) (p : MPN.W32.Nat × MPN.W32.Nat) (h : lehmer x y = some p) :
-    _root_.Nat.gcd p.1.toNat p.2.toNat = _root_.Nat.gcd x.toNat y.toNat := by
-  unfold lehmer at h
-  split at h
-  · rename_i q hq
-    rw [Option.some.injEq] at h
-    subst h
-    have e := (LehmerStep.lehmerStep_spec _ _ q hq).1
-    rw [vA_eq, vA_eq, vA_eq, vA_eq, toNat_limbs, toNat_limbs] at e
-    simp only [toNat_ofLimbs]
-    exact e
-  · exact absurd h (by simp)
+public theorem gcd_lehmer (x y : MPN.W32.Nat) (p : MPN.W32.Nat × MPN.W32.Nat)
+    (h : lehmer x y = some p) :
+    _root_.Nat.gcd p.1.toNat p.2.toNat = _root_.Nat.gcd x.toNat y.toNat :=
+  Bridge.gcd_lehmer _ (fun a _ => by rw [toNat_ofLimbs, vA_eq]) vA_eq x y p h
 
 /-- The size of a number, in limbs. -/
 public def sizeL : MPN.W32.Nat → _root_.Nat

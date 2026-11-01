@@ -228,39 +228,22 @@ public instance lehmer64 : LehmerOps UInt64Array UInt64 where
   cof₂ a b := let w := leadWords a b; lehmerSteps w.x w.y 1 0 0 1 100
   two := true
 
-/-- Lehmer's step (`LehmerStep.lehmerStep`) on `x ≥ y`. -/
-public def lehmerStep (x y : UInt64Array) : Option (UInt64Array × UInt64Array) :=
-  LehmerStep.lehmerStep x y
-
-public theorem gcd_lehmerStep (x y : UInt64Array) (p : UInt64Array × UInt64Array)
-    (h : lehmerStep x y = some p) : Nat.gcd p.1.toNat p.2.toNat = Nat.gcd x.toNat y.toNat := by
-  have := (LehmerStep.lehmerStep_spec x y p h).1
-  rwa [vA_eq, vA_eq, vA_eq, vA_eq] at this
-
 /--
 Half-gcd's base case of word matrices, for `NatOps.smallBase`: `main`'s `LehmerStep.smallSteps`
 on the arrays themselves.
 -/
-def steps64 : ops64.SmallSteps :=
+public def steps64 : ops64.SmallSteps :=
   LehmerStep.smallSteps ops64 id id (fun x => by rw [ops64_val, id, vA_eq])
     (fun a => by rw [ops64_val, id, vA_eq]) geB
 
 /-- The base case of half-gcd: `NatOps.smallBase` with `steps64`. -/
-def baseW (s : Nat) (a b : UInt64Array) : Mat2 UInt64Array × UInt64Array × UInt64Array :=
+public def baseW (s : Nat) (a b : UInt64Array) : Mat2 UInt64Array × UInt64Array × UInt64Array :=
   ops64.smallBase steps64 s a b
 
-private theorem baseW_ok (s : Nat) (a b : UInt64Array) : ops64.HgcdOK a b (baseW s a b) :=
+public theorem baseW_ok (s : Nat) (a b : UInt64Array) : ops64.HgcdOK a b (baseW s a b) :=
   ops64.smallBase_ok steps64 s a b
 
 /-- The size up to which half-gcd computes its matrices by Lehmer's steps alone. -/
 public def hgcdBase : Nat := 128
-
-/-- One reduction of `x ≥ y` by half-gcd (`NatOps.hgcdReduce`). -/
-public def hgcd64 (x y : UInt64Array) : UInt64Array × UInt64Array :=
-  ops64.hgcdReduce baseW hgcdBase x y
-
-public theorem gcd_hgcd64 (x y : UInt64Array) :
-    Nat.gcd (hgcd64 x y).1.toNat (hgcd64 x y).2.toNat = Nat.gcd x.toNat y.toNat :=
-  ops64.gcd_hgcdReduce _ baseW_ok hgcdBase x y
 
 end MPN.W64

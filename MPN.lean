@@ -27,6 +27,7 @@ public import MPN.FFT.Product
 public import MPN.FFT.Kernels
 public import MPN.Dispatch
 public import MPN.Dispatch.Div
+public import MPN.Bridge
 public import MPN.Toom.Ops
 public import MPN.Toom.Kernels
 public import MPN.AddSubW

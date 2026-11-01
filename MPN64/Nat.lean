@@ -9,6 +9,7 @@ public import MPN.NatGcd
 public import MPN64.Gcd
 public import MPN64.Decimal
 public import MPN64.Sqrt
+public import MPN.Bridge
 public import MPN64.Div.DC
 import Std.Data.String.ToNat
 
@@ -22,9 +23,10 @@ and limb-wise bitwise operations (`bitA`). Since `MPN.Num` leaves at least one l
 form here is one limb or a nonzero top limb (`isTrim`). The operations guard the bounds that the
 specifications of `MPN.Num` need, and otherwise compute on `Nat`, which never happens.
 
-The square root above `2⁶⁴` is Zimmermann's recursion of `sqrtRem`. The greatest common divisor
-is `main`'s `GNat.gcd` on the instance `gcdLimbs64` of `GcdLimbs`, with Lehmer's step and half-gcd
-from `MPN.Gcd`; `MPN.gcdWith` and `Num.gcd` are it on arrays.
+The square root above `2⁶⁴` is Zimmermann's recursion over the bridge `bridge64` to `ops64`
+(`Bridge.sqrtZ`), and `sqrtRem` is it on arrays. The greatest common divisor is `main`'s `GNat.gcd`
+on the instance `gcdLimbs64` of `GcdLimbs`, with Lehmer's step and half-gcd over the bridge
+(`Bridge.lehmer`, `Bridge.hgcd`); `MPN.gcdWith` and `Num.gcd` are it on arrays.
 -/
 
 open ScalarArray UInt64Array
@@ -504,34 +506,32 @@ namespace Limbs64
 @[simp] public theorem toNat_toGNat (x : UInt64Array) : (toGNat x).toNat = x.toNat := by
   rw [toGNat, GNat.toNat_ofLimbs]; exact toNat_norm x
 
-/-- Lehmer's step (`lehmerStep`) on the limbs of `x` and `y`. -/
+/-- The bridge from `GNat UInt64Array` to `ops64`: the limbs themselves, and back trimmed. -/
+@[expose] public def bridge64 : Bridge UInt64Array UInt64Array where
+  o := ops64
+  w := 64
+  B_eq := rfl
+  one_le_w := by decide
+  toO := id
+  val_toO _ := rfl
+  ofO := toGNat
+  toNat_ofO x := by rw [toNat_toGNat, ops64_val]
+
+/-- Lehmer's step (`LehmerStep.lehmerStep`) on the limbs of `x` and `y`. -/
 public def lehmer (x y : GNat UInt64Array) : Option (GNat UInt64Array × GNat UInt64Array) :=
-  match lehmerStep x.limbs y.limbs with
-  | some p => some (toGNat p.1, toGNat p.2)
-  | none => none
+  Bridge.lehmer (fun a _ => toGNat a) x y
 
 public theorem gcd_lehmer (x y : GNat UInt64Array) (p : GNat UInt64Array × GNat UInt64Array)
-    (h : lehmer x y = some p) : Nat.gcd p.1.toNat p.2.toNat = Nat.gcd x.toNat y.toNat := by
-  unfold lehmer at h
-  split at h
-  · rename_i q hq
-    rw [Option.some.injEq] at h
-    subst h
-    simp only [toNat_toGNat]
-    rw [gcd_lehmerStep _ _ q hq, ← GNat.val_limbs x, ← GNat.val_limbs y]
-    rfl
-  · exact absurd h (by simp)
+    (h : lehmer x y = some p) : Nat.gcd p.1.toNat p.2.toNat = Nat.gcd x.toNat y.toNat :=
+  Bridge.gcd_lehmer _ (fun a _ => by rw [toNat_toGNat, vA_eq]) vA_eq x y p h
 
-/-- Half-gcd (`hgcd64`) on the limbs of `x` and `y`. -/
+/-- Half-gcd on the limbs of `x` and `y`, with Lehmer's steps up to `hgcdBase` limbs. -/
 public def hgcd (x y : GNat UInt64Array) : GNat UInt64Array × GNat UInt64Array :=
-  let p := hgcd64 x.limbs y.limbs
-  (toGNat p.1, toGNat p.2)
+  bridge64.hgcd baseW hgcdBase x y
 
 public theorem gcd_hgcd (x y : GNat UInt64Array) :
-    Nat.gcd (hgcd x y).1.toNat (hgcd x y).2.toNat = Nat.gcd x.toNat y.toNat := by
-  simp only [hgcd, toNat_toGNat]
-  rw [gcd_hgcd64, ← GNat.val_limbs x, ← GNat.val_limbs y]
-  rfl
+    Nat.gcd (hgcd x y).1.toNat (hgcd x y).2.toNat = Nat.gcd x.toNat y.toNat :=
+  bridge64.gcd_hgcd baseW baseW_ok hgcdBase x y
 
 /-- The high word of a number of at most two limbs. -/
 public def hi : GNat UInt64Array → UInt64
@@ -615,49 +615,35 @@ public abbrev ofString? (s : String) : Option MPN.W64.Nat := GNat.ofString? s
 
 /--
 `(⌊√N⌋, N - ⌊√N⌋²)`, the base of Zimmermann's recursion in `sqrtWith`: by `sqrtBase` for two
-limbs, and above by Newton's iteration (`sqrtNewton`).
+limbs, and above by Newton's iteration (`Bridge.newtonBase`).
 -/
 public def sqrtBaseN (N : UInt64Array) : UInt64Array × UInt64Array :=
-  if N.size ≤ 2 then MPN.W64.sqrtBase N
-  else
-    let S := (sqrtNewton (ofLimbs (Limbs64.norm N) (Limbs64.isTrim_norm _))).limbs
-    (S, ops64.sub N (ops64.sqr S))
+  Limbs64.bridge64.newtonBase MPN.W64.sqrtBase (fun N => N.size ≤ 2) N
 
 private theorem sqrtBaseN_spec (N : UInt64Array) :
     (sqrtBaseN N).1.toNat = _root_.Nat.sqrt N.toNat ∧
-      (sqrtBaseN N).2.toNat = N.toNat - _root_.Nat.sqrt N.toNat * _root_.Nat.sqrt N.toNat := by
-  unfold sqrtBaseN
-  split
-  · rename_i h
+      (sqrtBaseN N).2.toNat = N.toNat - _root_.Nat.sqrt N.toNat * _root_.Nat.sqrt N.toNat :=
+  Limbs64.bridge64.newtonBase_spec _ _ (fun N h => by
     apply MPN.W64.sqrtBase_spec
     have := valAt_lt N 0 N.size
     rw [toNat_eq_valAt, show ((2 : Nat) ^ 64) ^ (2 * 1) = 2 ^ (64 * 2) by rw [← Nat.pow_mul]]
-    exact Nat.lt_of_lt_of_le this (Nat.pow_le_pow_right (by decide) (by lia : 64 * N.size ≤ 64 * 2))
-  · have hS : (sqrtNewton (ofLimbs (Limbs64.norm N) (Limbs64.isTrim_norm _))).limbs.toNat =
-        _root_.Nat.sqrt N.toNat := by
-      rw [show ∀ x : MPN.W64.Nat, x.limbs.toNat = x.toNat from GNat.val_limbs, toNat_sqrtNewton,
-        toNat_ofLimbs, Limbs64.toNat_norm]
-    refine ⟨hS, ?_⟩
-    dsimp only
-    rw [← ops64_val, ops64.val_sub _ _ (by rw [ops64.val_sqr, ops64_val, hS]; exact Nat.sqrt_le _),
-      ops64.val_sqr, ops64_val, ops64_val, hS]
+    exact Nat.lt_of_lt_of_le this (Nat.pow_le_pow_right (by decide)
+      (by simp only [decide_eq_true_eq] at h; lia : 64 * N.size ≤ 64 * 2))) N
 
 /--
-`⌊√n⌋`: on words by `Nat.sqrt`, on two limbs by `sqrt2`, by Newton's iteration (`sqrtNewton`) for
-roots below `Z` limbs, and from there by Zimmermann's recursion (`sqrtRemWith`), with Newton's
+`⌊√n⌋`: on words by `Nat.sqrt`, by Newton's iteration (`sqrtNewton`) for roots below `Z` limbs,
+and from there, and on two limbs, by Zimmermann's recursion (`Bridge.sqrtZ`), with Newton's
 iteration for roots of up to `T` limbs (`sqrtBaseN`).
 -/
 public def sqrtWith (Z T : Nat) (n : MPN.W64.Nat) : MPN.W64.Nat :=
-  Dispatch.sqrtBy (fun a => (a.size ≤ 2 ∨ 2 * Z ≤ a.size) ∧ fits (2 * a.size + 41))
-    (fun a _ => ofLimbs (Limbs64.norm (sqrtRemWith sqrtBaseN T a).1) (Limbs64.isTrim_norm _)) n
+  Dispatch.sqrtBy (fun a => a.size ≤ 2 ∨ 2 * Z ≤ a.size)
+    (fun a h => Limbs64.bridge64.sqrtZ sqrtBaseN T (large a h)) n
 
 @[simp] public theorem toNat_sqrtWith (Z T : Nat) (n : MPN.W64.Nat) :
-    (sqrtWith Z T n).toNat = _root_.Nat.sqrt n.toNat := by
-  refine Dispatch.toNat_sqrtBy _ _ (fun a _ h => ?_) n
-  have h := of_decide_eq_true h
-  rw [toNat_ofLimbs, Limbs64.toNat_norm, (toNat_sqrtRemWith sqrtBaseN T
-    (fun N _ _ _ _ _ => sqrtBaseN_spec N) a (by have := lt_of_fits h.2; lia)).1]
-  rfl
+    (sqrtWith Z T n).toNat = _root_.Nat.sqrt n.toNat :=
+  Dispatch.toNat_sqrtBy _ _ (fun a h _ => Limbs64.bridge64.toNat_sqrtZ sqrtBaseN T
+    (fun N _ _ _ _ _ => sqrtBaseN_spec N) _ (by
+      show NatLimbs.val a ≠ 0; have := h.2; lia)) n
 
 /-- `sqrtWith` from roots of `config.sqrtZimmermann` limbs, down to `config.sqrtBase`. -/
 public def sqrt (n : MPN.W64.Nat) : MPN.W64.Nat := sqrtWith config.sqrtZimmermann config.sqrtBase n
@@ -683,5 +669,23 @@ public def Num.gcd (a b : UInt64Array) : UInt64Array := gcdWith config.gcdHalf a
 @[simp] public theorem Num.toNat_gcd (a b : UInt64Array) :
     (Num.gcd a b).toNat = _root_.Nat.gcd a.toNat b.toNat :=
   toNat_gcdWith ..
+
+/--
+`(⌊√a⌋, a - ⌊√a⌋²)` on arrays, like GMP's `mpn_sqrtrem`: by Zimmermann's recursion down to roots
+of one limb (`Nat.sqrtWith 1 1`).
+-/
+public def sqrtRem (a : UInt64Array) : UInt64Array × UInt64Array :=
+  let p := Bridge.sqrtRem (Nat.sqrtWith 1 1) (Limbs64.toGNat a)
+  (p.1.limbs, p.2.limbs)
+
+public theorem toNat_sqrtRem (a : UInt64Array) :
+    (sqrtRem a).1.toNat = _root_.Nat.sqrt a.toNat ∧
+      (sqrtRem a).2.toNat = a.toNat - _root_.Nat.sqrt a.toNat * _root_.Nat.sqrt a.toNat := by
+  have h := Bridge.toNat_sqrtRem (Nat.sqrtWith 1 1) (Nat.toNat_sqrtWith 1 1) (Limbs64.toGNat a)
+  rw [Limbs64.toNat_toGNat] at h
+  simp only [sqrtRem]
+  rw [show ∀ x : MPN.W64.Nat, x.limbs.toNat = x.toNat from GNat.val_limbs]
+  rw [show ∀ x : MPN.W64.Nat, x.limbs.toNat = x.toNat from GNat.val_limbs]
+  exact h
 
 end MPN.W64
