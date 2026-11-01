@@ -98,8 +98,8 @@ lean_lib MPN32 where
 lean_lib MPNTest where
   precompileModules := true
 
-lean_exe tune where
-  root := `Tune
+lean_exe tune32 where
+  root := `Tune.W32
 
-lean_exe bench where
-  root := `Bench
+lean_exe bench32 where
+  root := `Bench.W32
