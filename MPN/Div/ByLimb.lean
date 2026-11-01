@@ -76,6 +76,36 @@ variable (A) in
   R.div2 (R.sub (R.sub R.zero R.one) d) (R.sub R.zero R.one) d
 
 variable (A) in
+/--
+The reciprocal `⌊(β³ - 1) / (d₁ β + d₀)⌋ - β` of a normalized `d₁ β + d₀`, like GMP's
+`invert_pi1`, for the 3-by-2 steps of schoolbook division (`Schoolbook.qEstR`), which check their
+results, so that it needs no proof.
+-/
+@[expose] public def recip32 (d₁ d₀ : L) : L :=
+  let v := recip21 A d₁
+  let p := R.add (R.mul d₁ v) d₀
+  let vp : L × L :=
+    if R.ltB p d₀ then
+      let mask := R.sub R.zero (R.ofBool (!R.ltB p d₁))
+      (R.add (R.sub v R.one) mask, R.sub (R.sub p d₁) (R.land mask d₁))
+    else (v, p)
+  let v := vp.1
+  let t₁ := R.mulh d₀ v
+  let p := R.add vp.2 t₁
+  if R.ltB p t₁ then
+    if !R.ltB p d₁ && (R.ltB d₁ p || !R.ltB (R.mul d₀ v) d₀) then R.sub v (R.add R.one R.one)
+    else R.sub v R.one
+  else v
+
+variable (A) in
+/--
+The reciprocal of the top limbs `v₁ v₂` of a divisor of `n` limbs for the steps of schoolbook
+division from `t` limbs on, or `0`, which takes the steps without it (`Schoolbook.qEstD`).
+-/
+@[inline, expose] public def divRecip32 (t n : USize) (v₁ v₂ : L) : L :=
+  if t ≤ n then recip32 A v₁ v₂ else R.zero
+
+variable (A) in
 /-- Whether the top bit of `d` is set. -/
 @[inline, expose] public def isNorm (d : L) : Bool :=
   !R.ltB d (R.shl R.one (R.ofUSize (R.wU - 1)))
