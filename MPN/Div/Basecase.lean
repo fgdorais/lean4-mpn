@@ -15,7 +15,7 @@ import all Init.Data.Fin.Log2
 `divRem` divides by a divisor `v` of `n ≥ 2` limbs by Knuth's Algorithm D, like GMP's schoolbook
 division, through `main`'s `MPN.Div.Schoolbook` on `UInt64Array` (`divLoopIn`): one quotient limb
 per step from the top down, in one array, the multiply-subtract pass by the in-place fold. From
-`div32Threshold` limbs in the divisor, the estimates are GMP's 3-by-2 step with the precomputed
+`config.div32Recip` limbs in the divisor, the estimates are GMP's 3-by-2 step with the precomputed
 reciprocal `recip32`, checked exactly. `divRem` normalizes the divisor, which keeps the corrections
 of the estimates rare, and shifts the remainder back.
 -/
@@ -36,32 +36,18 @@ reciprocal nor the error bound of the step needs a proof.
 -/
 
 /-- The reciprocal `⌊(β³ - 1) / (d₁ β + d₀)⌋ - β` of a normalized `d₁ β + d₀`, like GMP's
-`invert_pi1`. -/
-public def recip32 (d₁ d₀ : UInt64) : UInt64 :=
-  let v := recip21 d₁
-  let p := d₁ * v + d₀
-  let vp : UInt64 × UInt64 :=
-    if p < d₀ then
-      let mask := (0 : UInt64) - (decide (d₁ ≤ p)).toUInt64
-      (v - 1 + mask, p - d₁ - (mask &&& d₁))
-    else (v, p)
-  let v := vp.1
-  let t₁ := UInt64.mulh d₀ v
-  let p := vp.2 + t₁
-  if p < t₁ then
-    if d₁ ≤ p && (d₁ < p || d₀ ≤ d₀ * v) then v - 2 else v - 1
-  else v
+`invert_pi1`, by `main`'s `WordArray.recip32`. -/
+@[inline] public def recip32 (d₁ d₀ : UInt64) : UInt64 := WordArray.recip32 UInt64Array d₁ d₀
+
+/-- `config.div32Recip` as a `USize`, at most `2³² - 1`. -/
+public def div32RecipU : USize := (min config.div32Recip 4294967295).toUSize
 
 /--
-The size of the divisor from which `divRem` estimates the quotient limbs with the reciprocal
-(`qEstR`). Below it, computing the reciprocal costs more than the steps save, on Zen 3, where the
-hardware divider of `qEst` is fast.
+The reciprocal of the top limbs `v₁ v₂` of a divisor of `n` limbs for `divRemWith t`, from `t`
+limbs, or `0`.
 -/
-public def div32Threshold : Nat := 48
-
-/-- The reciprocal of the top limbs `v₁ v₂` of a divisor of `n` limbs for `divRem`, or `0`. -/
-@[inline] public def divRecip (n : USize) (v₁ v₂ : UInt64) : UInt64 :=
-  if div32Threshold ≤ n.toNat then recip32 v₁ v₂ else 0
+@[inline] public def divRecip (t n : USize) (v₁ v₂ : UInt64) : UInt64 :=
+  WordArray.divRecip32 UInt64Array t n v₁ v₂
 
 /-! ## The loop -/
 
@@ -116,7 +102,7 @@ top bit of `b`, which keeps the corrections of the estimates in `divStepIn` rare
 is shifted back at the end. The quotient of `a 2ᵏ` by `b 2ᵏ` is `a / b` and the remainder
 `(a % b) 2ᵏ`.
 -/
-public def divRem (q r a b : USlice) : UInt64Array × UInt64Array :=
+public def divRemWith (t : USize) (q r a b : USlice) : UInt64Array × UInt64Array :=
   if b.size ≤ 1 then
     let p := divRem1 q a b.array[b.start.toNat]!
     (p.1, r.array.set! r.start.toNat p.2)
@@ -127,19 +113,19 @@ public def divRem (q r a b : USlice) : UInt64Array × UInt64Array :=
     let p := shiftLeft (UInt64Array.replicate (a.size.toNat + 1) 0).toUSlice a k
     let w := p.1.set! a.size.toNat p.2
     let res := divLoopIn w v.toUSlice v[n.toNat - 1]! v[n.toNat - 2]!
-      (divRecip n v[n.toNat - 1]! v[n.toNat - 2]!) n (a.size + 1 - n)
+      (divRecip t n v[n.toNat - 1]! v[n.toNat - 2]!) n (a.size + 1 - n)
     ((add1 q (res.uslice n (n + (a.size + 1 - n))) 0).1, shiftRight r (res.uslice 0 n) k)
 
-@[simp] public theorem size_divRem_fst (q r a b : USlice) :
-    (divRem q r a b).1.size = q.array.size := by
-  rw [divRem]
+@[simp] public theorem size_divRemWith_fst (t : USize) (q r a b : USlice) :
+    (divRemWith t q r a b).1.size = q.array.size := by
+  rw [divRemWith]
   split
   · exact size_divRem1 ..
   · exact size_add1 ..
 
-@[simp] public theorem size_divRem_snd (q r a b : USlice) :
-    (divRem q r a b).2.size = r.array.size := by
-  rw [divRem]
+@[simp] public theorem size_divRemWith_snd (t : USize) (q r a b : USlice) :
+    (divRemWith t q r a b).2.size = r.array.size := by
+  rw [divRemWith]
   split
   · simp
   · exact size_shiftRight ..
@@ -184,17 +170,17 @@ private theorem top_bounds (b : USlice) (h₀ : 0 < b.size.toNat)
   rw [Nat.mul_add, Nat.mul_one] at h₂
   constructor <;> lia
 
-private theorem divRem_long (q r a b : USlice) (h₁ : ¬b.size ≤ 1) (hab : b.size ≤ a.size)
+private theorem divRem_long (t : USize) (q r a b : USlice) (h₁ : ¬b.size ≤ 1) (hab : b.size ≤ a.size)
     (ht : b.array[b.start.toNat + b.size.toNat - 1]! ≠ 0)
     (hq : a.size.toNat - b.size.toNat + 1 ≤ q.size.toNat) (hr : b.size ≤ r.size)
     (hU : a.size.toNat + 1 < USize.size) :
-    (divRem q r a b).1.valAt q.start.toNat (a.size.toNat - b.size.toNat + 1) =
+    (divRemWith t q r a b).1.valAt q.start.toNat (a.size.toNat - b.size.toNat + 1) =
         a.toNat / b.toNat ∧
-      (divRem q r a b).2.valAt r.start.toNat b.size.toNat = a.toNat % b.toNat ∧
+      (divRemWith t q r a b).2.valAt r.start.toNat b.size.toNat = a.toNat % b.toNat ∧
       (∀ i, (i < q.start.toNat ∨ q.start.toNat + (a.size.toNat - b.size.toNat + 1) ≤ i) →
-        (divRem q r a b).1[i]! = q.array[i]!) ∧
+        (divRemWith t q r a b).1[i]! = q.array[i]!) ∧
       (∀ i, (i < r.start.toNat ∨ r.start.toNat + b.size.toNat ≤ i) →
-        (divRem q r a b).2[i]! = r.array[i]!) := by
+        (divRemWith t q r a b).2[i]! = r.array[i]!) := by
   have hn₂ : 2 ≤ b.size.toNat := by
     have := fun h => h₁ (USize.le_iff_toNat_le.2 h); rw [USize.toNat_one] at this; lia
   have hab' := USize.le_iff_toNat_le.1 hab
@@ -269,7 +255,7 @@ private theorem divRem_long (q r a b : USlice) (h₁ : ¬b.size ≤ 1) (hab : b.
     exact Nat.lt_of_lt_of_le hlt (Nat.mul_le_mul_right _ hle)
   obtain ⟨l₁, l₂, l₄, l₅⟩ := divLoopIn_spec (pw.1.set! a.size.toNat pw.2)
     pv.1.toUSlice (pv.1[b.size.toNat - 1]!) (pv.1[b.size.toNat - 2]!)
-    (divRecip b.size pv.1[b.size.toNat - 1]! pv.1[b.size.toNat - 2]!) b.size (a.size + 1 - b.size)
+    (divRecip t b.size pv.1[b.size.toNat - 1]! pv.1[b.size.toNat - 2]!) b.size (a.size + 1 - b.size)
     hvU hn₂ (by rw [hm, hwsz]; lia) (by rw [hwsz]; exact hU) (by rw [hvT]; exact hVpos)
     (by simp) (by simp) hR
   rw [hm, hvT, show a.size.toNat + 1 - b.size.toNat + b.size.toNat = a.size.toNat + 1 by lia,
@@ -282,7 +268,7 @@ private theorem divRem_long (q r a b : USlice) (h₁ : ¬b.size ≤ 1) (hab : b.
   rw [← l₄, Nat.mul_add_mod, Nat.mod_eq_of_lt l₅] at hRm
   generalize hres : divLoopIn (pw.1.set! a.size.toNat pw.2) pv.1.toUSlice
     (pv.1[b.size.toNat - 1]!) (pv.1[b.size.toNat - 2]!)
-    (divRecip b.size pv.1[b.size.toNat - 1]! pv.1[b.size.toNat - 2]!) b.size (a.size + 1 - b.size) = res
+    (divRecip t b.size pv.1[b.size.toNat - 1]! pv.1[b.size.toNat - 2]!) b.size (a.size + 1 - b.size) = res
     at l₁ l₂ l₄ l₅ hQ hRm
   -- The remainder, from limbs `0` to `n - 1`.
   have hsl := win_spec res 0 b.size (by rw [USize.toNat_zero, l₁, hwsz]; lia)
@@ -313,9 +299,9 @@ private theorem divRem_long (q r a b : USlice) (h₁ : ¬b.size ≤ 1) (hab : b.
     rcases Nat.eq_zero_or_pos c with h0 | h0
     · subst h0; lia
     · have := Nat.mul_le_mul_left (2 ^ (64 * (a.size.toNat + 1 - b.size.toNat))) h0; lia
-  have hdiv : divRem q r a b = ((add1 q (res.uslice b.size (b.size + (a.size + 1 - b.size)))
+  have hdiv : divRemWith t q r a b = ((add1 q (res.uslice b.size (b.size + (a.size + 1 - b.size)))
       0).1, shiftRight r (res.uslice 0 b.size) k) := by
-    rw [divRem, ite_eq_right h₁]
+    rw [divRemWith, ite_eq_right h₁]
     dsimp only
     rw [hk, hv, hp, hres]
   rw [hdiv, show a.size.toNat - b.size.toNat + 1 = a.size.toNat + 1 - b.size.toNat by lia]
@@ -323,16 +309,16 @@ private theorem divRem_long (q r a b : USlice) (h₁ : ¬b.size ≤ 1) (hab : b.
   · exact getElem!_add1 _ _ _ _ (by rw [qz]; lia)
   · exact getElem!_shiftRight _ _ _ _ (by rw [sz, Nat.div_eq_of_lt hk64, Nat.sub_zero]; exact hi)
 
-private theorem divRem_short (q r a b : USlice) (h₁ : b.size ≤ 1) (h₀ : 0 < b.size.toNat)
+private theorem divRem_short (t : USize) (q r a b : USlice) (h₁ : b.size ≤ 1) (h₀ : 0 < b.size.toNat)
     (hab : b.size ≤ a.size) (ht : b.array[b.start.toNat + b.size.toNat - 1]! ≠ 0)
     (hq : a.size.toNat - b.size.toNat + 1 ≤ q.size.toNat) (hr : b.size ≤ r.size) :
-    (divRem q r a b).1.valAt q.start.toNat (a.size.toNat - b.size.toNat + 1) =
+    (divRemWith t q r a b).1.valAt q.start.toNat (a.size.toNat - b.size.toNat + 1) =
         a.toNat / b.toNat ∧
-      (divRem q r a b).2.valAt r.start.toNat b.size.toNat = a.toNat % b.toNat ∧
+      (divRemWith t q r a b).2.valAt r.start.toNat b.size.toNat = a.toNat % b.toNat ∧
       (∀ i, (i < q.start.toNat ∨ q.start.toNat + (a.size.toNat - b.size.toNat + 1) ≤ i) →
-        (divRem q r a b).1[i]! = q.array[i]!) ∧
+        (divRemWith t q r a b).1[i]! = q.array[i]!) ∧
       (∀ i, (i < r.start.toNat ∨ r.start.toNat + b.size.toNat ≤ i) →
-        (divRem q r a b).2[i]! = r.array[i]!) := by
+        (divRemWith t q r a b).2[i]! = r.array[i]!) := by
   have hb1 : b.size.toNat = 1 := by have := USize.le_iff_toNat_le.1 h₁; simp at this; lia
   have hab' := USize.le_iff_toNat_le.1 hab
   have hr' := USize.le_iff_toNat_le.1 hr
@@ -344,10 +330,63 @@ private theorem divRem_short (q r a b : USlice) (h₁ : b.size ≤ 1) (h₀ : 0 
   have haq : a.size ≤ q.size := USize.le_iff_toNat_le.2 (by lia)
   have hrs : r.start.toNat < r.array.size := by
     have := r.toNat_size; have := r.stop_le_size; lia
-  rw [divRem, ite_eq_left h₁, hb1, show a.size.toNat - 1 + 1 = a.size.toNat by lia, hbv]
+  rw [divRemWith, ite_eq_left h₁, hb1, show a.size.toNat - 1 + 1 = a.size.toNat by lia, hbv]
   refine ⟨valAt_divRem1 _ _ _ hd haq, ?_, fun i hi => getElem!_divRem1 _ _ _ _ (by
     have := USize.le_iff_toNat_le.1 haq; lia), fun i hi => getElem!_set!_of_ne _ _ (by lia)⟩
   rw [valAt_one, getElem!_set!_self _ _ _ hrs, toNat_divRem1_snd _ _ _ hd haq]
+
+/-- `divRemWith` writes `a / b` into `q`. -/
+public theorem valAt_divRemWith_fst (t : USize) (q r a b : USlice) (h₀ : 0 < b.size.toNat)
+    (hab : b.size ≤ a.size) (ht : b.array[b.start.toNat + b.size.toNat - 1]! ≠ 0)
+    (hq : a.size.toNat - b.size.toNat + 1 ≤ q.size.toNat) (hr : b.size ≤ r.size)
+    (hU : a.size.toNat + 1 < USize.size) :
+    (divRemWith t q r a b).1.valAt q.start.toNat (a.size.toNat - b.size.toNat + 1) =
+      a.toNat / b.toNat := by
+  by_cases h₁ : b.size ≤ 1
+  · exact (divRem_short t q r a b h₁ h₀ hab ht hq hr).1
+  · exact (divRem_long t q r a b h₁ hab ht hq hr hU).1
+
+/-- `divRemWith` writes `a % b` into `r`. -/
+public theorem valAt_divRemWith_snd (t : USize) (q r a b : USlice) (h₀ : 0 < b.size.toNat)
+    (hab : b.size ≤ a.size) (ht : b.array[b.start.toNat + b.size.toNat - 1]! ≠ 0)
+    (hq : a.size.toNat - b.size.toNat + 1 ≤ q.size.toNat) (hr : b.size ≤ r.size)
+    (hU : a.size.toNat + 1 < USize.size) :
+    (divRemWith t q r a b).2.valAt r.start.toNat b.size.toNat = a.toNat % b.toNat := by
+  by_cases h₁ : b.size ≤ 1
+  · exact (divRem_short t q r a b h₁ h₀ hab ht hq hr).2.1
+  · exact (divRem_long t q r a b h₁ hab ht hq hr hU).2.1
+
+/-- `divRemWith` leaves the limbs of `q` outside the quotient unchanged. -/
+public theorem getElem!_divRemWith_fst (t : USize) (q r a b : USlice) (h₀ : 0 < b.size.toNat)
+    (hab : b.size ≤ a.size) (ht : b.array[b.start.toNat + b.size.toNat - 1]! ≠ 0)
+    (hq : a.size.toNat - b.size.toNat + 1 ≤ q.size.toNat) (hr : b.size ≤ r.size)
+    (hU : a.size.toNat + 1 < USize.size) (i : Nat)
+    (hi : i < q.start.toNat ∨ q.start.toNat + (a.size.toNat - b.size.toNat + 1) ≤ i) :
+    (divRemWith t q r a b).1[i]! = q.array[i]! := by
+  by_cases h₁ : b.size ≤ 1
+  · exact (divRem_short t q r a b h₁ h₀ hab ht hq hr).2.2.1 i hi
+  · exact (divRem_long t q r a b h₁ hab ht hq hr hU).2.2.1 i hi
+
+/-- `divRemWith` leaves the limbs of `r` outside the remainder unchanged. -/
+public theorem getElem!_divRemWith_snd (t : USize) (q r a b : USlice) (h₀ : 0 < b.size.toNat)
+    (hab : b.size ≤ a.size) (ht : b.array[b.start.toNat + b.size.toNat - 1]! ≠ 0)
+    (hq : a.size.toNat - b.size.toNat + 1 ≤ q.size.toNat) (hr : b.size ≤ r.size)
+    (hU : a.size.toNat + 1 < USize.size) (i : Nat)
+    (hi : i < r.start.toNat ∨ r.start.toNat + b.size.toNat ≤ i) :
+    (divRemWith t q r a b).2[i]! = r.array[i]! := by
+  by_cases h₁ : b.size ≤ 1
+  · exact (divRem_short t q r a b h₁ h₀ hab ht hq hr).2.2.2 i hi
+  · exact (divRem_long t q r a b h₁ hab ht hq hr hU).2.2.2 i hi
+
+/-- `divRemWith` with the 3-by-2 steps with the reciprocal from `config.div32Recip` limbs. -/
+public def divRem (q r a b : USlice) : UInt64Array × UInt64Array :=
+  divRemWith div32RecipU q r a b
+
+@[simp] public theorem size_divRem_fst (q r a b : USlice) :
+    (divRem q r a b).1.size = q.array.size := size_divRemWith_fst ..
+
+@[simp] public theorem size_divRem_snd (q r a b : USlice) :
+    (divRem q r a b).2.size = r.array.size := size_divRemWith_snd ..
 
 /-- `divRem` writes `a / b` into `q`. -/
 public theorem valAt_divRem_fst (q r a b : USlice) (h₀ : 0 < b.size.toNat)
@@ -355,20 +394,15 @@ public theorem valAt_divRem_fst (q r a b : USlice) (h₀ : 0 < b.size.toNat)
     (hq : a.size.toNat - b.size.toNat + 1 ≤ q.size.toNat) (hr : b.size ≤ r.size)
     (hU : a.size.toNat + 1 < USize.size) :
     (divRem q r a b).1.valAt q.start.toNat (a.size.toNat - b.size.toNat + 1) =
-      a.toNat / b.toNat := by
-  by_cases h₁ : b.size ≤ 1
-  · exact (divRem_short q r a b h₁ h₀ hab ht hq hr).1
-  · exact (divRem_long q r a b h₁ hab ht hq hr hU).1
+      a.toNat / b.toNat := valAt_divRemWith_fst _ q r a b h₀ hab ht hq hr hU
 
 /-- `divRem` writes `a % b` into `r`. -/
 public theorem valAt_divRem_snd (q r a b : USlice) (h₀ : 0 < b.size.toNat)
     (hab : b.size ≤ a.size) (ht : b.array[b.start.toNat + b.size.toNat - 1]! ≠ 0)
     (hq : a.size.toNat - b.size.toNat + 1 ≤ q.size.toNat) (hr : b.size ≤ r.size)
     (hU : a.size.toNat + 1 < USize.size) :
-    (divRem q r a b).2.valAt r.start.toNat b.size.toNat = a.toNat % b.toNat := by
-  by_cases h₁ : b.size ≤ 1
-  · exact (divRem_short q r a b h₁ h₀ hab ht hq hr).2.1
-  · exact (divRem_long q r a b h₁ hab ht hq hr hU).2.1
+    (divRem q r a b).2.valAt r.start.toNat b.size.toNat = a.toNat % b.toNat :=
+  valAt_divRemWith_snd _ q r a b h₀ hab ht hq hr hU
 
 /-- `divRem` leaves the limbs of `q` outside the quotient unchanged. -/
 public theorem getElem!_divRem_fst (q r a b : USlice) (h₀ : 0 < b.size.toNat)
@@ -376,10 +410,8 @@ public theorem getElem!_divRem_fst (q r a b : USlice) (h₀ : 0 < b.size.toNat)
     (hq : a.size.toNat - b.size.toNat + 1 ≤ q.size.toNat) (hr : b.size ≤ r.size)
     (hU : a.size.toNat + 1 < USize.size) (i : Nat)
     (hi : i < q.start.toNat ∨ q.start.toNat + (a.size.toNat - b.size.toNat + 1) ≤ i) :
-    (divRem q r a b).1[i]! = q.array[i]! := by
-  by_cases h₁ : b.size ≤ 1
-  · exact (divRem_short q r a b h₁ h₀ hab ht hq hr).2.2.1 i hi
-  · exact (divRem_long q r a b h₁ hab ht hq hr hU).2.2.1 i hi
+    (divRem q r a b).1[i]! = q.array[i]! :=
+  getElem!_divRemWith_fst _ q r a b h₀ hab ht hq hr hU i hi
 
 /-- `divRem` leaves the limbs of `r` outside the remainder unchanged. -/
 public theorem getElem!_divRem_snd (q r a b : USlice) (h₀ : 0 < b.size.toNat)
@@ -387,9 +419,7 @@ public theorem getElem!_divRem_snd (q r a b : USlice) (h₀ : 0 < b.size.toNat)
     (hq : a.size.toNat - b.size.toNat + 1 ≤ q.size.toNat) (hr : b.size ≤ r.size)
     (hU : a.size.toNat + 1 < USize.size) (i : Nat)
     (hi : i < r.start.toNat ∨ r.start.toNat + b.size.toNat ≤ i) :
-    (divRem q r a b).2[i]! = r.array[i]! := by
-  by_cases h₁ : b.size ≤ 1
-  · exact (divRem_short q r a b h₁ h₀ hab ht hq hr).2.2.2 i hi
-  · exact (divRem_long q r a b h₁ hab ht hq hr hU).2.2.2 i hi
+    (divRem q r a b).2[i]! = r.array[i]! :=
+  getElem!_divRemWith_snd _ q r a b h₀ hab ht hq hr hU i hi
 
 end MPN

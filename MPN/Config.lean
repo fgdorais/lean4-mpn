@@ -95,6 +95,11 @@ public structure Config extends Toom.Config where
   precomputed reciprocal instead of the hardware divider.
   -/
   div1Recip : Nat := 12
+  /--
+  The size of the divisor from which schoolbook division estimates the quotient limbs by GMP's
+  3-by-2 step with a precomputed reciprocal instead of the hardware divider.
+  -/
+  div32Recip : Nat := 48
   /-- The size of the smaller number from which the greatest common divisor uses half-gcd. -/
   gcdHalf : Nat := 1024
   /-- The size from which decimal strings are written by divide and conquer. -/
@@ -220,6 +225,12 @@ public meta register_option mpn.div.recip1Threshold : Nat := {
     precomputed reciprocal"
 }
 
+public meta register_option mpn.div.recip32Threshold : Nat := {
+  defValue := ({} : Config).div32Recip
+  descr := "the size of the divisor, in limbs, from which schoolbook division uses 3-by-2 steps \
+    with a precomputed reciprocal"
+}
+
 public meta register_option mpn.gcd.halfThreshold : Nat := {
   defValue := ({} : Config).gcdHalf
   descr := "the size of the smaller number, in limbs, from which gcd uses half-gcd"
@@ -285,6 +296,7 @@ elab "mpn_config%" : term => do
   let divMu := mpn.div.muThreshold.get opts
   let divQMu := mpn.div.quotMuThreshold.get opts
   let div1Recip := mpn.div.recip1Threshold.get opts
+  let div32Recip := mpn.div.recip32Threshold.get opts
   let gcdHalf := mpn.gcd.halfThreshold.get opts
   let strDC := mpn.str.dcThreshold.get opts
   let parseDC := mpn.str.parseDCThreshold.get opts
@@ -309,6 +321,7 @@ elab "mpn_config%" : term => do
   let divMuStx := quote divMu
   let divQMuStx := quote divQMu
   let div1RecipStx := quote div1Recip
+  let div32RecipStx := quote div32Recip
   let gcdHalfStx := quote gcdHalf
   let strDCStx := quote strDC
   let parseDCStx := quote parseDC
@@ -333,6 +346,7 @@ elab "mpn_config%" : term => do
                  divMu := $divMuStx
                  divQMu := $divQMuStx
                  div1Recip := $div1RecipStx
+                 div32Recip := $div32RecipStx
                  gcdHalf := $gcdHalfStx
                  strDC := $strDCStx
                  parseDC := $parseDCStx } : Config))

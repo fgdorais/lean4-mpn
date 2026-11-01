@@ -24,10 +24,10 @@ changing the options, build once with `-R` to reconfigure.
   the C compiler use the vector instructions of the machine. The binaries then run only on
   processors with those instructions.
 * `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`, `mulToom43`, `mulToom4`, `mulToom6`,
-  `mulFFT`, `mulFFTUnbal`, `mulFFTMin`, `mulUnbalanced`, `mulChunkMax`, `sqrKaratsuba`,
-  `sqrToom3`, `sqrToom4`, `sqrToom6`, `sqrFFT`, `divDC`, `divMu`, `divQMu`, `div1Recip`, `gcdHalf`,
-  `strDC`, `parseDC`: the thresholds, by the names of the fields of `MPN.Config`. The keys have no
-  dots, since TOML passes a quoted key as one name.
+  `mulFFT`, `mulFFTUnbal`, `mulFFTMin`, `mulUnbalanced`, `mulChunkMax`, `sqrKaratsuba`, `sqrToom3`,
+  `sqrToom4`, `sqrToom6`, `sqrFFT`, `divDC`, `divMu`, `divQMu`, `div1Recip`, `div32Recip`,
+  `gcdHalf`, `strDC`, `parseDC`: the thresholds, by the names of the fields of `MPN.Config`. The
+  keys have no dots, since TOML passes a quoted key as one name.
 -/
 
 /--
@@ -63,6 +63,7 @@ def thresholdOptions : Array LeanOption :=
     opt `div.muThreshold (get_config? divMu) ++
     opt `div.quotMuThreshold (get_config? divQMu) ++
     opt `div.recip1Threshold (get_config? div1Recip) ++
+    opt `div.recip32Threshold (get_config? div32Recip) ++
     opt `gcd.halfThreshold (get_config? gcdHalf) ++
     opt `str.dcThreshold (get_config? strDC) ++
     opt `str.parseDCThreshold (get_config? parseDC)
