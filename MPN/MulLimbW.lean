@@ -98,6 +98,87 @@ public theorem foldUInPlace_spec1 {β : Type} (n : USize) (f : (j : USize) → j
     have : n.toNat - j.toNat = 0 := by have := USize.lt_iff_toNat_lt (a := j) (b := n); lia
     simp [this, hb, Nat.add_comm]
 
+/--
+`foldUInPlace_spec1` for a step that reads limb `ao + j` of `a` and limb `bo + j` of `b`, with a
+linear law in the limb `z` it replaces and the two limbs it reads.
+-/
+public theorem foldUInPlace_spec2 {β : Type} (n : USize)
+    (f : (j : USize) → j < n → L → β → L × β) (a : A) (ao : USize) (b : A) (bo : USize)
+    (P Q : β → Nat) (uo uz ua ub vz va vb : Nat) (I : β → Prop)
+    (inv : ∀ j h z c, I c → I (f j h z c).2)
+    (law : ∀ j h z c, I c → uo * LA.val (f j h z c).1 + 2 ^ LA.w * P (f j h z c).2 +
+      uz * LA.val z + ua * LA.val (LA.get a (ao.toNat + j.toNat)) +
+        ub * LA.val (LA.get b (bo.toNat + j.toNat)) + Q c =
+      vz * LA.val z + va * LA.val (LA.get a (ao.toNat + j.toNat)) +
+        vb * LA.val (LA.get b (bo.toNat + j.toNat)) + 2 ^ LA.w * Q (f j h z c).2 + P c)
+    (arr : A) (rs : USize) (hr : LoopBound arr rs n) (j : USize) (c : β) (hc : I c) :
+    LA.size (foldUInPlace n f arr rs hr j c).1 = LA.size arr ∧
+      I (foldUInPlace n f arr rs hr j c).2 ∧
+      (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
+        LA.get (foldUInPlace n f arr rs hr j c).1 i = LA.get arr i) ∧
+      uo * LimbArray.valAt (foldUInPlace n f arr rs hr j c).1 (rs.toNat + j.toNat)
+          (n.toNat - j.toNat) +
+        2 ^ (LA.w * (n.toNat - j.toNat)) * P (foldUInPlace n f arr rs hr j c).2 +
+        uz * LimbArray.valAt arr (rs.toNat + j.toNat) (n.toNat - j.toNat) +
+        ua * LimbArray.valAt a (ao.toNat + j.toNat) (n.toNat - j.toNat) +
+        ub * LimbArray.valAt b (bo.toNat + j.toNat) (n.toNat - j.toNat) + Q c =
+      vz * LimbArray.valAt arr (rs.toNat + j.toNat) (n.toNat - j.toNat) +
+        va * LimbArray.valAt a (ao.toNat + j.toNat) (n.toNat - j.toNat) +
+        vb * LimbArray.valAt b (bo.toNat + j.toNat) (n.toNat - j.toNat) +
+        2 ^ (LA.w * (n.toNat - j.toNat)) * Q (foldUInPlace n f arr rs hr j c).2 + P c := by
+  induction arr, hr, j, c using foldUInPlace.induct (R := R) n f rs with
+  | case1 arr hr j c h p ih =>
+    rw [foldUInPlace_lt _ _ _ _ _ _ _ h]
+    have hI := inv j h (R.uget arr (rs + j) (hr.uset_bound h)) c hc
+    have hj := USize.lt_iff_toNat_lt.1 h
+    have hj₁ := USize.toNat_add_one_of_lt h
+    have hri := hr.toNat_add h
+    obtain ⟨ih₁, ih₀, ih₂, ih₃⟩ := ih hI
+    rw [hj₁] at ih₂ ih₃
+    rw [R.size_uset] at ih₁
+    have hv : LA.get (foldUInPlace n f (R.uset arr (rs + j) p.1 (hr.uset_bound h)) rs
+        (hr.of_uset ..) (j + 1) p.2).1 (rs.toNat + j.toNat) = p.1 := by
+      rw [ih₂ _ (.inl (by lia)), R.get_uset]
+      simp [hri]
+    have hZ : LimbArray.valAt (R.uset arr (rs + j) p.1 (hr.uset_bound h))
+        (rs.toNat + (j.toNat + 1)) (n.toNat - (j.toNat + 1)) =
+          LimbArray.valAt arr (rs.toNat + (j.toNat + 1)) (n.toNat - (j.toNat + 1)) :=
+      valAt_uset_of _ _ _ _ _ _ (by rw [hri]; lia)
+    have hz' : R.uget arr (rs + j) (hr.uset_bound h) = LA.get arr (rs.toNat + j.toNat) := by
+      rw [R.uget_eq, hri]
+    refine ⟨ih₁, ih₀, fun i hi => ?_, ?_⟩
+    · rw [ih₂ i (by lia), R.get_uset]
+      simp only [hri]
+      split <;> lia
+    · rw [hZ] at ih₃
+      obtain ⟨k, hk⟩ : ∃ k, n.toNat - j.toNat = k + 1 := ⟨n.toNat - j.toNat - 1, by lia⟩
+      rw [show n.toNat - (j.toNat + 1) = k by lia, ← Nat.add_assoc, ← Nat.add_assoc,
+        ← Nat.add_assoc] at ih₃
+      have hl := law j h (R.uget arr (rs + j) (hr.uset_bound h)) c hc
+      rw [hz'] at hl
+      rw [hk, LimbArray.valAt_succ, LimbArray.valAt_succ, LimbArray.valAt_succ,
+        LimbArray.valAt_succ, hv, Nat.mul_succ, Nat.pow_add]
+      show _ * _ + _ * P (foldUInPlace n f (R.uset arr (rs + j) p.1 (hr.uset_bound h)) rs
+        (hr.of_uset ..) (j + 1) p.2).2 + _ + _ + _ + _ = _
+      generalize (foldUInPlace n f (R.uset arr (rs + j) p.1 (hr.uset_bound h)) rs
+        (hr.of_uset ..) (j + 1) p.2) = q at *
+      simp only [p, hz'] at *
+      generalize f j h (LA.get arr (rs.toNat + j.toNat)) c = p' at *
+      generalize LimbArray.valAt q.1 _ _ = V at *
+      generalize LimbArray.valAt arr (rs.toNat + j.toNat + 1) k = Z at *
+      generalize LimbArray.valAt a (ao.toNat + j.toNat + 1) k = X at *
+      generalize LimbArray.valAt b (bo.toNat + j.toNat + 1) k = Y at *
+      generalize LA.val (LA.get arr (rs.toNat + j.toNat)) = z at *
+      generalize LA.val (LA.get a (ao.toNat + j.toNat)) = x at *
+      generalize LA.val (LA.get b (bo.toNat + j.toNat)) = y at *
+      generalize 2 ^ (LA.w * k) = B at *
+      generalize 2 ^ LA.w = W at *
+      grind
+  | case2 arr hr j c h =>
+    rw [foldUInPlace_ge _ _ _ _ _ _ _ h]
+    have : n.toNat - j.toNat = 0 := by have := USize.lt_iff_toNat_lt (a := j) (b := n); lia
+    simp [this, hc, Nat.add_comm]
+
 private theorem uget_get (a : A) (ao n : USize) (ha : LoopBound a ao n) (j : USize) (h : j < n) :
     R.uget a (ao + j) (ha.uset_bound h) = LA.get a (ao.toNat + j.toNat) := by
   rw [R.uget_eq, ha.toNat_add h]
