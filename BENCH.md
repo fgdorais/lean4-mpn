@@ -48,6 +48,7 @@ rather than the ratios.
 | `sqr` | `sqr` | `n` limbs | schoolbook square by rows into wide accumulators (Comba's square below 16 limbs), Karatsuba from 160, Toom-4 from 832 (Toom-3 from 944 when Toom-4 is set higher), Toom-6 from 2496, the FFT from 12288 (beyond the table) |
 | `div` | `div`, the quotient | `2n` by `n` limbs | `divRem1`, `divRem2`, Algorithm D, Burnikel–Ziegler from 176 (`main`'s `NatOps.divNorm`) |
 | `div1` | `divRem1` by `0xF1234567` | `n` limbs | from the top limb down, one hardware division of 64 bits by 32 per limb (`main`'s `WordArray.divRem1W`) |
+| `div1u` | `divRem1` by `10⁹` | `n` limbs | as `div1`, by an unnormalized limb |
 | `shr` | `shiftRight` by 37 bits | `n` limbs | one pass in place |
 | `badd` … `bdiv` | `MPN.Nat` `+ - * /` | as above (`bdiv`: `2n` by `n`) | word fast path, then as above |
 | `bmod`, `bsqr`, `bpow` | `MPN.Nat` `%`, `sqr`, `x³` | as `bdiv`, `bmul` | the division, the square, squares and products |
@@ -145,6 +146,7 @@ above; ratios before `15534f8` for `MPN.Nat` rows were inflated by the hashing c
 
 | date | commit | change | effect |
 |---|---|---|---|
+| 2026-10-31 | `9951fba` | Division by an unnormalized limb can take `main`'s `divRem1U` (the dividend shifted in place and the checked 2-by-1 steps with the reciprocal of the shifted divisor) from `Config.div1Unnorm` limbs, which `lake exe tune` measures; the default never takes it; new row `div1u`, by `10⁹` | `lake exe tune`: the divider wins by 10–20% from 2 to 512 limbs (1709 ns against 1889 ns at 512); the defaults leave the code paths unchanged |
 | 2026-10-31 | `cd4d00e` | The thresholds of the schoolbook product and square are `Config.mulRows` (16), `Config.mulCombaW` (32) and `Config.sqrRows` (16), which `lake exe tune` measures (24, 40 and 16 here); the defaults are unchanged | From three alternating runs against `4eb1b32`: `mul`, `sqr`, `bmul`, `bsqr` −13% to +7% up to 8 limbs, the same algorithms (layout), ±2% from 16 |
 | 2026-10-31 | `37e0c02` | The thresholds of the square root are `Config.sqrtZimmermann` (40) and `Config.sqrtBase` (16), which `lake exe tune` measures (48 and 31 here); the defaults are unchanged | From three alternating runs against `43e6e47`: `bsqrt` −2.4% to +2.3% |
 | 2026-10-31 | `0cff552` | Schoolbook division takes `main`'s checked 3-by-2 steps with the reciprocal (`WordArray.recip32`) from `Config.div32Recip` = 64 limbs of a normalized divisor, where `lake exe tune` finds them winning; main32 never used them before | From three alternating runs against `21801f1`: `div`, `bdiv`, `bmod` −0.5% to −1.7% from 128 limbs, +0.4% to +2% at 16–64 (the test of the size and the normalization) |
