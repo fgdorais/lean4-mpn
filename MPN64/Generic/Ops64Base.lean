@@ -115,39 +115,22 @@ public def mul64 (x y : UInt64Array) : UInt64Array :=
   if fits (x.size + y.size + 1) then trimA (Num.mul x y) else ofNat (x.toNat * y.toNat)
 
 /-- The size of the modulus of `mulMod64 n`: `n` rounded up to a multiple of `2ᵏ`, `k = fftK n`. -/
-@[expose] public def modSize64 (n : Nat) : Nat :=
-  (n + 2 ^ FFT.fftK n - 1) / 2 ^ FFT.fftK n * 2 ^ FFT.fftK n
+@[expose] public def modSize64 (n : Nat) : Nat := Dispatch.modSize config.mul.fftKFactor n
 
-public theorem le_modSize64 (n : Nat) : n ≤ modSize64 n := by
-  rw [modSize64]
-  have h₀ : 0 < 2 ^ FFT.fftK n := Nat.two_pow_pos _
-  generalize 2 ^ FFT.fftK n = P at *
-  have h₁ := Nat.div_add_mod (n + P - 1) P
-  have h₂ := Nat.mod_lt (n + P - 1) h₀
-  rw [Nat.mul_comm] at h₁
-  lia
+public theorem le_modSize64 (n : Nat) : n ≤ modSize64 n := Dispatch.le_modSize ..
 
 /--
-`x y` modulo `2^(64 modSize64 n) - 1`, up to a multiple: by `Num.mulModB` when the product is
-longer than the modulus, and otherwise by `Num.mul`, since it would not wrap.
+`x y` modulo `2^(64 modSize64 n) - 1`, up to a multiple: `main`'s `Dispatch.mulModW`, by the
+FFT's wrapped product when the product is longer than the modulus, and otherwise by the product.
 -/
 public def mulMod64 (n : Nat) (x y : UInt64Array) : UInt64Array :=
-  if fits (x.size + y.size + 1) then
-    if x.size + y.size ≤ modSize64 n then Num.mul x y
-    else Num.mulModB x y (FFT.fftK n) ((n + 2 ^ FFT.fftK n - 1) / 2 ^ FFT.fftK n)
-  else ofNat (x.toNat * y.toNat)
+  Dispatch.mulModW config.mul n x 0 x.size y 0 y.size
 
 public theorem val_mulMod64 (n : Nat) (x y : UInt64Array) :
     (mulMod64 n x y).toNat % ((2 ^ 64) ^ modSize64 n - 1) =
       x.toNat * y.toNat % ((2 ^ 64) ^ modSize64 n - 1) := by
-  rw [mulMod64]
-  split
-  · rename_i h
-    split
-    · rw [Num.toNat_mul _ _ (by have := lt_of_fits h; lia)]
-    · rw [modSize64, ← Nat.pow_mul]
-      exact Num.toNat_mulModB _ _ _ _ (by have := lt_of_fits h; lia)
-  · rw [toNat_ofNat]
+  rw [toNat_eq_valAt, toNat_eq_valAt x, toNat_eq_valAt y, modSize64, ← Nat.pow_mul]
+  exact Dispatch.mulModW_spec config.mul n x 0 x.size y 0 y.size
 
 /-- `x²`, by `Num.sqr`. -/
 public def sqr64 (x : UInt64Array) : UInt64Array :=

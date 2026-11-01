@@ -318,15 +318,18 @@ public theorem toNat_join32 (k : Nat) (x y : UInt32Array.Slice) :
   val_pow k := toNat_pow k
   one := ((UInt32Array.replicate 0 0).push 1).toSlice
   val_one := by rw [toNat_pow, Nat.pow_zero]
-  -- No wrapped product on 32-bit limbs yet: the product itself, which does not wrap.
-  mulModSize n := n
-  le_mulModSize _ := Nat.le_refl _
-  mulMod _ x y :=
-    let r := (mulLimbs x y).toSlice
+  -- The FFT's wrapped product (`Dispatch.mulModW`) on the windows of the slices, trimmed.
+  mulModSize n := Dispatch.modSize config.mul.fftKFactor n
+  le_mulModSize n := Dispatch.le_modSize ..
+  mulMod n x y :=
+    let r := (Dispatch.mulModW config.mul n x.array x.start x.size y.array y.start y.size).toSlice
     r.slice 0 (topSize r)
-  val_mulMod _ x y := by
-    show toNat ((mulLimbs x y).toSlice.slice 0 (topSize _)) % _ = _
-    rw [toNat_slice_topSize, isMul_mulLimbs.toNat_eq x y]
+  val_mulMod n x y := by
+    show toNat ((Dispatch.mulModW config.mul n x.array x.start x.size y.array y.start
+      y.size).toSlice.slice 0 (topSize _)) % _ = _
+    rw [toNat_slice_topSize, toNat_array_eq_valAt, toNat_eq_valAt x, toNat_eq_valAt y,
+      ← Nat.pow_mul]
+    exact Dispatch.mulModW_spec config.mul n _ _ _ _ _ _
   divRem := div
   val_divRem := hdiv
 

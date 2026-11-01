@@ -329,4 +329,54 @@ public theorem sqr_spec (cfg : MulConfig) (d : A) (o : Nat) (a : A) (ao al : Nat
   · exact fftSqrW_spec _ _ _ _ _ _ _ hd
   · exact Toom.sqrToom_spec _ _ _ _ _ _ hd
 
+/-! ## Products modulo `β^N - 1` -/
+
+/--
+The size `N` of the modulus `β^N - 1` of `mulModW` for products of `n` limbs: `n` rounded up to a
+multiple of the `2ᵏ` pieces of an FFT on `n` limbs.
+-/
+@[expose] public def modSize (c n : Nat) : Nat :=
+  (n + 2 ^ fftK c n - 1) / 2 ^ fftK c n * 2 ^ fftK c n
+
+public theorem le_modSize (c n : Nat) : n ≤ modSize c n := by
+  rw [modSize]
+  have h₀ : 0 < 2 ^ fftK c n := Nat.two_pow_pos _
+  generalize 2 ^ fftK c n = P at *
+  have h₁ := Nat.div_add_mod (n + P - 1) P
+  have h₂ := Nat.mod_lt (n + P - 1) h₀
+  rw [Nat.mul_comm] at h₁
+  lia
+
+/--
+`A B` modulo `β^N - 1` for `N = modSize c n`, up to a multiple, in a fresh array: by the FFT's
+wrapped product (`FFTOps.fftMulModAt`) when the product is longer than the modulus, and otherwise by
+`mul`, since it would not wrap. Barrett's division takes its products this way (`NatOps.mulMod`).
+-/
+@[expose] public def mulModW (cfg : MulConfig) (n : Nat) (a : A) (ao al : Nat) (b : A)
+    (bo bl : Nat) : A :=
+  let k := fftK cfg.fftKFactor n
+  let m := (n + 2 ^ k - 1) / 2 ^ k
+  let nn := FFTOps.fftModN LA.w k m
+  let r := W.zeros (m * 2 ^ k + nn + 1)
+  if m * 2 ^ k < al + bl ∧ FFTOps.FFTModCheck r 0 (m * 2 ^ k + nn + 1) a ao al b bo bl k m nn then
+    FFTOps.fftMulModAt (mulP cfg.toConfig) r 0 a ao al b bo bl k m nn
+  else mul cfg (W.zeros (al + bl)) 0 a ao al b bo bl
+
+public theorem mulModW_spec (cfg : MulConfig) (n : Nat) (a : A) (ao al : Nat) (b : A)
+    (bo bl : Nat) :
+    valAt (mulModW cfg n a ao al b bo bl) 0 (LA.size (mulModW cfg n a ao al b bo bl)) %
+        (2 ^ (LA.w * modSize cfg.fftKFactor n) - 1) =
+      valAt a ao al * valAt b bo bl % (2 ^ (LA.w * modSize cfg.fftKFactor n) - 1) := by
+  unfold mulModW modSize
+  dsimp only
+  split
+  · rename_i h
+    obtain ⟨s₁, -, e⟩ := FFTOps.fftMulModAt_spec (mulP cfg.toConfig) _ _ _ _ _ _ _ _ _ _ _
+      (FFTOps.FFTModCheck.params h.2) (isMulP _ _)
+    rw [s₁, W.size_zeros]
+    exact e
+  · obtain ⟨⟨s₁, -⟩, e⟩ := mul_spec cfg (W.zeros (al + bl)) 0 a ao al b bo bl
+      (by rw [W.size_zeros]; lia)
+    rw [s₁, W.size_zeros, e]
+
 end MPN.Dispatch

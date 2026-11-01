@@ -82,8 +82,8 @@ public structure Config extends Dispatch.MulConfig, Dispatch.DivConfig, Dispatch
   divDC := 176
   /-- Blocks of half the divisor need at least `4` limbs, so that the recursion has two. -/
   four_le_divDC : 4 ≤ divDC := by decide
-  divMu := 1000000
-  divQMu := 1000000
+  divMu := 14336
+  divQMu := 8192
   /-- The size from which division by a normalized limb takes Möller and Granlund's steps with a
   precomputed reciprocal instead of the hardware divider: always, like GMP's `mpn_divrem_1`. -/
   div1Recip : Nat := 0

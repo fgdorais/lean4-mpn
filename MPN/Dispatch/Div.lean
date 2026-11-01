@@ -38,14 +38,14 @@ public structure DivConfig where
   -/
   divDC : Nat
   /--
-  The size of the divisor from which division uses Barrett's method with Newton's reciprocal,
-  inside divide and conquer (so from `divDC` on).
+  The size of the divisor and of the quotient from which division uses Barrett's method with
+  Newton's reciprocal, inside divide and conquer (so from `divDC` on).
   -/
   divMu : Nat
   /--
-  The size of the divisor from which the quotient alone uses Barrett's method with Newton's
-  reciprocal, which then skips the remainder of the last block, inside divide and conquer (so
-  from `divDC` on).
+  The size of the divisor and of the quotient from which the quotient alone uses Barrett's method
+  with Newton's reciprocal, which then skips the remainder of the last block, inside divide and
+  conquer (so from `divDC` on).
   -/
   divQMu : Nat
   deriving Repr
@@ -71,15 +71,19 @@ section Div
 variable {α : Type} (o : NatOps α)
 
 /--
-`(U / V, U % V)` for `0 < V < Bⁿ` and `U < V Bᵏ`: by `NatOps.divMuW` from `divMu` limbs, and by
-`NatOps.divNorm` with `base` below `divDC` limbs otherwise.
+`(U / V, U % V)` for `0 < V < Bⁿ` and `U < V Bᵏ`: by `NatOps.divMuW` when the divisor and the
+quotient both have `divMu` limbs, and by `NatOps.divNorm` with `base` below `divDC` limbs otherwise.
+Barrett's division takes the reciprocal of the whole divisor, which a short quotient does not repay.
 -/
 public def divN (c : DivConfig) (base : α → α → α × α) (U V : α) (n k : Nat) : α × α :=
-  if c.divMu ≤ n then o.divMuW U V else o.divNorm base c.divDC U V n k
+  if c.divMu ≤ min n k then o.divMuW U V else o.divNorm base c.divDC U V n k
 
-/-- `U / V` as in `divN`: by `NatOps.divQMuW` from `divQMu` limbs. -/
+/--
+`U / V` as in `divN`: by `NatOps.divQMuW` when the divisor and the quotient both have `divQMu`
+limbs.
+-/
 public def divQN (c : DivConfig) (base : α → α → α × α) (U V : α) (n k : Nat) : α :=
-  if c.divQMu ≤ n then o.divQMuW U V else (divN o c base U V n k).1
+  if c.divQMu ≤ min n k then o.divQMuW U V else (divN o c base U V n k).1
 
 variable {o} {base : α → α → α × α}
 
