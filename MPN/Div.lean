@@ -167,7 +167,7 @@ public def divBase32 (u v : UInt32Array.Slice) : UInt32Array.Slice × UInt32Arra
     let p := divRem1 u (v.getD 0 0)
     (p.1.toSlice, (UInt32Array.mk #[p.2]).toSlice)
   else if h : 2 ≤ n then
-    let p := divRemBasecase u (v.slice 0 n) (by simp; have := topSize_le v; lia)
+    let p := divRemBasecase div32RecipU u (v.slice 0 n) (by simp; have := topSize_le v; lia)
     (p.1.toSlice, p.2.toSlice)
   else (UInt32Array.empty.toSlice, u)
 
@@ -193,7 +193,7 @@ public theorem val_divBase32 (u v : UInt32Array.Slice) (hv : toNat v ≠ 0) :
     simp
   · split
     · rename_i h₁ h
-      obtain ⟨h₂, h₃⟩ := divRemBasecase_spec u (v.slice 0 (topSize v))
+      obtain ⟨h₂, h₃⟩ := divRemBasecase_spec div32RecipU u (v.slice 0 (topSize v))
         (by simp; lia) (top_slice_topSize_ne_zero v (by lia))
       rw [hb] at h₂ h₃
       exact div_mod_eq hV h₂ h₃
@@ -343,18 +343,18 @@ The division of the normalized dividend, an array of its own: below `T` limbs in
 -/
 public def divRemNormWith (T : Nat) (r : UInt32Array) (v : UInt32Array.Slice) (hn : 2 ≤ v.size) :
     UInt32Array × UInt32Array :=
-  if v.size < T then divRemBasecaseTop r v hn else dcGen T r v
+  if v.size < T then divRemBasecaseTop div32RecipU r v hn else dcGen T r v
 
 public theorem divRemNormWith_spec (T : Nat) (r : UInt32Array) (v : UInt32Array.Slice)
     (hn : 2 ≤ v.size) (hvt : v[v.size - 1]'(by lia) ≠ 0) :
     toNat (divRemNormWith T r v hn).1 * toNat v + toNat (divRemNormWith T r v hn).2 = toNat r ∧
       toNat (divRemNormWith T r v hn).2 < toNat v := by
   by_cases h : v.size < T
-  · have e : divRemNormWith T r v hn = divRemBasecaseTop r v hn := by
+  · have e : divRemNormWith T r v hn = divRemBasecaseTop div32RecipU r v hn := by
       unfold divRemNormWith
       rw [ite_eq_left h]
     rw [e]
-    exact divRemBasecaseTop_spec r v hn hvt
+    exact divRemBasecaseTop_spec div32RecipU r v hn hvt
   · have e : divRemNormWith T r v hn = dcGen T r v := by
       unfold divRemNormWith
       rw [ite_eq_right h]
@@ -385,7 +385,7 @@ def divModLimbs (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) : UInt32Array × U
     let p := divRemNorm (mulRow u f) v' h
     (p.1, shiftRight p.2 (normShift vt))
   else
-    divRemBasecase u v hn
+    divRemBasecase div32RecipU u v hn
 
 /-- The quotient of `divModLimbs`, without shifting the remainder back. -/
 def divLimbsQ (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) : UInt32Array :=
@@ -396,7 +396,7 @@ def divLimbsQ (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) : UInt32Array :=
   if h : 2 ≤ v'.size then
     (divRemNorm (mulRow u f) v' h).1
   else
-    (divRemBasecase u v hn).1
+    (divRemBasecase div32RecipU u v hn).1
 
 private theorem divLimbsQ_eq (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) :
     divLimbsQ u v hn = (divModLimbs u v hn).1 := by
@@ -449,7 +449,7 @@ private theorem divModLimbs_spec (u v : UInt32Array.Slice) (hn : 2 ≤ v.size)
     refine ⟨hq, ?_⟩
     rw [hr, Nat.mul_div_cancel _ hF]
   · -- The fallback, without normalization.
-    obtain ⟨h₁, h₂⟩ := divRemBasecase_spec u v hn hvt
+    obtain ⟨h₁, h₂⟩ := divRemBasecase_spec div32RecipU u v hn hvt
     simp only [toNat_toSlice] at h₁ h₂
     obtain ⟨hq, hr⟩ := div_mod_eq hVpos h₁ h₂
     exact ⟨hq, hr⟩

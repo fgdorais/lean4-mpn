@@ -304,6 +304,11 @@ def sqrFFTConfig : Config := { sqrBasecase := 2, sqrKaratsuba := 4, sqrToom3 := 
   let (q, r) := divRem1 (ofNat m) d
   q.size == (ofNat m).size && toNat q == m / d.toNat && r.toNat == m % d.toNat
 
+-- With the steps with the reciprocal from the first limb.
+#guard values.all fun m => limbs.all fun d => d == 0 ||
+  let (q, r) := divRem1With 0 (ofNat m) d
+  q.size == (ofNat m).size && toNat q == m / d.toNat && r.toNat == m % d.toNat
+
 /-! Comparison -/
 
 #guard values.all fun m => values.all fun n =>
@@ -347,15 +352,16 @@ def sqrFFTConfig : Config := { sqrBasecase := 2, sqrKaratsuba := 4, sqrToom3 := 
     toNat q.2 == ones % yones && toNat r.1 == x / ysmall && toNat r.2 == x % ysmall &&
     isTrimmed p.1 && isTrimmed p.2
 
--- Schoolbook division alone, on divisors that are not normalized.
-#guard [2, 3, 7].all fun n => [1, 2, 33].all fun m =>
+-- Schoolbook division alone, on divisors that are not normalized and on normalized ones, by the
+-- hardware divider and by the 3-by-2 steps with the reciprocal.
+#guard [0, 4294967295].all fun t => [2, 3, 7].all fun n => [1, 2, 33].all fun m =>
   let x := sample1 (32 * (m + n)) 23
-  let y := 2 ^ (32 * (n - 1)) + 1
-  let v : UInt32Array.Slice := ofNat y
-  if h : 2 ≤ v.size then
-    let (q, r) := divRemBasecase (ofNat x) v h
-    toNat q == x / y && toNat r == x % y
-  else false
+  [2 ^ (32 * (n - 1)) + 1, 2 ^ (32 * n) - 1, 2 ^ (32 * n - 1) + sample1 (32 * n - 1) 5].all fun y =>
+    let v : UInt32Array.Slice := ofNat y
+    if h : 2 ≤ v.size then
+      let (q, r) := divRemBasecase t (ofNat x) v h
+      toNat q == x / y && toNat r == x % y
+    else false
 
 /-! Slices of limbs -/
 

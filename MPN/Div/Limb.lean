@@ -89,6 +89,9 @@ public theorem divRem1With_spec (t : USize) (a : UInt32Array.Slice) (d : UInt32)
 /-- `config.div1Recip` as a `USize`, at most `4294967295`, which no guarded size reaches. -/
 public def div1RecipU : USize := (min config.div1Recip 4294967295).toUSize
 
+/-- `config.div32Recip` as a `USize`, at most `4294967295`, for schoolbook division. -/
+public def div32RecipU : USize := (min config.div32Recip 4294967295).toUSize
+
 /-- `divRem1With` with the steps with the reciprocal from `config.div1Recip` limbs. -/
 public def divRem1 (a : UInt32Array.Slice) (d : UInt32) : UInt32Array × UInt32 :=
   divRem1With div1RecipU a d
