@@ -101,8 +101,6 @@ private theorem uget_get (a : A) (ao n : USize) (ha : LoopBound a ao n) (j : USi
     R.uget a (ao + j) (ha.uset_bound h) = LA.get a (ao.toNat + j.toNat) := by
   rw [R.uget_eq, ha.toNat_add h]
 
-variable [F : WordFolds A L]
-
 variable (A) in
 /-- The step of `mul1W`: limb `ao + j` of `a` times `x`, plus the carry `c`. -/
 @[inline, expose] public def mul1Step (a : A) (ao n : USize) (ha : LoopBound a ao n) (x : L)
@@ -120,6 +118,74 @@ variable (A) in
 @[inline, expose] public def subMul1Step (a : A) (ao n : USize) (ha : LoopBound a ao n) (x : L)
     (j : USize) (h : j < n) (z c : L) : L × L :=
   R.subMulB z (R.uget a (ao + j) (ha.uset_bound h)) x c
+
+/-- The fold of `mul1Step` from limb `j`: the low limbs of `a x + c` and the high limb. -/
+public theorem mul1Fold_spec (a : A) (ao n : USize) (ha : LoopBound a ao n) (x : L) (arr : A)
+    (rs : USize) (hr : LoopBound arr rs n) (j : USize) (c : L) :
+    LA.size (foldUInPlace n (mul1Step A a ao n ha x) arr rs hr j c).1 = LA.size arr ∧
+      (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
+        LA.get (foldUInPlace n (mul1Step A a ao n ha x) arr rs hr j c).1 i = LA.get arr i) ∧
+      LimbArray.valAt (foldUInPlace n (mul1Step A a ao n ha x) arr rs hr j c).1
+          (rs.toNat + j.toNat) (n.toNat - j.toNat) +
+          2 ^ (LA.w * (n.toNat - j.toNat)) *
+            LA.val (foldUInPlace n (mul1Step A a ao n ha x) arr rs hr j c).2 =
+        LimbArray.valAt a (ao.toNat + j.toNat) (n.toNat - j.toNat) * LA.val x + LA.val c := by
+  obtain ⟨i₁, -, i₂, i₃⟩ := foldUInPlace_spec1 n (mul1Step A a ao n ha x) a ao LA.val (fun _ => 0)
+    0 0 0 (LA.val x) (fun _ => True) (fun _ _ _ _ _ => trivial)
+    (fun j h z c _ => by
+      have := R.val_mulAdd2 (R.uget a (ao + j) (ha.uset_bound h)) x R.zero c
+      rw [congrArg LA.val (uget_get a ao n ha j h), R.val_zero] at this
+      simp only [mul1Step]
+      lia) arr rs hr j c trivial
+  simp only [Nat.zero_mul, Nat.mul_zero, Nat.add_zero] at i₃
+  exact ⟨i₁, i₂, by grind⟩
+
+/-- The fold of `addMul1Step` from limb `j`: `r + a x + c` and the carry out. -/
+public theorem addMul1Fold_spec (a : A) (ao n : USize) (ha : LoopBound a ao n) (x : L) (arr : A)
+    (rs : USize) (hr : LoopBound arr rs n) (j : USize) (c : L) :
+    LA.size (foldUInPlace n (addMul1Step A a ao n ha x) arr rs hr j c).1 = LA.size arr ∧
+      (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
+        LA.get (foldUInPlace n (addMul1Step A a ao n ha x) arr rs hr j c).1 i = LA.get arr i) ∧
+      LimbArray.valAt (foldUInPlace n (addMul1Step A a ao n ha x) arr rs hr j c).1
+          (rs.toNat + j.toNat) (n.toNat - j.toNat) +
+          2 ^ (LA.w * (n.toNat - j.toNat)) *
+            LA.val (foldUInPlace n (addMul1Step A a ao n ha x) arr rs hr j c).2 =
+        LimbArray.valAt arr (rs.toNat + j.toNat) (n.toNat - j.toNat) +
+          LimbArray.valAt a (ao.toNat + j.toNat) (n.toNat - j.toNat) * LA.val x + LA.val c := by
+  obtain ⟨i₁, -, i₂, i₃⟩ := foldUInPlace_spec1 n (addMul1Step A a ao n ha x) a ao LA.val
+    (fun _ => 0) 0 0 1 (LA.val x) (fun _ => True) (fun _ _ _ _ _ => trivial)
+    (fun j h z c _ => by
+      have := R.val_mulAdd2 (R.uget a (ao + j) (ha.uset_bound h)) x z c
+      rw [congrArg LA.val (uget_get a ao n ha j h)] at this
+      simp only [addMul1Step]
+      lia) arr rs hr j c trivial
+  simp only [Nat.zero_mul, Nat.mul_zero, Nat.add_zero, Nat.one_mul] at i₃
+  exact ⟨i₁, i₂, by grind⟩
+
+/-- The fold of `subMul1Step` from limb `j`: `r - a x - unB b` and the borrow out. -/
+public theorem subMul1Fold_spec (a : A) (ao n : USize) (ha : LoopBound a ao n) (x : L) (arr : A)
+    (rs : USize) (hr : LoopBound arr rs n) (j : USize) (b : L) :
+    LA.size (foldUInPlace n (subMul1Step A a ao n ha x) arr rs hr j b).1 = LA.size arr ∧
+      (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
+        LA.get (foldUInPlace n (subMul1Step A a ao n ha x) arr rs hr j b).1 i = LA.get arr i) ∧
+      LimbArray.valAt (foldUInPlace n (subMul1Step A a ao n ha x) arr rs hr j b).1
+          (rs.toNat + j.toNat) (n.toNat - j.toNat) +
+          LimbArray.valAt a (ao.toNat + j.toNat) (n.toNat - j.toNat) * LA.val x +
+          LA.val (R.unB b) =
+        LimbArray.valAt arr (rs.toNat + j.toNat) (n.toNat - j.toNat) +
+          2 ^ (LA.w * (n.toNat - j.toNat)) *
+            LA.val (R.unB (foldUInPlace n (subMul1Step A a ao n ha x) arr rs hr j b).2) := by
+  obtain ⟨i₁, -, i₂, i₃⟩ := foldUInPlace_spec1 n (subMul1Step A a ao n ha x) a ao (fun _ => 0)
+    (fun c => LA.val (R.unB c)) 0 (LA.val x) 1 0 (fun _ => True) (fun _ _ _ _ _ => trivial)
+    (fun j h z c _ => by
+      have := R.val_subMulB z (R.uget a (ao + j) (ha.uset_bound h)) x c
+      rw [congrArg LA.val (uget_get a ao n ha j h)] at this
+      simp only [subMul1Step]
+      lia) arr rs hr j b trivial
+  simp only [Nat.zero_mul, Nat.mul_zero, Nat.add_zero, Nat.one_mul] at i₃
+  exact ⟨i₁, i₂, by grind⟩
+
+variable [F : WordFolds A L]
 
 /-- The low limbs of `a x + c`, into the window of `r`, and the high limb, like `mpn_mul_1`. -/
 @[inline, expose, specialize] public def mul1W (r : A) (ro : USize) (a : A) (ao n : USize) (x c : L)
@@ -148,17 +214,10 @@ public theorem mul1W_spec (r : A) (ro : USize) (a : A) (ao n : USize) (x c : L)
           2 ^ (LA.w * n.toNat) * LA.val (mul1W r ro a ao n x c hr ha).2 =
         LimbArray.valAt a ao.toNat n.toNat * LA.val x + LA.val c := by
   rw [mul1W, F.foldThen_eq, foldUInPlaceThen]
-  obtain ⟨i₁, -, i₂, i₃⟩ := foldUInPlace_spec1 n (mul1Step A a ao n ha x) a ao LA.val (fun _ => 0)
-    0 0 0 (LA.val x) (fun _ => True) (fun _ _ _ _ _ => trivial)
-    (fun j h z c _ => by
-      have := R.val_mulAdd2 (R.uget a (ao + j) (ha.uset_bound h)) x R.zero c
-      rw [congrArg LA.val (uget_get a ao n ha j h), R.val_zero] at this
-      simp only [mul1Step]
-      lia) r ro hr 0 c trivial
-  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, Nat.zero_mul, Nat.mul_zero,
-    Nat.add_zero, Nat.zero_add] at i₂ i₃
-  refine ⟨i₁, fun i hi => i₂ i hi, ?_⟩
-  rw [i₃, Nat.mul_comm]
+  dsimp only
+  have := mul1Fold_spec a ao n ha x r ro hr 0 c
+  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero] at this
+  exact ⟨this.1, fun i hi => this.2.1 i hi, this.2.2⟩
 
 public theorem addMul1W_spec (r : A) (ro : USize) (a : A) (ao n : USize) (x c : L)
     (hr : LoopBound r ro n) (ha : LoopBound a ao n) :
@@ -170,17 +229,10 @@ public theorem addMul1W_spec (r : A) (ro : USize) (a : A) (ao n : USize) (x c : 
         LimbArray.valAt r ro.toNat n.toNat +
           LimbArray.valAt a ao.toNat n.toNat * LA.val x + LA.val c := by
   rw [addMul1W, F.foldThen_eq, foldUInPlaceThen]
-  obtain ⟨i₁, -, i₂, i₃⟩ := foldUInPlace_spec1 n (addMul1Step A a ao n ha x) a ao LA.val
-    (fun _ => 0) 0 0 1 (LA.val x) (fun _ => True) (fun _ _ _ _ _ => trivial)
-    (fun j h z c _ => by
-      have := R.val_mulAdd2 (R.uget a (ao + j) (ha.uset_bound h)) x z c
-      rw [congrArg LA.val (uget_get a ao n ha j h)] at this
-      simp only [addMul1Step]
-      lia) r ro hr 0 c trivial
-  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, Nat.zero_mul, Nat.mul_zero,
-    Nat.add_zero, Nat.one_mul] at i₂ i₃
-  refine ⟨i₁, fun i hi => i₂ i hi, ?_⟩
-  rw [i₃, Nat.mul_comm (LA.val x)]
+  dsimp only
+  have := addMul1Fold_spec a ao n ha x r ro hr 0 c
+  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero] at this
+  exact ⟨this.1, fun i hi => this.2.1 i hi, this.2.2⟩
 
 public theorem subMul1W_spec (r : A) (ro : USize) (a : A) (ao n : USize) (x b : L)
     (hr : LoopBound r ro n) (ha : LoopBound a ao n) :
@@ -192,17 +244,9 @@ public theorem subMul1W_spec (r : A) (ro : USize) (a : A) (ao n : USize) (x b : 
         LimbArray.valAt r ro.toNat n.toNat +
           2 ^ (LA.w * n.toNat) * LA.val (R.unB (subMul1W r ro a ao n x b hr ha).2) := by
   rw [subMul1W, F.foldThen_eq, foldUInPlaceThen]
-  obtain ⟨i₁, -, i₂, i₃⟩ := foldUInPlace_spec1 n (subMul1Step A a ao n ha x) a ao (fun _ => 0)
-    (fun c => LA.val (R.unB c)) 0 (LA.val x) 1 0 (fun _ => True) (fun _ _ _ _ _ => trivial)
-    (fun j h z c _ => by
-      have := R.val_subMulB z (R.uget a (ao + j) (ha.uset_bound h)) x c
-      rw [congrArg LA.val (uget_get a ao n ha j h)] at this
-      simp only [subMul1Step]
-      lia) r ro hr 0 b trivial
-  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, Nat.zero_mul, Nat.mul_zero,
-    Nat.add_zero, Nat.one_mul] at i₂ i₃
-  refine ⟨i₁, fun i hi => i₂ i hi, ?_⟩
-  rw [Nat.mul_comm _ (LA.val x)]
-  lia
+  dsimp only
+  have := subMul1Fold_spec a ao n ha x r ro hr 0 b
+  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero] at this
+  exact ⟨this.1, fun i hi => this.2.1 i hi, this.2.2⟩
 
 end MPN.WordArray
