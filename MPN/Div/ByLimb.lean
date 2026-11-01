@@ -98,17 +98,18 @@ results, so that it needs no proof.
   else v
 
 variable (A) in
-/--
-The reciprocal of the top limbs `v₁ v₂` of a divisor of `n` limbs for the steps of schoolbook
-division from `t` limbs on, or `0`, which takes the steps without it (`Schoolbook.qEstD`).
--/
-@[inline, expose] public def divRecip32 (t n : USize) (v₁ v₂ : L) : L :=
-  if t ≤ n then recip32 A v₁ v₂ else R.zero
-
-variable (A) in
 /-- Whether the top bit of `d` is set. -/
 @[inline, expose] public def isNorm (d : L) : Bool :=
   !R.ltB d (R.shl R.one (R.ofUSize (R.wU - 1)))
+
+variable (A) in
+/--
+The reciprocal of the top limbs `v₁ v₂` of a divisor of `n` limbs for the steps of schoolbook
+division from `t` limbs on, when `v₁` is normalized, or `0`, which takes the steps without it
+(`Schoolbook.qEstD`).
+-/
+@[inline, expose] public def divRecip32 (t n : USize) (v₁ v₂ : L) : L :=
+  if t ≤ n && isNorm A v₁ then recip32 A v₁ v₂ else R.zero
 
 private theorem div21Ok_spec (d c x q r : L) (h : div21Ok A d c x q r = true) :
     LA.val q * LA.val d + LA.val r = LA.val c * 2 ^ LA.w + LA.val x ∧ LA.val r < LA.val d := by
