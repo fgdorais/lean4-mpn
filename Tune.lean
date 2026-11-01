@@ -303,7 +303,8 @@ precomputed reciprocal beats the hardware divider, or `1000000`, never, if it do
 -/
 def tuneDiv1Recip (log : Bool) : IO Nat := medianOf 3 do
   let div1 (t : USize) (a _ : UInt64Array) : UInt64Array × UInt64 :=
-    divRem1With t (UInt64Array.replicate a.size 0).toUSlice a.toUSlice 0xF123456789ABCDEF
+    divRem1With t 4294967295 (UInt64Array.replicate a.size 0).toUSlice a.toUSlice
+      0xF123456789ABCDEF
   match ← crossoverOn (div1 4294967295) (fun n => div1 n.toUSize)
       (fun p => p.2 + p.1.size.toUInt64)
       (fun n => operands n n) [2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512]
@@ -351,6 +352,24 @@ def tuneSqrtZimmermann (T : Nat) (log : Bool) : IO Nat := medianOf 3 do
   | none =>
     IO.eprintln "warning: Zimmermann's recursion never won up to 256 limbs; using 256"
     return 256
+
+/--
+Tunes `div1Unnorm`: where division by an unnormalized limb with the steps with the reciprocal,
+after a shift, beats the hardware divider, or `1000000`, never, if it does not win up to 512 limbs.
+-/
+def tuneDiv1Unnorm (log : Bool) : IO Nat := medianOf 3 do
+  let div1 (tu : USize) (a _ : UInt64Array) : UInt64Array × UInt64 :=
+    divRem1With 4294967295 tu (UInt64Array.replicate a.size 0).toUSlice a.toUSlice
+      0x0123456789ABCDEF
+  match ← crossoverOn (div1 4294967295) (fun n => div1 n.toUSize)
+      (fun p => p.2 + p.1.size.toUInt64) (fun n => operands n n)
+      [2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512] 3 log with
+  | some n =>
+    if log then IO.println s!"  found {n}"
+    return n
+  | none =>
+    if log then IO.println "  the hardware divider always won"
+    return 1000000
 
 def tuneGcdHalf (log : Bool) : IO Nat :=
   tune "half-gcd" (gcdWith never) gcdWith checkArr (fun n => operands n n) (range 256 4096 128)
@@ -430,6 +449,8 @@ public def main (args : List String) : IO UInt32 := do
   let divDC ← tuneDivDC log
   IO.println "div1Recip: division by a limb with a reciprocal against the hardware divider"
   let div1Recip ← tuneDiv1Recip log
+  IO.println "div1Unnorm: the same after a shift, for an unnormalized limb"
+  let div1Unnorm ← tuneDiv1Unnorm log
   IO.println "div32Recip: schoolbook steps with a reciprocal against the hardware divider"
   let div32Recip ← tuneDiv32Recip log
   IO.println "sqrtBase: one level of Zimmermann's recursion against Newton's iteration"
@@ -443,7 +464,8 @@ public def main (args : List String) : IO UInt32 := do
   IO.println "parseDC: reading decimal digits by divide and conquer against the base case"
   let parseDC ← tuneParseDC log
   let s₅ : Config := { s₄ with sqrFFT, divDC, div1Recip, div32Recip, gcdHalf, strDC, parseDC }
-  let cfg : Config := { s₅ with sqrtZimmermann, sqrtBase }
+  let s₆ : Config := { s₅ with div1Unnorm }
+  let cfg : Config := { s₆ with sqrtZimmermann, sqrtBase }
   IO.println ""
   IO.println s!"Found:   {repr cfg}"
   IO.println s!"Default: {repr ({} : Config)}"
@@ -455,7 +477,8 @@ public def main (args : List String) : IO UInt32 := do
     ("mulUnbalanced", cfg.mulUnbalanced), ("mulChunkMax", cfg.mulChunkMax),
     ("sqrKaratsuba", cfg.sqrKaratsuba), ("sqrToom3", cfg.sqrToom3), ("sqrToom4", cfg.sqrToom4),
     ("sqrToom6", cfg.sqrToom6), ("sqrFFT", cfg.sqrFFT), ("divDC", cfg.divDC),
-    ("div1Recip", cfg.div1Recip), ("div32Recip", cfg.div32Recip), ("gcdHalf", cfg.gcdHalf),
+    ("div1Recip", cfg.div1Recip), ("div1Unnorm", cfg.div1Unnorm), ("div32Recip", cfg.div32Recip),
+    ("gcdHalf", cfg.gcdHalf),
     ("strDC", cfg.strDC), ("parseDC", cfg.parseDC), ("sqrtZimmermann", cfg.sqrtZimmermann),
     ("sqrtBase", cfg.sqrtBase)]
   IO.println "To compile these into the library, add to its `require` in lakefile.toml:"

@@ -227,13 +227,13 @@ def checkBits (n : Nat) : Bool :=
   ((2 ^ 64 - 2) * 2 ^ 64 + 2 ^ 64 - 1) / (2 ^ 64 - 1)
 
 -- `divRem1With` on edge values, written at offset 1 of a padded buffer: normalized divisors (the
--- reciprocal steps of `div21`, from the first limb or never), unnormalized ones (`UInt64.div2`),
--- and the largest quotient limbs.
+-- reciprocal steps of `div21`, from the first limb or never), unnormalized ones (the same steps
+-- after a shift, or `UInt64.div2`), and the largest quotient limbs.
 #guard [0, 4294967295].all fun t => [1, 2, 5, 8, 40].all fun n => (edges n).all fun x =>
   [1, 3, 10 ^ 19 - 1, 10 ^ 19, 2 ^ 32, 2 ^ 63 - 1, 2 ^ 63, 2 ^ 63 + 1, 0xF123456789ABCDEF,
     2 ^ 64 - 2, 2 ^ 64 - 1].all fun d =>
     let r := UInt64Array.replicate (n + 2) 0xAAAAAAAAAAAAAAAA
-    let (q, m) := MPN.divRem1With t (inner r n) (limbs n x).toUSlice d.toUInt64
+    let (q, m) := MPN.divRem1With t t (inner r n) (limbs n x).toUSlice d.toUInt64
     window q 1 n == x / d && m.toNat == x % d && q[0]! == 0xAAAAAAAAAAAAAAAA &&
       q[n + 1]! == 0xAAAAAAAAAAAAAAAA
 

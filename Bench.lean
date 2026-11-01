@@ -158,7 +158,8 @@ def row (noNat : Bool) (name : String) (n : Nat) (mpn : IO Timing) (nat : IO Tim
 def toNat (a : UInt64Array) : Nat := a.foldr (fun d n => n * 2 ^ 64 + d.toNat) 0
 
 def ops : List String :=
-  ["add", "sub", "shl", "shr", "div1", "sbdiv", "div", "divmod", "sqrt", "mulmod", "gcd", "str", "parse",
+  ["add", "sub", "shl", "shr", "div1", "div1u", "sbdiv", "div", "divmod", "sqrt", "mulmod", "gcd",
+    "str", "parse",
     "mul1", "addmul1", "mul", "sqr", "kara", "toom", "kara2", "toom2", "fft", "fft2",
     "auto", "ksqr", "fftsqr", "toomsqr", "autosqr", "mulref", "badd", "bsub", "bmul", "bdiv",
     "bgcd", "bshl", "bshr", "band", "bor", "bxor", "bmod",
@@ -298,6 +299,12 @@ def main (args : List String) : IO Unit := do
             MPN.divRem1 (UInt64Array.replicate x.size 0).toUSlice x.toUSlice 0xF123456789ABCDEF)
             checkPair a a)
           (time (fun x _ => x / 0xF123456789ABCDEF) checkNat na na)
+      | "div1u" =>
+        row noNat op n
+          (time (fun (x _ : UInt64Array) =>
+            MPN.divRem1 (UInt64Array.replicate x.size 0).toUSlice x.toUSlice 0x0123456789ABCDEF)
+            checkPair a a)
+          (time (fun x _ => x / 0x0123456789ABCDEF) checkNat na na)
       | "div" =>
         -- `2 n` by `n` limbs, the quotient only.
         let a2 := sample (2 * n) 4

@@ -25,9 +25,10 @@ changing the options, build once with `-R` to reconfigure.
   processors with those instructions.
 * `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`, `mulToom43`, `mulToom4`, `mulToom6`,
   `mulFFT`, `mulFFTUnbal`, `mulFFTMin`, `mulUnbalanced`, `mulChunkMax`, `sqrKaratsuba`, `sqrToom3`,
-  `sqrToom4`, `sqrToom6`, `sqrFFT`, `divDC`, `divMu`, `divQMu`, `div1Recip`, `div32Recip`,
-  `sqrtZimmermann`, `sqrtBase`, `gcdHalf`, `strDC`, `parseDC`: the thresholds, by the names of the
-  fields of `MPN.Config`. The keys have no dots, since TOML passes a quoted key as one name.
+  `sqrToom4`, `sqrToom6`, `sqrFFT`, `divDC`, `divMu`, `divQMu`, `div1Recip`, `div1Unnorm`,
+  `div32Recip`, `sqrtZimmermann`, `sqrtBase`, `gcdHalf`, `strDC`, `parseDC`: the thresholds, by the
+  names of the fields of `MPN.Config`. The keys have no dots, since TOML passes a quoted key as one
+  name.
 -/
 
 /--
@@ -63,6 +64,7 @@ def thresholdOptions : Array LeanOption :=
     opt `div.muThreshold (get_config? divMu) ++
     opt `div.quotMuThreshold (get_config? divQMu) ++
     opt `div.recip1Threshold (get_config? div1Recip) ++
+    opt `div.recip1UnnormThreshold (get_config? div1Unnorm) ++
     opt `div.recip32Threshold (get_config? div32Recip) ++
     opt `sqrt.zimmermannThreshold (get_config? sqrtZimmermann) ++
     opt `sqrt.baseThreshold (get_config? sqrtBase) ++

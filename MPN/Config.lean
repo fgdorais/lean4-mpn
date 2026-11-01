@@ -96,6 +96,12 @@ public structure Config extends Toom.Config where
   -/
   div1Recip : Nat := 12
   /--
+  The size from which division by an unnormalized limb takes the steps with a precomputed
+  reciprocal of the divisor normalized by a shift, with the dividend shifted, instead of the
+  hardware divider.
+  -/
+  div1Unnorm : Nat := 48
+  /--
   The size of the divisor from which schoolbook division estimates the quotient limbs by GMP's
   3-by-2 step with a precomputed reciprocal instead of the hardware divider.
   -/
@@ -252,6 +258,12 @@ public meta register_option mpn.sqrt.baseThreshold : Nat := {
     Newton's iteration"
 }
 
+public meta register_option mpn.div.recip1UnnormThreshold : Nat := {
+  defValue := ({} : Config).div1Unnorm
+  descr := "the size, in limbs, from which division by an unnormalized limb uses steps with a \
+    precomputed reciprocal"
+}
+
 public meta register_option mpn.gcd.halfThreshold : Nat := {
   defValue := ({} : Config).gcdHalf
   descr := "the size of the smaller number, in limbs, from which gcd uses half-gcd"
@@ -317,6 +329,7 @@ elab "mpn_config%" : term => do
   let divMu := mpn.div.muThreshold.get opts
   let divQMu := mpn.div.quotMuThreshold.get opts
   let div1Recip := mpn.div.recip1Threshold.get opts
+  let div1Unnorm := mpn.div.recip1UnnormThreshold.get opts
   let div32Recip := mpn.div.recip32Threshold.get opts
   let sqrtZimmermann := mpn.sqrt.zimmermannThreshold.get opts
   let sqrtBase := mpn.sqrt.baseThreshold.get opts
@@ -344,6 +357,7 @@ elab "mpn_config%" : term => do
   let divMuStx := quote divMu
   let divQMuStx := quote divQMu
   let div1RecipStx := quote div1Recip
+  let div1UnnormStx := quote div1Unnorm
   let div32RecipStx := quote div32Recip
   let sqrtZimmermannStx := quote sqrtZimmermann
   let sqrtBaseStx := quote sqrtBase
@@ -371,6 +385,7 @@ elab "mpn_config%" : term => do
                  divMu := $divMuStx
                  divQMu := $divQMuStx
                  div1Recip := $div1RecipStx
+                 div1Unnorm := $div1UnnormStx
                  div32Recip := $div32RecipStx
                  sqrtZimmermann := $sqrtZimmermannStx
                  sqrtBase := $sqrtBaseStx
