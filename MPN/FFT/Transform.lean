@@ -5,7 +5,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN.FFT.Fermat
-public import MPN.AddSub
+public import MPN.UIntArray
+public import MPN.UInt
 public import MPN.FFT.Windows
 
 /-!
@@ -26,7 +27,7 @@ that `2^(σ 2ᵐ⁻¹) = 2ᴺ ≡ -1`.
 Composed, with the pointwise products in between, the bit reversals cancel.
 -/
 
-open ScalarArray UInt32Array MPN.U
+open ScalarArray UInt32Array
 
 namespace MPN.FFT
 

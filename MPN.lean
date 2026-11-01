@@ -50,7 +50,6 @@ public import MPN.Mul.Toom
 public import MPN.Mul.DivExact
 public import MPN.FFT.Roots
 public import MPN.UIntArray
-public import MPN.AddSub
 public import MPN.FFT.Fermat
 public import MPN.FFT.Transform
 public import MPN.FFT.Mul

@@ -20,7 +20,7 @@ callback (the dispatcher's `mulLimbsWith`) for the pointwise products. `fftMulAt
 `fftSqr` at the end take the library's slices and `MPN.toNat`, as the dispatcher does.
 -/
 
-open ScalarArray UInt32Array MPN.U
+open ScalarArray UInt32Array
 
 namespace MPN.FFT
 
@@ -44,6 +44,18 @@ public theorem sl_spec (arr : UInt32Array) (o len : Nat) (h : o + len ≤ arr.si
   refine ⟨rfl, by rw [sl, hst, ho], hsz, ?_⟩
   rw [USlice.toNat_eq_valAt, hsz, sl, hst, ho]
   rfl
+
+/-- An array of zeros has the value zero everywhere. -/
+private theorem valAt_replicate_zero (n lo m : Nat) :
+    (UInt32Array.replicate n 0).valAt lo m = 0 := by
+  induction m generalizing lo with
+  | zero => simp
+  | succ m ih =>
+    rw [valAt_succ, ih]
+    rw [getElem!_eq_getElem!_toArray, toArray_replicate]
+    by_cases h : lo < n
+    · simp [h]
+    · simp [h]; rfl
 
 /-! ## The instance -/
 
