@@ -107,8 +107,14 @@ public class WordArray (A : Type) (L : outParam Type) [LA : LimbArray A L] where
   ltB : L → L → Bool
   /-- Whether `x = y`. -/
   eqB : L → L → Bool
-  /-- The bitwise and, for masks. -/
+  /-- The bitwise and. -/
   land : L → L → L
+  /-- The bitwise or. -/
+  lor : L → L → L
+  /-- The bitwise exclusive or. -/
+  xor : L → L → L
+  /-- `⌊log₂ x⌋`, and `0` for `0`, like `Nat.log2`. -/
+  log2 : L → Nat
   /-- `1` or `0`. -/
   ofBool : Bool → L
   /--
@@ -153,6 +159,10 @@ public class WordArray (A : Type) (L : outParam Type) [LA : LimbArray A L] where
   isZero_iff : ∀ x, isZero x = true ↔ LA.val x = 0
   val_ofUSize : ∀ i, LA.val (ofUSize i) = i.toNat % 2 ^ LA.w
   toNat_wU : wU.toNat = LA.w
+  val_land : ∀ x y, LA.val (land x y) = LA.val x &&& LA.val y
+  val_lor : ∀ x y, LA.val (lor x y) = LA.val x ||| LA.val y
+  val_xor : ∀ x y, LA.val (xor x y) = LA.val x ^^^ LA.val y
+  log2_eq : ∀ x, log2 x = (LA.val x).log2
   /-- Limbs have at least two bits, so that a limb holds a sum of two carries. -/
   w_ge : 2 ≤ LA.w
 
