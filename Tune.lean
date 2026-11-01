@@ -315,8 +315,8 @@ def divDCStep (u v : UInt32Array.Slice) (_ : 2 ≤ v.size) : UInt32Array :=
 /-- Tunes `divDC`: where one level of division by blocks beats `divRemBasecase`, at `2 n / n`. -/
 def tuneDivDC (log : Bool) : IO Nat := medianOf 3 do
   let sizes := (List.range 60).map (16 + 8 * ·)
-  match ← crossover (normDiv fun u v h => (divRemBasecase div32RecipU u v h).1) (normDiv divDCStep) sizes
-      (shape := fun n => (2 * n, n)) (log := log) with
+  match ← crossover (normDiv fun u v h => (divRemBasecase div32RecipU u v h).1)
+      (normDiv divDCStep) sizes (shape := fun n => (2 * n, n)) (log := log) with
   | some n =>
     if log then IO.println s!"  found {n}"
     return n
@@ -388,6 +388,38 @@ def tuneDiv32Recip (log : Bool) : IO Nat := medianOf 3 do
   | none =>
     if log then IO.println "  the hardware divider always won"
     return 1000000
+
+/--
+Tunes `sqrtBase`: the largest root, in limbs, that Zimmermann's recursion finishes by Newton's
+iteration, from where one level of the recursion on roots of `n` limbs, with Newton's iteration
+below, beats Newton's iteration on the whole root.
+-/
+def tuneSqrtBase (log : Bool) : IO Nat := medianOf 3 do
+  let sizes := [4, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32, 40, 48, 56, 64, 80, 96, 128]
+  match ← crossoverOn (fun x (_ : MPN.Nat) => MPN.Nat.sqrtWith 1 1000000 x)
+      (fun x _ => MPN.Nat.sqrtWith 1 (x.limbs.size / 2 - 1) x) checkNat
+      (fun n => (sampleNat (2 * n) 1, sampleNat (2 * n) 1)) sizes (log := log) with
+  | some n =>
+    if log then IO.println s!"  found {n}"
+    return n - 1
+  | none =>
+    IO.eprintln "warning: one level of Zimmermann's recursion never won up to 128 limbs; using 128"
+    return 128
+
+/--
+Tunes `sqrtZimmermann`: the size of the root, in limbs, from which Zimmermann's recursion, down to
+roots of `T` limbs, beats Newton's iteration.
+-/
+def tuneSqrtZimmermann (T : Nat) (log : Bool) : IO Nat := medianOf 3 do
+  let sizes := [4, 6, 8, 12, 16, 20, 24, 28, 32, 40, 48, 56, 64, 80, 96, 128, 160, 192, 256]
+  match ← crossoverOn (fun x (_ : MPN.Nat) => MPN.Nat.sqrtWith 1000000 T x)
+      (fun x _ => MPN.Nat.sqrtWith 1 T x) checkNat (fun n => (sampleNat (2 * n) 1, sampleNat (2 * n) 1)) sizes (log := log) with
+  | some n =>
+    if log then IO.println s!"  found {n}"
+    return n
+  | none =>
+    IO.eprintln "warning: Zimmermann's recursion never won up to 256 limbs; using 256"
+    return 256
 
 /-- Tunes `strDC`: where writing decimal digits by divide and conquer beats the base case. -/
 def tuneStrDC (log : Bool) : IO Nat := medianOf 3 do
@@ -484,6 +516,10 @@ public def main (args : List String) : IO UInt32 := do
   let strDC ← tuneStrDC log
   IO.println "parseDC: reading decimal digits by divide and conquer against the base case"
   let parseDC ← tuneParseDC log
+  IO.println "sqrtBase: one level of Zimmermann's recursion against Newton's iteration"
+  let sqrtBase ← tuneSqrtBase log
+  IO.println "sqrtZimmermann: Zimmermann's recursion against Newton's iteration"
+  let sqrtZimmermann ← tuneSqrtZimmermann sqrtBase log
   let cfg : Config := {
     mulKaratsuba := max 4 karatsuba, four_le_mulKaratsuba := by lia,
     mulToom3 := max 12 toom3, twelve_le_mulToom3 := by lia,
@@ -498,7 +534,7 @@ public def main (args : List String) : IO UInt32 := do
     sqrToom4 := max 32 sqrToom4, thirtytwo_le_sqrToom4 := by lia,
     sqrToom6 := max 32 sqrToom6, thirtytwo_le_sqrToom6 := by lia, sqrFFT,
     divDC := max 4 divDC, four_le_divDC := by lia, div1Recip, div32Recip, gcdHalf,
-    strDC, parseDC }
+    strDC, parseDC, sqrtZimmermann, sqrtBase }
   IO.println ""
   IO.println s!"Found:   {repr cfg}"
   IO.println s!"Default: {repr ({} : Config)}"
@@ -510,7 +546,8 @@ public def main (args : List String) : IO UInt32 := do
     ("sqrKaratsuba", cfg.sqrKaratsuba), ("sqrToom3", cfg.sqrToom3), ("sqrToom4", cfg.sqrToom4),
     ("sqrToom6", cfg.sqrToom6), ("sqrFFT", cfg.sqrFFT), ("divDC", cfg.divDC),
     ("div1Recip", cfg.div1Recip), ("div32Recip", cfg.div32Recip), ("gcdHalf", cfg.gcdHalf),
-    ("strDC", cfg.strDC), ("parseDC", cfg.parseDC)]
+    ("strDC", cfg.strDC), ("parseDC", cfg.parseDC), ("sqrtZimmermann", cfg.sqrtZimmermann),
+    ("sqrtBase", cfg.sqrtBase)]
   IO.println "To compile these into the library, add to its `require` in lakefile.toml:"
   IO.println s!"  options = \{ {", ".intercalate (opts.map fun (k, v) => s!"{k} = \"{v}\"")} }"
   IO.println "or build this package with:"

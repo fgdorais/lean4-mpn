@@ -79,6 +79,12 @@ public structure Config extends Toom.Config where
   /-- The size of a normalized divisor from which schoolbook division estimates the quotient limbs
   by GMP's 3-by-2 steps with a precomputed reciprocal instead of the hardware divider. -/
   div32Recip : Nat := 64
+  /-- The size of the root, in limbs, from which the square root uses Zimmermann's recursion
+  instead of Newton's iteration. -/
+  sqrtZimmermann : Nat := 40
+  /-- The size of the root, in limbs, at or below which Zimmermann's recursion finishes by Newton's
+  iteration. -/
+  sqrtBase : Nat := 16
   /-- The size of the smaller number from which the greatest common divisor uses half-gcd. -/
   gcdHalf : Nat := 1536
   /-- The size from which decimal strings are written by divide and conquer. -/
@@ -194,6 +200,17 @@ public meta register_option mpn.div.recip32Threshold : Nat := {
     with a precomputed reciprocal"
 }
 
+public meta register_option mpn.sqrt.zimmermannThreshold : Nat := {
+  defValue := ({} : Config).sqrtZimmermann
+  descr := "the size of the root, in limbs, from which the square root uses Zimmermann's recursion"
+}
+
+public meta register_option mpn.sqrt.baseThreshold : Nat := {
+  defValue := ({} : Config).sqrtBase
+  descr := "the size of the root, in limbs, at or below which Zimmermann's recursion finishes by \
+    Newton's iteration"
+}
+
 public meta register_option mpn.gcd.halfThreshold : Nat := {
   defValue := ({} : Config).gcdHalf
   descr := "the size of the smaller number, in limbs, from which the greatest common divisor \
@@ -253,6 +270,8 @@ elab "mpn_config%" : term => do
   let divMu := mpn.div.muThreshold.get opts
   let div1Recip := mpn.div.recip1Threshold.get opts
   let div32Recip := mpn.div.recip32Threshold.get opts
+  let sqrtZimmermann := mpn.sqrt.zimmermannThreshold.get opts
+  let sqrtBase := mpn.sqrt.baseThreshold.get opts
   let gcdHalf := mpn.gcd.halfThreshold.get opts
   let strDC := mpn.str.dcThreshold.get opts
   let parseDC := mpn.str.parseDCThreshold.get opts
@@ -279,6 +298,8 @@ elab "mpn_config%" : term => do
   let mu := quote divMu
   let d1 := quote div1Recip
   let d32 := quote div32Recip
+  let sz := quote sqrtZimmermann
+  let sb := quote sqrtBase
   let gh := quote gcdHalf
   let sd := quote strDC
   let pd := quote parseDC
@@ -301,6 +322,8 @@ elab "mpn_config%" : term => do
                  divMu := $mu
                  div1Recip := $d1
                  div32Recip := $d32
+                 sqrtZimmermann := $sz
+                 sqrtBase := $sb
                  gcdHalf := $gh
                  strDC := $sd
                  parseDC := $pd } : Config))
