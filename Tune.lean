@@ -351,6 +351,23 @@ def tuneGcdHalf (log : Bool) : IO Nat := medianOf 3 do
     IO.eprintln "warning: half-gcd never won up to 16896 limbs; using 16896"
     return 16896
 
+/--
+Tunes `div1Recip`: where division by a normalized limb with Möller and Granlund's steps with a
+precomputed reciprocal beats the hardware divider, or `1000000`, never, if it does not win up to
+512 limbs.
+-/
+def tuneDiv1Recip (log : Bool) : IO Nat := medianOf 3 do
+  let sizes := [2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512]
+  match ← crossoverOn (fun (a _ : UInt32Array) => divRem1With 4294967295 a 0xF1234567)
+      (fun a _ => divRem1With 0 a 0xF1234567) (fun p => p.2 + p.1.size.toUInt32)
+      (fun n => (sample n 1, sample n 1)) sizes (log := log) with
+  | some n =>
+    if log then IO.println s!"  found {n}"
+    return n
+  | none =>
+    if log then IO.println "  the hardware divider always won"
+    return 1000000
+
 /-- Tunes `strDC`: where writing decimal digits by divide and conquer beats the base case. -/
 def tuneStrDC (log : Bool) : IO Nat := medianOf 3 do
   let sizes := (List.range 60).map (16 + 8 * ·)
@@ -436,6 +453,8 @@ public def main (args : List String) : IO UInt32 := do
     sqrToom6 := max 32 sqrToom6, thirtytwo_le_sqrToom6 := by lia } log
   IO.println "divDC: one level of division by blocks against Algorithm D, at 2n / n"
   let divDC ← tuneDivDC log
+  IO.println "div1Recip: division by a limb with a reciprocal against the hardware divider"
+  let div1Recip ← tuneDiv1Recip log
   IO.println "gcdHalf: half-gcd against Lehmer's algorithm"
   let gcdHalf ← tuneGcdHalf log
   IO.println "strDC: writing decimal digits by divide and conquer against the base case"
@@ -455,7 +474,7 @@ public def main (args : List String) : IO UInt32 := do
     sqrToom3 := max 12 sqrToom3, twelve_le_sqrToom3 := by lia,
     sqrToom4 := max 32 sqrToom4, thirtytwo_le_sqrToom4 := by lia,
     sqrToom6 := max 32 sqrToom6, thirtytwo_le_sqrToom6 := by lia, sqrFFT,
-    divDC := max 4 divDC, four_le_divDC := by lia, gcdHalf, strDC, parseDC }
+    divDC := max 4 divDC, four_le_divDC := by lia, div1Recip, gcdHalf, strDC, parseDC }
   IO.println ""
   IO.println s!"Found:   {repr cfg}"
   IO.println s!"Default: {repr ({} : Config)}"
@@ -466,7 +485,8 @@ public def main (args : List String) : IO UInt32 := do
     ("mulUnbalanced", cfg.mulUnbalanced), ("sqrBasecase", cfg.sqrBasecase),
     ("sqrKaratsuba", cfg.sqrKaratsuba), ("sqrToom3", cfg.sqrToom3), ("sqrToom4", cfg.sqrToom4),
     ("sqrToom6", cfg.sqrToom6), ("sqrFFT", cfg.sqrFFT), ("divDC", cfg.divDC),
-    ("gcdHalf", cfg.gcdHalf), ("strDC", cfg.strDC), ("parseDC", cfg.parseDC)]
+    ("div1Recip", cfg.div1Recip), ("gcdHalf", cfg.gcdHalf), ("strDC", cfg.strDC),
+    ("parseDC", cfg.parseDC)]
   IO.println "To compile these into the library, add to its `require` in lakefile.toml:"
   IO.println s!"  options = \{ {", ".intercalate (opts.map fun (k, v) => s!"{k} = \"{v}\"")} }"
   IO.println "or build this package with:"
