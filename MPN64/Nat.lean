@@ -6,10 +6,10 @@ module
 
 public import MPN.Natural
 public import MPN.NatGcd
-public import MPN.Gcd
-public import MPN.Decimal
-public import MPN.Sqrt
-public import MPN.Div.DC
+public import MPN64.Gcd
+public import MPN64.Decimal
+public import MPN64.Sqrt
+public import MPN64.Div.DC
 import Std.Data.String.ToNat
 
 /-!
@@ -29,7 +29,7 @@ from `MPN.Gcd`; `MPN.gcdWith` and `Num.gcd` are it on arrays.
 
 open ScalarArray UInt64Array
 
-namespace MPN
+namespace MPN.W64
 
 namespace Limbs64
 
@@ -605,20 +605,20 @@ export GNat (small large ofLimbs wideOf toNat_wideOf add sub mul div mod blt dec
   lt_iff_toNat_lt le_iff_toNat_le gcd lcm toNat_gcd toNat_lcm)
 
 /-- The `MPN.Nat` of a natural number. -/
-public abbrev ofNat (n : _root_.Nat) : MPN.Nat := GNat.ofNat n
+public abbrev ofNat (n : _root_.Nat) : MPN.W64.Nat := GNat.ofNat n
 
 /-- The number that a string of decimal digits denotes, like `String.toNat?`. -/
-public abbrev ofString? (s : String) : Option MPN.Nat := GNat.ofString? s
+public abbrev ofString? (s : String) : Option MPN.W64.Nat := GNat.ofString? s
 
 @[simp] public theorem toNat_ofLimbs (a : UInt64Array) (h : Limbs64.isTrim a = true) :
-    (ofLimbs a h : MPN.Nat).toNat = a.toNat := GNat.toNat_ofLimbs a h
+    (ofLimbs a h : MPN.W64.Nat).toNat = a.toNat := GNat.toNat_ofLimbs a h
 
 /--
 `(⌊√N⌋, N - ⌊√N⌋²)`, the base of Zimmermann's recursion in `sqrtWith`: by `sqrtBase` for two
 limbs, and above by Newton's iteration (`sqrtNewton`).
 -/
 public def sqrtBaseN (N : UInt64Array) : UInt64Array × UInt64Array :=
-  if N.size ≤ 2 then MPN.sqrtBase N
+  if N.size ≤ 2 then MPN.W64.sqrtBase N
   else
     let S := (sqrtNewton (ofLimbs (Limbs64.norm N) (Limbs64.isTrim_norm _))).limbs
     (S, ops64.sub N (ops64.sqr S))
@@ -629,13 +629,13 @@ private theorem sqrtBaseN_spec (N : UInt64Array) :
   unfold sqrtBaseN
   split
   · rename_i h
-    apply MPN.sqrtBase_spec
+    apply MPN.W64.sqrtBase_spec
     have := valAt_lt N 0 N.size
     rw [toNat_eq_valAt, show ((2 : Nat) ^ 64) ^ (2 * 1) = 2 ^ (64 * 2) by rw [← Nat.pow_mul]]
     exact Nat.lt_of_lt_of_le this (Nat.pow_le_pow_right (by decide) (by lia : 64 * N.size ≤ 64 * 2))
   · have hS : (sqrtNewton (ofLimbs (Limbs64.norm N) (Limbs64.isTrim_norm _))).limbs.toNat =
         _root_.Nat.sqrt N.toNat := by
-      rw [show ∀ x : MPN.Nat, x.limbs.toNat = x.toNat from GNat.val_limbs, toNat_sqrtNewton,
+      rw [show ∀ x : MPN.W64.Nat, x.limbs.toNat = x.toNat from GNat.val_limbs, toNat_sqrtNewton,
         toNat_ofLimbs, Limbs64.toNat_norm]
     refine ⟨hS, ?_⟩
     dsimp only
@@ -647,7 +647,7 @@ private theorem sqrtBaseN_spec (N : UInt64Array) :
 roots below `Z` limbs, and from there by Zimmermann's recursion (`sqrtRemWith`), with Newton's
 iteration for roots of up to `T` limbs (`sqrtBaseN`).
 -/
-public def sqrtWith (Z T : Nat) (n : MPN.Nat) : MPN.Nat :=
+public def sqrtWith (Z T : Nat) (n : MPN.W64.Nat) : MPN.W64.Nat :=
   match n with
   | small _ => sqrtNewton n
   | large a _ =>
@@ -655,7 +655,7 @@ public def sqrtWith (Z T : Nat) (n : MPN.Nat) : MPN.Nat :=
       ofLimbs (Limbs64.norm (sqrtRemWith sqrtBaseN T a).1) (Limbs64.isTrim_norm _)
     else sqrtNewton n
 
-@[simp] public theorem toNat_sqrtWith (Z T : Nat) (n : MPN.Nat) :
+@[simp] public theorem toNat_sqrtWith (Z T : Nat) (n : MPN.W64.Nat) :
     (sqrtWith Z T n).toNat = _root_.Nat.sqrt n.toNat := by
   unfold sqrtWith
   split
@@ -668,9 +668,9 @@ public def sqrtWith (Z T : Nat) (n : MPN.Nat) : MPN.Nat :=
     · exact toNat_sqrtNewton _
 
 /-- `sqrtWith` from roots of `config.sqrtZimmermann` limbs, down to `config.sqrtBase`. -/
-public def sqrt (n : MPN.Nat) : MPN.Nat := sqrtWith config.sqrtZimmermann config.sqrtBase n
+public def sqrt (n : MPN.W64.Nat) : MPN.W64.Nat := sqrtWith config.sqrtZimmermann config.sqrtBase n
 
-@[simp] public theorem toNat_sqrt (n : MPN.Nat) : (sqrt n).toNat = _root_.Nat.sqrt n.toNat :=
+@[simp] public theorem toNat_sqrt (n : MPN.W64.Nat) : (sqrt n).toNat = _root_.Nat.sqrt n.toNat :=
   toNat_sqrtWith ..
 
 end Nat
@@ -692,4 +692,4 @@ public def Num.gcd (a b : UInt64Array) : UInt64Array := gcdWith config.gcdHalf a
     (Num.gcd a b).toNat = _root_.Nat.gcd a.toNat b.toNat :=
   toNat_gcdWith ..
 
-end MPN
+end MPN.W64

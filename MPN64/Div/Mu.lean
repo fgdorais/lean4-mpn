@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.Div.DC
+public import MPN64.Div.DC
 
 /-!
 # Division by a reciprocal
@@ -16,7 +16,7 @@ wrapped product of the FFT (`Num.mulModB`), at about half the cost of a full pro
 
 open ScalarArray UInt64Array
 
-namespace MPN.Num
+namespace MPN.W64.Num
 
 /-- One fold modulo `β^N - 1`: the low `N` limbs plus the rest, since `β^N ≡ 1`. -/
 public def foldB (x : UInt64Array) (N : Nat) : UInt64Array := add (low x N) (shr x (64 * N))
@@ -68,4 +68,4 @@ public theorem toNat_modB (x : UInt64Array) (N : Nat) (hN : 1 ≤ N)
   · rw [(toNat_divMod _ _ (by rw [toNat_allOnes]; exact hM)
       (by rw [size_allOnes]; lia)).2, toNat_allOnes, g₁]
 
-end MPN.Num
+end MPN.W64.Num

@@ -5,7 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN.Generic.Radix
-public import MPN.Generic.Ops64
+public import MPN64.Generic.Ops64
 public import MPN.DecChunks
 import Std.Data.String.ToNat
 
@@ -23,14 +23,14 @@ which cannot happen.
 
 open ScalarArray UInt64Array
 
-namespace MPN
+namespace MPN.W64
 
 /-! ## Chunks of nineteen digits -/
 
 /-- Whether `a` is zero. -/
 public def isZero (a : UInt64Array) : Bool :=
   if a.size == 0 then true
-  else if fits (a.size + 1) then MPN.log2 a.toUSlice == 0 && a[0]! == 0 else a.toNat == 0
+  else if fits (a.size + 1) then MPN.W64.log2 a.toUSlice == 0 && a[0]! == 0 else a.toNat == 0
 
 public theorem isZero_iff (a : UInt64Array) : isZero a = true ↔ a.toNat = 0 := by
   unfold isZero
@@ -65,7 +65,7 @@ public theorem isZero_iff (a : UInt64Array) : isZero a = true ↔ a.toNat = 0 :=
 
 /-- `(a / d, a mod d)` by `divRem1`. -/
 public def divRem1N (a : UInt64Array) (d : UInt64) : UInt64Array × UInt64 :=
-  if fits (a.size + 1) then MPN.divRem1 (UInt64Array.replicate a.size 0).toUSlice a.toUSlice d
+  if fits (a.size + 1) then MPN.W64.divRem1 (UInt64Array.replicate a.size 0).toUSlice a.toUSlice d
   else (ofNat (a.toNat / d.toNat), (a.toNat % d.toNat).toUInt64)
 
 public theorem divRem1N_spec (a : UInt64Array) (d : UInt64) (hd : 0 < d.toNat) :
@@ -93,7 +93,7 @@ public theorem divRem1N_spec (a : UInt64Array) (d : UInt64) (hd : 0 < d.toNat) :
 /-- `a m + v`, by `mul1` with the carry in `v`. -/
 public def mulAddLimb (a : UInt64Array) (m v : UInt64) : UInt64Array :=
   if fits (a.size + 2) then
-    let p := MPN.mul1 (UInt64Array.replicate (a.size + 1) 0).toUSlice a.toUSlice m v
+    let p := MPN.W64.mul1 (UInt64Array.replicate (a.size + 1) 0).toUSlice a.toUSlice m v
     p.1.set! a.size p.2
   else ofNat (a.toNat * m.toNat + v.toNat)
 
@@ -112,7 +112,7 @@ public theorem toNat_mulAddLimb (a : UInt64Array) (m v : UInt64) :
     dsimp only
     rw [toNat_eq_valAt, size_set!, size_mul1, array_toUSlice, size_replicate,
       UInt64Array.valAt_add, valAt_one, Nat.zero_add, getElem!_set!_self _ _ _ (by simp),
-      valAt_congr (b := (MPN.mul1 (UInt64Array.replicate (a.size + 1) 0).toUSlice a.toUSlice m
+      valAt_congr (b := (MPN.W64.mul1 (UInt64Array.replicate (a.size + 1) 0).toUSlice a.toUSlice m
         v).1) _ fun i _ hi => getElem!_set!_of_ne _ _ (by lia)]
     exact h₁
   · exact toNat_ofNat _
@@ -236,4 +236,4 @@ public def Num.ofDecimal? (s : String) : Option UInt64Array := ofDecimalWith con
     (Num.ofDecimal? s).map UInt64Array.toNat = s.toNat? :=
   ofDecimalWith_eq ..
 
-end MPN
+end MPN.W64

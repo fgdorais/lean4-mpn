@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.Mul.Karatsuba
+public import MPN64.Mul.Karatsuba
 
 /-!
 # Karatsuba squaring
@@ -17,7 +17,7 @@ and leaves `r` unchanged otherwise.
 
 open ScalarArray UInt64Array
 
-namespace MPN
+namespace MPN.W64
 
 variable (cfg : Config)
 
@@ -63,4 +63,4 @@ public theorem valAt_sqrKaratsuba (r a : USlice) (_ha : 0 < a.size)
   rw [show 2 * a.size.toNat = a.size.toNat + a.size.toNat by lia]
   exact (spec cfg r a hr).2
 
-end MPN
+end MPN.W64

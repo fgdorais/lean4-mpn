@@ -25,7 +25,7 @@ which the defaults take always, like GMP. `lake exe tune` prints the thresholds 
 runs on and the options that set them.
 -/
 
-namespace MPN
+namespace MPN.W64
 
 /-- The size thresholds, in limbs, at which the arithmetic switches algorithms. -/
 public structure Config extends Toom.Config where
@@ -132,152 +132,152 @@ public structure Config extends Toom.Config where
 /-- The thresholds of the Karatsuba and Toom methods of `MPN.Toom`, a projection. -/
 @[inline] public abbrev Config.toom (cfg : Config) : Toom.Config := cfg.toConfig
 
-public meta register_option mpn.mul.karatsubaThreshold : Nat := {
+public meta register_option mpn.w64.mul.karatsubaThreshold : Nat := {
   defValue := ({} : Config).mulKaratsuba
   descr := "the size of the larger operand, in limbs, from which multiplication uses Karatsuba"
 }
 
-public meta register_option mpn.mul.toom3Threshold : Nat := {
+public meta register_option mpn.w64.mul.toom3Threshold : Nat := {
   defValue := ({} : Config).mulToom3
   descr := "the size of the smaller operand, in limbs, from which multiplication uses Toom-3 \
     and its unbalanced variants"
 }
 
-public meta register_option mpn.mul.toom32Threshold : Nat := {
+public meta register_option mpn.w64.mul.toom32Threshold : Nat := {
   defValue := ({} : Config).mulToom32
   descr := "the size of the smaller operand, in limbs, from which multiplication uses Toom-3 by 2"
 }
 
-public meta register_option mpn.mul.toom42Threshold : Nat := {
+public meta register_option mpn.w64.mul.toom42Threshold : Nat := {
   defValue := ({} : Config).mulToom42
   descr := "the size of the smaller operand, in limbs, from which multiplication uses Toom-4 by 2"
 }
 
-public meta register_option mpn.mul.toom43Threshold : Nat := {
+public meta register_option mpn.w64.mul.toom43Threshold : Nat := {
   defValue := ({} : Config).mulToom43
   descr := "the size of the smaller operand, in limbs, from which multiplication uses Toom-4 by 3"
 }
 
-public meta register_option mpn.mul.toom4Threshold : Nat := {
+public meta register_option mpn.w64.mul.toom4Threshold : Nat := {
   defValue := ({} : Config).mulToom4
   descr := "the size of the smaller operand, in limbs, from which multiplication uses Toom-4 \
     and Toom-4 by 3"
 }
 
-public meta register_option mpn.mul.toom6Threshold : Nat := {
+public meta register_option mpn.w64.mul.toom6Threshold : Nat := {
   defValue := ({} : Config).mulToom6
   descr := "the size of the smaller operand, in limbs, from which multiplication uses Toom-6"
 }
 
-public meta register_option mpn.mul.fftThreshold : Nat := {
+public meta register_option mpn.w64.mul.fftThreshold : Nat := {
   defValue := ({} : Config).mulFFT
   descr := "the size of the larger operand, in limbs, from which multiplication uses the FFT"
 }
 
-public meta register_option mpn.mul.fftUnbalancedThreshold : Nat := {
+public meta register_option mpn.w64.mul.fftUnbalancedThreshold : Nat := {
   defValue := ({} : Config).mulFFTUnbal
   descr := "the size of the larger operand, in limbs, from which multiplication uses the FFT \
     when the operands differ by 3 : 2 or more"
 }
 
-public meta register_option mpn.mul.fftMinThreshold : Nat := {
+public meta register_option mpn.w64.mul.fftMinThreshold : Nat := {
   defValue := ({} : Config).mulFFTMin
   descr := "the size of the smaller operand, in limbs, below which multiplication does not \
     use the FFT"
 }
 
-public meta register_option mpn.mul.unbalancedThreshold : Nat := {
+public meta register_option mpn.w64.mul.unbalancedThreshold : Nat := {
   defValue := ({} : Config).mulUnbalanced
   descr := "the size of the smaller operand, in limbs, from which multiplication splits an \
     operand at least twice as long"
 }
 
-public meta register_option mpn.mul.unbalancedMaxThreshold : Nat := {
+public meta register_option mpn.w64.mul.unbalancedMaxThreshold : Nat := {
   defValue := ({} : Config).mulChunkMax
   descr := "the size of the smaller operand, in limbs, from which multiplication no longer \
     splits the larger operand in the range of the FFT"
 }
 
-public meta register_option mpn.sqr.karatsubaThreshold : Nat := {
+public meta register_option mpn.w64.sqr.karatsubaThreshold : Nat := {
   defValue := ({} : Config).sqrKaratsuba
   descr := "the size, in limbs, from which squaring uses Karatsuba"
 }
 
-public meta register_option mpn.sqr.toom3Threshold : Nat := {
+public meta register_option mpn.w64.sqr.toom3Threshold : Nat := {
   defValue := ({} : Config).sqrToom3
   descr := "the size, in limbs, from which squaring uses Toom-3"
 }
 
-public meta register_option mpn.sqr.toom4Threshold : Nat := {
+public meta register_option mpn.w64.sqr.toom4Threshold : Nat := {
   defValue := ({} : Config).sqrToom4
   descr := "the size, in limbs, from which squaring uses Toom-4"
 }
 
-public meta register_option mpn.sqr.toom6Threshold : Nat := {
+public meta register_option mpn.w64.sqr.toom6Threshold : Nat := {
   defValue := ({} : Config).sqrToom6
   descr := "the size, in limbs, from which squaring uses Toom-6"
 }
 
-public meta register_option mpn.sqr.fftThreshold : Nat := {
+public meta register_option mpn.w64.sqr.fftThreshold : Nat := {
   defValue := ({} : Config).sqrFFT
   descr := "the size, in limbs, from which squaring uses the FFT"
 }
 
-public meta register_option mpn.div.dcThreshold : Nat := {
+public meta register_option mpn.w64.div.dcThreshold : Nat := {
   defValue := ({} : Config).divDC
   descr := "the size of the divisor, in limbs, from which division uses divide and conquer"
 }
 
-public meta register_option mpn.div.muThreshold : Nat := {
+public meta register_option mpn.w64.div.muThreshold : Nat := {
   defValue := ({} : Config).divMu
   descr := "the size of the divisor, in limbs, from which division uses Barrett's method"
 }
 
-public meta register_option mpn.div.quotMuThreshold : Nat := {
+public meta register_option mpn.w64.div.quotMuThreshold : Nat := {
   defValue := ({} : Config).divQMu
   descr := "the size of the divisor, in limbs, from which the quotient alone uses Barrett's method"
 }
 
-public meta register_option mpn.div.recip1Threshold : Nat := {
+public meta register_option mpn.w64.div.recip1Threshold : Nat := {
   defValue := ({} : Config).div1Recip
   descr := "the size, in limbs, from which division by a normalized limb uses steps with a \
     precomputed reciprocal"
 }
 
-public meta register_option mpn.div.recip32Threshold : Nat := {
+public meta register_option mpn.w64.div.recip32Threshold : Nat := {
   defValue := ({} : Config).div32Recip
   descr := "the size of the divisor, in limbs, from which schoolbook division uses 3-by-2 steps \
     with a precomputed reciprocal"
 }
 
-public meta register_option mpn.sqrt.zimmermannThreshold : Nat := {
+public meta register_option mpn.w64.sqrt.zimmermannThreshold : Nat := {
   defValue := ({} : Config).sqrtZimmermann
   descr := "the size of the root, in limbs, from which the square root uses Zimmermann's recursion"
 }
 
-public meta register_option mpn.sqrt.baseThreshold : Nat := {
+public meta register_option mpn.w64.sqrt.baseThreshold : Nat := {
   defValue := ({} : Config).sqrtBase
   descr := "the size of the root, in limbs, at or below which Zimmermann's recursion finishes by \
     Newton's iteration"
 }
 
-public meta register_option mpn.div.recip1UnnormThreshold : Nat := {
+public meta register_option mpn.w64.div.recip1UnnormThreshold : Nat := {
   defValue := ({} : Config).div1Unnorm
   descr := "the size, in limbs, from which division by an unnormalized limb uses steps with a \
     precomputed reciprocal"
 }
 
-public meta register_option mpn.gcd.halfThreshold : Nat := {
+public meta register_option mpn.w64.gcd.halfThreshold : Nat := {
   defValue := ({} : Config).gcdHalf
   descr := "the size of the smaller number, in limbs, from which gcd uses half-gcd"
 }
 
-public meta register_option mpn.str.dcThreshold : Nat := {
+public meta register_option mpn.w64.str.dcThreshold : Nat := {
   defValue := ({} : Config).strDC
   descr := "the size, in limbs, from which decimal strings are written by divide and conquer"
 }
 
-public meta register_option mpn.str.parseDCThreshold : Nat := {
+public meta register_option mpn.w64.str.parseDCThreshold : Nat := {
   defValue := ({} : Config).parseDC
   descr := "the size of the result, in limbs, from which decimal strings are read by divide and \
     conquer"
@@ -287,58 +287,58 @@ open Lean Elab Term in
 /-- The `Config` given by the `mpn.*` options in effect, with defaults from `Config`. -/
 elab "mpn_config%" : term => do
   let opts ← getOptions
-  let mulKaratsuba := mpn.mul.karatsubaThreshold.get opts
+  let mulKaratsuba := mpn.w64.mul.karatsubaThreshold.get opts
   unless 4 ≤ mulKaratsuba do
-    throwError "mpn.mul.karatsubaThreshold must be at least 4, but it is {mulKaratsuba}"
-  let mulToom3 := mpn.mul.toom3Threshold.get opts
+    throwError "mpn.w64.mul.karatsubaThreshold must be at least 4, but it is {mulKaratsuba}"
+  let mulToom3 := mpn.w64.mul.toom3Threshold.get opts
   unless 12 ≤ mulToom3 do
-    throwError "mpn.mul.toom3Threshold must be at least 12, but it is {mulToom3}"
-  let mulToom32 := mpn.mul.toom32Threshold.get opts
+    throwError "mpn.w64.mul.toom3Threshold must be at least 12, but it is {mulToom3}"
+  let mulToom32 := mpn.w64.mul.toom32Threshold.get opts
   unless 12 ≤ mulToom32 do
-    throwError "mpn.mul.toom32Threshold must be at least 12, but it is {mulToom32}"
-  let mulToom42 := mpn.mul.toom42Threshold.get opts
+    throwError "mpn.w64.mul.toom32Threshold must be at least 12, but it is {mulToom32}"
+  let mulToom42 := mpn.w64.mul.toom42Threshold.get opts
   unless 12 ≤ mulToom42 do
-    throwError "mpn.mul.toom42Threshold must be at least 12, but it is {mulToom42}"
-  let mulToom43 := mpn.mul.toom43Threshold.get opts
+    throwError "mpn.w64.mul.toom42Threshold must be at least 12, but it is {mulToom42}"
+  let mulToom43 := mpn.w64.mul.toom43Threshold.get opts
   unless 32 ≤ mulToom43 do
-    throwError "mpn.mul.toom43Threshold must be at least 32, but it is {mulToom43}"
-  let mulToom4 := mpn.mul.toom4Threshold.get opts
+    throwError "mpn.w64.mul.toom43Threshold must be at least 32, but it is {mulToom43}"
+  let mulToom4 := mpn.w64.mul.toom4Threshold.get opts
   unless 32 ≤ mulToom4 do
-    throwError "mpn.mul.toom4Threshold must be at least 32, but it is {mulToom4}"
-  let mulToom6 := mpn.mul.toom6Threshold.get opts
+    throwError "mpn.w64.mul.toom4Threshold must be at least 32, but it is {mulToom4}"
+  let mulToom6 := mpn.w64.mul.toom6Threshold.get opts
   unless 32 ≤ mulToom6 do
-    throwError "mpn.mul.toom6Threshold must be at least 32, but it is {mulToom6}"
-  let mulFFT := mpn.mul.fftThreshold.get opts
-  let mulFFTUnbal := mpn.mul.fftUnbalancedThreshold.get opts
-  let mulFFTMin := mpn.mul.fftMinThreshold.get opts
-  let mulUnbalanced := mpn.mul.unbalancedThreshold.get opts
+    throwError "mpn.w64.mul.toom6Threshold must be at least 32, but it is {mulToom6}"
+  let mulFFT := mpn.w64.mul.fftThreshold.get opts
+  let mulFFTUnbal := mpn.w64.mul.fftUnbalancedThreshold.get opts
+  let mulFFTMin := mpn.w64.mul.fftMinThreshold.get opts
+  let mulUnbalanced := mpn.w64.mul.unbalancedThreshold.get opts
   unless 1 ≤ mulUnbalanced do
-    throwError "mpn.mul.unbalancedThreshold must be at least 1, but it is {mulUnbalanced}"
-  let mulChunkMax := mpn.mul.unbalancedMaxThreshold.get opts
-  let sqrKaratsuba := mpn.sqr.karatsubaThreshold.get opts
+    throwError "mpn.w64.mul.unbalancedThreshold must be at least 1, but it is {mulUnbalanced}"
+  let mulChunkMax := mpn.w64.mul.unbalancedMaxThreshold.get opts
+  let sqrKaratsuba := mpn.w64.sqr.karatsubaThreshold.get opts
   unless 4 ≤ sqrKaratsuba do
-    throwError "mpn.sqr.karatsubaThreshold must be at least 4, but it is {sqrKaratsuba}"
-  let sqrToom3 := mpn.sqr.toom3Threshold.get opts
+    throwError "mpn.w64.sqr.karatsubaThreshold must be at least 4, but it is {sqrKaratsuba}"
+  let sqrToom3 := mpn.w64.sqr.toom3Threshold.get opts
   unless 12 ≤ sqrToom3 do
-    throwError "mpn.sqr.toom3Threshold must be at least 12, but it is {sqrToom3}"
-  let sqrToom4 := mpn.sqr.toom4Threshold.get opts
+    throwError "mpn.w64.sqr.toom3Threshold must be at least 12, but it is {sqrToom3}"
+  let sqrToom4 := mpn.w64.sqr.toom4Threshold.get opts
   unless 32 ≤ sqrToom4 do
-    throwError "mpn.sqr.toom4Threshold must be at least 32, but it is {sqrToom4}"
-  let sqrToom6 := mpn.sqr.toom6Threshold.get opts
+    throwError "mpn.w64.sqr.toom4Threshold must be at least 32, but it is {sqrToom4}"
+  let sqrToom6 := mpn.w64.sqr.toom6Threshold.get opts
   unless 32 ≤ sqrToom6 do
-    throwError "mpn.sqr.toom6Threshold must be at least 32, but it is {sqrToom6}"
-  let sqrFFT := mpn.sqr.fftThreshold.get opts
-  let divDC := mpn.div.dcThreshold.get opts
-  let divMu := mpn.div.muThreshold.get opts
-  let divQMu := mpn.div.quotMuThreshold.get opts
-  let div1Recip := mpn.div.recip1Threshold.get opts
-  let div1Unnorm := mpn.div.recip1UnnormThreshold.get opts
-  let div32Recip := mpn.div.recip32Threshold.get opts
-  let sqrtZimmermann := mpn.sqrt.zimmermannThreshold.get opts
-  let sqrtBase := mpn.sqrt.baseThreshold.get opts
-  let gcdHalf := mpn.gcd.halfThreshold.get opts
-  let strDC := mpn.str.dcThreshold.get opts
-  let parseDC := mpn.str.parseDCThreshold.get opts
+    throwError "mpn.w64.sqr.toom6Threshold must be at least 32, but it is {sqrToom6}"
+  let sqrFFT := mpn.w64.sqr.fftThreshold.get opts
+  let divDC := mpn.w64.div.dcThreshold.get opts
+  let divMu := mpn.w64.div.muThreshold.get opts
+  let divQMu := mpn.w64.div.quotMuThreshold.get opts
+  let div1Recip := mpn.w64.div.recip1Threshold.get opts
+  let div1Unnorm := mpn.w64.div.recip1UnnormThreshold.get opts
+  let div32Recip := mpn.w64.div.recip32Threshold.get opts
+  let sqrtZimmermann := mpn.w64.sqrt.zimmermannThreshold.get opts
+  let sqrtBase := mpn.w64.sqrt.baseThreshold.get opts
+  let gcdHalf := mpn.w64.gcd.halfThreshold.get opts
+  let strDC := mpn.w64.str.dcThreshold.get opts
+  let parseDC := mpn.w64.str.parseDCThreshold.get opts
   let mulKaratsubaStx := quote mulKaratsuba
   let mulToom3Stx := quote mulToom3
   let mulToom32Stx := quote mulToom32
@@ -397,4 +397,4 @@ elab "mpn_config%" : term => do
                  parseDC := $parseDCStx } : Config))
   elabTerm stx (mkConst ``Config)
 
-end MPN
+end MPN.W64

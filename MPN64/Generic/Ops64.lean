@@ -4,8 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.Generic.Ops64Base
-public import MPN.Div.DC
+public import MPN64.Generic.Ops64Base
+public import MPN64.Div.DC
 
 /-!
 # The 64-bit instance of `NatOps`
@@ -16,7 +16,7 @@ limbs with the operations of `MPN.Num` (`ops64With`, `MPN.Generic.Ops64Base`) an
 
 open ScalarArray UInt64Array
 
-namespace MPN
+namespace MPN.W64
 
 /-- `(x / y, x mod y)`, by `Num.divMod`. -/
 public def divRem64 (x y : UInt64Array) : UInt64Array × UInt64Array :=
@@ -37,4 +37,4 @@ public def divRem64 (x y : UInt64Array) : UInt64Array × UInt64Array :=
 
 @[simp] public theorem ops64_val (x : UInt64Array) : ops64.val x = x.toNat := rfl
 
-end MPN
+end MPN.W64

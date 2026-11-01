@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.UIntArray
+public import MPN64.UIntArray
 
 /-!
 # Carry propagation
@@ -17,7 +17,7 @@ and subtractions are `main`'s generic kernels (`MPN.AddSubW`, `MPN.Toom.Kernels`
 
 open ScalarArray UInt64Array
 
-namespace MPN
+namespace MPN.W64
 
 /-! ## Carry propagation -/
 
@@ -148,4 +148,4 @@ public theorem valAt_add1 (r a : USlice) (c : UInt64) (har : a.size ≤ r.size) 
   rw [USlice.toNat_eq_valAt]
   exact this
 
-end MPN
+end MPN.W64

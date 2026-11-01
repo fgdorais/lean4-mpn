@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.Generic.Ops64
+public import MPN64.Generic.Ops64
 public import MPN.LinComb
 
 /-!
@@ -19,7 +19,7 @@ half-gcd. The steps and their values are the instance `linComb64` of `main`'s `L
 
 open ScalarArray UInt64Array
 
-namespace MPN
+namespace MPN.W64
 
 /-! ## Signed words -/
 
@@ -283,4 +283,4 @@ public theorem toNat_mulAddMul (x y : UInt64Array) (a b : UInt64) (ha : a.toNat 
     toNat_eq_valAt x, toNat_eq_valAt y]
   exact s₂
 
-end MPN
+end MPN.W64

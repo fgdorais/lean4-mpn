@@ -4,8 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.FFT.Mul
-public import MPN.Div.Basecase
+public import MPN64.FFT.Mul
+public import MPN64.Div.Basecase
 public import MPN.Bitwise
 
 /-!
@@ -20,7 +20,7 @@ division (`MPN.Div.DC`), are written with them and proved on `Nat`.
 
 open ScalarArray UInt64Array
 
-namespace MPN.Num
+namespace MPN.W64.Num
 
 /-! ## Fresh arrays -/
 
@@ -126,7 +126,7 @@ public theorem toNat_sub (a b : UInt64Array) (hle : b.toNat ≤ a.toNat)
 /-- `a b`, in `a.size + b.size` limbs. -/
 public def mul (a b : UInt64Array) : UInt64Array :=
   if a.size = 0 ∨ b.size = 0 then UInt64Array.replicate 0 0
-  else MPN.mul config (UInt64Array.replicate (a.size + b.size) 0).toUSlice a.toUSlice b.toUSlice
+  else MPN.W64.mul config (UInt64Array.replicate (a.size + b.size) 0).toUSlice a.toUSlice b.toUSlice
 
 public theorem toNat_mul (a b : UInt64Array) (hU : a.size + b.size < USize.size) :
     (mul a b).toNat = a.toNat * b.toNat := by
@@ -184,7 +184,7 @@ public theorem toNat_mulModB (a b : UInt64Array) (k m : Nat)
 /-- `a²`, in `2 a.size` limbs. -/
 public def sqr (a : UInt64Array) : UInt64Array :=
   if a.size = 0 then UInt64Array.replicate 0 0
-  else MPN.sqr config (UInt64Array.replicate (2 * a.size) 0).toUSlice a.toUSlice
+  else MPN.W64.sqr config (UInt64Array.replicate (2 * a.size) 0).toUSlice a.toUSlice
 
 public theorem toNat_sqr (a : UInt64Array) (hU : 2 * a.size < USize.size) :
     (sqr a).toNat = a.toNat * a.toNat := by
@@ -356,7 +356,7 @@ public def ltFast (a b : UInt64Array) : Bool :=
 `log2` finds.
 -/
 public def divModBase (a b : UInt64Array) : UInt64Array × UInt64Array :=
-  let nb := MPN.log2 b.toUSlice / 64 + 1
+  let nb := MPN.W64.log2 b.toUSlice / 64 + 1
   if a.size < nb then (UInt64Array.replicate 0 0, a)
   else
     divRem (UInt64Array.replicate (a.size - nb + 1) 0).toUSlice
@@ -388,7 +388,7 @@ public theorem toNat_divModBase (a b : UInt64Array) (hb : 0 < b.toNat)
       (divModBase a b).2.toNat = a.toNat % b.toNat := by
   obtain ⟨b₁, b₂, b₃⟩ := toUSlice_spec b (by lia)
   obtain ⟨a₁, a₂, a₃⟩ := toUSlice_spec a (by lia)
-  have hL : MPN.log2 b.toUSlice = _root_.Nat.log2 b.toNat := by rw [log2_eq, b₃]
+  have hL : MPN.W64.log2 b.toUSlice = _root_.Nat.log2 b.toNat := by rw [log2_eq, b₃]
   generalize hl : _root_.Nat.log2 b.toNat = L at hL
   have hb₀ : b.toNat ≠ 0 := by lia
   have hlo : 2 ^ L ≤ b.toNat := by rw [← hl]; exact Nat.log2_self_le hb₀
@@ -482,4 +482,4 @@ public theorem toNat_low (a : UInt64Array) (k : Nat) (hU : a.size < USize.size) 
   · rw [Nat.min_eq_right (by lia), Nat.mod_eq_of_lt hA, Nat.mod_eq_of_lt
       (Nat.lt_of_lt_of_le hA (Nat.pow_le_pow_right (by decide) (by lia)))]
 
-end MPN.Num
+end MPN.W64.Num

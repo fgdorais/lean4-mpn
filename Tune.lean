@@ -4,8 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-import MPN
-
+import MPN64
 /-!
 # Threshold tuning
 
@@ -20,7 +19,7 @@ size use the methods below it either way, so the two differ by one step of the m
 GMP's `tuneup`. The thresholds are tuned in order, each with the ones found before it.
 -/
 
-open ScalarArray MPN
+open ScalarArray MPN MPN.W64
 
 namespace Tune
 
@@ -187,29 +186,29 @@ def tuneToom6 (base : Config) (log : Bool) : IO Nat :=
 
 def tuneFFT (base : Config) (log : Bool) : IO Nat :=
   let cfg := noSplit { base with mulFFTUnbal := never, mulFFTMin := 0 }
-  tune "the FFT" (prod (MPN.mul { cfg with mulFFT := never }))
-    (fun n => prod (MPN.mul { cfg with mulFFT := n })) checkArr (fun n => operands n n)
+  tune "the FFT" (prod (MPN.W64.mul { cfg with mulFFT := never }))
+    (fun n => prod (MPN.W64.mul { cfg with mulFFT := n })) checkArr (fun n => operands n n)
     (range 1024 12288 512) (confirm := 2) (log := log)
 
 /-- Tunes `mulFFTUnbal` on operands of `n` and `n / 2` limbs, below `mulFFT`. -/
 def tuneFFTUnbal (base : Config) (log : Bool) : IO Nat :=
   let cfg := noSplit { base with mulFFTMin := 0 }
-  tune "the FFT at 2:1" (prod (MPN.mul { cfg with mulFFTUnbal := never }))
-    (fun n => prod (MPN.mul { cfg with mulFFTUnbal := n }))
+  tune "the FFT at 2:1" (prod (MPN.W64.mul { cfg with mulFFTUnbal := never }))
+    (fun n => prod (MPN.W64.mul { cfg with mulFFTUnbal := n }))
     checkArr (fun n => operands n (n / 2)) (range 1024 base.mulFFT 256) (confirm := 2)
     (log := log)
 
 /-- Tunes `mulFFTMin` on operands of 16384 and `n` limbs. -/
 def tuneFFTMin (base : Config) (log : Bool) : IO Nat :=
   let cfg := noSplit base
-  tune "the FFT on a small operand" (prod (MPN.mul { cfg with mulFFTMin := never }))
-    (fun n => prod (MPN.mul { cfg with mulFFTMin := n }))
+  tune "the FFT on a small operand" (prod (MPN.W64.mul { cfg with mulFFTMin := never }))
+    (fun n => prod (MPN.W64.mul { cfg with mulFFTMin := n }))
     checkArr (fun n => operands 16384 n) (range 64 1024 32) (log := log)
 
 /-- Tunes `mulUnbalanced` on operands of `4 n` and `n` limbs. -/
 def tuneUnbalanced (base : Config) (log : Bool) : IO Nat :=
-  tune "splitting" (prod (MPN.mul (noSplit base)))
-    (fun n => prod (MPN.mul { base with mulUnbalanced := max 1 n, one_le_mulUnbalanced := by lia }))
+  tune "splitting" (prod (MPN.W64.mul (noSplit base)))
+    (fun n => prod (MPN.W64.mul { base with mulUnbalanced := max 1 n, one_le_mulUnbalanced := by lia }))
     checkArr (fun n => operands (4 * n) n) (range 16 512 8) (log := log)
 
 /--
@@ -217,8 +216,8 @@ Tunes `mulChunkMax` on operands of `8 n` and `n` limbs: where one FFT on the who
 the products of the pieces.
 -/
 def tuneChunkMax (base : Config) (log : Bool) : IO Nat :=
-  tune "one FFT over the pieces" (prod (MPN.mul { base with mulChunkMax := never }))
-    (fun n => prod (MPN.mul { base with mulChunkMax := n }))
+  tune "one FFT over the pieces" (prod (MPN.W64.mul { base with mulChunkMax := never }))
+    (fun n => prod (MPN.W64.mul { base with mulChunkMax := n }))
     checkArr (fun n => operands (8 * n) n) (range 384 3072 128) (confirm := 2) (log := log)
 
 /-! ## Squares -/
@@ -253,8 +252,8 @@ def tuneSqrToom6 (base : Config) (log : Bool) : IO Nat :=
     checkArr (fun n => operands n n) (range base.sqrToom3 3200 64) (log := log)
 
 def tuneSqrFFT (base : Config) (log : Bool) : IO Nat :=
-  tune "FFT squaring" (square (MPN.sqr { base with sqrFFT := never }))
-    (fun n => square (MPN.sqr { base with sqrFFT := n })) checkArr (fun n => operands n n)
+  tune "FFT squaring" (square (MPN.W64.sqr { base with sqrFFT := never }))
+    (fun n => square (MPN.W64.sqr { base with sqrFFT := n })) checkArr (fun n => operands n n)
     (range 1024 8192 256) (confirm := 2) (log := log)
 
 /-! ## Division, gcd and decimal strings -/
@@ -317,8 +316,8 @@ def tuneDiv1Recip (log : Bool) : IO Nat := medianOf 3 do
     return 1000000
 
 /-- `n` pseudorandom limbs as a number. -/
-def sampleNat (n seed : Nat) : MPN.Nat :=
-  MPN.Nat.ofLimbs (Limbs64.norm (sample n seed)) (Limbs64.isTrim_norm _)
+def sampleNat (n seed : Nat) : MPN.W64.Nat :=
+  MPN.W64.Nat.ofLimbs (Limbs64.norm (sample n seed)) (Limbs64.isTrim_norm _)
 
 /--
 Tunes `sqrtBase`: the largest root, in limbs, that Zimmermann's recursion finishes by Newton's
@@ -326,8 +325,8 @@ iteration, from where one level of the recursion on roots of `n` limbs, with New
 below, beats Newton's iteration on the whole root.
 -/
 def tuneSqrtBase (log : Bool) : IO Nat := medianOf 3 do
-  match ← crossoverOn (fun x (_ : MPN.Nat) => MPN.Nat.sqrtWith 1 never x)
-      (fun n x _ => MPN.Nat.sqrtWith 1 (n - 1) x) (fun r => checkArr r.limbs)
+  match ← crossoverOn (fun x (_ : MPN.W64.Nat) => MPN.W64.Nat.sqrtWith 1 never x)
+      (fun n x _ => MPN.W64.Nat.sqrtWith 1 (n - 1) x) (fun r => checkArr r.limbs)
       (fun n => (sampleNat (2 * n) 1, sampleNat (2 * n) 1))
       [2, 3, 4, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32, 40, 48, 56, 64, 80, 96, 128] 3 log with
   | some n =>
@@ -342,8 +341,8 @@ Tunes `sqrtZimmermann`: the size of the root, in limbs, from which Zimmermann's 
 roots of `T` limbs, beats Newton's iteration.
 -/
 def tuneSqrtZimmermann (T : Nat) (log : Bool) : IO Nat := medianOf 3 do
-  match ← crossoverOn (fun x (_ : MPN.Nat) => MPN.Nat.sqrtWith never T x)
-      (fun _ x _ => MPN.Nat.sqrtWith 1 T x) (fun r => checkArr r.limbs)
+  match ← crossoverOn (fun x (_ : MPN.W64.Nat) => MPN.W64.Nat.sqrtWith never T x)
+      (fun _ x _ => MPN.W64.Nat.sqrtWith 1 T x) (fun r => checkArr r.limbs)
       (fun n => (sampleNat (2 * n) 1, sampleNat (2 * n) 1))
       [1, 2, 3, 4, 6, 8, 12, 16, 20, 24, 32, 40, 48, 64, 80, 96, 128, 192, 256] 3 log with
   | some n =>

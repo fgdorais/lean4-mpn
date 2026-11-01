@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.Generic.Ops64
+public import MPN64.Generic.Ops64
 public import MPN.Generic.Sqrt
 public import MPN.WordSqrt
 
@@ -18,7 +18,7 @@ by `4ᶜ`. The base case is a double word, by Newton's iteration on words (`main
 
 open ScalarArray UInt64Array
 
-namespace MPN
+namespace MPN.W64
 
 /-! ## Words -/
 
@@ -95,7 +95,7 @@ and the remainder is `a - s²`.
 -/
 public def sqrtRemWith (base : UInt64Array → UInt64Array × UInt64Array) (T : Nat)
     (a : UInt64Array) : UInt64Array × UInt64Array :=
-  let L := MPN.log2 a.toUSlice
+  let L := MPN.W64.log2 a.toUSlice
   if L = 0 then (Num.low a 1, UInt64Array.replicate 0 0)
   else
     let n := L / 128 + 1
@@ -116,7 +116,7 @@ public theorem toNat_sqrtRemWith (base : UInt64Array → UInt64Array × UInt64Ar
         a.toNat - _root_.Nat.sqrt a.toNat * _root_.Nat.sqrt a.toNat := by
   have ha : a.size < USize.size := by lia
   have hA : a.toNat < 2 ^ (64 * a.size) := by rw [toNat_eq_valAt]; exact valAt_lt ..
-  have hL : MPN.log2 a.toUSlice = _root_.Nat.log2 a.toNat := by
+  have hL : MPN.W64.log2 a.toUSlice = _root_.Nat.log2 a.toNat := by
     rw [log2_eq, toUSlice_toNat a ha]
   unfold sqrtRemWith
   dsimp only
@@ -209,4 +209,4 @@ public theorem toNat_sqrtRem (a : UInt64Array) (hU : 2 * a.size + 40 < USize.siz
     subst this
     exact sqrtBase_spec N hlt) a hU
 
-end MPN
+end MPN.W64

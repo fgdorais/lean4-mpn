@@ -4,9 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.Mul.ToomOps
+public import MPN64.Mul.ToomOps
 public import MPN.Toom.Karatsuba
-public import MPN.Config
+public import MPN64.Config
 
 /-!
 # Karatsuba multiplication
@@ -20,7 +20,7 @@ products recursively, and adds the middle term in one pass (`karatsubaMid`). It 
 
 open ScalarArray UInt64Array
 
-namespace MPN
+namespace MPN.W64
 
 /-- The thresholds of the library, from the `mpn.*` options it is compiled with. -/
 public def config : Config := mpn_config%
@@ -79,4 +79,4 @@ public theorem valAt_mulKaratsuba (r a b : USlice) (_hb : 0 < b.size)
   simp only [mulKaratsuba, hr, ↓reduceIte]
   exact (spec cfg r a b hr).2
 
-end MPN
+end MPN.W64

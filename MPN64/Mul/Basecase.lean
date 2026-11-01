@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.UIntArray
+public import MPN64.UIntArray
 public import MPN.MulLimbW
 
 /-!
@@ -31,7 +31,7 @@ last row is a pass of `addMul1Loop`.
 
 open ScalarArray UInt64Array
 
-namespace MPN
+namespace MPN.W64
 
 /-! ## Multiplication by a limb -/
 
@@ -879,4 +879,4 @@ public theorem valAt_mulBasecase (r a b : USlice) (hb : 0 < b.size)
   generalize 2 ^ (64 * a.size.toNat) = Q at *
   grind
 
-end MPN
+end MPN.W64

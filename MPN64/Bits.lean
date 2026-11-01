@@ -4,8 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.AddSub
-public import MPN.Mul.Basecase
+public import MPN64.AddSub
+public import MPN64.Mul.Basecase
 public import MPN.Shift
 public import MPN.Bitwise
 import all Init.Data.UInt.Log2
@@ -29,7 +29,7 @@ Like the other `mpn` functions, these write their result into the limbs of the s
 
 open ScalarArray UInt64Array
 
-namespace MPN
+namespace MPN.W64
 
 /-! ## Clearing -/
 
@@ -515,4 +515,4 @@ public def log2 (a : USlice) : Nat :=
   rw [log2, WordArray.log2W_eq, USlice.toNat_eq_valAt]
   rfl
 
-end MPN
+end MPN.W64

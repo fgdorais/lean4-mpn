@@ -4,9 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.Bits
+public import MPN64.Bits
 public import MPN.Div.ByLimb
-public import MPN.Mul.Karatsuba
+public import MPN64.Mul.Karatsuba
 
 /-!
 # Division by a limb
@@ -19,7 +19,7 @@ for a normalized `d` and from `config.div1Unnorm` limbs for another, normalized 
 
 open ScalarArray UInt64Array
 
-namespace MPN
+namespace MPN.W64
 
 /-- The reciprocal `⌊(β² - 1) / d⌋ - β` of a normalized `d`. -/
 @[inline] public def recip21 (d : UInt64) : UInt64 := WordArray.recip21 UInt64Array d
@@ -103,4 +103,4 @@ public theorem toNat_divRem1_snd (r a : USlice) (d : UInt64) (hd : 0 < d.toNat)
     (divRem1 r a d).2.toNat = a.toNat % d.toNat :=
   toNat_divRem1With_snd _ _ r a d hd har
 
-end MPN
+end MPN.W64

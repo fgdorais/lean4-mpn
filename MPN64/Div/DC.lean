@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.Generic.Ops64Base
+public import MPN64.Generic.Ops64Base
 public import MPN.Generic.DC
 public import MPN.Generic.Barrett
 
@@ -21,7 +21,7 @@ the remainder back.
 
 open ScalarArray UInt64Array
 
-namespace MPN.Num
+namespace MPN.W64.Num
 
 /-- `βˢ - 1`, in `s` limbs. -/
 public def allOnes (s : Nat) : UInt64Array := UInt64Array.replicate s 0xFFFFFFFFFFFFFFFF
@@ -75,7 +75,7 @@ left by the `c` bits that set the top bit of `b`, divided on `ops64B` by `NatOps
 remainder is shifted back; otherwise `divModBase`.
 -/
 public def divMod (a b : UInt64Array) : UInt64Array × UInt64Array :=
-  let L := MPN.log2 b.toUSlice
+  let L := MPN.W64.log2 b.toUSlice
   let nb := L / 64 + 1
   if config.divDC ≤ nb ∧ nb ≤ a.size ∧ 8 * a.size + 48 < USize.size then
     let c := 63 - L % 64
@@ -90,7 +90,7 @@ private theorem divMod_dc (a b : UInt64Array) (hb : 0 < b.toNat)
     (hU : a.size + b.size + 1 < USize.size) :
     (divMod a b).1.toNat = a.toNat / b.toNat ∧ (divMod a b).2.toNat = a.toNat % b.toNat ∧
       (divMod a b).1.size ≤ a.size + 1 ∧ (divMod a b).2.size ≤ max a.size b.size := by
-  have hL : MPN.log2 b.toUSlice = _root_.Nat.log2 b.toNat := by
+  have hL : MPN.W64.log2 b.toUSlice = _root_.Nat.log2 b.toNat := by
     rw [log2_eq, toUSlice_toNat b (by lia)]
   unfold divMod
   dsimp only
@@ -202,7 +202,7 @@ public theorem size_divMod (a b : UInt64Array) (hb : 0 < b.toNat)
 the quotient of `divMod`.
 -/
 public def div (a b : UInt64Array) : UInt64Array :=
-  let L := MPN.log2 b.toUSlice
+  let L := MPN.W64.log2 b.toUSlice
   let nb := L / 64 + 1
   if config.divQMu ≤ nb ∧ 8 * a.size + 48 < USize.size then
     let c := 63 - L % 64
@@ -211,7 +211,7 @@ public def div (a b : UInt64Array) : UInt64Array :=
 
 public theorem toNat_div (a b : UInt64Array) (hb : 0 < b.toNat)
     (hU : a.size + b.size + 1 < USize.size) : (div a b).toNat = a.toNat / b.toNat := by
-  have hL : MPN.log2 b.toUSlice = _root_.Nat.log2 b.toNat := by
+  have hL : MPN.W64.log2 b.toUSlice = _root_.Nat.log2 b.toNat := by
     rw [log2_eq, toUSlice_toNat b (by lia)]
   unfold div
   dsimp only
@@ -248,4 +248,4 @@ public theorem toNat_div (a b : UInt64Array) (hb : 0 < b.toNat)
     rw [(fitTo_spec _ (a.size + 1) (by rw [hq]; exact hqa)).1, hq]
   · exact (toNat_divMod a b hb hU).1
 
-end MPN.Num
+end MPN.W64.Num

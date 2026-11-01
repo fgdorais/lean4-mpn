@@ -4,8 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.Mul.Karatsuba
-public import MPN.Sqr.Karatsuba
+public import MPN64.Mul.Karatsuba
+public import MPN64.Sqr.Karatsuba
 public import MPN.Toom.Mul
 
 /-!
@@ -21,7 +21,7 @@ Toom-3 by 2 and Toom-4 by 2 by the sizes and the shape, with interpolations at t
 
 open ScalarArray UInt64Array
 
-namespace MPN
+namespace MPN.W64
 
 variable (cfg : Config)
 
@@ -109,4 +109,4 @@ public theorem valAt_sqrToom (r a : USlice) (_ha : 0 < a.size)
   rw [show 2 * a.size.toNat = a.size.toNat + a.size.toNat by lia]
   exact (sqrSpec cfg r a hr).2
 
-end MPN
+end MPN.W64

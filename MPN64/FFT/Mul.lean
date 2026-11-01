@@ -4,11 +4,11 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.FFT.Transform
+public import MPN64.FFT.Transform
 public import MPN.FFT.Product
 public import MPN.FFT.Kernels
-public import MPN.Mul.Toom
-public import MPN.Sqr.Karatsuba
+public import MPN64.Mul.Toom
+public import MPN64.Sqr.Karatsuba
 
 /-!
 # FFT multiplication
@@ -22,7 +22,9 @@ Schönhage–Strassen multiplication on 64-bit limbs: `main`'s `MPN.FFT.Product`
 
 open ScalarArray UInt64Array
 
-namespace MPN.FFT
+namespace MPN.W64.FFT
+
+open MPN.FFT
 
 variable (cfg : Config)
 
@@ -261,11 +263,11 @@ public theorem valAt_fftSqr (r a : USlice) (k : Nat) (ha : 0 < a.size)
     (fftSqr cfg r a k).valAt r.start.toNat (2 * a.size.toNat) = a.toNat * a.toNat :=
   (fftSqr_spec cfg r a k).2.2 ha hr
 
-end MPN.FFT
+end MPN.W64.FFT
 
-namespace MPN
+namespace MPN.W64
 
-open FFT
+open MPN.FFT MPN.W64.FFT
 
 variable (cfg : Config)
 
@@ -523,4 +525,4 @@ public theorem valAt_sqr (r a : USlice) (ha : 0 < a.size) (hr : 2 * a.size.toNat
   · exact valAt_fftSqr cfg r a _ ha hr
   · exact valAt_sqrToom cfg r a ha hr
 
-end MPN
+end MPN.W64

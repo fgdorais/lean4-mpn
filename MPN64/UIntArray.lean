@@ -6,7 +6,7 @@ module
 
 public import ScalarArray.UInt32
 public import ScalarArray.UInt64
-public import MPN.UInt
+public import MPN64.UInt
 public import MPN.LimbArray
 public import MPN.WordArray
 import all Init.Data.UInt.Log2

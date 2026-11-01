@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.Div.Limb
+public import MPN64.Div.Limb
 public import MPN.Div.Schoolbook
 import all Init.Data.UInt.Log2
 import all Init.Data.Fin.Log2
@@ -22,7 +22,7 @@ of the estimates rare, and shifts the remainder back.
 
 open ScalarArray UInt64Array
 
-namespace MPN
+namespace MPN.W64
 
 /-! ## The estimate with a precomputed reciprocal
 
@@ -422,4 +422,4 @@ public theorem getElem!_divRem_snd (q r a b : USlice) (h₀ : 0 < b.size.toNat)
     (divRem q r a b).2[i]! = r.array[i]! :=
   getElem!_divRemWith_snd _ q r a b h₀ hab ht hq hr hU i hi
 
-end MPN
+end MPN.W64

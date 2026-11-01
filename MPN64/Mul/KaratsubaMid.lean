@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.AddSub
+public import MPN64.AddSub
 public import MPN.FFT.Fermat
 
 /-!
@@ -23,7 +23,7 @@ between `0` and `3`, and its high word comes from a double-width sum (`UInt64.ad
 
 open ScalarArray UInt64Array
 
-namespace MPN
+namespace MPN.W64
 
 /-! ## The step -/
 
@@ -642,4 +642,4 @@ public theorem karatsubaMid_spec (arr : UInt64Array) (rs k n : USize) (t : UInt6
     rw [hcout, Nat.mul_zero, Nat.add_zero] at hres
     exact hres
 
-end MPN
+end MPN.W64

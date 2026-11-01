@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.Mul.Basecase
+public import MPN64.Mul.Basecase
 
 /-!
 # Schoolbook squaring
@@ -18,7 +18,7 @@ then doubles them and adds the squares `aᵢ²` of the diagonal in one pass, sin
 
 open ScalarArray UInt64Array
 
-namespace MPN
+namespace MPN.W64
 
 /-! ## The square by parts -/
 
@@ -600,4 +600,4 @@ public theorem valAt_sqrBasecase (r a : USlice) (ha : 0 < a.size)
   simp only [h, and_self, ↓reduceDIte]
   exact (sqrFinish_spec ..).2.2 ((sqrCross_spec ..).2.2 (sqrRow0_spec ..).2.2)
 
-end MPN
+end MPN.W64

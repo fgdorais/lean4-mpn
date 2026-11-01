@@ -5,7 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN.Generic.Ops
-public import MPN.Num
+public import MPN64.Num
 public import MPN.Join
 
 /-!
@@ -23,7 +23,7 @@ need arrays of more than `2³¹` limbs on a 32-bit platform or `2⁶²` on a 64-
 
 open ScalarArray UInt64Array
 
-namespace MPN
+namespace MPN.W64
 
 /-! ## Sizes -/
 
@@ -437,4 +437,4 @@ public theorem val_divBase64 (x y : UInt64Array) (hy : y.toNat ≠ 0) :
 
 @[simp] public theorem ops64B_B : ops64B.B = 2 ^ 64 := rfl
 
-end MPN
+end MPN.W64

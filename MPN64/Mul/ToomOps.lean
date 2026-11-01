@@ -4,9 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.Bits
-public import MPN.Mul.KaratsubaMid
-public import MPN.Sqr.Basecase
+public import MPN64.Bits
+public import MPN64.Mul.KaratsubaMid
+public import MPN64.Sqr.Basecase
 public import MPN.Toom.Ops
 public import MPN.Toom.Kernels
 
@@ -22,7 +22,7 @@ specification with `LimbArray.writeNat`, which never happens.
 
 open ScalarArray UInt64Array MPN.Toom
 
-namespace MPN
+namespace MPN.W64
 
 /-! ## Windows as slices -/
 
@@ -209,4 +209,4 @@ public instance toomOps64 : ToomOps UInt64Array UInt64 where
   sqrBase := sqrBaseT
   sqrBase_spec := sqrBaseT_spec
 
-end MPN
+end MPN.W64

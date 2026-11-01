@@ -5,8 +5,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN.Generic.HGCD
-public import MPN.Generic.Ops64
-public import MPN.Lehmer
+public import MPN64.Generic.Ops64
+public import MPN64.Lehmer
 public import MPN.WordGcd
 public import MPN.LehmerStep
 
@@ -29,7 +29,7 @@ The parts of the greatest common divisor that depend on 64-bit limbs, for `main`
 
 open ScalarArray UInt64Array
 
-namespace MPN
+namespace MPN.W64
 
 /-! ## Lehmer's steps on words
 
@@ -41,7 +41,7 @@ The leading 62 bits of `a`, from its top nonzero limb, and the bits of `b` at th
 as the words of Lehmer's algorithm. Their values only affect its speed.
 -/
 public def leadWords (a b : UInt64Array) : LeadWords :=
-  let L := MPN.log2 a.toUSlice
+  let L := MPN.W64.log2 a.toUSlice
   let n := L / 64
   let c := (63 - L % 64).toUInt64
   let lead (t₁ t₀ : UInt64) : Int64 := (((t₁ <<< c) ||| ((t₀ >>> 1) >>> (63 - c))) >>> 2).toInt64
@@ -105,7 +105,7 @@ The leading 128 bits of `a`, from its top nonzero limb, and the bits of `b` at t
 positions. Their values only affect speed.
 -/
 def lead2 (a b : UInt64Array) : Lead2 :=
-  let L := MPN.log2 a.toUSlice
+  let L := MPN.W64.log2 a.toUSlice
   let n := L / 64
   let c := (63 - L % 64).toUInt64
   let sh (t₁ t₀ : UInt64) : UInt64 := (t₁ <<< c) ||| ((t₀ >>> 1) >>> (63 - c))
@@ -199,7 +199,7 @@ public theorem ok_wmatOf (m : Cofactors) (S : WMat) (h : wmatOf m = some S) :
 
 /-- Whether `b ≥ βˢ` for `s > 0`, from the position of its top bit. It only affects speed. -/
 def geB (b : UInt64Array) (s : Nat) : Bool :=
-  0 < s && fits (b.size + 1) && 64 * s ≤ MPN.log2 b.toUSlice
+  0 < s && fits (b.size + 1) && 64 * s ≤ MPN.W64.log2 b.toUSlice
 
 /-- The value of an array, as `LehmerStep` reads it. -/
 public theorem vA_eq (x : UInt64Array) : LehmerStep.vA x = x.toNat := (toNat_eq_valAt x).symm
@@ -263,4 +263,4 @@ public theorem gcd_hgcd64 (x y : UInt64Array) :
     Nat.gcd (hgcd64 x y).1.toNat (hgcd64 x y).2.toNat = Nat.gcd x.toNat y.toNat :=
   ops64.gcd_hgcdReduce _ baseW_ok hgcdBase x y
 
-end MPN
+end MPN.W64

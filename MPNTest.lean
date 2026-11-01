@@ -2,8 +2,7 @@
 Copyright © 2026 François G. Dorais. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 -/
-import MPN
-
+import MPN64
 /-! Word operations -/
 
 /-- Checks the high-word operations of an `n`-bit type against `Nat` on its edge values. -/
@@ -64,9 +63,9 @@ def checkMul (m n : Nat) : Bool :=
     let a := (limbs m x).toUSlice
     let b := (limbs n y).toUSlice
     let z := y % 2 ^ 64
-    let (p, cp) := MPN.mul1 (inner r m) a z.toUInt64 c.toUInt64
-    let (q, cq) := MPN.addMul1 (inner r m) a z.toUInt64 c.toUInt64
-    let s := MPN.mulBasecase (inner r (m + n)) a b
+    let (p, cp) := MPN.W64.mul1 (inner r m) a z.toUInt64 c.toUInt64
+    let (q, cq) := MPN.W64.addMul1 (inner r m) a z.toUInt64 c.toUInt64
+    let s := MPN.W64.mulBasecase (inner r (m + n)) a b
     window p 1 m + 2 ^ (64 * m) * cp.toNat == x * z + c &&
     window q 1 m + 2 ^ (64 * m) * cq.toNat == window r 1 m + x * z + c &&
     window s 1 (m + n) == x * y &&
@@ -81,7 +80,7 @@ def checkMul (m n : Nat) : Bool :=
 #guard
   let r := UInt64Array.replicate 5 7
   let a := (limbs 2 (2 ^ 100)).toUSlice
-  MPN.mulBasecase (inner r 3) a a == r
+  MPN.W64.mulBasecase (inner r 3) a a == r
 
 /-! Karatsuba multiplication -/
 
@@ -100,7 +99,7 @@ def checkKaratsuba (m n : Nat) : Bool :=
   let r := UInt64Array.replicate (m + n + 2) pad
   [(randomLimbs m 1, randomLimbs n 2), (2 ^ (64 * m) - 1, 2 ^ (64 * n) - 1),
     (2 ^ (64 * m) - 1, 2 ^ (64 * (n - 1)))].all fun (x, y) =>
-    let s := MPN.mulKaratsuba MPN.config (inner r (m + n)) (limbs m x).toUSlice (limbs n y).toUSlice
+    let s := MPN.W64.mulKaratsuba MPN.W64.config (inner r (m + n)) (limbs m x).toUSlice (limbs n y).toUSlice
     window s 1 (m + n) == x * y && s[0]! == pad && s[m + n + 1]! == pad
 
 -- Around `mulKaratsuba = 64`: one level, two levels (130 splits into 65), unbalanced
@@ -116,7 +115,7 @@ def checkSqr (n : Nat) : Bool :=
   let r := UInt64Array.replicate (2 * n + 2) pad
   ([randomLimbs n 1, randomLimbs n 7, 2 ^ (64 * n) - 1] ++ (edges n).map (· % 2 ^ (64 * n))).all
     fun x =>
-      let s := MPN.sqrBasecase (inner r (2 * n)) (limbs n x).toUSlice
+      let s := MPN.W64.sqrBasecase (inner r (2 * n)) (limbs n x).toUSlice
       window s 1 (2 * n) == x * x && s[0]! == pad && s[2 * n + 1]! == pad
 
 #guard [1, 2, 3, 4, 5, 8, 13, 32, 64].all checkSqr
@@ -126,7 +125,7 @@ def checkSqrKaratsuba (n : Nat) : Bool :=
   let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
   let r := UInt64Array.replicate (2 * n + 2) pad
   [randomLimbs n 1, randomLimbs n 7, 2 ^ (64 * n) - 1, 2 ^ (64 * n - 1)].all fun x =>
-    let s := MPN.sqrKaratsuba MPN.config (inner r (2 * n)) (limbs n x).toUSlice
+    let s := MPN.W64.sqrKaratsuba MPN.W64.config (inner r (2 * n)) (limbs n x).toUSlice
     window s 1 (2 * n) == x * x && s[0]! == pad && s[2 * n + 1]! == pad
 
 -- Around `sqrKaratsuba = 96`: below, one level, two levels, odd sizes.
@@ -136,7 +135,7 @@ def checkSqrKaratsuba (n : Nat) : Bool :=
 #guard
   let r := UInt64Array.replicate 5 7
   let a := (limbs 2 (2 ^ 100)).toUSlice
-  MPN.sqrBasecase (inner r 3) a == r && MPN.sqrKaratsuba MPN.config (inner r 3) a == r
+  MPN.W64.sqrBasecase (inner r 3) a == r && MPN.W64.sqrKaratsuba MPN.W64.config (inner r 3) a == r
 
 /-! Linear passes for the Toom methods -/
 
@@ -150,7 +149,7 @@ def checkLinear (n : Nat) : Bool :=
     let r := limbs n x
     let sy := limbs (n / 2 + 1) y
     [1, 3, 16, 81, 2 ^ 64 - 1].all fun m =>
-      let (p, cp) := MPN.subMul1 r.toUSlice (limbs n y).toUSlice m.toUInt64
+      let (p, cp) := MPN.W64.subMul1 r.toUSlice (limbs n y).toUSlice m.toUInt64
       let q := MPN.WordArray.addMulIntoK r 0 n sy 0 (n / 2 + 1) m
       let s := MPN.WordArray.subMulIntoK r 0 n sy 0 (n / 2 + 1) m
       window p 0 n + y * m == x + 2 ^ (64 * n) * cp.toNat &&
@@ -181,19 +180,19 @@ def checkBits (n : Nat) : Bool :=
     let a := (limbs n x).toUSlice
     let ls := [1, 7, 63].all fun s =>
       let r := UInt64Array.replicate (n + 2) pad
-      let (p, c) := MPN.lshift (inner r n) a s.toUInt64
-      let (q, d) := MPN.rshift (inner r n) a s.toUInt64
+      let (p, c) := MPN.W64.lshift (inner r n) a s.toUInt64
+      let (q, d) := MPN.W64.rshift (inner r n) a s.toUInt64
       window p 1 n + 2 ^ (64 * n) * c.toNat == x * 2 ^ s && p[0]! == pad && p[n + 1]! == pad &&
         window q 1 n == x / 2 ^ s && d.toNat == x % 2 ^ s && q[0]! == pad && q[n + 1]! == pad
     let gs := [0, 1, 63, 64, 65, 128, 64 * n - 1, 64 * n + 3].all fun k =>
       let m := k / 64 + n
       let r := UInt64Array.replicate (m + 2) pad
-      let (p, c) := MPN.shiftLeft (inner r m) a k
+      let (p, c) := MPN.W64.shiftLeft (inner r m) a k
       let m' := n - k / 64
-      let q := MPN.shiftRight (inner (UInt64Array.replicate (n + 2) pad) n) a k
+      let q := MPN.W64.shiftRight (inner (UInt64Array.replicate (n + 2) pad) n) a k
       window p 1 m + 2 ^ (64 * m) * c.toNat == x * 2 ^ k && p[0]! == pad && p[m + 1]! == pad &&
         window q 1 m' == x / 2 ^ k && q[0]! == pad && q[m' + 1]! == pad
-    ls && gs && MPN.log2 a == x.log2
+    ls && gs && MPN.W64.log2 a == x.log2
 
 #guard [1, 2, 3, 5, 16, 33].all checkBits
 
@@ -214,7 +213,7 @@ def checkBits (n : Nat) : Bool :=
   [1, 3, 10 ^ 19 - 1, 10 ^ 19, 2 ^ 32, 2 ^ 63 - 1, 2 ^ 63, 2 ^ 63 + 1, 0xF123456789ABCDEF,
     2 ^ 64 - 2, 2 ^ 64 - 1].all fun d =>
     let r := UInt64Array.replicate (n + 2) 0xAAAAAAAAAAAAAAAA
-    let (q, m) := MPN.divRem1With t t (inner r n) (limbs n x).toUSlice d.toUInt64
+    let (q, m) := MPN.W64.divRem1With t t (inner r n) (limbs n x).toUSlice d.toUInt64
     window q 1 n == x / d && m.toNat == x % d && q[0]! == 0xAAAAAAAAAAAAAAAA &&
       q[n + 1]! == 0xAAAAAAAAAAAAAAAA
 
@@ -232,7 +231,7 @@ def checkDiv (t : USize) (m n : Nat) : Bool :=
     let k := m - n + 1
     let q := UInt64Array.replicate (k + 2) pad
     let r := UInt64Array.replicate (n + 2) pad
-    let (q', r') := MPN.divRemWith t (inner q k) (inner r n) (limbs m x).toUSlice
+    let (q', r') := MPN.W64.divRemWith t (inner q k) (inner r n) (limbs m x).toUSlice
       (limbs n y).toUSlice
     window q' 1 k == x / y && window r' 1 n == x % y && q'[0]! == pad && q'[k + 1]! == pad &&
       r'[0]! == pad && r'[n + 1]! == pad
@@ -248,7 +247,7 @@ def checkDiv (t : USize) (m n : Nat) : Bool :=
   [2 ^ (64 * n), 2 ^ (64 * n) + 5, 2 ^ (64 * (n + 3)) + 2 ^ (64 * 3) - 1].all fun x =>
     let m := (Nat.log2 x) / 64 + 1
     let k := m - n + 1
-    let (q', r') := MPN.divRem (UInt64Array.replicate k 0).toUSlice
+    let (q', r') := MPN.W64.divRem (UInt64Array.replicate k 0).toUSlice
       (UInt64Array.replicate n 0).toUSlice (limbs m x).toUSlice (limbs n y).toUSlice
     window q' 0 k == x / y && window r' 0 n == x % y
 
@@ -256,8 +255,8 @@ def checkDiv (t : USize) (m n : Nat) : Bool :=
 def checkNumDiv (m n : Nat) : Bool :=
   [randomLimbs m 41, 2 ^ (64 * m) - 1].all fun x =>
     [randomLimbs n 42, 2 ^ (64 * n) - 1, 2 ^ (64 * (n - 1)) + 1, 2 ^ (64 * n - 1)].all fun y =>
-      let (q, r) := MPN.Num.divMod (limbs m x) (limbs n y)
-      q.toNat == x / y && r.toNat == x % y && (MPN.Num.div (limbs m x) (limbs n y)).toNat == x / y
+      let (q, r) := MPN.W64.Num.divMod (limbs m x) (limbs n y)
+      q.toNat == x / y && r.toNat == x % y && (MPN.W64.Num.div (limbs m x) (limbs n y)).toNat == x / y
 
 -- Below `divDC`, at it, and recursing: digits of `⌊n / 2⌋` limbs and a shorter top digit,
 -- and digits that recurse once more (`1100 / 2 ≥ 512`).
@@ -274,13 +273,13 @@ def checkDivMu (m n : Nat) : Bool :=
   [randomLimbs m 43, 2 ^ (64 * m) - 1].all fun x =>
     [randomLimbs n 44 ||| 2 ^ (64 * n - 1), 2 ^ (64 * n) - 1, 2 ^ (64 * n - 1),
       2 ^ (64 * (n - 1)) + 1].all fun y =>
-      let (q, r) := MPN.ops64B.divMu (limbs m x) (limbs n y)
-      let (q', r') := MPN.ops64B.divMuW (limbs m x) (limbs n y)
+      let (q, r) := MPN.W64.ops64B.divMu (limbs m x) (limbs n y)
+      let (q', r') := MPN.W64.ops64B.divMuW (limbs m x) (limbs n y)
       -- Just below a multiple of `y`, the estimate of the quotient alone does not decide.
       let x' := x / y * y - 1
       q.toNat == x / y && r.toNat == x % y && q'.toNat == x / y && r'.toNat == x % y &&
-        (MPN.ops64B.divQMuW (limbs m x) (limbs n y)).toNat == x / y &&
-        (MPN.ops64B.divQMuW (limbs m x') (limbs n y)).toNat == x' / y
+        (MPN.W64.ops64B.divQMuW (limbs m x) (limbs n y)).toNat == x / y &&
+        (MPN.W64.ops64B.divQMuW (limbs m x') (limbs n y)).toNat == x' / y
 
 -- The reciprocal by the slow division (up to 4 limbs), by Newton's iteration, and in blocks.
 #guard [(8, 3), (9, 5), (40, 20), (100, 33), (300, 101), (64, 64), (200, 7)].all fun (m, n) =>
@@ -291,8 +290,8 @@ def checkMulMod (k m na nb : Nat) : Bool :=
   let M := 2 ^ (64 * (m * 2 ^ k)) - 1
   [(randomLimbs na 51, randomLimbs nb 52), (2 ^ (64 * na) - 1, 2 ^ (64 * nb) - 1)].all
     fun (x, y) =>
-      let p := MPN.Num.mulModB (limbs na x) (limbs nb y) k m
-      p.toNat % M == x * y % M && (MPN.Num.modB p (m * 2 ^ k)).toNat == x * y % M
+      let p := MPN.W64.Num.mulModB (limbs na x) (limbs nb y) k m
+      p.toNat % M == x * y % M && (MPN.W64.Num.modB p (m * 2 ^ k)).toNat == x * y % M
 
 -- Through the FFT (`FFTModCheck` holds) and through the fallback, and `modB` on long inputs.
 #guard [(2, 8, 32, 32), (3, 5, 40, 17), (4, 16, 256, 200), (6, 64, 4096, 4096), (1, 3, 6, 6),
@@ -303,7 +302,7 @@ def checkMulMod (k m na nb : Nat) : Bool :=
 /-- Checks `sqrtRem` on `x` against `Nat.sqrt`. -/
 def checkSqrt (x : Nat) : Bool :=
   let n := Nat.log2 x / 64 + 1
-  let (s, r) := MPN.sqrtRem (limbs n x)
+  let (s, r) := MPN.W64.sqrtRem (limbs n x)
   s.toNat == x.sqrt && r.toNat == x - x.sqrt * x.sqrt
 
 #guard [0, 1, 2, 3, 4, 8, 15, 16, 2 ^ 63, 2 ^ 64 - 1, 2 ^ 64, 2 ^ 126, 2 ^ 128 - 1, 2 ^ 128,
@@ -323,10 +322,10 @@ def checkGcd (m n k : Nat) : Bool :=
     (2 ^ (64 * m) - 1, 2 ^ (64 * n) - 1), (randomLimbs m 66 * g, g)].all fun (x, y) =>
     let lx := Nat.log2 x / 64 + 1
     let ly := Nat.log2 y / 64 + 1
-    (MPN.Num.gcd (limbs (lx + 1) x) (limbs ly y)).toNat == Nat.gcd x y
+    (MPN.W64.Num.gcd (limbs (lx + 1) x) (limbs ly y)).toNat == Nat.gcd x y
 
-#guard checkGcd 1 1 1 && (MPN.Num.gcd (limbs 2 0) (limbs 1 7)).toNat == 7 &&
-  (MPN.Num.gcd (limbs 2 12) (limbs 0 0)).toNat == 12
+#guard checkGcd 1 1 1 && (MPN.W64.Num.gcd (limbs 2 0) (limbs 1 7)).toNat == 7 &&
+  (MPN.W64.Num.gcd (limbs 2 12) (limbs 0 0)).toNat == 12
 #guard [(2, 2, 1), (5, 3, 2), (20, 20, 7), (64, 60, 16), (200, 190, 50)].all
   fun (m, n, k) => checkGcd m n k
 -- On pairs of words (`gcd2`): edge values, a top word `2⁶⁴ - 1` (where `bh + 1` wraps), common
@@ -336,14 +335,14 @@ def checkGcd (m n k : Nat) : Bool :=
     randomLimbs 2 81, randomLimbs 2 82 / 2 ^ 70 * 0xFFFFFFFB, randomLimbs 1 83 * 3 ^ 40,
     randomLimbs 1 84 * 3 ^ 40, 3 ^ 80, 5 ^ 55]
   vs.all fun x => vs.all fun y =>
-    (MPN.Num.gcd (limbs 2 x) (limbs 2 y)).toNat == Nat.gcd x y &&
-      (MPN.Num.gcd (limbs 2 x) (limbs 1 (y % 2 ^ 64))).toNat == Nat.gcd x (y % 2 ^ 64)
+    (MPN.W64.Num.gcd (limbs 2 x) (limbs 2 y)).toNat == Nat.gcd x y &&
+      (MPN.W64.Num.gcd (limbs 2 x) (limbs 1 (y % 2 ^ 64))).toNat == Nat.gcd x (y % 2 ^ 64)
 -- Through half-gcd (`gcdWith` with a low threshold), with recursion above `hgcdBase` limbs.
 #guard [(40, 40, 8), (100, 90, 20), (700, 650, 100), (900, 900, 1)].all fun (m, n, k) =>
   let g := randomLimbs k 71
   let x := randomLimbs m 72 * g
   let y := randomLimbs n 73 * g
-  (MPN.gcdWith 16 (limbs (Nat.log2 x / 64 + 1) x) (limbs (Nat.log2 y / 64 + 1) y)).toNat ==
+  (MPN.W64.gcdWith 16 (limbs (Nat.log2 x / 64 + 1) x) (limbs (Nat.log2 y / 64 + 1) y)).toNat ==
     Nat.gcd x y
 
 /-! Decimal strings -/
@@ -352,16 +351,16 @@ def checkGcd (m n k : Nat) : Bool :=
 def checkDec (x : Nat) : Bool :=
   let n := Nat.log2 x / 64 + 1
   let a := limbs (n + 1) x
-  MPN.Num.toDecimal a == Nat.repr x && MPN.toDecimalWith 2 a == Nat.repr x &&
-    (MPN.Num.ofDecimal? (Nat.repr x)).map (·.toNat) == some x &&
-    (MPN.ofDecimalWith 1 (Nat.repr x)).map (·.toNat) == some x
+  MPN.W64.Num.toDecimal a == Nat.repr x && MPN.W64.toDecimalWith 2 a == Nat.repr x &&
+    (MPN.W64.Num.ofDecimal? (Nat.repr x)).map (·.toNat) == some x &&
+    (MPN.W64.ofDecimalWith 1 (Nat.repr x)).map (·.toNat) == some x
 
 #guard [0, 1, 9, 10, 10 ^ 19 - 1, 10 ^ 19, 10 ^ 19 + 1, 2 ^ 64 - 1, 2 ^ 64, 10 ^ 38,
   10 ^ 38 - 1, 3 * 10 ^ 57 + 7].all checkDec
 #guard [1, 2, 3, 5, 17, 40, 100].all fun n =>
   [randomLimbs n 81, 2 ^ (64 * n) - 1, 10 ^ (19 * n), 10 ^ (19 * n) - 1].all checkDec
-#guard (MPN.Num.ofDecimal? "1_000_000").map (·.toNat) == some 1000000 &&
-  (MPN.Num.ofDecimal? "12a").isNone && (MPN.Num.ofDecimal? "").isNone
+#guard (MPN.W64.Num.ofDecimal? "1_000_000").map (·.toNat) == some 1000000 &&
+  (MPN.W64.Num.ofDecimal? "12a").isNone && (MPN.W64.Num.ofDecimal? "").isNone
 
 /-! Toom multiplication -/
 
@@ -370,8 +369,8 @@ def checkToom (m n : Nat) : Bool :=
   let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
   let r := UInt64Array.replicate (m + n + 2) pad
   [(randomLimbs m 1, randomLimbs n 2), (2 ^ (64 * m) - 1, 2 ^ (64 * n) - 1)].all fun (x, y) =>
-    let s := MPN.mulToom MPN.config (inner r (m + n)) (limbs m x).toUSlice (limbs n y).toUSlice
-    let t := MPN.mulToom MPN.config (inner r (m + n)) (limbs n y).toUSlice (limbs m x).toUSlice
+    let s := MPN.W64.mulToom MPN.W64.config (inner r (m + n)) (limbs m x).toUSlice (limbs n y).toUSlice
+    let t := MPN.W64.mulToom MPN.W64.config (inner r (m + n)) (limbs n y).toUSlice (limbs m x).toUSlice
     window s 1 (m + n) == x * y && window t 1 (m + n) == x * y &&
       s[0]! == pad && s[m + n + 1]! == pad
 
@@ -456,8 +455,8 @@ def checkTransform (n m : Nat) : Bool :=
   let arr := xs.foldl (fun a x => a ++ limbs (n + 1) x) pad ++ limbs (n + 1) 77 ++ pad
   let t := 1 + K * (n + 1)
   let co (a : UInt64Array) (p : Nat) := window a (1 + p * (n + 1)) (n + 1)
-  let f := MPN.FFT.fwd n t m arr 1 σ
-  let g := MPN.FFT.inv n t m f 1 σ
+  let f := MPN.W64.FFT.fwd n t m arr 1 σ
+  let g := MPN.W64.FFT.inv n t m f 1 σ
   let fOK := (List.range K).all fun p =>
     co f p == (List.range K).foldl (fun s i => s + xs[i]! * 2 ^ (σ * i * MPN.FFT.rev m p)) 0 % F
   let gOK := (List.range K).all fun l => co g l == K * xs[l]! % F
@@ -475,11 +474,11 @@ it takes the FFT path.
 def checkFFT (m n k : Nat) : Bool :=
   let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
   let r := UInt64Array.replicate (m + n + 2) pad
-  let p := MPN.FFT.fftParams (m + n) k
-  decide (MPN.FFT.FFTCheck (inner r (m + n)) (limbs m 1).toUSlice (limbs n 1).toUSlice k p.1 p.2) &&
+  let p := MPN.W64.FFT.fftParams (m + n) k
+  decide (MPN.W64.FFT.FFTCheck (inner r (m + n)) (limbs m 1).toUSlice (limbs n 1).toUSlice k p.1 p.2) &&
   [(randomLimbs m 1, randomLimbs n 2), (2 ^ (64 * m) - 1, 2 ^ (64 * n) - 1)].all fun (x, y) =>
-    let s := MPN.FFT.fftMul MPN.config (inner r (m + n)) (limbs m x).toUSlice (limbs n y).toUSlice k
-    let t := MPN.FFT.fftMul MPN.config (inner r (m + n)) (limbs n y).toUSlice (limbs m x).toUSlice k
+    let s := MPN.W64.FFT.fftMul MPN.W64.config (inner r (m + n)) (limbs m x).toUSlice (limbs n y).toUSlice k
+    let t := MPN.W64.FFT.fftMul MPN.W64.config (inner r (m + n)) (limbs n y).toUSlice (limbs m x).toUSlice k
     window s 1 (m + n) == x * y && window t 1 (m + n) == x * y &&
       s[0]! == pad && s[m + n + 1]! == pad
 
@@ -491,8 +490,8 @@ def checkMPNMul (m n : Nat) : Bool :=
   let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
   let r := UInt64Array.replicate (m + n + 2) pad
   [(randomLimbs m 1, randomLimbs n 2), (2 ^ (64 * m) - 1, 2 ^ (64 * n) - 1)].all fun (x, y) =>
-    let s := MPN.mul MPN.config (inner r (m + n)) (limbs m x).toUSlice (limbs n y).toUSlice
-    let t := MPN.mul MPN.config (inner r (m + n)) (limbs n y).toUSlice (limbs m x).toUSlice
+    let s := MPN.W64.mul MPN.W64.config (inner r (m + n)) (limbs m x).toUSlice (limbs n y).toUSlice
+    let t := MPN.W64.mul MPN.W64.config (inner r (m + n)) (limbs n y).toUSlice (limbs m x).toUSlice
     window s 1 (m + n) == x * y && window t 1 (m + n) == x * y &&
       s[0]! == pad && s[m + n + 1]! == pad
 
@@ -511,12 +510,12 @@ def checkMPNMul (m n : Nat) : Bool :=
 def checkMPNSqr (n k : Nat) : Bool :=
   let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
   let r := UInt64Array.replicate (2 * n + 2) pad
-  let p := MPN.FFT.fftParams (2 * n) k
-  decide (MPN.FFT.FFTCheck (inner r (2 * n)) (limbs n 1).toUSlice (limbs n 1).toUSlice k p.1
+  let p := MPN.W64.FFT.fftParams (2 * n) k
+  decide (MPN.W64.FFT.FFTCheck (inner r (2 * n)) (limbs n 1).toUSlice (limbs n 1).toUSlice k p.1
     p.2) &&
   [randomLimbs n 1, 2 ^ (64 * n) - 1].all fun x =>
-    let s := MPN.FFT.fftSqr MPN.config (inner r (2 * n)) (limbs n x).toUSlice k
-    let t := MPN.sqr MPN.config (inner r (2 * n)) (limbs n x).toUSlice
+    let s := MPN.W64.FFT.fftSqr MPN.W64.config (inner r (2 * n)) (limbs n x).toUSlice k
+    let t := MPN.W64.sqr MPN.W64.config (inner r (2 * n)) (limbs n x).toUSlice
     window s 1 (2 * n) == x * x && window t 1 (2 * n) == x * x &&
       s[0]! == pad && s[2 * n + 1]! == pad && t[0]! == pad && t[2 * n + 1]! == pad
 
@@ -529,7 +528,7 @@ def checkSqrToom (n : Nat) : Bool :=
   let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
   let r := UInt64Array.replicate (2 * n + 2) pad
   [randomLimbs n 1, 2 ^ (64 * n) - 1].all fun x =>
-    let s := MPN.sqrToom MPN.config (inner r (2 * n)) (limbs n x).toUSlice
+    let s := MPN.W64.sqrToom MPN.W64.config (inner r (2 * n)) (limbs n x).toUSlice
     window s 1 (2 * n) == x * x && s[0]! == pad && s[2 * n + 1]! == pad
 
 -- Around `sqrToom3`, `sqrToom4` and `sqrToom6`, and recursion.
@@ -545,43 +544,43 @@ def bigNatValues : List Nat :=
     2 ^ 128 - 1, 2 ^ 128, randomBits 200 61, randomBits 1000 67, 3 ^ 200]
 
 #guard bigNatValues.all fun a => bigNatValues.all fun b =>
-  let x := MPN.Nat.ofNat a
-  let y := MPN.Nat.ofNat b
+  let x := MPN.W64.Nat.ofNat a
+  let y := MPN.W64.Nat.ofNat b
   (x + y).toNat == a + b && (x - y).toNat == a - b && (x * y).toNat == a * b &&
     (x / y).toNat == a / b && (x % y).toNat == a % b &&
     decide (x < y) == decide (a < b) && decide (x ≤ y) == decide (a ≤ b) &&
     decide (x = y) == decide (a = b) && (x == y || hash x != hash y || a != b) &&
     (x.toNat == a && toString x == toString a) &&
-    (MPN.Nat.gcd x y).toNat == Nat.gcd a b && (MPN.Nat.lcm x y).toNat == Nat.lcm a b &&
+    (MPN.W64.Nat.gcd x y).toNat == Nat.gcd a b && (MPN.W64.Nat.lcm x y).toNat == Nat.lcm a b &&
     (x &&& y).toNat == (a &&& b) && (x ||| y).toNat == (a ||| b) && (x ^^^ y).toNat == (a ^^^ b)
 
 -- Division by a word, and literals.
 #guard [2 ^ 64, 2 ^ 128 - 1, randomBits 300 89, 2 ^ 1024 - 1].all fun a =>
   [1, 3, 2 ^ 32 + 1, 2 ^ 63, 2 ^ 64 - 1, 10 ^ 18].all fun b =>
-    (MPN.Nat.ofNat a / MPN.Nat.ofNat b).toNat == a / b &&
-      (MPN.Nat.ofNat a % MPN.Nat.ofNat b).toNat == a % b
-#guard ((12345678901234567890123 : MPN.Nat) * 1000).toNat == 12345678901234567890123000
-#guard (MPN.Nat.ofNat (2 ^ 64 - 1) + 1).toNat == 2 ^ 64
-#guard (MPN.Nat.ofNat (2 ^ 64) - 1).toNat == 2 ^ 64 - 1
+    (MPN.W64.Nat.ofNat a / MPN.W64.Nat.ofNat b).toNat == a / b &&
+      (MPN.W64.Nat.ofNat a % MPN.W64.Nat.ofNat b).toNat == a % b
+#guard ((12345678901234567890123 : MPN.W64.Nat) * 1000).toNat == 12345678901234567890123000
+#guard (MPN.W64.Nat.ofNat (2 ^ 64 - 1) + 1).toNat == 2 ^ 64
+#guard (MPN.W64.Nat.ofNat (2 ^ 64) - 1).toNat == 2 ^ 64 - 1
 
 -- Shifts, `log2`, `sqrt` and `pow`.
 #guard bigNatValues.all fun a =>
-  let x := MPN.Nat.ofNat a
+  let x := MPN.W64.Nat.ofNat a
   [0, 1, 5, 63, 64, 65, 100, 200].all (fun k =>
     (x <<< k).toNat == a <<< k && (x >>> k).toNat == a >>> k) &&
-  x.log2 == a.log2 && (MPN.Nat.sqrt x).toNat == Nat.sqrt a &&
+  x.log2 == a.log2 && (MPN.W64.Nat.sqrt x).toNat == Nat.sqrt a &&
   [0, 1, 2, 3, 7, 10].all (fun k => (x ^ k).toNat == a ^ k)
 
 #guard [2 ^ 64 + 1, 2 ^ 128 - 1, 3 ^ 50, randomBits 500 113, randomBits 3000 83].all
   fun r => [r * r - 1, r * r, r * r + 1].all fun a =>
-    (MPN.Nat.sqrt (MPN.Nat.ofNat a)).toNat == Nat.sqrt a
+    (MPN.W64.Nat.sqrt (MPN.W64.Nat.ofNat a)).toNat == Nat.sqrt a
 
 -- Decimal strings, and what `String.toNat?` accepts.
 #guard (bigNatValues ++ [10 ^ 19 - 1, 10 ^ 19, 10 ^ 38 * 7, randomBits 3000 89]).all fun a =>
-  let x := MPN.Nat.ofNat a
+  let x := MPN.W64.Nat.ofNat a
   toString x == toString a && reprStr x == reprStr a &&
-    (MPN.Nat.ofString? (toString a)).map (·.toNat) == some a
+    (MPN.W64.Nat.ofString? (toString a)).map (·.toNat) == some a
 
 #guard ["", "_", "_1", "1_", "1__0", "abc", "12a", "-1", " 1", "000", "007", "1_000",
     "18446744073709551616", "18_446_744_073_709_551_615", "123456789012345678901234567890"].all
-  fun s => (MPN.Nat.ofString? s).map (·.toNat) == s.toNat?
+  fun s => (MPN.W64.Nat.ofString? s).map (·.toNat) == s.toNat?

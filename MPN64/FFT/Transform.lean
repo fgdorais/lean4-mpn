@@ -5,7 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN.FFT.Fermat
-public import MPN.UIntArray
+public import MPN64.UIntArray
 public import MPN.FFT.Windows
 
 /-!
@@ -28,7 +28,9 @@ Composed, with the pointwise products in between, the bit reversals cancel.
 
 open ScalarArray UInt64Array
 
-namespace MPN.FFT
+namespace MPN.W64.FFT
+
+open MPN.FFT
 
 /-- The Fermat modulus `2^(64 n) + 1`. -/
 @[expose] public def fermat (n : Nat) : Nat := 2 ^ (64 * n) + 1
@@ -101,4 +103,4 @@ public theorem inv_spec (n t : Nat) (hn : 1 ≤ n) (h64 : 64 * n < USize.size) (
           fermat n) :=
   winOps64.inv_spec n t hn h64 m
 
-end MPN.FFT
+end MPN.W64.FFT
