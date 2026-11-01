@@ -161,8 +161,8 @@ public theorem size_mul_le (a b : UInt64Array) : (mul a b).size ≤ a.size + b.s
 public def mulModB (a b : UInt64Array) (k m : Nat) : UInt64Array :=
   let n := FFT.fftModN k m
   let r := UInt64Array.replicate (m * 2 ^ k + n + 1) 0
-  if FFT.FFTModCheck r.toUSlice a.toUSlice b.toUSlice k m n then
-    FFT.fftMulModAt config r.toUSlice a.toUSlice b.toUSlice k m n
+  if FFT.FFTOps.FFTModCheck r 0 (m * 2 ^ k + n + 1) a 0 a.size b 0 b.size k m n then
+    FFT.FFTOps.fftMulModAt (FFT.mulP64 config) r 0 a 0 a.size b 0 b.size k m n
   else mul a b
 
 public theorem toNat_mulModB (a b : UInt64Array) (k m : Nat)
@@ -173,12 +173,12 @@ public theorem toNat_mulModB (a b : UInt64Array) (k m : Nat)
   dsimp only
   split
   · rename_i h
-    have hrS := h.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2
-    obtain ⟨-, -, e⟩ := FFT.fftMulModAt_spec config _ _ _ k m _ h.params
-    obtain ⟨s₁, -, -⟩ := FFT.fftMulModAt_spec config _ _ _ k m _ h.params
-    rw [toUSlice_toNat a (by lia), toUSlice_toNat b (by lia)] at e
-    rw [toNat_eq_valAt, s₁]
-    simpa using e
+    obtain ⟨s₁, -, e⟩ := FFT.FFTOps.fftMulModAt_spec (FFT.mulP64 config) _ _ _ _ _ _ _ _ k m _
+      (FFT.FFTOps.FFTModCheck.params h) (FFT.isMulP64 config _)
+    rw [toNat_eq_valAt, toNat_eq_valAt a, toNat_eq_valAt b]
+    change UInt64Array.size _ = UInt64Array.size _ at s₁
+    rw [s₁, size_replicate]
+    exact e
   · rw [toNat_mul _ _ hU]
 
 /-- `a²`, in `2 a.size` limbs. -/

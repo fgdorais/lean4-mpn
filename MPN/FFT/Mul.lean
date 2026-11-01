@@ -156,158 +156,7 @@ private theorem sliceBound (a : USlice) :
   have := USize.le_iff_toNat_le.1 a.start_le_stop
   lia
 
-/-! ## The multiplication -/
-
-/--
-`a b` into the first `a.size + b.size` limbs of `r`, with `K = 2ᵏ` windows of `n + 1` limbs for
-the pieces of `m` limbs of each operand: `FFTOps.fftMulAt`.
--/
-public def fftMulAt (cfg : Config) (r a b : USlice) (k m n : Nat) : UInt64Array :=
-  FFTOps.fftMulAt (mulP64 cfg) r.array r.start.toNat a.array a.start.toNat a.size.toNat b.array
-    b.start.toNat b.size.toNat k m n
-
-/-- The parameters of `fftMulAt` for which it computes `a b`. -/
-public structure FFTParams (r a b : USlice) (k m n : Nat) : Prop where
-  hk : 1 ≤ k
-  hn : 1 ≤ n
-  hm : 1 ≤ m
-  hmn : m ≤ n
-  hdiv : 2 * (64 * n) % 2 ^ k = 0
-  ha : 0 < a.size.toNat
-  hb : 0 < b.size.toNat
-  hpieces : (a.size.toNat + m - 1) / m + (b.size.toNat + m - 1) / m ≤ 2 ^ k + 1
-  hbits : 2 ^ k * 2 ^ (128 * m) ≤ 2 ^ (64 * n)
-  hr : a.size.toNat + b.size.toNat ≤ r.size.toNat
-  hS : (2 * 2 ^ k + 2) * (n + 1) < USize.size
-  h64 : 64 * n < USize.size
-  haS : a.array.size < USize.size
-  hbS : b.array.size < USize.size
-  hrS : r.array.size < USize.size
-
-private theorem FFTParams.gen {r a b : USlice} {k m n : Nat} (hp : FFTParams r a b k m n) :
-    FFTOps.FFTParams r.array r.start.toNat a.array a.start.toNat a.size.toNat b.array
-      b.start.toNat b.size.toNat k m n := by
-  obtain ⟨hk, hn, hm, hmn, hdiv, ha, hb, hpc, hbits, hr, hS, h64, haS, hbS, hrS⟩ := hp
-  have := sliceBound r
-  have hb₂ : 2 ^ k * 2 ^ (64 * m + 64 * m) ≤ 2 ^ (64 * n) := by
-    rw [show 64 * m + 64 * m = 128 * m by lia]; exact hbits
-  exact ⟨hk, hn, hm, hmn, hdiv, ha, hb, hpc, hb₂,
-    by show _ ≤ r.array.size; lia, hS, h64, haS, hbS, hrS, sliceBound a, sliceBound b⟩
-
-public theorem fftMulAt_spec (r a b : USlice) (k m n : Nat) (hp : FFTParams r a b k m n) :
-    (fftMulAt cfg r a b k m n).size = r.array.size ∧
-      (∀ i, (i < r.start.toNat ∨ r.start.toNat + a.size.toNat + b.size.toNat ≤ i) →
-        (fftMulAt cfg r a b k m n)[i]! = r.array[i]!) ∧
-      (fftMulAt cfg r a b k m n).valAt r.start.toNat (a.size.toNat + b.size.toNat) =
-        a.toNat * b.toNat := by
-  obtain ⟨h₁, h₂, h₃⟩ := FFTOps.fftMulAt_spec (mulP64 cfg) _ _ _ _ _ _ _ _ k m n hp.gen
-    (isMulP64 cfg n)
-  rw [USlice.toNat_eq_valAt, USlice.toNat_eq_valAt]
-  exact ⟨h₁, fun i hi => h₂ i (by lia), h₃⟩
-
-/-! ## The product modulo `β^N - 1` -/
-
-/--
-`a b` modulo `2^(64 N) - 1`, for `N = m 2ᵏ`, into the first `N + n + 1` limbs of `r`:
-`FFTOps.fftMulModAt`, at about half the cost of a product of the same operands.
--/
-public def fftMulModAt (cfg : Config) (r a b : USlice) (k m n : Nat) : UInt64Array :=
-  FFTOps.fftMulModAt (mulP64 cfg) r.array r.start.toNat a.array a.start.toNat a.size.toNat b.array
-    b.start.toNat b.size.toNat k m n
-
-/-- The parameters of `fftMulModAt` for which it computes `a b` modulo `2^(64 m 2ᵏ) - 1`. -/
-public structure FFTModParams (r a b : USlice) (k m n : Nat) : Prop where
-  hk : 1 ≤ k
-  hn : 1 ≤ n
-  hm : 1 ≤ m
-  hmn : m ≤ n
-  hdiv : 2 * (64 * n) % 2 ^ k = 0
-  ha : 0 < a.size.toNat
-  hb : 0 < b.size.toNat
-  hla : a.size.toNat ≤ m * 2 ^ k
-  hlb : b.size.toNat ≤ m * 2 ^ k
-  hbits : 2 * 2 ^ k * 2 ^ (128 * m) ≤ 2 ^ (64 * n)
-  hr : m * 2 ^ k + n + 1 ≤ r.size.toNat
-  hS : (2 * 2 ^ k + 2) * (n + 1) < USize.size
-  h64 : 64 * n < USize.size
-  haS : a.array.size < USize.size
-  hbS : b.array.size < USize.size
-  hrS : r.array.size < USize.size
-
-private theorem FFTModParams.gen {r a b : USlice} {k m n : Nat}
-    (hp : FFTModParams r a b k m n) :
-    FFTOps.FFTModParams r.array r.start.toNat a.array a.start.toNat a.size.toNat b.array
-      b.start.toNat b.size.toNat k m n := by
-  obtain ⟨hk, hn, hm, hmn, hdiv, ha, hb, hla, hlb, hbits, hr, hS, h64, haS, hbS, hrS⟩ := hp
-  have := sliceBound r
-  have hb₂ : 2 * 2 ^ k * 2 ^ (64 * m + 64 * m) ≤ 2 ^ (64 * n) := by
-    rw [show 64 * m + 64 * m = 128 * m by lia]; exact hbits
-  exact ⟨hk, hn, hm, hmn, hdiv, ha, hb, hla, hlb, hb₂, by show _ ≤ r.array.size; lia, hS,
-    h64, haS, hbS, hrS, sliceBound a, sliceBound b⟩
-
-public theorem fftMulModAt_spec (r a b : USlice) (k m n : Nat) (hp : FFTModParams r a b k m n) :
-    (fftMulModAt cfg r a b k m n).size = r.array.size ∧
-      (∀ i, (i < r.start.toNat ∨ r.start.toNat + (m * 2 ^ k + n + 1) ≤ i) →
-        (fftMulModAt cfg r a b k m n)[i]! = r.array[i]!) ∧
-      (fftMulModAt cfg r a b k m n).valAt r.start.toNat (m * 2 ^ k + n + 1) %
-          (2 ^ (64 * (m * 2 ^ k)) - 1) =
-        a.toNat * b.toNat % (2 ^ (64 * (m * 2 ^ k)) - 1) := by
-  obtain ⟨h₁, h₂, h₃⟩ := FFTOps.fftMulModAt_spec (mulP64 cfg) _ _ _ _ _ _ _ _ k m n hp.gen
-    (isMulP64 cfg n)
-  rw [USlice.toNat_eq_valAt, USlice.toNat_eq_valAt]
-  exact ⟨h₁, h₂, h₃⟩
-
-/-- The conditions of `FFTModParams`, decidably, with `k + 1 + 128 m ≤ 64 n` for the bound. -/
-public abbrev FFTModCheck (r a b : USlice) (k m n : Nat) : Prop :=
-  1 ≤ k ∧ k ≤ 63 ∧ 1 ≤ n ∧ 1 ≤ m ∧ m ≤ n ∧ 2 * (64 * n) % 2 ^ k = 0 ∧ 0 < a.size.toNat ∧
-    0 < b.size.toNat ∧ a.size.toNat ≤ m * 2 ^ k ∧ b.size.toNat ≤ m * 2 ^ k ∧
-    k + 1 + 128 * m ≤ 64 * n ∧ m * 2 ^ k + n + 1 ≤ r.size.toNat ∧
-    (2 * 2 ^ k + 2) * (n + 1) < USize.size ∧ 64 * n < USize.size ∧
-    a.array.size < USize.size ∧ b.array.size < USize.size ∧ r.array.size < USize.size
-
-public theorem FFTModCheck.params {r a b : USlice} {k m n : Nat} (h : FFTModCheck r a b k m n) :
-    FFTModParams r a b k m n := by
-  obtain ⟨h₁, h₂, h₃, h₄, h₅, h₆, h₇, h₈, h₉, h₁₀, h₁₁, h₁₂, h₁₃, h₁₄, h₁₅, h₁₆, h₁₇⟩ := h
-  refine ⟨h₁, h₃, h₄, h₅, h₆, h₇, h₈, h₉, h₁₀, ?_, h₁₂, h₁₃, h₁₄, h₁₅, h₁₆, h₁₇⟩
-  rw [show 2 * 2 ^ k = 2 ^ (k + 1) by rw [Nat.pow_succ, Nat.mul_comm], ← Nat.pow_add]
-  exact Nat.pow_le_pow_right (by decide) (by lia)
-
-/-- The coefficient size `n` for `fftMulModAt` with `2ᵏ` pieces of `m` limbs. -/
-public def fftModN (k m : Nat) : Nat :=
-  let q := max 1 (2 ^ k / 128)
-  (2 * m + 1 + q - 1) / q * q
-
-/-! ## Squaring -/
-
-/--
-`a²` into the first `2 a.size` limbs of `r`, with one forward transform and squares for the
-pointwise products: `FFTOps.fftSqrAt`.
--/
-public def fftSqrAt (cfg : Config) (r a : USlice) (k m n : Nat) : UInt64Array :=
-  FFTOps.fftSqrAt (sqrP64 cfg) r.array r.start.toNat a.array a.start.toNat a.size.toNat k m n
-
-public theorem fftSqrAt_spec (r a : USlice) (k m n : Nat) (hp : FFTParams r a a k m n) :
-    (fftSqrAt cfg r a k m n).size = r.array.size ∧
-      (∀ i, (i < r.start.toNat ∨ r.start.toNat + a.size.toNat + a.size.toNat ≤ i) →
-        (fftSqrAt cfg r a k m n)[i]! = r.array[i]!) ∧
-      (fftSqrAt cfg r a k m n).valAt r.start.toNat (a.size.toNat + a.size.toNat) =
-        a.toNat * a.toNat := by
-  obtain ⟨h₁, h₂, h₃⟩ := FFTOps.fftSqrAt_spec (sqrP64 cfg) _ _ _ _ _ k m n hp.gen
-    (isSqrP64 cfg n)
-  rw [USlice.toNat_eq_valAt]
-  exact ⟨h₁, fun i hi => h₂ i (by lia), h₃⟩
-
 /-! ## The parameters -/
-
-/--
-The parameters for `T` limbs and `K = 2ᵏ` pieces: pieces of `m = ⌈T / (K - 1)⌉` limbs, so that
-the two operands have at most `K + 1`, and residues of `n` limbs, `2 m + 1` rounded up to a
-multiple of `K / 128`, so that the root `2^(128 n / K)` is a power of two.
--/
-public def fftParams (T k : Nat) : Nat × Nat :=
-  let m := (T + 2 ^ k - 2) / (2 ^ k - 1)
-  let q := max 1 (2 ^ k / 128)
-  (m, (2 * m + 1 + q - 1) / q * q)
 
 /--
 The number of pieces, `2ᵏ`, for `T` limbs: the least `k` with `4ᵏ ≥ 10 T`. From a sweep of
@@ -316,20 +165,18 @@ The number of pieces, `2ᵏ`, for `T` limbs: the least `k` with `4ᵏ ≥ 10 T`.
 -/
 public def fftK (T : Nat) : Nat := min 30 ((Nat.log2 (10 * T - 1) + 2) / 2)
 
-/-- The conditions of `FFTParams`, decidably, with `k + 128 m ≤ 64 n` for the bound. -/
+/-- `main`'s `FFTOps.FFTCheck` on slices. -/
 public abbrev FFTCheck (r a b : USlice) (k m n : Nat) : Prop :=
-  1 ≤ k ∧ k ≤ 64 ∧ 1 ≤ n ∧ 1 ≤ m ∧ m ≤ n ∧ 2 * (64 * n) % 2 ^ k = 0 ∧ 0 < a.size.toNat ∧
-    0 < b.size.toNat ∧ (a.size.toNat + m - 1) / m + (b.size.toNat + m - 1) / m ≤ 2 ^ k + 1 ∧
-    k + 128 * m ≤ 64 * n ∧ a.size.toNat + b.size.toNat ≤ r.size.toNat ∧
-    (2 * 2 ^ k + 2) * (n + 1) < USize.size ∧ 64 * n < USize.size ∧
-    a.array.size < USize.size ∧ b.array.size < USize.size ∧ r.array.size < USize.size
+  FFTOps.FFTCheck r.array r.start.toNat r.size.toNat a.array a.start.toNat a.size.toNat b.array
+    b.start.toNat b.size.toNat k m n
 
-private theorem FFTCheck.params {r a b : USlice} {k m n : Nat} (h : FFTCheck r a b k m n) :
-    FFTParams r a b k m n := by
-  obtain ⟨h₁, h₂, h₃, h₄, h₅, h₆, h₇, h₈, h₉, h₁₀, h₁₁, h₁₂, h₁₃, h₁₄, h₁₅, h₁₆⟩ := h
-  exact ⟨h₁, h₃, h₄, h₅, h₆, h₇, h₈, h₉,
-    by rw [← Nat.pow_add]; exact Nat.pow_le_pow_right (by decide) (by lia), h₁₁, h₁₂, h₁₃, h₁₄,
-    h₁₅, h₁₆⟩
+/-- `main`'s `FFTOps.fftParams` for 64-bit limbs. -/
+@[inline] public def fftParams (T k : Nat) : Nat × Nat := FFTOps.fftParams 64 T k
+
+/-- `main`'s `FFTOps.fftModN` for 64-bit limbs. -/
+@[inline] public def fftModN (k m : Nat) : Nat := FFTOps.fftModN 64 k m
+
+/-! ## The products -/
 
 /--
 Writes the `a.size + b.size` limbs of `a b` into `r`, by the FFT with `2ᵏ` pieces, or by
@@ -337,7 +184,10 @@ Writes the `a.size + b.size` limbs of `a b` into `r`, by the FFT with `2ᵏ` pie
 -/
 public def fftMul (cfg : Config) (r a b : USlice) (k : Nat) : UInt64Array :=
   let p := fftParams (a.size.toNat + b.size.toNat) k
-  if FFTCheck r a b k p.1 p.2 then fftMulAt cfg r a b k p.1 p.2 else mulToom cfg r a b
+  if FFTCheck r a b k p.1 p.2 then
+    FFTOps.fftMulAt (mulP64 cfg) r.array r.start.toNat a.array a.start.toNat a.size.toNat
+      b.array b.start.toNat b.size.toNat k p.1 p.2
+  else mulToom cfg r a b
 
 private theorem fftMul_spec (r a b : USlice) (k : Nat) :
     (fftMul cfg r a b k).size = r.array.size ∧
@@ -349,8 +199,10 @@ private theorem fftMul_spec (r a b : USlice) (k : Nat) :
   rw [fftMul]
   split
   · rename_i h
-    obtain ⟨s₁, s₂, s₃⟩ := fftMulAt_spec cfg r a b k _ _ h.params
-    exact ⟨s₁, s₂, fun _ _ _ => s₃⟩
+    obtain ⟨s₁, s₂, s₃⟩ := FFTOps.fftMulAt_spec (mulP64 cfg) _ _ _ _ _ _ _ _ k _ _
+      (FFTOps.FFTCheck.params h) (isMulP64 cfg _)
+    rw [USlice.toNat_eq_valAt, USlice.toNat_eq_valAt]
+    exact ⟨s₁, fun i hi => s₂ i (by lia), fun _ _ _ => s₃⟩
   · exact ⟨size_mulToom cfg r a b, getElem!_mulToom cfg r a b, valAt_mulToom cfg r a b⟩
 
 @[simp] public theorem size_fftMul (r a b : USlice) (k : Nat) :
@@ -374,7 +226,10 @@ when the parameters of `fftParams` do not suit the size.
 -/
 public def fftSqr (cfg : Config) (r a : USlice) (k : Nat) : UInt64Array :=
   let p := fftParams (a.size.toNat + a.size.toNat) k
-  if FFTCheck r a a k p.1 p.2 then fftSqrAt cfg r a k p.1 p.2 else sqrKaratsuba cfg r a
+  if FFTCheck r a a k p.1 p.2 then
+    FFTOps.fftSqrAt (sqrP64 cfg) r.array r.start.toNat a.array a.start.toNat a.size.toNat k p.1
+      p.2
+  else sqrKaratsuba cfg r a
 
 private theorem fftSqr_spec (r a : USlice) (k : Nat) :
     (fftSqr cfg r a k).size = r.array.size ∧
@@ -385,8 +240,9 @@ private theorem fftSqr_spec (r a : USlice) (k : Nat) :
   rw [fftSqr]
   split
   · rename_i h
-    obtain ⟨s₁, s₂, s₃⟩ := fftSqrAt_spec cfg r a k _ _ h.params
-    rw [show 2 * a.size.toNat = a.size.toNat + a.size.toNat by lia]
+    obtain ⟨s₁, s₂, s₃⟩ := FFTOps.fftSqrAt_spec (sqrP64 cfg) _ _ _ _ _ k _ _
+      (FFTOps.FFTCheck.params h) (isSqrP64 cfg _)
+    rw [show 2 * a.size.toNat = a.size.toNat + a.size.toNat by lia, USlice.toNat_eq_valAt]
     exact ⟨s₁, fun i hi => s₂ i (by lia), fun _ _ => s₃⟩
   · exact ⟨size_sqrKaratsuba cfg r a, getElem!_sqrKaratsuba cfg r a, valAt_sqrKaratsuba cfg r a⟩
 
