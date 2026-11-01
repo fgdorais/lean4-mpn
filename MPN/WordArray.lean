@@ -134,6 +134,8 @@ public class WordArray (A : Type) (L : outParam Type) [LA : LimbArray A L] where
   b0 : L
   /-- `x + y + c` modulo `2ʷ`, and the carry out: one limb of an addition. -/
   addC : L → L → L → L × L
+  /-- `x - y - c` modulo `2ʷ`, and the borrow out: one limb of a subtraction. -/
+  subC : L → L → L → L × L
   /-- Whether a limb is zero. -/
   isZero : L → Bool
   /-- A `USize` as a limb, modulo `2ʷ`. -/
@@ -165,6 +167,8 @@ public class WordArray (A : Type) (L : outParam Type) [LA : LimbArray A L] where
   val_unB_b0 : LA.val (unB b0) = 0
   val_addC : ∀ x y c, LA.val (addC x y c).1 + 2 ^ LA.w * LA.val (addC x y c).2 =
     LA.val x + LA.val y + LA.val c
+  val_subC : ∀ x y c, LA.val (subC x y c).1 + LA.val y + LA.val c =
+    LA.val x + 2 ^ LA.w * LA.val (subC x y c).2
   eqB_iff : ∀ x y, eqB x y = true ↔ LA.val x = LA.val y
   isZero_iff : ∀ x, isZero x = true ↔ LA.val x = 0
   val_ofUSize : ∀ i, LA.val (ofUSize i) = i.toNat % 2 ^ LA.w

@@ -132,13 +132,13 @@ variable (A) in
 /-- The step of the first pass of `subW`: limb `ao + j` of `a` minus limb `bo + j` of `b`. -/
 @[inline, expose] public def subNStep (a : A) (ao : USize) (b : A) (bo n : USize)
     (ha : LoopBound a ao n) (hb : LoopBound b bo n) (j : USize) (h : j < n) (_z c : L) : L × L :=
-  R.subMulB (R.uget a (ao + j) (ha.uset_bound h)) (R.uget b (bo + j) (hb.uset_bound h)) R.one c
+  R.subC (R.uget a (ao + j) (ha.uset_bound h)) (R.uget b (bo + j) (hb.uset_bound h)) c
 
 variable (A) in
 /-- The step of the second pass of `subW`: limb `ao + j` of `a` minus the borrow. -/
 @[inline, expose] public def sub1Step (a : A) (ao n : USize) (ha : LoopBound a ao n) (j : USize)
     (h : j < n) (_z c : L) : L × L :=
-  R.subMulB (R.uget a (ao + j) (ha.uset_bound h)) R.zero R.one c
+  R.subC (R.uget a (ao + j) (ha.uset_bound h)) R.zero c
 
 /-! ## Addition -/
 
@@ -266,7 +266,7 @@ public def subW (z : A) (zo : Nat) (a : A) (ao al : Nat) (b : A) (bo bl : Nat) :
   if h : addOK z zo a ao al b bo bl = true then
     have hb := addOK_spec h
     F.foldThen bl.toUSize (subNStep A a ao.toUSize b bo.toUSize bl.toUSize hb.lba hb.lbb) z
-      zo.toUSize hb.lbz 0 R.b0 fun z₁ e₁ c => subTail z₁ zo a ao al b bo bl (hb.of_size e₁) c
+      zo.toUSize hb.lbz 0 R.zero fun z₁ e₁ c => subTail z₁ zo a ao al b bo bl (hb.of_size e₁) c
   else writeNat z zo al (valAt a ao al - valAt b bo bl)
 
 /-- The second pass of `subW`, on any array that holds the first. -/
@@ -275,7 +275,7 @@ private theorem subTail_spec (z : A) (zo : Nat) (a : A) (ao al : Nat) (b : A) (b
     ∃ c₂, LA.size (subTail z zo a ao al b bo bl h c) = LA.size z ∧
       (∀ i, (i < zo + bl ∨ zo + al ≤ i) →
         LA.get (subTail z zo a ao al b bo bl h c) i = LA.get z i) ∧
-      valAt (subTail z zo a ao al b bo bl h c) (zo + bl) (al - bl) + LA.val (R.unB c) =
+      valAt (subTail z zo a ao al b bo bl h c) (zo + bl) (al - bl) + LA.val c =
         valAt a (ao + bl) (al - bl) + 2 ^ (LA.w * (al - bl)) * c₂ := by
   obtain ⟨-, -, -, -, e₅, e₆, e₇, -⟩ := h.e
   have hba := h.hba
@@ -283,17 +283,16 @@ private theorem subTail_spec (z : A) (zo : Nat) (a : A) (ao al : Nat) (b : A) (b
   rw [F.foldThen_eq, foldUInPlaceThen]
   obtain ⟨f₁, -, f₂, f₃⟩ := foldUInPlace_spec1 (al - bl).toUSize
     (sub1Step A a (ao + bl).toUSize (al - bl).toUSize h.lbat) a (ao + bl).toUSize (fun _ => 0)
-    (fun c => LA.val (R.unB c)) 1 0 0 0 1 (fun _ => True) (fun _ _ _ _ _ => trivial)
+    LA.val 1 0 0 0 1 (fun _ => True) (fun _ _ _ _ _ => trivial)
     (fun j hj z c _ => by
-      have e := R.val_subMulB (R.uget a ((ao + bl).toUSize + j) (h.lbat.uset_bound hj)) R.zero
-        R.one c
-      simp only [sub1Step, R.uget_eq, R.val_zero, Nat.zero_mul, Nat.add_zero,
+      have e := R.val_subC (R.uget a ((ao + bl).toUSize + j) (h.lbat.uset_bound hj)) R.zero c
+      simp only [sub1Step, R.uget_eq, R.val_zero, Nat.add_zero,
         h.lbat.toNat_add hj] at e ⊢
       lia)
     z (zo + bl).toUSize h.lbzt 0 c trivial
   simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, e₅, e₆, e₇, Nat.one_mul,
     Nat.zero_mul, Nat.mul_zero] at f₂ f₃
-  exact ⟨LA.val (R.unB (foldUInPlace (al - bl).toUSize
+  exact ⟨LA.val ((foldUInPlace (al - bl).toUSize
     (sub1Step A a (ao + bl).toUSize (al - bl).toUSize h.lbat) z (zo + bl).toUSize h.lbzt 0 c).2),
     f₁, fun i hi => f₂ i (by lia), by lia⟩
 
@@ -310,28 +309,28 @@ public theorem subW_spec (z : A) (zo : Nat) (a : A) (ao al : Nat) (b : A) (bo bl
     rw [F.foldThen_eq, foldUInPlaceThen]
     obtain ⟨f₁, -, f₂, f₃⟩ := foldUInPlace_spec2 bl.toUSize
       (subNStep A a ao.toUSize b bo.toUSize bl.toUSize hb.lba hb.lbb) a ao.toUSize b bo.toUSize
-      (fun _ => 0) (fun c => LA.val (R.unB c)) 1 0 0 1 0 1 0 (fun _ => True)
+      (fun _ => 0) LA.val 1 0 0 1 0 1 0 (fun _ => True)
       (fun _ _ _ _ _ => trivial)
       (fun j hj z c _ => by
-        have e := R.val_subMulB (R.uget a (ao.toUSize + j) (hb.lba.uset_bound hj))
-          (R.uget b (bo.toUSize + j) (hb.lbb.uset_bound hj)) R.one c
-        simp only [subNStep, R.uget_eq, R.val_one, Nat.mul_one, hb.lba.toNat_add hj,
+        have e := R.val_subC (R.uget a (ao.toUSize + j) (hb.lba.uset_bound hj))
+          (R.uget b (bo.toUSize + j) (hb.lbb.uset_bound hj)) c
+        simp only [subNStep, R.uget_eq, hb.lba.toNat_add hj,
           hb.lbb.toNat_add hj] at e ⊢
         lia)
-      z zo.toUSize hb.lbz 0 R.b0 trivial
+      z zo.toUSize hb.lbz 0 R.zero trivial
     simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, e₁, e₂, e₃, e₄, Nat.one_mul,
-      Nat.zero_mul, Nat.mul_zero, R.val_unB_b0] at f₂ f₃
+      Nat.zero_mul, Nat.mul_zero, R.val_zero] at f₂ f₃
     obtain ⟨c₂, t₁, t₂, t₃⟩ := subTail_spec _ zo a ao al b bo bl (hb.of_size f₁)
       (foldUInPlace bl.toUSize (subNStep A a ao.toUSize b bo.toUSize bl.toUSize hb.lba hb.lbb) z
-        zo.toUSize hb.lbz 0 R.b0).2
+        zo.toUSize hb.lbz 0 R.zero).2
     generalize hFc : (foldUInPlace bl.toUSize
       (subNStep A a ao.toUSize b bo.toUSize bl.toUSize hb.lba hb.lbb) z zo.toUSize hb.lbz 0
-        R.b0).2 = Fc at f₃ t₁ t₂ t₃ ⊢
+        R.zero).2 = Fc at f₃ t₁ t₂ t₃ ⊢
     refine ⟨⟨by rw [t₁, f₁], fun i hi => by rw [t₂ i (by lia), f₂ i (by lia)]⟩, ?_⟩
     have hlow : valAt (subTail _ zo a ao al b bo bl (hb.of_size f₁) Fc) zo bl =
         valAt (foldUInPlace bl.toUSize
           (subNStep A a ao.toUSize b bo.toUSize bl.toUSize hb.lba hb.lbb) z zo.toUSize hb.lbz 0
-            R.b0).1 zo bl := valAt_congr _ fun i _ _ => t₂ i (by lia)
+            R.zero).1 zo bl := valAt_congr _ fun i _ _ => t₂ i (by lia)
     have hV := valAt_lt (subTail _ zo a ao al b bo bl (hb.of_size f₁) Fc) zo al
     rw [split_at _ zo al bl hba, hlow] at hV ⊢
     rw [split_at a ao al bl hba] at hle ⊢
@@ -340,11 +339,11 @@ public theorem subW_spec (z : A) (zo : Nat) (a : A) (ao al : Nat) (b : A) (bo bl
       at t₃ hV ⊢
     generalize valAt (foldUInPlace bl.toUSize
       (subNStep A a ao.toUSize b bo.toUSize bl.toUSize hb.lba hb.lbb) z zo.toUSize hb.lbz 0
-        R.b0).1 zo bl = V₁ at f₃ hV ⊢
-    generalize LA.val (R.unB Fc) = c at f₃ t₃
+        R.zero).1 zo bl = V₁ at f₃ hV ⊢
+    generalize LA.val Fc = c at f₃ t₃
     have hV₁ := valAt_lt (foldUInPlace bl.toUSize
       (subNStep A a ao.toUSize b bo.toUSize bl.toUSize hb.lba hb.lbb) z zo.toUSize hb.lbz 0
-        R.b0).1 zo bl
+        R.zero).1 zo bl
     -- No borrow out: the difference fits.
     generalize 2 ^ (LA.w * bl) = P at *
     generalize 2 ^ (LA.w * (al - bl)) = Q at *
