@@ -20,6 +20,7 @@ public import MPN.Generic.HGCD
 public import MPN.Generic.Radix
 public import MPN.Generic.Sqrt
 public import MPN.Natural
+public import MPN.WordSqrt
 import Std.Data.String.ToNat
 import all Init.Data.Repr
 
@@ -683,20 +684,65 @@ private theorem toNat_limbs_toSlice (x : MPN.Nat) : MPN.toNat x.limbs.toSlice = 
 
 /-- `(⌊√N⌋, N - ⌊√N⌋²)` by Newton's iteration (`sqrtNewton`), the base of Zimmermann's step. -/
 public def sqrtBase (N : UInt32Array.Slice) : UInt32Array.Slice × UInt32Array.Slice :=
-  let S := (sqrtNewton (ofLimbs (trim N.copy) (isTrimmed_trim _))).limbs.toSlice
-  (S, ops32.sub N (ops32.sqr S))
+  if N.size ≤ 2 then
+    let c := N.copy
+    let s := WordArray.sqrt2W UInt32Array (c.getD 1 0) (c.getD 0 0)
+    let n : UInt64 := (c.getD 1 0).toUInt64 * 4294967296 + (c.getD 0 0).toUInt64
+    ((limbsOfWord s.toUInt64).toSlice, (limbsOfWord (n - s.toUInt64 * s.toUInt64)).toSlice)
+  else
+    let S := (sqrtNewton (ofLimbs (trim N.copy) (isTrimmed_trim _))).limbs.toSlice
+    (S, ops32.sub N (ops32.sqr S))
+
+/-- The value of a slice of at most two limbs. -/
+private theorem toNat_le_two (N : UInt32Array.Slice) (h : N.size ≤ 2) :
+    MPN.toNat N = (N.copy.getD 1 0).toNat * 2 ^ 32 + (N.copy.getD 0 0).toNat := by
+  have hc : N.copy.size ≤ 4 := by simp; lia
+  have hv := toNat_four N.copy hc
+  have h2 : N.copy.getD 2 0 = 0 := by
+    rw [UInt32Array.getD_eq_getD_getElem?, getElem?_neg _ _ (by simp; lia)]; rfl
+  have h3 : N.copy.getD 3 0 = 0 := by
+    rw [UInt32Array.getD_eq_getD_getElem?, getElem?_neg _ _ (by simp; lia)]; rfl
+  rw [toNat_copy, h2, h3] at hv
+  simp only [UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero] at hv
+  lia
 
 private theorem sqrtBase_spec (N : UInt32Array.Slice) :
     MPN.toNat (sqrtBase N).1 = _root_.Nat.sqrt (MPN.toNat N) ∧
       MPN.toNat (sqrtBase N).2 =
         MPN.toNat N - _root_.Nat.sqrt (MPN.toNat N) * _root_.Nat.sqrt (MPN.toNat N) := by
-  have hS : MPN.toNat (sqrtNewton (ofLimbs (trim N.copy) (isTrimmed_trim _))).limbs.toSlice =
-      _root_.Nat.sqrt (MPN.toNat N) := by
-    rw [toNat_limbs_toSlice, toNat_sqrtNewton, toNat_ofLimbs, toNat_trim, toNat_copy]
-  refine ⟨hS, ?_⟩
-  simp only [sqrtBase]
-  rw [← ops32_val, ops32.val_sub _ _ (by rw [ops32.val_sqr, ops32_val, hS]; exact Nat.sqrt_le _),
-    ops32.val_sqr, ops32_val, ops32_val, hS]
+  unfold sqrtBase
+  split
+  · rename_i h2
+    rw [toNat_le_two N h2]
+    dsimp only
+    generalize N.copy.getD 1 0 = hi
+    generalize N.copy.getD 0 0 = lo
+    have hs : (WordArray.sqrt2W UInt32Array hi lo).toNat =
+        _root_.Nat.sqrt (hi.toNat * 2 ^ 32 + lo.toNat) :=
+      WordArray.val_sqrt2W (A := UInt32Array) hi lo
+    generalize WordArray.sqrt2W UInt32Array hi lo = r at hs
+    have hhi := hi.toNat_lt; have hlo := lo.toNat_lt; have hr := r.toNat_lt
+    have hn : ((hi.toUInt64 * 4294967296 + lo.toUInt64 : UInt64)).toNat =
+        hi.toNat * 2 ^ 32 + lo.toNat := by
+      simp only [UInt64.toNat_add, UInt64.toNat_mul, UInt32.toNat_toUInt64, UInt64.reduceToNat]
+      lia
+    have hsq : (r.toUInt64 * r.toUInt64).toNat = r.toNat * r.toNat := by
+      rw [UInt64.toNat_mul, UInt32.toNat_toUInt64]
+      exact Nat.mod_eq_of_lt (by have := Nat.mul_lt_mul'' hr hr; simpa using this)
+    have hle := Nat.sqrt_le (hi.toNat * 2 ^ 32 + lo.toNat)
+    rw [← hs] at hle
+    rw [(limbsOfWord_spec _).1, (limbsOfWord_spec _).1, UInt32.toNat_toUInt64,
+      UInt64.toNat_sub_of_le _ _ (UInt64.le_iff_toNat_le.2 (by rw [hn, hsq]; exact hle)), hn, hsq,
+      hs]
+    exact ⟨rfl, rfl⟩
+  · have hS : MPN.toNat (sqrtNewton (ofLimbs (trim N.copy) (isTrimmed_trim _))).limbs.toSlice =
+        _root_.Nat.sqrt (MPN.toNat N) := by
+      rw [toNat_limbs_toSlice, toNat_sqrtNewton, toNat_ofLimbs, toNat_trim, toNat_copy]
+    refine ⟨hS, ?_⟩
+    dsimp only
+    rw [← ops32_val,
+      ops32.val_sub _ _ (by rw [ops32.val_sqr, ops32_val, hS]; exact Nat.sqrt_le _),
+      ops32.val_sqr, ops32_val, ops32_val, hS]
 
 /--
 `⌊√x⌋` by Zimmermann's recursion (`NatOps.sqrtRemAux`) on `N = x 4ᶜ` of `2 n` limbs with
