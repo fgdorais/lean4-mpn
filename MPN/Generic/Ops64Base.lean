@@ -61,6 +61,80 @@ public theorem toNat_ofNatN (n len : Nat) : (ofNatN n len).toNat = n % 2 ^ (64 *
   rw [toNat_eq_valAt, size_ofNatN, valAt_ofNatN n len len 0 (by lia)]
   simp
 
+/--
+Pushes the `k` limbs of `x % 2^(64 k)` onto `acc`: by halves above `16` limbs, and below one limb
+at a time from the low word of `x`, which `toUInt64` reads without an operation on `Nat`.
+-/
+public def ofNatPush (x k : Nat) (acc : UInt64Array) : UInt64Array :=
+  if k = 0 then acc
+  else if k ≤ 16 then ofNatPush (x >>> 64) (k - 1) (acc.push x.toUInt64)
+  else
+    let hi := x >>> (64 * (k / 2))
+    ofNatPush hi (k - k / 2) (ofNatPush (x - hi <<< (64 * (k / 2))) (k / 2) acc)
+termination_by k
+
+/-- Limb `i` of the low `s` bits of `x` is limb `i` of `x`, for `64 (i + 1) ≤ s`. -/
+private theorem limb_mod (x s t : Nat) (h : t + 64 ≤ s) :
+    (x % 2 ^ s / 2 ^ t).toUInt64 = (x / 2 ^ t).toUInt64 := by
+  have hd := Nat.div_add_mod x (2 ^ s)
+  generalize x % 2 ^ s = r at hd ⊢
+  generalize x / 2 ^ s = q at hd
+  subst hd
+  rw [show 2 ^ s * q = 2 ^ t * (2 ^ 64 * (2 ^ (s - t - 64) * q)) by
+      rw [← Nat.mul_assoc, ← Nat.mul_assoc, ← Nat.pow_add, ← Nat.pow_add,
+        show t + 64 + (s - t - 64) = s by lia],
+    Nat.add_comm, Nat.add_mul_div_left _ _ (Nat.two_pow_pos _)]
+  apply UInt64.toNat_inj.1
+  simp only [Nat.toUInt64_eq, UInt64.toNat_ofNat', Nat.add_mul_mod_self_left]
+
+private theorem ofNatPush_spec (x k : Nat) (acc : UInt64Array) :
+    ∃ L : List UInt64, (ofNatPush x k acc).toList = acc.toList ++ L ∧ L.length = k ∧
+      ∀ i (h : i < L.length), L[i] = (x / 2 ^ (64 * i)).toUInt64 := by
+  induction k using Nat.strongRecOn generalizing x acc with
+  | ind k ih =>
+    rw [ofNatPush]
+    split
+    · exact ⟨[], by simp, by simp; lia, fun i h => absurd h (by simp)⟩
+    · split
+      · rename_i h0 h1
+        obtain ⟨L, hL, hl, hv⟩ := ih (k - 1) (by lia) (x >>> 64) (acc.push x.toUInt64)
+        refine ⟨x.toUInt64 :: L, by rw [hL]; simp, by simp; lia, fun i h => ?_⟩
+        cases i with
+        | zero => simp
+        | succ i =>
+          rw [List.getElem_cons_succ, hv i (by simp at h; lia), Nat.shiftRight_eq_div_pow,
+            Nat.div_div_eq_div_mul, ← Nat.pow_add]
+          congr 3
+          lia
+      · rename_i h0 h1
+        dsimp only
+        have hlo : x - (x >>> (64 * (k / 2))) <<< (64 * (k / 2)) = x % 2 ^ (64 * (k / 2)) := by
+          rw [Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq, Nat.mod_def, Nat.mul_comm]
+        obtain ⟨L₁, h₁, hl₁, hv₁⟩ := ih (k / 2) (by lia)
+          (x - (x >>> (64 * (k / 2))) <<< (64 * (k / 2))) acc
+        obtain ⟨L₂, h₂, hl₂, hv₂⟩ := ih (k - k / 2) (by lia) (x >>> (64 * (k / 2)))
+          (ofNatPush (x - (x >>> (64 * (k / 2))) <<< (64 * (k / 2))) (k / 2) acc)
+        refine ⟨L₁ ++ L₂, by rw [h₂, h₁, List.append_assoc], by simp; lia, fun i h => ?_⟩
+        by_cases hi : i < L₁.length
+        · rw [List.getElem_append_left hi, hv₁ i hi, hlo, limb_mod _ _ _ (by lia)]
+        · rw [List.getElem_append_right (by lia), hv₂ _ (by simp at h; lia),
+            Nat.shiftRight_eq_div_pow, Nat.div_div_eq_div_mul, ← Nat.pow_add]
+          congr 3
+          lia
+
+/-- `ofNatN` by halves, which the compiler uses in its place. -/
+public def ofNatNFast (n len : Nat) : UInt64Array := ofNatPush n len (.emptyWithCapacity len)
+
+@[csimp] public theorem ofNatN_eq_ofNatNFast : @ofNatN = @ofNatNFast := by
+  funext n len
+  obtain ⟨L, hL, hl, hv⟩ := ofNatPush_spec n len (.emptyWithCapacity len)
+  apply UInt64Array.toList_inj.1
+  rw [ofNatNFast, hL, ofNatN, UInt64Array.toList_ofFn, UInt64Array.emptyWithCapacity_eq_empty,
+    UInt64Array.toList_empty, List.nil_append]
+  apply List.ext_getElem (by simp [hl])
+  intro i h₁ h₂
+  rw [hv i h₂, List.getElem_ofFn]
+
 /-- The limbs of `n`. -/
 public def ofNat (n : Nat) : UInt64Array := ofNatN n (n.log2 / 64 + 1)
 
