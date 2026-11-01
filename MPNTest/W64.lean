@@ -40,22 +40,6 @@ def edges (n : Nat) : List Nat :=
 /-- The limbs `1` to `n` of `r`, a window between two padding limbs. -/
 def inner (r : UInt64Array) (n : Nat) : UInt64Array.USlice := r.uslice 1 (n + 1).toUSize
 
-/--
-Checks `main`'s `addW` and `subW` on an `m`-limb `a` and an `n`-limb `b`, with `n ≤ m`, written at
-offset 1 of a padded buffer.
--/
-def checkAddSubW (m n : Nat) : Bool :=
-  let r := UInt64Array.replicate (m + 3) 0xAAAAAAAAAAAAAAAA
-  (edges m).all fun x => (edges n).all fun y =>
-    let y := y % 2 ^ (64 * n)
-    let s := MPN.WordArray.addW r 1 (limbs m x) 0 m (limbs n y) 0 n
-    let d := MPN.WordArray.subW r 1 (limbs m x) 0 m (limbs n y) 0 n
-    window s 1 (m + 1) == x + y && (x < y || window d 1 m == x - y) &&
-    -- The padding limbs are untouched.
-    s[0]! == r[0]! && s[m + 2]! == r[m + 2]! && d[0]! == r[0]! && d[m + 1]! == r[m + 1]!
-
-#guard [(1, 0), (1, 1), (3, 1), (3, 2), (4, 4), (5, 0)].all fun (m, n) => checkAddSubW m n
-
 /-! Multiplication -/
 
 /-- Checks `mul1`, `addMul1` and `mulBasecase` on an `m`-limb `a` and an `n`-limb `b`. -/
@@ -140,36 +124,14 @@ def checkSqrKaratsuba (n : Nat) : Bool :=
   let a := (limbs 2 (2 ^ 100)).toUSlice
   MPN.W64.sqrBasecase (inner r 3) a == r && MPN.W64.sqrKaratsuba MPN.W64.config (inner r 3) a == r
 
-/-! Linear passes for the Toom methods -/
+/-! Subtracting a product by a limb -/
 
-/--
-Checks `subMul1` and `main`'s Toom kernels on `n` limbs: `addMulIntoK` and `subMulIntoK` when the
-result fits, `addIntoK`, `subIntoK`, halving by `shlTopK`, exact division by 3 and 5, and `shrK`.
--/
-def checkLinear (n : Nat) : Bool :=
-  [randomLimbs n 3, 2 ^ (64 * n) - 1, 2 ^ (64 * n - 1)].all fun x =>
-    let y := randomLimbs (n / 2 + 1) 5 % 2 ^ (64 * n)
-    let r := limbs n x
-    let sy := limbs (n / 2 + 1) y
-    [1, 3, 16, 81, 2 ^ 64 - 1].all fun m =>
-      let (p, cp) := MPN.W64.subMul1 r.toUSlice (limbs n y).toUSlice m.toUInt64
-      let q := MPN.WordArray.addMulIntoK r 0 n sy 0 (n / 2 + 1) m
-      let s := MPN.WordArray.subMulIntoK r 0 n sy 0 (n / 2 + 1) m
-      window p 0 n + y * m == x + 2 ^ (64 * n) * cp.toNat &&
-      (2 ^ (64 * n) ≤ x + y * m || window q 0 n == x + y * m) &&
-      (x < y * m || window s 0 n == x - y * m)
-    && (2 ^ (64 * n) ≤ x + y || window (MPN.WordArray.addIntoK r 0 n sy 0 (n / 2 + 1)) 0 n == x + y)
-    && (x < y || window (MPN.WordArray.subIntoK r 0 n sy 0 (n / 2 + 1)) 0 n == x - y)
-  && [randomLimbs (n - 1) 9, 2 ^ (64 * (n - 1)) - 1].all fun x =>
-    let x2 := 2 * (x / 2)
-    let x3 := 3 * (x / 3)
-    let x5 := 5 * (x / 5)
-    window (MPN.WordArray.shlTopK (limbs n x2) 0 n) 1 (n - 1) == x2 / 2 &&
-    window (MPN.WordArray.divExactK (limbs n x3) 0 n 3) 0 n == x3 / 3 &&
-    window (MPN.WordArray.divExactK (limbs n x5) 0 n 5) 0 n == x5 / 5 &&
-    [1, 2, 7, 63].all fun s => window (MPN.WordArray.shrK (limbs n x) 0 n s) 0 n == x / 2 ^ s
-
-#guard [2, 3, 5, 16, 33].all checkLinear
+-- `subMul1`, main's `subMul1Step` on slices; main's kernels are checked in `MPNTest.Kernels`.
+#guard [2, 3, 5, 16].all fun n =>
+  [randomLimbs n 3, 2 ^ (64 * n) - 1].all fun x => [1, 3, 2 ^ 64 - 1].all fun m =>
+    let y := randomLimbs n 5
+    let (p, cp) := MPN.W64.subMul1 (limbs n x).toUSlice (limbs n y).toUSlice m.toUInt64
+    window p 0 n + y * m == x + 2 ^ (64 * n) * cp.toNat
 
 /-! Shifts and bits -/
 
@@ -394,80 +356,6 @@ def checkToom (m n : Nat) : Bool :=
 -- from `mulToom42`, below `mulToom3`.
 #guard [(308, 176), (350, 100), (350, 87), (240, 175), (330, 180)].all fun (m, n) => checkToom m n
 
-/-! FFT residues -/
-
-/--
-Checks the residue operations modulo `F = 2^(64 n) + 1` on three windows of `n + 1` limbs, at
-`1`, `n + 2` and `2 n + 3` of an array with a padding limb at each end, holding `x`, `y` and `z`:
-the window written has the right value, and the other limbs are unchanged.
--/
-def checkFermat (n : Nat) : Bool :=
-  let F := 2 ^ (64 * n) + 1
-  let pad : UInt64Array := .replicate 1 0xAAAAAAAAAAAAAAAA
-  let vals := [0, 1, F - 1, F - 2, 2 ^ (64 * n) - 1, 2 ^ 63, randomLimbs n 3 % F,
-    2 ^ (64 * (n - 1))]
-  let (oa, ob, oc) := (1, n + 2, 2 * n + 3)
-  let others (r arr : UInt64Array) (o : Nat) : Bool :=
-    (List.range arr.size).all fun i => i ∈ List.range' o (n + 1) || r[i]! == arr[i]!
-  vals.all fun x => vals.all fun y =>
-    let arr := pad ++ limbs (n + 1) x ++ limbs (n + 1) y ++ limbs (n + 1) 12345 ++ pad
-    let ok : Bool := Id.run do
-      if h : MPN.FFT.Win arr n.toUSize oa.toUSize ∧ MPN.FFT.Win arr n.toUSize ob.toUSize ∧
-          MPN.FFT.Win arr n.toUSize oc.toUSize then
-        let s := MPN.FFT.addModAt arr n.toUSize oa.toUSize oa.toUSize ob.toUSize h.1 h.1 h.2.1
-        let d := MPN.FFT.subModAt arr n.toUSize oc.toUSize oa.toUSize ob.toUSize h.2.2 h.1 h.2.1
-        let d' := MPN.FFT.subModAt arr n.toUSize oa.toUSize oa.toUSize ob.toUSize h.1 h.1 h.2.1
-        let es := [0, 1, 63, 64, 65, 64 * (n - 1), 64 * (n - 1) + 7, 64 * n - 1].filter
-          (· < 64 * n)
-        let pw := es.all fun e =>
-          if he : e.toUSize.toNat < 64 * n.toUSize.toNat then
-            let m := MPN.FFT.mulPow2At arr n.toUSize oc.toUSize oa.toUSize e.toUSize h.2.2 h.1 he
-            window m oc (n + 1) == x * 2 ^ e % F && others m arr oc
-          else false
-        return window s oa (n + 1) == (x + y) % F && others s arr oa &&
-          window d oc (n + 1) == (x + F - y) % F && others d arr oc &&
-          window d' oa (n + 1) == (x + F - y) % F && others d' arr oa && pw
-      else return false
-    -- Reduction of any `n + 1` limbs.
-    let v := x % 2 ^ (64 * n) + 2 ^ (64 * n) * (y % 2 ^ 64)
-    let arr' := pad ++ limbs (n + 1) v ++ pad
-    let ok' : Bool :=
-      if h : MPN.FFT.Win arr' n.toUSize 1 then
-        let r := MPN.FFT.normAt arr' n.toUSize 1 h
-        window r 1 (n + 1) == v % F && others r arr' 1
-      else false
-    ok && ok'
-
-#guard [1, 2, 3, 5].all checkFermat
-
-
-/-! FFT transforms -/
-
-/--
-Checks the transforms of length `2ᵐ` modulo `2^(64 n) + 1`, on a block of windows at `1` with
-the scratch window after it, against their sums, and that the inverse of the forward transform
-is `2ᵐ` times the input.
--/
-def checkTransform (n m : Nat) : Bool :=
-  let F := 2 ^ (64 * n) + 1
-  let K := 2 ^ m
-  let σ := 2 * (64 * n) / K
-  let xs := (List.range K).map fun i => (randomLimbs n (i + 5) * (i + 1)) % F
-  let xs := if K > 2 then xs.set 1 (F - 1) |>.set 2 0 else xs
-  let pad : UInt64Array := .replicate 1 0xAAAAAAAAAAAAAAAA
-  let arr := xs.foldl (fun a x => a ++ limbs (n + 1) x) pad ++ limbs (n + 1) 77 ++ pad
-  let t := 1 + K * (n + 1)
-  let co (a : UInt64Array) (p : Nat) := window a (1 + p * (n + 1)) (n + 1)
-  let f := MPN.W64.FFT.fwd n t m arr 1 σ
-  let g := MPN.W64.FFT.inv n t m f 1 σ
-  let fOK := (List.range K).all fun p =>
-    co f p == (List.range K).foldl (fun s i => s + xs[i]! * 2 ^ (σ * i * MPN.FFT.rev m p)) 0 % F
-  let gOK := (List.range K).all fun l => co g l == K * xs[l]! % F
-  fOK && gOK && f[0]! == arr[0]! && f[arr.size - 1]! == arr[arr.size - 1]! &&
-    g[0]! == arr[0]! && g.size == arr.size
-
-#guard [(1, 1), (1, 2), (1, 3), (2, 1), (2, 3), (2, 4), (3, 5)].all fun (n, m) => checkTransform n m
-
 /-! FFT multiplication -/
 
 /--
@@ -541,21 +429,11 @@ def checkSqrToom (n : Nat) : Bool :=
 /-- A random number of `bits` bits. -/
 def randomBits (bits seed : Nat) : Nat := randomLimbs ((bits + 63) / 64) seed % 2 ^ bits
 
--- `MPN.Nat` against `Nat`, at and around the boundary between words and limbs.
+-- Values at and around the boundary between words and limbs; `MPNTest.Kernels` checks the
+-- operations of `MPN.Nat` on them against `Nat`.
 def bigNatValues : List Nat :=
   [0, 1, 2, 7, 2 ^ 32 - 1, 2 ^ 32, 2 ^ 63, 2 ^ 64 - 2, 2 ^ 64 - 1, 2 ^ 64, 2 ^ 64 + 1,
     2 ^ 128 - 1, 2 ^ 128, randomBits 200 61, randomBits 1000 67, 3 ^ 200]
-
-#guard bigNatValues.all fun a => bigNatValues.all fun b =>
-  let x := MPN.W64.Nat.ofNat a
-  let y := MPN.W64.Nat.ofNat b
-  (x + y).toNat == a + b && (x - y).toNat == a - b && (x * y).toNat == a * b &&
-    (x / y).toNat == a / b && (x % y).toNat == a % b &&
-    decide (x < y) == decide (a < b) && decide (x ≤ y) == decide (a ≤ b) &&
-    decide (x = y) == decide (a = b) && (x == y || hash x != hash y || a != b) &&
-    (x.toNat == a && toString x == toString a) &&
-    (MPN.W64.Nat.gcd x y).toNat == Nat.gcd a b && (MPN.W64.Nat.lcm x y).toNat == Nat.lcm a b &&
-    (x &&& y).toNat == (a &&& b) && (x ||| y).toNat == (a ||| b) && (x ^^^ y).toNat == (a ^^^ b)
 
 -- Division by a word, and literals.
 #guard [2 ^ 64, 2 ^ 128 - 1, randomBits 300 89, 2 ^ 1024 - 1].all fun a =>

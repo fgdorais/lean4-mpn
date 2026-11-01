@@ -404,21 +404,6 @@ def dcCheck (x y : Nat) : Bool :=
       dcCheck (2 ^ (32 * (n + k)) - 1) (2 ^ (32 * n) - 1) &&
       dcCheck (2 ^ (32 * (n + k)) - 1) (2 ^ (32 * n - 1) + 1)
 
--- `MPN.Nat` against `Nat`, at and around the boundary between words and limbs.
-def bigNatValues : List Nat :=
-  [0, 1, 2, 7, 2 ^ 32 - 1, 2 ^ 32, 2 ^ 32 + 1, 2 ^ 63, 2 ^ 64 - 2, 2 ^ 64 - 1, 2 ^ 64, 2 ^ 64 + 1,
-    2 ^ 96 - 1, 2 ^ 96, sample1 200 61, sample1 1000 67, 3 ^ 200]
-
-#guard bigNatValues.all fun a => bigNatValues.all fun b =>
-  let x := MPN.W32.Nat.ofNat a
-  let y := MPN.W32.Nat.ofNat b
-  (x + y).toNat == a + b && (x - y).toNat == a - b && (x * y).toNat == a * b &&
-    (x / y).toNat == a / b && (x % y).toNat == a % b &&
-    decide (x < y) == decide (a < b) && decide (x ≤ y) == decide (a ≤ b) &&
-    decide (x = y) == decide (a = b) && (x == y || hash x != hash y || a != b) &&
-    (x.toNat == a && toString x == toString a) &&
-    (MPN.W32.Nat.gcd x y).toNat == Nat.gcd a b && (MPN.W32.Nat.lcm x y).toNat == Nat.lcm a b
-
 -- Division of up to four limbs by a word of two limbs, on words alone (`divRem128`).
 #guard [2 ^ 64, 2 ^ 64 + 12345, 2 ^ 96 - 1, 2 ^ 96, 2 ^ 127 + 2 ^ 64 + 7, 2 ^ 128 - 1,
     sample1 96 71, sample1 128 73, sample1 120 79].all fun a =>
@@ -489,6 +474,12 @@ def bigNatValues : List Nat :=
       (MPN.W32.Nat.ofStringWith 2 (str ++ "x")).isNone
 
 -- Shifts, bitwise operations, `log2`, `sqrt` and `pow` against `Nat`.
+-- Values at and around the boundary between words and limbs; `MPNTest.Kernels` checks the
+-- operations of `MPN.Nat` on them against `Nat`.
+def bigNatValues : List Nat :=
+  [0, 1, 2, 7, 2 ^ 32 - 1, 2 ^ 32, 2 ^ 32 + 1, 2 ^ 63, 2 ^ 64 - 2, 2 ^ 64 - 1, 2 ^ 64, 2 ^ 64 + 1,
+    2 ^ 96 - 1, 2 ^ 96, sample1 200 61, sample1 1000 67, 3 ^ 200]
+
 #guard bigNatValues.all fun a =>
   let x := MPN.W32.Nat.ofNat a
   [0, 1, 5, 31, 32, 33, 63, 64, 65, 100, 200].all (fun k =>
