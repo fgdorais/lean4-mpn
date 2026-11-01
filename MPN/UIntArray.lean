@@ -9,6 +9,8 @@ public import ScalarArray.UInt64
 public import MPN.UInt
 public import MPN.LimbArray
 public import MPN.WordArray
+import all Init.Data.UInt.Log2
+import all Init.Data.Fin.Log2
 
 /-!
 # Limb arrays
@@ -585,6 +587,9 @@ limbs of any width. Its in-place loop reading other windows of the array it writ
 `wordFolds64`).
 -/
 
+/-- `log2` of a word is `Nat.log2` of its value. -/
+public theorem _root_.UInt64.toNat_log2' (x : UInt64) : x.log2.toNat = x.toNat.log2 := by rfl
+
 /-- The reads, writes and word operations of `UInt64Array`, for the loops of `main`. -/
 public instance wordArray64 : MPN.WordArray UInt64Array UInt64 where
   uget a i h := a.uget i h
@@ -606,6 +611,9 @@ public instance wordArray64 : MPN.WordArray UInt64Array UInt64 where
   ltB x y := decide (x < y)
   eqB x y := x == y
   land x y := x &&& y
+  lor x y := x ||| y
+  xor x y := x ^^^ y
+  log2 x := x.log2.toNat
   ofBool b := b.toUInt64
   subMulB z y x c :=
     let p := y * x
@@ -672,6 +680,10 @@ public instance wordArray64 : MPN.WordArray UInt64Array UInt64 where
   toNat_wU := by
     show (64 : USize).toNat = 64
     rw [USize.toNat_ofNat, Nat.mod_eq_of_lt (by cases USize.size_eq <;> simp_all [USize.size])]
+  val_land x y := UInt64.toNat_and x y
+  val_lor x y := UInt64.toNat_or x y
+  val_xor x y := UInt64.toNat_xor x y
+  log2_eq x := UInt64.toNat_log2' x
   w_ge := by decide
 
 /-- The loop of `foldlInPlace2` from index `k` is `main`'s `foldUInPlace2` from `j₀ + k`. -/
