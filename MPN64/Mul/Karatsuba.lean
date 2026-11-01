@@ -22,8 +22,8 @@ open ScalarArray UInt64Array
 
 namespace MPN.W64
 
-/-- The thresholds of the library, from the `mpn.*` options it is compiled with. -/
-public def config : Config := mpn_config%
+/-- The thresholds of the library, from the options `mpn.w64.*` it is compiled with. -/
+public def config : Config := mpn_config% Config mpn.w64
 
 variable (cfg : Config)
 

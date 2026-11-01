@@ -482,7 +482,7 @@ public def main (args : List String) : IO UInt32 := do
     ("strDC", cfg.strDC), ("parseDC", cfg.parseDC), ("sqrtZimmermann", cfg.sqrtZimmermann),
     ("sqrtBase", cfg.sqrtBase)]
   IO.println "To compile these into the library, add to its `require` in lakefile.toml:"
-  IO.println s!"  options = \{ {", ".intercalate (opts.map fun (k, v) => s!"{k} = \"{v}\"")} }"
+  IO.println s!"  options = \{ {", ".intercalate (opts.map fun (k, v) => s!"w64_{k} = \"{v}\"")} }"
   IO.println "or build this package with:"
   IO.println s!"  lake build -R {" ".intercalate (opts.map fun (k, v) => s!"-K {k}={v}")}"
   return 0
