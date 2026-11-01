@@ -705,3 +705,73 @@ public theorem sumK_spec (z x : A) (xo xl : Nat) (y : A) (yo yl : Nat) (hyl : yl
       Nat.mod_eq_of_lt hfit]⟩
 
 end MPN.WordArray
+
+namespace MPN.Toom
+
+open LimbArray WordArray
+
+variable {A L : Type} [LA : LimbArray A L] [R : WordArray A L] [F : WordFolds A L]
+
+/--
+The operations of `ToomOps` that depend on the limbs beyond their word operations: Karatsuba's
+middle term and the products below the thresholds, which the branches compute by their own
+methods, and the width, at least 32 bits. The rest of `ToomOps` are the kernels of this file.
+-/
+public class ToomBase (A : Type) (L : outParam Type) [LimbArray A L] where
+  /-- The limbs have at least 32 bits, for the multipliers of the interpolations, up to `9¹⁰`. -/
+  w_ge : 32 ≤ LimbArray.w A
+  /-- Karatsuba's middle term into `d`, from the products in `t`: `mid d o k n t`. -/
+  mid : A → Nat → Nat → Nat → A → A
+  mid_spec : ∀ (d : A) (o k n : Nat) (t : A), o + n ≤ LimbArray.size d →
+    Writes (mid d o k n t) d o n ∧
+      ∀ Z₁, valAt t 0 (k + k + 2) = valAt d o (k + k) + Z₁ + valAt d (o + (k + k)) (n - (k + k)) →
+        valAt d o (k + k) + 2 ^ (LimbArray.w A * k) * Z₁ +
+            2 ^ (LimbArray.w A * (k + k)) * valAt d (o + (k + k)) (n - (k + k)) <
+          2 ^ (LimbArray.w A * n) →
+        valAt (mid d o k n t) o n = valAt d o (k + k) + 2 ^ (LimbArray.w A * k) * Z₁ +
+          2 ^ (LimbArray.w A * (k + k)) * valAt d (o + (k + k)) (n - (k + k))
+  /-- `x y` into the `xl + yl` limbs of `d` from `o` on: `mulBase d o x xo xl y yo yl`. -/
+  mulBase : A → Nat → A → Nat → Nat → A → Nat → Nat → A
+  mulBase_spec : ∀ (d : A) (o : Nat) (x : A) (xo xl : Nat) (y : A) (yo yl : Nat),
+    o + (xl + yl) ≤ LimbArray.size d →
+    Writes (mulBase d o x xo xl y yo yl) d o (xl + yl) ∧
+      valAt (mulBase d o x xo xl y yo yl) o (xl + yl) = valAt x xo xl * valAt y yo yl
+  /-- `x²` into the `2 xl` limbs of `d` from `o` on: `sqrBase d o x xo xl`. -/
+  sqrBase : A → Nat → A → Nat → Nat → A
+  sqrBase_spec : ∀ (d : A) (o : Nat) (x : A) (xo xl : Nat), o + (xl + xl) ≤ LimbArray.size d →
+    Writes (sqrBase d o x xo xl) d o (xl + xl) ∧
+      valAt (sqrBase d o x xo xl) o (xl + xl) = valAt x xo xl * valAt x xo xl
+
+/-- The operations of the Karatsuba and Toom methods: the kernels of this file and `ToomBase`. -/
+public instance toomOpsW [B : ToomBase A L] : ToomOps A L where
+  w_ge := B.w_ge
+  zeros := R.zeros
+  size_zeros := R.size_zeros
+  val_get_zeros := R.val_get_zeros
+  addInto := addIntoK
+  addInto_spec := addIntoK_spec
+  subInto := subIntoK
+  subInto_spec := subIntoK_spec
+  addMulInto := addMulIntoK
+  addMulInto_spec := addMulIntoK_spec
+  subMulInto := subMulIntoK
+  subMulInto_spec := subMulIntoK_spec
+  shlTop := shlTopK
+  shlTop_spec := shlTopK_spec
+  shr := shrK
+  shr_spec := shrK_spec
+  divExact := divExactK
+  divExact_spec := divExactK_spec
+  zeroInto := zeroIntoK
+  zeroInto_spec := zeroIntoK_spec
+  sum x xo xl y yo yl := sumK (R.zeros (xl + 1)) x xo xl y yo yl
+  sum_spec x xo xl y yo yl hyl := sumK_spec _ x xo xl y yo yl hyl (R.size_zeros _)
+    (R.val_get_zeros _)
+  mid := B.mid
+  mid_spec := B.mid_spec
+  mulBase := B.mulBase
+  mulBase_spec := B.mulBase_spec
+  sqrBase := B.sqrBase
+  sqrBase_spec := B.sqrBase_spec
+
+end MPN.Toom

@@ -952,4 +952,13 @@ public theorem mulPow2G_spec (arr : A) (n d t e : Nat) (hS : LA.size arr < USize
   simp only [hn', hd', ht', he'] at this
   exact this
 
+/-- The residue operations of the transforms, from the word operations of the limbs. -/
+public instance winOpsW : WinOps A L where
+  subMod := subModG
+  addMod := addModG
+  mulPow2 := mulPow2G
+  subMod_spec := subModG_spec
+  addMod_spec := addModG_spec
+  mulPow2_spec := mulPow2G_spec
+
 end MPN.FFT

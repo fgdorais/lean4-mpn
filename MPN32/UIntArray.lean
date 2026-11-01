@@ -573,6 +573,18 @@ public instance wordArray32 : MPN.WordArray UInt32Array UInt32 where
   uget_eq a i h := uget_eq_getElem! a i h
   size_uset a i v h := size_uset a i v h
   get_uset a i v h j := getElem!_uset a i v h j
+  zeros n := UInt32Array.replicate n 0
+  size_zeros n := by show (UInt32Array.replicate n 0).size = n; simp
+  val_get_zeros n i := by
+    show (UInt32Array.replicate n 0)[i]!.toNat = 0
+    rw [UInt32Array.getElem!_eq_getElem!_toArray]
+    simp only [UInt32Array.toArray_replicate]
+    by_cases hi : i < n
+    · simp [hi]
+    · simp [hi]; rfl
+  val_get_ge a i h := by
+    show a[i]!.toNat = 0
+    rw [getElem!_neg a i (Nat.not_lt.2 h)]; rfl
   zero := 0
   one := 1
   add x y := x + y

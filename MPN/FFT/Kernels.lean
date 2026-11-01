@@ -348,4 +348,20 @@ public theorem reduceK_spec (arr : A) (n d : Nat) (P : A) (_ : LA.size arr < USi
     have := Nat.mul_le_mul_left (2 ^ (LA.w * n)) (show 2 ≤ 2 ^ LA.w by lia)
     lia
 
+/-! ## The instance -/
+
+/-- The operations of the products by the FFT beyond the transforms, from the kernels above. -/
+public instance fftOpsW : FFTOps A L where
+  zeros := R.zeros
+  size_zeros := R.size_zeros
+  val_get_zeros := R.val_get_zeros
+  addRange := addIntoK
+  addRange_spec := addRange_spec
+  reduce := reduceK
+  reduce_spec := reduceK_spec
+  addCoef := addCoefK
+  addCoef_spec := addCoefK_spec
+  zeroRange := zeroIntoK
+  zeroRange_spec := zeroRange_spec
+
 end MPN.WordArray

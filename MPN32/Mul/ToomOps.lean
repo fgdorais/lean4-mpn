@@ -268,44 +268,12 @@ public theorem sqrBaseT_spec (d : UInt32Array) (o : Nat) (x : UInt32Array) (xo x
       exact put_val h (by rw [size_mulBasecase, x₁]) (by rw [toNat_mulBasecase, x₂])
   · exact fallback _ _ _ _ h (lt_mul ..)
 
-/-- The operations of the Karatsuba and Toom methods on arrays of 32-bit limbs. -/
-public instance toomOps32 : ToomOps UInt32Array UInt32 where
+/--
+The operations of `ToomOps` on 32-bit limbs beyond `main`'s kernels: Karatsuba's middle term and
+the products below the thresholds. `MPN.Toom.toomOpsW` gives the rest.
+-/
+public instance toomBase32 : ToomBase UInt32Array UInt32 where
   w_ge := by show 32 ≤ 32; decide
-  zeros n := UInt32Array.replicate n 0
-  size_zeros n := by simp [LimbArray.size]
-  val_get_zeros n i := by
-    show (UInt32Array.replicate n 0)[i]!.toNat = 0
-    rw [UInt32Array.getElem!_eq_getElem!_toArray]
-    simp only [UInt32Array.toArray_replicate]
-    by_cases hi : i < n
-    · simp [hi]
-    · simp [hi]; rfl
-  addInto := WordArray.addIntoK
-  addInto_spec := WordArray.addIntoK_spec
-  subInto := WordArray.subIntoK
-  subInto_spec := WordArray.subIntoK_spec
-  addMulInto := WordArray.addMulIntoK
-  addMulInto_spec := WordArray.addMulIntoK_spec
-  subMulInto := WordArray.subMulIntoK
-  subMulInto_spec := WordArray.subMulIntoK_spec
-  shlTop := WordArray.shlTopK
-  shlTop_spec := WordArray.shlTopK_spec
-  shr := WordArray.shrK
-  shr_spec := WordArray.shrK_spec
-  divExact := WordArray.divExactK
-  divExact_spec := WordArray.divExactK_spec
-  zeroInto := WordArray.zeroIntoK
-  zeroInto_spec := WordArray.zeroIntoK_spec
-  sum x xo xl y yo yl := WordArray.sumK (UInt32Array.replicate (xl + 1) 0) x xo xl y yo yl
-  sum_spec x xo xl y yo yl hyl := WordArray.sumK_spec _ x xo xl y yo yl hyl
-    (by simp [LimbArray.size])
-    (fun i => by
-      show (UInt32Array.replicate (xl + 1) 0)[i]!.toNat = 0
-      rw [UInt32Array.getElem!_eq_getElem!_toArray]
-      simp only [UInt32Array.toArray_replicate]
-      by_cases hi : i < xl + 1
-      · simp [hi]
-      · simp [hi]; rfl)
   mid := midT
   mid_spec := midT_spec
   mulBase := mulBaseT

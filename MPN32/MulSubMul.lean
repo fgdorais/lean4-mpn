@@ -109,13 +109,8 @@ The steps of `main`'s linear combinations on `UInt32Array`: `mulSubMulStep` with
 public instance linComb32 : LinCombOps UInt32Array UInt32 where
   cb := 31
   cb_lt := by decide
-  zeros n := UInt32Array.replicate n 0
-  size_zeros n := UInt32Array.size_replicate ..
-  val_get_ge a i h := by
-    show a[i]!.toNat = 0
-    rw [getElem!_neg a i (Nat.not_lt.2 h)]; rfl
   limb := LinComb.limbU
-  val_limb := LinComb.val_limbU (fun a i h => by show a[i]!.toNat = 0; rw [getElem!_neg a i (Nat.not_lt.2 h)]; rfl)
+  val_limb := LinComb.val_limbU WordArray.val_get_ge
   maC xi yi a b c := mulAddMulStep 0 xi yi a b c
   cOK _ := True
   cOK_zero := trivial

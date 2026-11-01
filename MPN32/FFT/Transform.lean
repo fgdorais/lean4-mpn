@@ -52,15 +52,6 @@ public theorem win_of_untouched {a a' : UInt32Array} {n d o : Nat}
 
 /-! ## The transforms -/
 
-/-- The residue operations of `main`'s `MPN.FFT.Fermat`, guarded, for the transforms of `WinOps`. -/
-public instance winOps32 : WinOps UInt32Array UInt32 where
-  subMod := subModG
-  addMod := addModG
-  mulPow2 := mulPow2G
-  subMod_spec := subModG_spec
-  addMod_spec := addModG_spec
-  mulPow2_spec := mulPow2G_spec
-
 /-- The value of window `p` of the block at `o`, the windows of `n + 1` limbs one after another. -/
 public abbrev coef (arr : UInt32Array) (n o p : Nat) : Nat := win arr n (o + p * (n + 1))
 
@@ -71,7 +62,7 @@ public abbrev Block (arr : UInt32Array) (n o L t : Nat) : Prop :=
 
 /--
 The forward transform of the block of `2ᵐ` windows at `o`, with the root `2^σ`: `WinOps.fwd` on
-`winOps32`.
+`winOpsW`.
 -/
 public def fwd (n t m : Nat) (arr : UInt32Array) (o σ : Nat) : UInt32Array :=
   WinOps.fwd n t m arr o σ
@@ -84,11 +75,11 @@ public theorem fwd_spec (n t : Nat) (hn : 1 ≤ n) (h32 : 32 * n < USize.size) (
         (fwd n t m arr o σ)[i]! = arr[i]!) ∧
       (∀ p < 2 ^ m, coef (fwd n t m arr o σ) n o p =
         sumRange (fun i => coef arr n o i * 2 ^ (σ * i * rev m p)) (2 ^ m) % fermat n) :=
-  winOps32.fwd_spec n t hn h32 m
+  (FFT.winOpsW (A := UInt32Array)).fwd_spec n t hn h32 m
 
 /--
 The inverse transform of the block of `2ᵐ` windows at `o`, with the root `2^(2 N - σ)`:
-`WinOps.inv` on `winOps32`.
+`WinOps.inv` on `winOpsW`.
 -/
 public def inv (n t m : Nat) (arr : UInt32Array) (o σ : Nat) : UInt32Array :=
   WinOps.inv n t m arr o σ
@@ -102,6 +93,6 @@ public theorem inv_spec (n t : Nat) (hn : 1 ≤ n) (h32 : 32 * n < USize.size) (
       (∀ l < 2 ^ m, coef (inv n t m arr o σ) n o l =
         sumRange (fun p => coef arr n o p * 2 ^ ((2 * (32 * n) - σ) * rev m p * l)) (2 ^ m) %
           fermat n) :=
-  winOps32.inv_spec n t hn h32 m
+  (FFT.winOpsW (A := UInt32Array)).inv_spec n t hn h32 m
 
 end MPN.W32.FFT

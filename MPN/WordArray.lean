@@ -82,6 +82,12 @@ public class WordArray (A : Type) (L : outParam Type) [LA : LimbArray A L] where
   uget_eq : ∀ a i h, uget a i h = LA.get a i.toNat
   size_uset : ∀ a i v h, LA.size (uset a i v h) = LA.size a
   get_uset : ∀ a i v h j, LA.get (uset a i v h) j = if i.toNat = j then v else LA.get a j
+  /-- An array of `n` zero limbs. -/
+  zeros : Nat → A
+  size_zeros : ∀ n, LA.size (zeros n) = n
+  val_get_zeros : ∀ n i, LA.val (LA.get (zeros n) i) = 0
+  /-- The limbs past the end of an array read as zero. -/
+  val_get_ge : ∀ a i, LA.size a ≤ i → LA.val (LA.get a i) = 0
   /-- The limb `0`. -/
   zero : L
   /-- The limb `1`. -/

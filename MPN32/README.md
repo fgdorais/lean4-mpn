@@ -18,7 +18,7 @@ bijection, and `toString` and `ofString?` with `Nat.repr` and `String.toNat?`.
 This is the library `MPN32` (namespace `MPN.W32`). The part that does not depend on the width of a
 limb (finite sums, polynomials, the FFT, Karatsuba and the Toom methods, the kernels over
 `WordArray` and the base-generic algorithms of `MPN.Generic`) is the shared library `MPN`, with
-instances for 32-bit limbs here such as `toomOps32` (`MPN32.Mul.ToomOps`); `MPN64` is the same on
+instances for 32-bit limbs here such as `toomBase32` (`MPN32.Mul.ToomOps`), from which `MPN` derives `ToomOps`; `MPN64` is the same on
 `UInt64` limbs.
 
 ## Tuning

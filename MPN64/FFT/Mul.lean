@@ -13,8 +13,8 @@ public import MPN64.Sqr.Karatsuba
 /-!
 # FFT multiplication
 
-Schönhage–Strassen multiplication on 64-bit limbs: `main`'s `MPN.FFT.Product` on the instance
-`fftOps64` of `FFTOps`, whose operations are `main`'s generic kernels (`MPN.FFT.Kernels`), with
+Schönhage–Strassen multiplication on 64-bit limbs: `MPN`'s `MPN.FFT.Product` on `MPN`'s
+instance `fftOpsW` of `FFTOps`, whose operations are its generic kernels (`MPN.FFT.Kernels`), with
 `mulToom` and `sqrKaratsuba` for the pointwise products.
 `fftMulAt`, `fftMulModAt` and `fftSqrAt` take `USlice`s; `fftMul`, `fftSqr` and the dispatchers
 `MPN.mul` and `MPN.sqr` choose the parameters.
@@ -92,22 +92,6 @@ public theorem pieceSl_spec (a : USlice) (m i : Nat) (hS : a.array.size < USize.
   · rw [show a.size.toNat - i * m = 0 by lia, Nat.min_zero, valAt_zero, valAt_zero]
 
 /-! ## The instance -/
-
-/-- The operations of `FFTOps` on 64-bit limbs. -/
-public instance fftOps64 : FFTOps UInt64Array UInt64 where
-  zeros n := UInt64Array.replicate n 0
-  size_zeros n := by simp [LimbArray.size]
-  val_get_zeros n i := by
-    have := valAt_replicate_zero n i 1
-    rwa [valAt_one] at this
-  addRange := WordArray.addIntoK
-  addRange_spec := WordArray.addRange_spec
-  reduce := WordArray.reduceK
-  reduce_spec := WordArray.reduceK_spec
-  addCoef := WordArray.addCoefK
-  addCoef_spec := WordArray.addCoefK_spec
-  zeroRange := WordArray.zeroIntoK
-  zeroRange_spec := WordArray.zeroRange_spec
 
 /-- The pointwise products of the FFT: `mulToom` into `P`. -/
 public def mulP64 (cfg : Config) (P arr : UInt64Array) (x y n : Nat) : UInt64Array :=

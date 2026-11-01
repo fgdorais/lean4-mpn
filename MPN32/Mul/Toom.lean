@@ -12,7 +12,7 @@ public import MPN32.Config
 # Products and squares by the Toom methods
 
 `mulToomL cfg a b` and `sqrToomL cfg a` are all the limbs of `a * b` and `a * a` in a new array,
-by `main`'s `MPN.Toom.mulToom` and `MPN.Toom.sqrToom` on the instance `toomOps32`: Toom-6, Toom-4,
+by `main`'s `MPN.Toom.mulToom` and `MPN.Toom.sqrToom` on `toomOpsW`, from `toomBase32`: Toom-6, Toom-4,
 Toom-4 by 3, Toom-3, Toom-3 by 2, Toom-4 by 2 and their squares by the sizes and the shape, down to
 Karatsuba and the schoolbook product below the thresholds of `cfg`.
 -/

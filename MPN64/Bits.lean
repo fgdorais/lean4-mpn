@@ -87,17 +87,6 @@ public theorem zeroInto_spec (r : USlice) :
   simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero] at this
   exact this
 
-public theorem valAt_replicate_zero (n lo m : Nat) :
-    (UInt64Array.replicate n 0).valAt lo m = 0 := by
-  induction m generalizing lo with
-  | zero => simp
-  | succ m ih =>
-    rw [valAt_succ, ih]
-    rw [getElem!_eq_getElem!_toArray, toArray_replicate]
-    by_cases h : lo < n
-    · simp [h]
-    · simp [h]; rfl
-
 /-! ## Words -/
 
 /-- A word shifted left by `t < 64` bits keeps its low `64 - t` bits. -/

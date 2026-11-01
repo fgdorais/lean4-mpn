@@ -14,8 +14,8 @@ public import MPN.FFT.Kernels
 /-!
 # FFT multiplication
 
-Schönhage–Strassen multiplication on 32-bit limbs: `main`'s `MPN.FFT.Product` on the instance
-`fftOps32` of `FFTOps`, whose operations are `main`'s generic kernels (`MPN.FFT.Kernels`), with a
+Schönhage–Strassen multiplication on 32-bit limbs: `MPN`'s `MPN.FFT.Product` on `MPN`'s
+instance `fftOpsW` of `FFTOps`, whose operations are its generic kernels (`MPN.FFT.Kernels`), with a
 callback (the dispatcher's `mulLimbsWith`) for the pointwise products. `fftMul` and `fftSqr` at
 the end take the library's slices and `MPN.toNat`, as the dispatcher does, and run `main`'s
 `FFTOps.fftMulAt` and `fftSqrAt` on their arrays under `main`'s checks.
@@ -48,35 +48,7 @@ public theorem sl_spec (arr : UInt32Array) (o len : Nat) (h : o + len ≤ arr.si
   rw [USlice.toNat_eq_valAt, hsz, sl, hst, ho]
   rfl
 
-/-- An array of zeros has the value zero everywhere. -/
-private theorem valAt_replicate_zero (n lo m : Nat) :
-    (UInt32Array.replicate n 0).valAt lo m = 0 := by
-  induction m generalizing lo with
-  | zero => simp
-  | succ m ih =>
-    rw [valAt_succ, ih]
-    rw [getElem!_eq_getElem!_toArray, toArray_replicate]
-    by_cases h : lo < n
-    · simp [h]
-    · simp [h]; rfl
-
 /-! ## The instance -/
-
-/-- The operations of `FFTOps` on 32-bit limbs. -/
-public instance fftOps32 : FFTOps UInt32Array UInt32 where
-  zeros n := UInt32Array.replicate n 0
-  size_zeros n := by simp [LimbArray.size]
-  val_get_zeros n i := by
-    have := valAt_replicate_zero n i 1
-    rwa [valAt_one] at this
-  addRange := WordArray.addIntoK
-  addRange_spec := WordArray.addRange_spec
-  reduce := WordArray.reduceK
-  reduce_spec := WordArray.reduceK_spec
-  addCoef := WordArray.addCoefK
-  addCoef_spec := WordArray.addCoefK_spec
-  zeroRange := WordArray.zeroIntoK
-  zeroRange_spec := WordArray.zeroRange_spec
 
 /-- A multiplication of slices of fewer than `N` limbs together, into a new array. -/
 public abbrev MulN (N : Nat) : Type :=

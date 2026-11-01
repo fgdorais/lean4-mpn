@@ -62,11 +62,6 @@ public class LinCombOps (A : Type) (L : outParam Type) [LA : LimbArray A L] [R :
   /-- The bits `c` of the multipliers. -/
   cb : Nat
   cb_lt : cb < LA.w
-  /-- An array of `n` zero limbs. -/
-  zeros : Nat → A
-  size_zeros : ∀ n, LA.size (zeros n) = n
-  /-- Limbs past the end of an array are zero. -/
-  val_get_ge : ∀ a i, LA.size a ≤ i → LA.val (LA.get a i) = 0
   /-- Limb `i` of an array, or zero past its end, without a bounds error, such as `LinComb.limbU`. -/
   limb : A → USize → L
   val_limb : ∀ a i, LA.size a < USize.size → LA.val (limb a i) = LA.val (LA.get a i.toNat)
@@ -253,13 +248,13 @@ public theorem fits_of {n : Nat} (h : (n + 1).toUSize.toNat = n + 1) :
   have := (n + 1).toUSize.toNat_lt_size
   exact ⟨by rw [USize.toNat_ofNat', Nat.mod_eq_of_lt (by lia)], by lia⟩
 
-omit F in
+omit F C in
 public theorem zeros_bound {n : Nat} (h : (n + 1).toUSize.toNat = n + 1) :
-    LoopBound (C.zeros (n + 1)) 0 n.toUSize := by
+    LoopBound (R.zeros (n + 1)) 0 n.toUSize := by
   have := fits_of h
-  show (0 : USize).toNat + n.toUSize.toNat ≤ LA.size (C.zeros (n + 1)) ∧
+  show (0 : USize).toNat + n.toUSize.toNat ≤ LA.size (R.zeros (n + 1)) ∧
     (0 : USize).toNat + n.toUSize.toNat < USize.size
-  rw [C.size_zeros, this.1, USize.toNat_zero]
+  rw [R.size_zeros, this.1, USize.toNat_zero]
   exact ⟨by lia, by lia⟩
 
 /--
@@ -271,11 +266,11 @@ is, the limbs would be written from the value instead.
 public def mulSubMul (x y : A) (a b : L) : A × Bool :=
   let n := max (LA.size x) (LA.size y)
   if h : (n + 1).toUSize.toNat = n + 1 then
-    F.foldThen n.toUSize (msStep x y a b n.toUSize) (C.zeros (n + 1)) 0 (zeros_bound h) 0 C.s0
+    F.foldThen n.toUSize (msStep x y a b n.toUSize) (R.zeros (n + 1)) 0 (zeros_bound h) 0 C.s0
       fun z hz s =>
-        (R.uset z n.toUSize (C.sTop s) (by rw [hz, C.size_zeros, (fits_of h).1]; lia), C.sNeg s)
+        (R.uset z n.toUSize (C.sTop s) (by rw [hz, R.size_zeros, (fits_of h).1]; lia), C.sNeg s)
   else
-    (LimbArray.writeNat (C.zeros (n + 1)) 0 (n + 1)
+    (LimbArray.writeNat (R.zeros (n + 1)) 0 (n + 1)
         (LA.val a * LimbArray.valAt x 0 (LA.size x) - LA.val b * LimbArray.valAt y 0 (LA.size y)),
       decide (LA.val a * LimbArray.valAt x 0 (LA.size x) <
         LA.val b * LimbArray.valAt y 0 (LA.size y)))
@@ -287,10 +282,10 @@ public def mulSubMul (x y : A) (a b : L) : A × Bool :=
 public def mulAddMul (x y : A) (a b : L) : A :=
   let n := max (LA.size x) (LA.size y)
   if h : (n + 1).toUSize.toNat = n + 1 then
-    F.foldThen n.toUSize (maStep x y a b n.toUSize) (C.zeros (n + 1)) 0 (zeros_bound h) 0 R.zero
-      fun z hz c => R.uset z n.toUSize c (by rw [hz, C.size_zeros, (fits_of h).1]; lia)
+    F.foldThen n.toUSize (maStep x y a b n.toUSize) (R.zeros (n + 1)) 0 (zeros_bound h) 0 R.zero
+      fun z hz c => R.uset z n.toUSize c (by rw [hz, R.size_zeros, (fits_of h).1]; lia)
   else
-    LimbArray.writeNat (C.zeros (n + 1)) 0 (n + 1)
+    LimbArray.writeNat (R.zeros (n + 1)) 0 (n + 1)
       (LA.val a * LimbArray.valAt x 0 (LA.size x) + LA.val b * LimbArray.valAt y 0 (LA.size y))
 
 omit F in
@@ -333,12 +328,12 @@ public theorem mulSubMul_spec (x y : A) (a b : L) (ha : LA.val a < 2 ^ C.cb)
     obtain ⟨hn, hU⟩ := fits_of h
     obtain ⟨z, f₁, s', e, hM⟩ := foldThen_cases hM
     subst hM
-    obtain ⟨-, -, f₃, f₄⟩ := msFold_spec x y a b ha hb (by lia) (by lia) _ (C.zeros _) 0
+    obtain ⟨-, -, f₃, f₄⟩ := msFold_spec x y a b ha hb (by lia) (by lia) _ (R.zeros _) 0
       (zeros_bound h) 0 C.s0 C.sOK_s0
     rw [e] at f₃ f₄
     simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, hn, C.sv_s0, Int.add_zero] at f₃
-    rw [valAt_of_ge x _ (C.val_get_ge x) (by lia), valAt_of_ge y _ (C.val_get_ge y) (by lia)] at f₃
-    have hsz : LA.size z = max (LA.size x) (LA.size y) + 1 := by rw [f₁, C.size_zeros]
+    rw [valAt_of_ge x _ (R.val_get_ge x) (by lia), valAt_of_ge y _ (R.val_get_ge y) (by lia)] at f₃
+    have hsz : LA.size z = max (LA.size x) (LA.size y) + 1 := by rw [f₁, R.size_zeros]
     have hval : LimbArray.valAt (R.uset z (max (LA.size x) (LA.size y)).toUSize (C.sTop s')
         (by rw [hsz, hn]; lia)) 0 (max (LA.size x) (LA.size y) + 1) =
         LimbArray.valAt z 0 (max (LA.size x) (LA.size y)) +
@@ -382,12 +377,12 @@ public theorem mulSubMul_spec (x y : A) (a b : L) (ha : LA.val a < 2 ^ C.cb)
   · rename_i h
     subst hM
     have hlt := comb_lt x y a b ha hb
-    have hv := LimbArray.valAt_writeNat (C.zeros (max (LA.size x) (LA.size y) + 1)) 0
+    have hv := LimbArray.valAt_writeNat (R.zeros (max (LA.size x) (LA.size y) + 1)) 0
       (max (LA.size x) (LA.size y) + 1)
       (LA.val a * LimbArray.valAt x 0 (LA.size x) - LA.val b * LimbArray.valAt y 0 (LA.size y))
-      (by rw [C.size_zeros]; lia)
+      (by rw [R.size_zeros]; lia)
     rw [Nat.mod_eq_of_lt (by lia)] at hv
-    refine ⟨by rw [LimbArray.size_writeNat, C.size_zeros], fun hneg => ?_, fun hneg => ?_⟩
+    refine ⟨by rw [LimbArray.size_writeNat, R.size_zeros], fun hneg => ?_, fun hneg => ?_⟩
     · dsimp only at hneg ⊢
       rw [hv]
       have : ¬(LA.val a * LimbArray.valAt x 0 (LA.size x) <
@@ -408,12 +403,12 @@ public theorem mulAddMul_spec (x y : A) (a b : L) (ha : LA.val a < 2 ^ C.cb)
     obtain ⟨hn, hU⟩ := fits_of h
     obtain ⟨z, f₁, c, e, hM⟩ := foldThen_cases hM
     subst hM
-    obtain ⟨-, -, f₃, -⟩ := maFold_spec x y a b ha hb (by lia) (by lia) _ (C.zeros _) 0
+    obtain ⟨-, -, f₃, -⟩ := maFold_spec x y a b ha hb (by lia) (by lia) _ (R.zeros _) 0
       (zeros_bound h) 0 R.zero C.cOK_zero
     rw [e] at f₃
     simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, hn, R.val_zero] at f₃
-    rw [valAt_of_ge x _ (C.val_get_ge x) (by lia), valAt_of_ge y _ (C.val_get_ge y) (by lia)] at f₃
-    have hsz : LA.size z = max (LA.size x) (LA.size y) + 1 := by rw [f₁, C.size_zeros]
+    rw [valAt_of_ge x _ (R.val_get_ge x) (by lia), valAt_of_ge y _ (R.val_get_ge y) (by lia)] at f₃
+    have hsz : LA.size z = max (LA.size x) (LA.size y) + 1 := by rw [f₁, R.size_zeros]
     refine ⟨by rw [R.size_uset, hsz], ?_⟩
     rw [LimbArray.valAt_add, LimbArray.valAt_one, R.get_uset, valAt_uset_of _ _ _ _ _ _
       (by rw [hn]; lia)]
@@ -421,8 +416,8 @@ public theorem mulAddMul_spec (x y : A) (a b : L) (ha : LA.val a < 2 ^ C.cb)
     exact f₃
   · subst hM
     have hlt := comb_lt x y a b ha hb
-    refine ⟨by rw [LimbArray.size_writeNat, C.size_zeros], ?_⟩
-    rw [LimbArray.valAt_writeNat _ _ _ _ (by rw [C.size_zeros]; lia), Nat.mod_eq_of_lt hlt]
+    refine ⟨by rw [LimbArray.size_writeNat, R.size_zeros], ?_⟩
+    rw [LimbArray.valAt_writeNat _ _ _ _ (by rw [R.size_zeros]; lia), Nat.mod_eq_of_lt hlt]
 
 end LinComb
 

@@ -206,13 +206,8 @@ private theorem maWord_spec (xi yi a b c : UInt64) (ha : a.toNat < 2 ^ 62) (hb :
 public instance linComb64 : LinCombOps UInt64Array UInt64 where
   cb := 62
   cb_lt := by decide
-  zeros n := UInt64Array.replicate n 0
-  size_zeros n := UInt64Array.size_replicate ..
-  val_get_ge a i h := by
-    show a[i]!.toNat = 0
-    rw [getElem!_neg a i (Nat.not_lt.2 h)]; rfl
   limb := LinComb.limbU
-  val_limb := LinComb.val_limbU (fun a i h => by show a[i]!.toNat = 0; rw [getElem!_neg a i (Nat.not_lt.2 h)]; rfl)
+  val_limb := LinComb.val_limbU WordArray.val_get_ge
   maC := maWord
   cOK c := c.toNat ≤ 2 ^ 63
   cOK_zero := by decide
