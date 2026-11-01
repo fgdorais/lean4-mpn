@@ -278,6 +278,25 @@ def tuneDivDC (log : Bool) : IO Nat :=
   tune "division by blocks" (divNormWith never) divNormWith checkArr divOperands
     (range 64 1600 32) (log := log)
 
+/--
+Tunes `div1Recip`: where division by a normalized limb with Möller and Granlund's steps with a
+precomputed reciprocal beats the hardware divider, or `1000000`, never, if it does not win up to
+512 limbs.
+-/
+def tuneDiv1Recip (log : Bool) : IO Nat := medianOf 3 do
+  let div1 (t : USize) (a _ : UInt64Array) : UInt64Array × UInt64 :=
+    divRem1With t (UInt64Array.replicate a.size 0).toUSlice a.toUSlice 0xF123456789ABCDEF
+  match ← crossoverOn (div1 4294967295) (fun n => div1 n.toUSize)
+      (fun p => p.2 + p.1.size.toUInt64)
+      (fun n => operands n n) [2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512]
+      3 log with
+  | some n =>
+    if log then IO.println s!"  found {n}"
+    return n
+  | none =>
+    if log then IO.println "  the hardware divider always won"
+    return 1000000
+
 def tuneGcdHalf (log : Bool) : IO Nat :=
   tune "half-gcd" (gcdWith never) gcdWith checkArr (fun n => operands n n) (range 256 4096 128)
     (confirm := 2) (log := log)
@@ -354,13 +373,15 @@ public def main (args : List String) : IO UInt32 := do
   let sqrFFT ← tuneSqrFFT s₄ log
   IO.println "divDC: one level of division by blocks against the schoolbook method, at 2n / n"
   let divDC ← tuneDivDC log
+  IO.println "div1Recip: division by a limb with a reciprocal against the hardware divider"
+  let div1Recip ← tuneDiv1Recip log
   IO.println "gcdHalf: half-gcd against Lehmer's algorithm"
   let gcdHalf ← tuneGcdHalf log
   IO.println "strDC: writing decimal digits by divide and conquer against the base case"
   let strDC ← tuneStrDC log
   IO.println "parseDC: reading decimal digits by divide and conquer against the base case"
   let parseDC ← tuneParseDC log
-  let cfg : Config := { s₄ with sqrFFT, divDC, gcdHalf, strDC, parseDC }
+  let cfg : Config := { s₄ with sqrFFT, divDC, div1Recip, gcdHalf, strDC, parseDC }
   IO.println ""
   IO.println s!"Found:   {repr cfg}"
   IO.println s!"Default: {repr ({} : Config)}"
@@ -372,7 +393,8 @@ public def main (args : List String) : IO UInt32 := do
     ("mulUnbalanced", cfg.mulUnbalanced), ("mulChunkMax", cfg.mulChunkMax),
     ("sqrKaratsuba", cfg.sqrKaratsuba), ("sqrToom3", cfg.sqrToom3), ("sqrToom4", cfg.sqrToom4),
     ("sqrToom6", cfg.sqrToom6), ("sqrFFT", cfg.sqrFFT), ("divDC", cfg.divDC),
-    ("gcdHalf", cfg.gcdHalf), ("strDC", cfg.strDC), ("parseDC", cfg.parseDC)]
+    ("div1Recip", cfg.div1Recip), ("gcdHalf", cfg.gcdHalf), ("strDC", cfg.strDC),
+    ("parseDC", cfg.parseDC)]
   IO.println "To compile these into the library, add to its `require` in lakefile.toml:"
   IO.println s!"  options = \{ {", ".intercalate (opts.map fun (k, v) => s!"{k} = \"{v}\"")} }"
   IO.println "or build this package with:"
