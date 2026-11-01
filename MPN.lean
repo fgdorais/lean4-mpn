@@ -13,6 +13,7 @@ public import MPN.Poly
 public import MPN.FFT.Algebra
 public import MPN.LimbArray
 public import MPN.Log2
+public import MPN.WordH
 public import MPN.WordArray
 public import MPN.FFT.Windows
 public import MPN.FFT.Fermat
