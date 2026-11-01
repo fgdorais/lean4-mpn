@@ -7,6 +7,7 @@ module
 public import MPN64.FFT.Mul
 public import MPN64.Div.Basecase
 public import MPN.Bitwise
+public import MPN.Trim
 
 /-!
 # Whole arrays as numbers
@@ -255,100 +256,20 @@ public theorem limbAt_eq (a : UInt64Array) (i : Nat) : limbAt a i = a[i]! := by
   · rw [getElem!_eq_getElem]
   · rename_i h; rw [getElem!_neg a i h]; rfl
 
-/-- Whether limbs `0` to `i - 1` of `a` are below those of `b`, comparing from the top down. -/
-public def ltLoop (a b : UInt64Array) : Nat → Bool
-  | 0 => false
-  | i + 1 =>
-    let x := limbAt a i
-    let y := limbAt b i
-    if x < y then true else if y < x then false else ltLoop a b i
-
-private theorem ltLoop_iff (a b : UInt64Array) :
-    ∀ i, ltLoop a b i = true ↔ a.valAt 0 i < b.valAt 0 i := by
-  intro i
-  induction i with
-  | zero => simp [ltLoop]
-  | succ i ih =>
-    have ea := UInt64Array.valAt_add a 0 i 1
-    have eb := UInt64Array.valAt_add b 0 i 1
-    rw [valAt_one, Nat.zero_add] at ea eb
-    rw [ea, eb, ltLoop, ← limbAt_eq, ← limbAt_eq]
-    have hla := valAt_lt a 0 i
-    have hlb := valAt_lt b 0 i
-    generalize a.valAt 0 i = La at *
-    generalize b.valAt 0 i = Lb at *
-    generalize 2 ^ (64 * i) = P at *
-    generalize limbAt a i = x
-    generalize limbAt b i = y
-    split
-    · rename_i h
-      rw [UInt64.lt_iff_toNat_lt] at h
-      have := Nat.mul_le_mul_left P (show x.toNat + 1 ≤ y.toNat from h)
-      rw [Nat.mul_add, Nat.mul_one] at this
-      simp only [true_iff]
-      lia
-    · split
-      · rename_i _ h
-        rw [UInt64.lt_iff_toNat_lt] at h
-        have := Nat.mul_le_mul_left P (show y.toNat + 1 ≤ x.toNat from h)
-        rw [Nat.mul_add, Nat.mul_one] at this
-        simp only [Bool.false_eq_true, false_iff, Nat.not_lt]
-        lia
-      · rename_i h₁ h₂
-        have e : x = y := by
-          rw [UInt64.lt_iff_toNat_lt] at h₁ h₂
-          exact UInt64.toNat_inj.1 (by lia)
-        rw [ih, e]
-        lia
-
-/-- Limbs past the end are zero. -/
-private theorem valAt_past (a : UInt64Array) : ∀ k lo, a.size ≤ lo → a.valAt lo k = 0 := by
-  intro k
-  induction k with
-  | zero => intro lo _; simp
-  | succ k ih =>
-    intro lo h
-    rw [valAt_succ, ih (lo + 1) (by lia), getElem!_neg a lo (by lia)]
-    rfl
-
 public theorem valAt_ge (a : UInt64Array) (m : Nat) (h : a.size ≤ m) :
     a.valAt 0 m = a.toNat := by
-  rw [toNat_eq_valAt, show m = a.size + (m - a.size) by lia, UInt64Array.valAt_add,
-    valAt_past a _ (0 + a.size) (by lia), Nat.mul_zero, Nat.add_zero]
+  rw [toNat_eq_valAt]
+  exact WordArray.valAt_of_size_le a h
 
-/-- Whether `a < b`, comparing limbs from the top down. -/
-public def lt (a b : UInt64Array) : Bool := ltLoop a b (max a.size b.size)
+/--
+Whether `a < b`, comparing limbs from the top down: `main`'s `WordArray.ltA`, by `WordArray.ltW`
+with `uget` below `2³¹` limbs.
+-/
+public def lt (a b : UInt64Array) : Bool := WordArray.ltA a b
 
 public theorem lt_iff (a b : UInt64Array) (_hU : a.size + b.size < USize.size) :
     lt a b = true ↔ a.toNat < b.toNat := by
-  rw [lt, ltLoop_iff, valAt_ge a _ (by lia), valAt_ge b _ (by lia)]
-
-/--
-`lt` by `main`'s `WordArray.ltW`, from the top limb down with `uget`, below `2³¹` limbs, which the
-compiler uses in its place.
--/
-public def ltFast (a b : UInt64Array) : Bool :=
-  if max a.size b.size < 2147483648 then WordArray.ltW a b (max a.size b.size).toUSize
-  else ltLoop a b (max a.size b.size)
-
-@[csimp] public theorem lt_eq_ltFast : @lt = @ltFast := by
-  funext a b
-  rw [lt, ltFast]
-  split
-  · rename_i h
-    have hU : 2147483648 < USize.size := by
-      rcases USize.size_eq with e | e <;> rw [e] <;> decide
-    have hz : ∀ (a : UInt64Array) (i : Nat), LimbArray.size a ≤ i →
-        LimbArray.val UInt64Array (LimbArray.get a i) = 0 := fun a i h => by
-      show a[i]!.toNat = 0
-      rw [getElem!_neg a i (Nat.not_lt.2 h)]; rfl
-    have e : (max a.size b.size).toUSize.toNat = max a.size b.size := by
-      rw [USize.toNat_ofNat', Nat.mod_eq_of_lt (by lia)]
-    apply Bool.eq_iff_iff.2
-    rw [ltLoop_iff, WordArray.ltW_iff hz a b _ (by show a.size < _; lia) (by show b.size < _; lia),
-      e]
-    rfl
-  · rfl
+  rw [lt, WordArray.ltA_iff, toNat_eq_valAt, toNat_eq_valAt]; rfl
 
 /-! ## Division -/
 

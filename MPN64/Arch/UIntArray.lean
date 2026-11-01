@@ -598,6 +598,13 @@ public instance wordArray64 : MPN.WordArray UInt64Array UInt64 where
   val_get_ge a i h := by
     show a[i]!.toNat = 0
     rw [getElem!_neg a i (Nat.not_lt.2 h)]; rfl
+  pop a := a.pop
+  size_pop a := UInt64Array.size_pop a
+  get_pop a i h := by
+    replace h : i < a.size - 1 := h
+    show a.pop[i]! = a[i]!
+    rw [getElem!_eq_getElem _ _ (by rw [UInt64Array.size_pop]; lia),
+      getElem!_eq_getElem _ _ (by lia), UInt64Array.getElem_pop]
   zero := 0
   one := 1
   add x y := x + y

@@ -11,7 +11,7 @@ public import MPN32.Arch.SqrBasecase
 public import MPN.Toom.Ops
 public import MPN.Toom.Kernels
 public import MPN32.Arch.UIntArray
-public import MPN32.ValAt
+public import MPN32.Basic
 
 /-!
 # The operations of the Karatsuba and Toom methods

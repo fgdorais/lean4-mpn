@@ -7,7 +7,7 @@ module
 public import MPN32.Mul.Basecase
 public import MPN32.FFT.Mul
 public import MPN32.Settings
-public import MPN32.ValAt
+public import MPN32.Basic
 
 /-!
 # Multiplication

@@ -40,101 +40,15 @@ public theorem lt_of_fits {n : Nat} (h : fits n = true) : n < USize.size := by
 
 /-! ## The fallback -/
 
-/-- The `len` low limbs of `n`. -/
-public def ofNatN (n len : Nat) : UInt64Array :=
-  UInt64Array.ofFn (n := len) fun i => (n / 2 ^ (64 * i.1)).toUInt64
+/-- The `len` low limbs of `n`: `main`'s `WordArray.ofNatLen`, by halves. -/
+public def ofNatN (n len : Nat) : UInt64Array := WordArray.ofNatLen n len
 
-public theorem size_ofNatN (n len : Nat) : (ofNatN n len).size = len := by simp [ofNatN]
-
-private theorem valAt_ofNatN (n len : Nat) : ∀ m lo, lo + m ≤ len →
-    (ofNatN n len).valAt lo m = n / 2 ^ (64 * lo) % 2 ^ (64 * m) := by
-  intro m
-  induction m with
-  | zero => intro lo _; simp [Nat.mod_one]
-  | succ m ih =>
-    intro lo h
-    rw [valAt_succ, ih (lo + 1) (by lia), getElem!_eq_getElem _ _ (by rw [size_ofNatN]; lia)]
-    simp only [ofNatN, getElem_ofFn, Nat.toUInt64_eq, UInt64.toNat_ofNat']
-    rw [show 64 * (lo + 1) = 64 * lo + 64 by lia, Nat.pow_add, ← Nat.div_div_eq_div_mul,
-      show 64 * (m + 1) = 64 + 64 * m by lia, Nat.pow_add, Nat.mod_mul]
+public theorem size_ofNatN (n len : Nat) : (ofNatN n len).size = len := by
+  rw [ofNatN]; exact WordArray.size_ofNatLen (A := UInt64Array) n len
 
 public theorem toNat_ofNatN (n len : Nat) : (ofNatN n len).toNat = n % 2 ^ (64 * len) := by
-  rw [toNat_eq_valAt, size_ofNatN, valAt_ofNatN n len len 0 (by lia)]
-  simp
-
-/--
-Pushes the `k` limbs of `x % 2^(64 k)` onto `acc`: by halves above `16` limbs, and below one limb
-at a time from the low word of `x`, which `toUInt64` reads without an operation on `Nat`.
--/
-public def ofNatPush (x k : Nat) (acc : UInt64Array) : UInt64Array :=
-  if k = 0 then acc
-  else if k ≤ 16 then ofNatPush (x >>> 64) (k - 1) (acc.push x.toUInt64)
-  else
-    let hi := x >>> (64 * (k / 2))
-    ofNatPush hi (k - k / 2) (ofNatPush (x - hi <<< (64 * (k / 2))) (k / 2) acc)
-termination_by k
-
-/-- Limb `i` of the low `s` bits of `x` is limb `i` of `x`, for `64 (i + 1) ≤ s`. -/
-private theorem limb_mod (x s t : Nat) (h : t + 64 ≤ s) :
-    (x % 2 ^ s / 2 ^ t).toUInt64 = (x / 2 ^ t).toUInt64 := by
-  have hd := Nat.div_add_mod x (2 ^ s)
-  generalize x % 2 ^ s = r at hd ⊢
-  generalize x / 2 ^ s = q at hd
-  subst hd
-  rw [show 2 ^ s * q = 2 ^ t * (2 ^ 64 * (2 ^ (s - t - 64) * q)) by
-      rw [← Nat.mul_assoc, ← Nat.mul_assoc, ← Nat.pow_add, ← Nat.pow_add,
-        show t + 64 + (s - t - 64) = s by lia],
-    Nat.add_comm, Nat.add_mul_div_left _ _ (Nat.two_pow_pos _)]
-  apply UInt64.toNat_inj.1
-  simp only [Nat.toUInt64_eq, UInt64.toNat_ofNat', Nat.add_mul_mod_self_left]
-
-private theorem ofNatPush_spec (x k : Nat) (acc : UInt64Array) :
-    ∃ L : List UInt64, (ofNatPush x k acc).toList = acc.toList ++ L ∧ L.length = k ∧
-      ∀ i (h : i < L.length), L[i] = (x / 2 ^ (64 * i)).toUInt64 := by
-  induction k using Nat.strongRecOn generalizing x acc with
-  | ind k ih =>
-    rw [ofNatPush]
-    split
-    · exact ⟨[], by simp, by simp; lia, fun i h => absurd h (by simp)⟩
-    · split
-      · rename_i h0 h1
-        obtain ⟨L, hL, hl, hv⟩ := ih (k - 1) (by lia) (x >>> 64) (acc.push x.toUInt64)
-        refine ⟨x.toUInt64 :: L, by rw [hL]; simp, by simp; lia, fun i h => ?_⟩
-        cases i with
-        | zero => simp
-        | succ i =>
-          rw [List.getElem_cons_succ, hv i (by simp at h; lia), Nat.shiftRight_eq_div_pow,
-            Nat.div_div_eq_div_mul, ← Nat.pow_add]
-          congr 3
-          lia
-      · rename_i h0 h1
-        dsimp only
-        have hlo : x - (x >>> (64 * (k / 2))) <<< (64 * (k / 2)) = x % 2 ^ (64 * (k / 2)) := by
-          rw [Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq, Nat.mod_def, Nat.mul_comm]
-        obtain ⟨L₁, h₁, hl₁, hv₁⟩ := ih (k / 2) (by lia)
-          (x - (x >>> (64 * (k / 2))) <<< (64 * (k / 2))) acc
-        obtain ⟨L₂, h₂, hl₂, hv₂⟩ := ih (k - k / 2) (by lia) (x >>> (64 * (k / 2)))
-          (ofNatPush (x - (x >>> (64 * (k / 2))) <<< (64 * (k / 2))) (k / 2) acc)
-        refine ⟨L₁ ++ L₂, by rw [h₂, h₁, List.append_assoc], by simp; lia, fun i h => ?_⟩
-        by_cases hi : i < L₁.length
-        · rw [List.getElem_append_left hi, hv₁ i hi, hlo, limb_mod _ _ _ (by lia)]
-        · rw [List.getElem_append_right (by lia), hv₂ _ (by simp at h; lia),
-            Nat.shiftRight_eq_div_pow, Nat.div_div_eq_div_mul, ← Nat.pow_add]
-          congr 3
-          lia
-
-/-- `ofNatN` by halves, which the compiler uses in its place. -/
-public def ofNatNFast (n len : Nat) : UInt64Array := ofNatPush n len (.emptyWithCapacity len)
-
-@[csimp] public theorem ofNatN_eq_ofNatNFast : @ofNatN = @ofNatNFast := by
-  funext n len
-  obtain ⟨L, hL, hl, hv⟩ := ofNatPush_spec n len (.emptyWithCapacity len)
-  apply UInt64Array.toList_inj.1
-  rw [ofNatNFast, hL, ofNatN, UInt64Array.toList_ofFn, UInt64Array.emptyWithCapacity_eq_empty,
-    UInt64Array.toList_empty, List.nil_append]
-  apply List.ext_getElem (by simp [hl])
-  intro i h₁ h₂
-  rw [hv i h₂, List.getElem_ofFn]
+  rw [toNat_eq_valAt, size_ofNatN, ofNatN]
+  exact WordArray.valAt_ofNatLen (A := UInt64Array) n len
 
 /-- The limbs of `n`. -/
 public def ofNat (n : Nat) : UInt64Array := ofNatN n (n.log2 / 64 + 1)
@@ -152,63 +66,40 @@ public theorem toNat_lt_pow (x : UInt64Array) : x.toNat < (2 ^ 64) ^ x.size := b
 
 /--
 `x` without its zero limbs on top, but at least one limb: the operations of `MPN.Num` leave such
-limbs, and the generic algorithms decide by sizes. It pops them, in place when `x` is not shared,
-which the fresh results of `MPN.Num` never are; it is `x` itself when its top limb is nonzero.
+limbs, and the generic algorithms decide by sizes. It is `main`'s `WordArray.trimTo 1`, which pops
+them, in place when `x` is not shared, which the fresh results of `MPN.Num` never are; it is `x`
+itself when its top limb is nonzero.
 -/
-public def trimA (x : UInt64Array) : UInt64Array :=
-  if h : 1 < x.size then
-    if x[x.size - 1] = 0 then trimA x.pop else x
-  else x
-termination_by x.size
-decreasing_by simp only [UInt64Array.size_pop]; lia
+public def trimA (x : UInt64Array) : UInt64Array := WordArray.trimTo 1 x
 
 @[simp] public theorem toNat_trimA (x : UInt64Array) : (trimA x).toNat = x.toNat := by
-  induction x using trimA.induct with
-  | case1 x h₁ h₂ ih =>
-    rw [trimA, dite_eq_left h₁, ite_eq_left h₂, ih]
-    have hs : x.size = (x.size - 1) + 1 := by lia
-    rw [toNat_eq_valAt, toNat_eq_valAt, UInt64Array.size_pop, hs, UInt64Array.valAt_add,
-      UInt64Array.valAt_one, Nat.zero_add, ← hs, getElem!_eq_getElem _ _ (by lia), h₂,
-      UInt64.toNat_zero, Nat.mul_zero, Nat.add_zero]
-    exact UInt64Array.valAt_congr _ fun i _ hi => by
-      rw [getElem!_eq_getElem _ _ (by simp only [UInt64Array.size_pop]; lia),
-        getElem!_eq_getElem _ _ (by lia), UInt64Array.getElem_pop]
-  | case2 x h₁ h₂ => rw [trimA, dite_eq_left h₁, ite_eq_right h₂]
-  | case3 x h => rw [trimA, dite_eq_right h]
+  rw [toNat_eq_valAt, toNat_eq_valAt, trimA]
+  exact WordArray.valAt_trimTo 1 x
 
 public theorem size_trimA_le (x : UInt64Array) : (trimA x).size ≤ max x.size 1 := by
-  induction x using trimA.induct with
-  | case1 x h₁ h₂ ih =>
-    rw [trimA, dite_eq_left h₁, ite_eq_left h₂]
-    simp only [UInt64Array.size_pop] at ih
-    lia
-  | case2 x h₁ h₂ => rw [trimA, dite_eq_left h₁, ite_eq_right h₂]; lia
-  | case3 x h => rw [trimA, dite_eq_right h]; lia
-
-/-- `trimA x` is one limb or has a nonzero top limb, for `x` of one limb at least. -/
-public theorem trimA_top (x : UInt64Array) (h : 1 ≤ x.size) :
-    (trimA x).size = 1 ∨ (1 < (trimA x).size ∧ (trimA x)[(trimA x).size - 1]! ≠ 0) := by
-  induction x using trimA.induct with
-  | case1 x h₁ h₂ ih =>
-    rw [trimA, dite_eq_left h₁, ite_eq_left h₂]
-    exact ih (by simp only [UInt64Array.size_pop]; lia)
-  | case2 x h₁ h₂ =>
-    rw [trimA, dite_eq_left h₁, ite_eq_right h₂]
-    exact Or.inr ⟨h₁, by rw [getElem!_eq_getElem _ _ (by lia)]; exact h₂⟩
-  | case3 x h₁ =>
-    rw [trimA, dite_eq_right h₁]
-    exact Or.inl (by lia)
+  rw [trimA]; exact Nat.le_trans (WordArray.size_trimTo_le 1 x) (Nat.le_max_left ..)
 
 /-- `trimA x` has at most one limb or a nonzero top limb. -/
 public theorem trimA_trimmed (x : UInt64Array) :
     (trimA x).size ≤ 1 ∨ (trimA x)[(trimA x).size - 1]! ≠ 0 := by
-  by_cases h : 1 ≤ x.size
-  · rcases trimA_top x h with e | ⟨-, e⟩
+  rw [trimA]
+  rcases (WordArray.trimTo_spec 1 x).2.2.2 with h | h
+  · exact .inl h
+  · exact .inr fun e => h (by
+      show (WordArray.trimTo 1 x)[(WordArray.trimTo 1 x).size - 1]!.toNat = 0; rw [e]; rfl)
+
+/-- `trimA x` is one limb or has a nonzero top limb, for `x` of one limb at least. -/
+public theorem trimA_top (x : UInt64Array) (h : 1 ≤ x.size) :
+    (trimA x).size = 1 ∨ (1 < (trimA x).size ∧ (trimA x)[(trimA x).size - 1]! ≠ 0) := by
+  have hge : 1 ≤ (trimA x).size := by
+    have := WordArray.le_size_trimTo 1 x
+    rw [trimA]
+    exact Nat.le_trans (by show 1 ≤ min 1 x.size; lia) this
+  rcases trimA_trimmed x with e | e
+  · exact .inl (by lia)
+  · rcases Nat.lt_or_ge 1 (trimA x).size with h' | h'
+    · exact .inr ⟨h', e⟩
     · exact .inl (by lia)
-    · exact .inr e
-  · have e : trimA x = x := by rw [trimA, dite_eq_right (by lia)]
-    rw [e]
-    exact .inl (by lia)
 
 /-! ## The instance -/
 

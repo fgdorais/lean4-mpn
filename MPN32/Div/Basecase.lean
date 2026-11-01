@@ -5,7 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN32.Mul.Limb
-public import MPN32.ValAt
+public import MPN32.Basic
 public import MPN.Div.Schoolbook
 public import MPN.Div.ByLimb
 

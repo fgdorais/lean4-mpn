@@ -88,6 +88,10 @@ public class WordArray (A : Type) (L : outParam Type) [LA : LimbArray A L] where
   val_get_zeros : ∀ n i, LA.val (LA.get (zeros n) i) = 0
   /-- The limbs past the end of an array read as zero. -/
   val_get_ge : ∀ a i, LA.size a ≤ i → LA.val (LA.get a i) = 0
+  /-- `a` without its top limb, in place when `a` is not shared. -/
+  pop : A → A
+  size_pop : ∀ a, LA.size (pop a) = LA.size a - 1
+  get_pop : ∀ a i, i < LA.size a - 1 → LA.get (pop a) i = LA.get a i
   /-- The limb `0`. -/
   zero : L
   /-- The limb `1`. -/

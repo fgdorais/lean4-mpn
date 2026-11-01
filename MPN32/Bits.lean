@@ -7,7 +7,7 @@ module
 public import MPN32.Mul.Limb
 public import MPN.Shift
 public import MPN.Bitwise
-public import MPN32.ValAt
+public import MPN32.Basic
 
 /-!
 # Shifts and bits

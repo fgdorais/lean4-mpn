@@ -64,6 +64,7 @@ lake build bench64 tune64      # the executables, which `lake build` does not bu
 | `MPN.Generic.Sqrt` | Zimmermann's Karatsuba square root over `NatOps`, with the instance's base case, and facts about `Nat.sqrt` |
 | `MPN.Generic.HGCD` | half-gcd over `NatOps` (Schönhage, Möller), with the instance's base case |
 | `MPN.Generic.Radix` | decimal strings by divide and conquer over `NatOps` |
+| `MPN.Trim` | trimming (`trimTo k`, `isTrimmedTo k`), the limbs of a `Nat` by halves (`ofNatW`, `ofNatLen`), and comparison of windows and arrays (`ltWin`, `ltA`) on any `WordArray`, with `valAt` as their specification |
 | `MPN.Dispatch` | the products and squares of both widths, written into a window: the choice between the FFT, the Toom methods and unbalanced pieces by the thresholds of a `MulConfig` |
 | `MPN.Dispatch.Div` | the choice of a division of normalized operands over `NatOps` (divide and conquer, Barrett's division, the quotient alone) by the thresholds of a `DivConfig`, and of a square root over `GNat` (`SqrtConfig`) |
 

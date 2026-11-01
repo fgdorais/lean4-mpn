@@ -6,7 +6,6 @@ module
 
 public import MPN32.Basic
 public import MPN32.Arch.UInt
-public import MPN32.ValAt
 public import MPN.LinComb
 
 /-!
