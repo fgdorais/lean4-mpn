@@ -106,6 +106,8 @@ public class WordArray (A : Type) (L : outParam Type) [LA : LimbArray A L] where
   div2 : L → L → L → L
   /-- The quotient and remainder of `h 2ʷ + l` by `d`, for `h < d`: one step of division. -/
   div2Rem : L → L → L → L × L
+  /-- The double limb `y x + z + c`, low limb first: one step of a multiply-add pass. -/
+  mulAdd2 : L → L → L → L → L × L
   /-- Whether `x < y`. -/
   ltB : L → L → Bool
   /-- Whether `x = y`. -/
@@ -152,6 +154,8 @@ public class WordArray (A : Type) (L : outParam Type) [LA : LimbArray A L] where
   val_mulh : ∀ x y, LA.val (mulh x y) = LA.val x * LA.val y / 2 ^ LA.w
   val_div2 : ∀ h l d, LA.val h < LA.val d →
     LA.val (div2 h l d) = (LA.val h * 2 ^ LA.w + LA.val l) / LA.val d
+  val_mulAdd2 : ∀ y x z c, LA.val (mulAdd2 y x z c).1 + 2 ^ LA.w * LA.val (mulAdd2 y x z c).2 =
+    LA.val y * LA.val x + LA.val z + LA.val c
   val_div2Rem : ∀ h l d, LA.val h < LA.val d →
     LA.val (div2Rem h l d).1 = (LA.val h * 2 ^ LA.w + LA.val l) / LA.val d ∧
       LA.val (div2Rem h l d).2 = (LA.val h * 2 ^ LA.w + LA.val l) % LA.val d

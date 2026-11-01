@@ -19,11 +19,13 @@ public import MPN.FFT.Fermat
 public import MPN.Div.ByLimb
 public import MPN.WordSqrt
 public import MPN.Join
+public import MPN.MulLimbW
 public import MPN.Div.Schoolbook
 public import MPN.LinComb
 public import MPN.Natural
 public import MPN.FFT.Product
 public import MPN.Toom.Ops
+public import MPN.Toom.Kernels
 public import MPN.Toom.Karatsuba
 public import MPN.Toom.Steps
 public import MPN.Toom.Interp
