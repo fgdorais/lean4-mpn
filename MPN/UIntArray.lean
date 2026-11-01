@@ -608,6 +608,7 @@ public instance wordArray64 : MPN.WordArray UInt64Array UInt64 where
   mul x y := x * y
   mulh := UInt64.mulh
   div2 := UInt64.div2
+  div2Rem h l d := let q := UInt64.div2 h l d; (q, l - q * d)
   ltB x y := decide (x < y)
   eqB x y := x == y
   land x y := x &&& y
@@ -642,6 +643,7 @@ public instance wordArray64 : MPN.WordArray UInt64Array UInt64 where
   val_mul x y := UInt64.toNat_mul x y
   val_mulh := UInt64.toNat_mulh
   val_div2 h l d hd := UInt64.toNat_div2 h l d hd
+  val_div2Rem h l d hd := ⟨UInt64.toNat_div2 h l d hd, (UInt64.toNat_div2_rem h l d hd).1⟩
   val_unB_b0 := rfl
   val_subMulB z y x c := by
     show (z - (y * x + c)).toNat + y.toNat * x.toNat + c.toNat =
