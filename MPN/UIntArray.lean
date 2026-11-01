@@ -595,6 +595,7 @@ public instance wordArray32 : MPN.WordArray UInt32Array UInt32 where
   mul x y := x * y
   mulh := UInt32.mulh
   div2 := UInt32.div2
+  div2Rem := UInt32.div2Rem
   ltB x y := decide (x < y)
   eqB x y := x == y
   land x y := x &&& y
@@ -628,6 +629,7 @@ public instance wordArray32 : MPN.WordArray UInt32Array UInt32 where
   val_mul x y := UInt32.toNat_mul x y
   val_mulh := UInt32.toNat_mulh
   val_div2 h l d hd := UInt32.toNat_div2 h l d hd
+  val_div2Rem h l d hd := UInt32.toNat_div2Rem h l d hd
   val_subMulB z y x h := by
     show (z.subMulBiased y x h).1.toNat + y.toNat * x.toNat + (~~~h).toNat =
       z.toNat + 2 ^ 32 * (~~~(z.subMulBiased y x h).2).toNat
@@ -665,6 +667,7 @@ public instance wordArray32 : MPN.WordArray UInt32Array UInt32 where
   val_lor x y := UInt32.toNat_or x y
   val_xor x y := UInt32.toNat_xor x y
   log2_eq x := UInt32.toNat_log2' x
+  val_ofBool b := by cases b <;> rfl
   w_ge := by decide
 
 /-- The loop of `foldlInPlace2` from index `k` is `main`'s `foldUInPlace2` from `j₀ + k`. -/

@@ -490,3 +490,28 @@ public theorem UInt32.toNat_div2_rem (hi lo d : UInt32) (h : hi.toNat < d.toNat)
   refine ⟨e', ?_⟩
   rw [e', hq]
   exact hdm
+
+/--
+The quotient and remainder of `hi β + lo` by `d`, where `β = 2³²`, from one division of the
+`UInt64` `hi β + lo`, which the C compiler makes one instruction.
+-/
+@[inline]
+public def UInt32.div2Rem (hi lo d : UInt32) : UInt32 × UInt32 :=
+  let t := (hi.toUInt64 <<< 32) + lo.toUInt64
+  ((t / d.toUInt64).toUInt32, (t % d.toUInt64).toUInt32)
+
+public theorem UInt32.toNat_div2Rem (hi lo d : UInt32) (h : hi.toNat < d.toNat) :
+    (UInt32.div2Rem hi lo d).1.toNat = (hi.toNat * 2 ^ 32 + lo.toNat) / d.toNat ∧
+      (UInt32.div2Rem hi lo d).2.toNat = (hi.toNat * 2 ^ 32 + lo.toNat) % d.toNat := by
+  refine ⟨UInt32.toNat_div2 hi lo d h, ?_⟩
+  have hx := lo.toNat_lt
+  have hr' := hi.toNat_lt
+  have hd' : 0 < d.toNat := by lia
+  have ht : ((hi.toUInt64 <<< 32) + lo.toUInt64).toNat = hi.toNat * 2 ^ 32 + lo.toNat := by
+    simp only [UInt64.toNat_add, UInt64.toNat_shiftLeft, UInt32.toNat_toUInt64,
+      UInt64.reduceToNat, Nat.reduceMod, Nat.shiftLeft_eq]
+    rw [Nat.mod_eq_of_lt (by lia), Nat.mod_eq_of_lt (by lia)]
+  simp only [UInt32.div2Rem, UInt64.toNat_toUInt32, UInt64.toNat_mod, UInt32.toNat_toUInt64, ht]
+  have := Nat.mod_lt (hi.toNat * 2 ^ 32 + lo.toNat) hd'
+  have := d.toNat_lt
+  lia

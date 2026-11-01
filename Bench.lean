@@ -240,6 +240,9 @@ def main (args : List String) : IO Unit := do
       | "shr" =>
         row noNat op n (time (fun (x : UInt32Array) _ => shiftRight x 37) checkArr a a)
           (time (fun x _ => x >>> 37) checkNat na na)
+      | "div1" =>
+        row noNat op n (time (fun (x : UInt32Array) _ => divRem1 x 0xF1234567) (fun p => checkArr p.1)
+          a a) (time (fun x _ => x / 0xF1234567) checkNat na na)
       | "sqr" =>
         row noNat op n (time (fun x _ => sqr x) checkArr a a)
           (time (fun x _ => x * x) checkNat na na)

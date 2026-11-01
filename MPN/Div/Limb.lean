@@ -4,139 +4,83 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN.Basic
+public import MPN.Div.ByLimb
+public import MPN.ValAt
 
 /-!
 # Division by a limb
 
-`divRem1 a d` divides `a` by the limb `d`, like GMP's `mpn_divrem_1`, from the top limb down: each
-step divides the remainder so far, followed by the next limb, by `d`. The remainder stays below
-`d`, so this two-limb number is below `d β` and its quotient fits in a limb.
+`divRem1 a d` divides `a` by the limb `d`, like GMP's `mpn_divrem_1`, by `main`'s
+`WordArray.divRem1W`: from the top limb down, each step by `UInt32.div2Rem`, one hardware division
+of 64 bits by 32. It never takes the steps with a precomputed reciprocal: on Zen 3 they cost 4–16%
+more than this divider.
 -/
 
 open ScalarArray
 
 namespace MPN
 
-/-- One step of the division: `r β + x = q d + r'` with `r' < d`, computed in `UInt64`. -/
-@[inline, expose] public def divStep (r x d : UInt32) : UInt32 × UInt32 :=
-  let t : UInt64 := r.toUInt64 * 4294967296 + x.toUInt64
-  ((t / d.toUInt64).toUInt32, (t % d.toUInt64).toUInt32)
-
-public theorem divStep_spec (r x d : UInt32) (hr : r.toNat < d.toNat) :
-    (divStep r x d).1.toNat = (r.toNat * 2 ^ 32 + x.toNat) / d.toNat ∧
-      (divStep r x d).2.toNat = (r.toNat * 2 ^ 32 + x.toNat) % d.toNat := by
-  have hx := x.toNat_lt
-  have hr' := r.toNat_lt
-  have hd' : 0 < d.toNat := by lia
-  have ht : (r.toUInt64 * 4294967296 + x.toUInt64).toNat = r.toNat * 2 ^ 32 + x.toNat := by
-    simp only [UInt64.toNat_add, UInt64.toNat_mul, UInt32.toNat_toUInt64, UInt64.reduceToNat]
-    lia
-  have hq : (r.toNat * 2 ^ 32 + x.toNat) / d.toNat < 2 ^ 32 := by
-    rw [Nat.div_lt_iff_lt_mul hd']
-    have := Nat.mul_le_mul_right (2 ^ 32) (show r.toNat + 1 ≤ d.toNat from hr)
-    lia
-  constructor
-  · simp only [divStep, UInt64.toNat_toUInt32, UInt64.toNat_div, UInt32.toNat_toUInt64, ht]
-    exact Nat.mod_eq_of_lt hq
-  · simp only [divStep, UInt64.toNat_toUInt32, UInt64.toNat_mod, UInt32.toNat_toUInt64, ht]
-    have := Nat.mod_lt (r.toNat * 2 ^ 32 + x.toNat) hd'
-    have := d.toNat_lt
-    lia
+private theorem div1_bound (a : UInt32Array.Slice) (h : a.start + a.size < USize.size) :
+    WordArray.LoopBound (UInt32Array.replicate a.size 0) 0 a.size.toUSize ∧
+      WordArray.LoopBound a.array a.start.toUSize a.size.toUSize := by
+  have := a.stop_le_array_size
+  have := a.size_eq
+  have := a.start_le_stop
+  have e₁ := toNat_toUSize (show a.size < USize.size by lia)
+  have e₂ := toNat_toUSize (show a.start < USize.size by lia)
+  refine ⟨⟨?_, ?_⟩, ⟨?_, ?_⟩⟩
+  · show (0 : USize).toNat + _ ≤ (UInt32Array.replicate _ 0).size; simp [e₁]
+  · simp [e₁]; lia
+  · show _ ≤ a.array.size; rw [e₁, e₂]; lia
+  · rw [e₁, e₂]; lia
 
 /--
-Divides the limbs of `a` below `i` by `d`, from the top down, with remainder `r` so far, writing
-the quotient limbs into `q`.
--/
-def divRem1Loop (a : UInt32Array.Slice) (d : UInt32) :
-    (i : Nat) → (r : UInt32) → (q : UInt32Array) → q.size = a.size → i ≤ a.size →
-      UInt32Array × UInt32
-  | 0, r, q, _, _ => (q, r)
-  | i + 1, r, q, hq, hi =>
-    let p := divStep r a[i] d
-    divRem1Loop a d i p.2 (q.set i p.1 (by lia)) (by simp [hq]) (by lia)
-
-/--
-`a / d` as `a.size` limbs and `a % d`, like GMP's `mpn_divrem_1`. It is exact when `d ≠ 0`.
+`a / d` and `a % d`, like GMP's `mpn_divrem_1`, as `a.size` limbs and a limb: by
+`WordArray.divRem1W`, whose steps with the reciprocal start from `4294967295` limbs, which no
+guarded size reaches; on `Nat` were the sizes not `USize`s, which never happens. It is exact when
+`d ≠ 0`.
 -/
 public def divRem1 (a : UInt32Array.Slice) (d : UInt32) : UInt32Array × UInt32 :=
-  divRem1Loop a d a.size 0 (.replicate a.size 0) (by simp) (Nat.le_refl _)
-
-private theorem divRem1Loop_spec (a : UInt32Array.Slice) (d : UInt32) (hd : d ≠ 0) (i : Nat)
-    (r : UInt32) (q : UInt32Array) (hq : q.size = a.size) (hi : i ≤ a.size)
-    (hr : r.toNat < d.toNat) (hz : ∀ k (hk : k < i), q.toList[k]'(by simp; lia) = 0)
-    (hv : ofLimbs q.toList * d.toNat + 2 ^ (32 * i) * r.toNat =
-      2 ^ (32 * i) * ofLimbs (a.copy.toList.drop i)) :
-    (divRem1Loop a d i r q hq hi).1.size = a.size ∧
-      ofLimbs (divRem1Loop a d i r q hq hi).1.toList * d.toNat +
-          (divRem1Loop a d i r q hq hi).2.toNat = toNat a ∧
-      (divRem1Loop a d i r q hq hi).2.toNat < d.toNat := by
-  induction i generalizing r q with
-  | zero =>
-    simp only [divRem1Loop]
-    simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul, List.drop_zero] at hv
-    exact ⟨hq, hv, hr⟩
-  | succ i ih =>
-    simp only [divRem1Loop]
-    have hd' : 0 < d.toNat := by
-      rcases Nat.eq_zero_or_pos d.toNat with h | h
-      · exact absurd (UInt32.toNat_inj.1 (by simpa using h)) hd
-      · exact h
-    obtain ⟨h₁, h₂⟩ := divStep_spec r a[i] d hr
-    apply ih
-    · rw [h₂]
-      exact Nat.mod_lt _ hd'
-    · intro k hk
-      simp only [UInt32Array.toList_set]
-      rw [List.getElem_set_ne (by lia)]
-      exact hz k (by lia)
-    · -- Writing the quotient limb at `i`, where `q` has a zero, adds it at `βⁱ`.
-      have hk : i < q.toList.length := by simp; lia
-      have hset := ofLimbs_set q.toList i (divStep r a[i] d).1 hk
-      rw [hz i (by lia), UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero] at hset
-      have hdrop : ofLimbs (a.copy.toList.drop i) =
-          a[i].toNat + 2 ^ 32 * ofLimbs (a.copy.toList.drop (i + 1)) := by
-        rw [toList_copy_drop (by lia), ofLimbs_cons]
-      have hdiv := Nat.div_add_mod (r.toNat * 2 ^ 32 + a[i].toNat) d.toNat
-      rw [UInt32Array.toList_set, hset, h₁, h₂]
-      rw [Nat.mul_add 32 i 1, Nat.mul_one, Nat.pow_add] at hv
-      generalize ofLimbs q.toList = Q at *
-      generalize ofLimbs (a.copy.toList.drop i) = H at *
-      generalize ofLimbs (a.copy.toList.drop (i + 1)) = H' at *
-      generalize 2 ^ (32 * i) = P at *
-      generalize (r.toNat * 2 ^ 32 + a[i].toNat) / d.toNat = qd at *
-      generalize (r.toNat * 2 ^ 32 + a[i].toNat) % d.toNat = rd at *
-      generalize r.toNat = R at *
-      generalize a[i].toNat = x at *
-      generalize d.toNat = D at *
-      generalize (2 : Nat) ^ 32 = B at *
-      clear ih hset h₁ h₂ hz hk
-      subst hdrop
-      grind
-
-private theorem toNat_pos_of_ne_zero {d : UInt32} (hd : d ≠ 0) : 0 < d.toNat := by
-  rcases Nat.eq_zero_or_pos d.toNat with h | h
-  · exact absurd (UInt32.toNat_inj.1 (by simpa using h)) hd
-  · exact h
-
-private theorem divRem1_spec' (a : UInt32Array.Slice) (d : UInt32) (hd : d ≠ 0) :
-    (divRem1 a d).1.size = a.size ∧
-      ofLimbs (divRem1 a d).1.toList * d.toNat + (divRem1 a d).2.toNat = toNat a ∧
-      (divRem1 a d).2.toNat < d.toNat :=
-  divRem1Loop_spec a d hd a.size 0 (.replicate a.size 0) (by simp) (Nat.le_refl _)
-    (by rw [UInt32.toNat_zero]; exact toNat_pos_of_ne_zero hd)
-    (fun k hk => by simp)
-    (by simp [List.drop_of_length_le])
-
-@[simp] public theorem size_divRem1 (a : UInt32Array.Slice) (d : UInt32) (hd : d ≠ 0) :
-    (divRem1 a d).1.size = a.size :=
-  (divRem1_spec' a d hd).1
+  if h : a.start + a.size < 4294967295 then
+    let b := div1_bound a (lt_usizeSize h)
+    WordArray.divRem1W UInt32Array 4294967295 (UInt32Array.replicate a.size 0) 0 a.array
+      a.start.toUSize a.size.toUSize b.1 b.2 d
+  else (ofNat (toNat a / d.toNat), (toNat a % d.toNat).toUInt32)
 
 /-- `divRem1` divides: `a = q d + r` with `r < d`. -/
 public theorem divRem1_spec (a : UInt32Array.Slice) (d : UInt32) (hd : d ≠ 0) :
     toNat (divRem1 a d).1 * d.toNat + (divRem1 a d).2.toNat = toNat a ∧
       (divRem1 a d).2.toNat < d.toNat := by
-  rw [toNat_toSlice]
-  exact ⟨(divRem1_spec' a d hd).2.1, (divRem1_spec' a d hd).2.2⟩
+  have hd' : 0 < d.toNat := by
+    rcases Nat.eq_zero_or_pos d.toNat with h | h
+    · exact absurd (UInt32.toNat_inj.1 (by simpa using h)) hd
+    · exact h
+  by_cases h : a.start + a.size < 4294967295
+  · have hU := lt_usizeSize h
+    have e : divRem1 a d = WordArray.divRem1W UInt32Array 4294967295 (UInt32Array.replicate a.size 0) 0
+        a.array a.start.toUSize a.size.toUSize (div1_bound a hU).1 (div1_bound a hU).2 d := by
+      simp only [divRem1, h, ↓reduceDIte]
+    rw [e]
+    have e₁ := toNat_toUSize (show a.size < USize.size by lia)
+    have e₂ := toNat_toUSize (show a.start < USize.size by lia)
+    obtain ⟨i₁, -, i₃, i₄⟩ := WordArray.divRem1W_spec (A := UInt32Array) 4294967295
+      (UInt32Array.replicate a.size 0) 0 a.array a.start.toUSize a.size.toUSize
+      (div1_bound a hU).1 (div1_bound a hU).2 d hd'
+    refine ⟨?_, i₄⟩
+    rw [toNat_eq_valAt a, toNat_array_eq_valAt, Nat.mul_comm]
+    rw [e₁, e₂, USize.toNat_zero] at i₃
+    have hs : (WordArray.divRem1W UInt32Array 4294967295 (UInt32Array.replicate a.size 0) 0 a.array
+        a.start.toUSize a.size.toUSize (div1_bound a hU).1 (div1_bound a hU).2 d).1.size =
+        a.size := by
+      show LimbArray.size (A := UInt32Array) _ = _; rw [i₁]; exact UInt32Array.size_replicate ..
+    rw [hs]
+    exact i₃
+  · have e : divRem1 a d = (ofNat (toNat a / d.toNat), (toNat a % d.toNat).toUInt32) := by
+      simp only [divRem1, h, ↓reduceDIte]
+    rw [e]
+    have hm := Nat.mod_lt (toNat a) hd'
+    have := d.toNat_lt
+    rw [toNat_toSlice, ← toNat_toSlice, toNat_ofNat, UInt32.toNat_ofNat', Nat.mod_eq_of_lt (by lia)]
+    exact ⟨Nat.div_add_mod' .., hm⟩
 
 end MPN
