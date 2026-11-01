@@ -6,6 +6,8 @@ module
 
 public import MPN.Basic
 public import MPN.UInt
+public import MPN.ValAt
+public import MPN.AddSubW
 
 /-!
 # Addition
@@ -329,35 +331,48 @@ public theorem toNat_addInto_of_lt (r : UInt32Array) (off : Nat) (a : UInt32Arra
 /-! ## Sums -/
 
 /--
-All `max a.size b.size + 1` limbs of `a + b`, untrimmed, like GMP's `mpn_add`: `a` is copied into
-the result and `b` added in place.
+All `max a.size b.size + 1` limbs of `a + b`, untrimmed, like GMP's `mpn_add`: `main`'s `addW`,
+the longer operand first.
 -/
 public def addLimbs (a b : UInt32Array.Slice) : UInt32Array :=
-  addInto (copyPadded a (max a.size b.size + 1)) 0 b
+  if b.size ≤ a.size then
+    WordArray.addW (UInt32Array.replicate (a.size + 1) 0) 0 a.array a.start a.size b.array b.start
+      b.size
+  else
+    WordArray.addW (UInt32Array.replicate (b.size + 1) 0) 0 b.array b.start b.size a.array a.start
+      a.size
 
-private theorem addLimbs_fit (a b : UInt32Array.Slice) :
-    0 + b.size ≤ (copyPadded a (max a.size b.size + 1)).size := by
-  rw [size_copyPadded _ _ (by lia)]
-  lia
+/-- The sum of the longer slice `a` and `b`, by `addW`. -/
+private theorem addW_slices (a b : UInt32Array.Slice) (h : b.size ≤ a.size) :
+    (WordArray.addW (UInt32Array.replicate (a.size + 1) 0) 0 a.array a.start a.size b.array
+        b.start b.size).size = a.size + 1 ∧
+      toNat (WordArray.addW (A := UInt32Array) (UInt32Array.replicate (a.size + 1) 0) 0 a.array
+        a.start a.size b.array b.start b.size) = toNat a + toNat b := by
+  have hs : (WordArray.addW (UInt32Array.replicate (a.size + 1) 0) 0 a.array a.start a.size
+      b.array b.start b.size).size = a.size + 1 := by
+    show LimbArray.size (A := UInt32Array) _ = _
+    rw [WordArray.size_addW]; simp [LimbArray.size]
+  refine ⟨hs, ?_⟩
+  rw [toNat_array_eq_valAt, hs, toNat_eq_valAt a, toNat_eq_valAt b]
+  exact (WordArray.addW_spec _ 0 a.array a.start a.size b.array b.start b.size
+    (by simp [LimbArray.size]) h).2
 
 @[simp] public theorem size_addLimbs (a b : UInt32Array.Slice) :
     (addLimbs a b).size = max a.size b.size + 1 := by
-  rw [addLimbs, size_addInto _ _ _ (addLimbs_fit a b), size_copyPadded _ _ (by lia)]
+  unfold addLimbs
+  split
+  · rw [(addW_slices a b (by lia)).1]; lia
+  · rw [(addW_slices b a (by lia)).1]; lia
 
 public theorem toNat_addLimbs (a b : UInt32Array.Slice) :
     toNat (addLimbs a b) = toNat a + toNat b := by
-  have hA := toNat_lt a
-  have hB := toNat_lt b
-  have hA' : 2 ^ (32 * a.size) ≤ 2 ^ (32 * max a.size b.size) :=
-    Nat.pow_le_pow_right (by decide) (by lia)
-  have hB' : 2 ^ (32 * b.size) ≤ 2 ^ (32 * max a.size b.size) :=
-    Nat.pow_le_pow_right (by decide) (by lia)
-  have hpow : 2 ^ (32 * (max a.size b.size + 1)) = 2 ^ (32 * max a.size b.size) * 2 ^ 32 := by
-    rw [Nat.mul_add, Nat.mul_one, Nat.pow_add]
-  rw [addLimbs, toNat_addInto_of_lt _ _ _ (addLimbs_fit a b) (by
-    rw [toNat_copyPadded, size_copyPadded _ _ (by lia), hpow]; simp only [Nat.mul_zero,
-      Nat.pow_zero, Nat.one_mul]; lia), toNat_copyPadded]
-  simp
+  by_cases h : b.size ≤ a.size
+  · have e : addLimbs a b = WordArray.addW (UInt32Array.replicate (a.size + 1) 0) 0 a.array
+        a.start a.size b.array b.start b.size := by simp only [addLimbs, h, ↓reduceIte]
+    rw [e]; exact (addW_slices a b h).2
+  · have e : addLimbs a b = WordArray.addW (UInt32Array.replicate (b.size + 1) 0) 0 b.array
+        b.start b.size a.array a.start a.size := by simp only [addLimbs, h, ↓reduceIte]
+    rw [e, (addW_slices b a (by lia)).2, Nat.add_comm]
 
 /-- Adds two numbers. -/
 public def add (a b : UInt32Array.Slice) : UInt32Array := trim (addLimbs a b)

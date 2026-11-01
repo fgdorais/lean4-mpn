@@ -183,61 +183,6 @@ public theorem limbs4_spec (lo hi : UInt64) (h : hi ≠ 0) :
       lia
 
 /--
-`a` divided by a nonzero word `b`, as untrimmed quotient limbs and the remainder, a word: `divRem1`
-below `2³²` and `divRem2` above, without an array for `b`.
--/
-public def divRemWord (a : UInt32Array) (b : UInt64) : UInt32Array × UInt64 :=
-  if b < 4294967296 then
-    let p := divRem1 a b.toUInt32
-    (p.1, p.2.toUInt64)
-  else
-    divRem2 a (b >>> 32).toUInt32 b.toUInt32
-
-public theorem divRemWord_spec (a : UInt32Array) (b : UInt64) (hb : b ≠ 0) :
-    MPN.toNat (divRemWord a b).1 = MPN.toNat a / b.toNat ∧
-      (divRemWord a b).2.toNat = MPN.toNat a % b.toNat := by
-  have hb' : 0 < b.toNat := by
-    rcases Nat.eq_zero_or_pos b.toNat with h | h
-    · exact absurd (UInt64.toNat_inj.1 (by simpa using h)) hb
-    · exact h
-  have hB := b.toNat_lt
-  -- `q b + r = a` with `r < b` determines both.
-  have key : ∀ q r : Nat, q * b.toNat + r = MPN.toNat a → r < b.toNat →
-      q = MPN.toNat a / b.toNat ∧ r = MPN.toNat a % b.toNat := fun q r h₁ h₂ => by
-    have := (Nat.div_mod_unique (a := MPN.toNat a) (b := b.toNat) (d := q) (c := r) hb').2
-      ⟨by rw [Nat.mul_comm b.toNat q]; lia, h₂⟩
-    exact ⟨this.1.symm, this.2.symm⟩
-  unfold divRemWord
-  by_cases hs : b < 4294967296
-  · rw [ite_eq_left hs]
-    rw [UInt64.lt_iff_toNat_lt] at hs
-    simp only [UInt64.reduceToNat] at hs
-    have hd : b.toUInt32.toNat = b.toNat := by simp; lia
-    have hd0 : b.toUInt32 ≠ 0 := fun e => by
-      have := congrArg UInt32.toNat e
-      rw [hd, UInt32.toNat_zero] at this
-      lia
-    obtain ⟨h₁, h₂⟩ := divRem1_spec a b.toUInt32 hd0
-    rw [hd] at h₁ h₂
-    simp only [UInt32.toNat_toUInt64]
-    exact key _ _ h₁ h₂
-  · rw [ite_eq_right hs]
-    rw [UInt64.lt_iff_toNat_lt] at hs
-    simp only [UInt64.reduceToNat] at hs
-    have hd : ((b >>> 32).toUInt32).toNat * 2 ^ 32 + b.toUInt32.toNat = b.toNat := by
-      simp only [UInt64.toNat_toUInt32, UInt64.toNat_shiftRight, UInt64.reduceToNat,
-        Nat.reduceMod, Nat.shiftRight_eq_div_pow]
-      lia
-    have hd0 : (b >>> 32).toUInt32 ≠ 0 := fun e => by
-      have := congrArg UInt32.toNat e
-      simp only [UInt64.toNat_toUInt32, UInt64.toNat_shiftRight, UInt64.reduceToNat,
-        Nat.reduceMod, Nat.shiftRight_eq_div_pow, UInt32.toNat_zero] at this
-      lia
-    obtain ⟨h₁, h₂⟩ := divRem2_spec a (b >>> 32).toUInt32 b.toUInt32 hd0
-    rw [hd] at h₁ h₂
-    exact key _ _ h₁ h₂
-
-/--
 `a / b` and `a % b` in words for `a < 2¹²⁸` (at most four limbs, read with `getD`) and
 `2³² ≤ b`, without arrays: `a` is shifted left by `s` with four `shlStep`s, which normalizes `b`
 as in `divRem2`, and divided by three `div2Step`s: the quotient is below `2⁹⁶`, so the top two
@@ -435,14 +380,6 @@ public theorem divRem128_spec (a : UInt32Array) (b : UInt64) (ha : a.size ≤ 4)
   rw [divRem128, toNat_four a ha]
   exact divRem128L_spec _ _ _ _ b hb
 
-/-- `divRemWord` without the remainder, which `div2` saves allocating. -/
-public def divWord (a : UInt32Array) (b : UInt64) : UInt32Array :=
-  if b < 4294967296 then (divRem1 a b.toUInt32).1 else div2 a (b >>> 32).toUInt32 b.toUInt32
-
-public theorem divWord_eq (a : UInt32Array) (b : UInt64) : divWord a b = (divRemWord a b).1 := by
-  unfold divWord divRemWord
-  split <;> simp [div2_eq]
-
 /-! ## Decimal strings
 
 `main`'s `DecChunks.toDecimalWith` and `DecChunks.ofDecimalWith` on `ops32`, which converts this
@@ -490,11 +427,12 @@ public def divW (a : UInt32Array) (b : UInt64) : UInt32Array :=
   if a.size ≤ 4 ∧ 4294967296 ≤ b then
     let q := divRem128 a b
     if q.2.1 = 0 then limbsOfWord q.1 else limbs4 q.1 q.2.1
-  else trim (divWord a b)
+  else MPN.div a (limbsOfWord b)
 
 /-- `a % b` for a nonzero word: by `divRem128` for up to four limbs and `2³² ≤ b`. -/
 public def modW (a : UInt32Array) (b : UInt64) : UInt64 :=
-  if a.size ≤ 4 ∧ 4294967296 ≤ b then (divRem128 a b).2.2 else (divRemWord a b).2
+  if a.size ≤ 4 ∧ 4294967296 ≤ b then (divRem128 a b).2.2
+  else (MPN.toNat (MPN.mod a (limbsOfWord b))).toUInt64
 
 /-- `⌊log₂ a⌋`, from the top limb. -/
 public def log2A (a : UInt32Array) : Nat :=
@@ -585,8 +523,8 @@ public instance natLimbs32 : NatLimbs UInt32Array where
       · have e : Nat.divW a b = Nat.limbs4 (Nat.divRem128 a b).1 (Nat.divRem128 a b).2.1 := by
           simp [Nat.divW, h, h0]
         rw [e]; exact (Nat.limbs4_spec _ _ h0).1
-    · have e : Nat.divW a b = trim (Nat.divWord a b) := by simp [Nat.divW, h]
-      rw [e]; exact isTrimmed_trim _
+    · have e : Nat.divW a b = MPN.div a (limbsOfWord b) := by simp [Nat.divW, h]
+      rw [e]; exact isTrimmed_div _ _
   val_divW a b hb := by
     show MPN.toNat (Nat.divW a b) = _
     by_cases h : a.size ≤ 4 ∧ 4294967296 ≤ b
@@ -600,14 +538,19 @@ public instance natLimbs32 : NatLimbs UInt32Array where
           simp [Nat.divW, h, h0]
         rw [e, (Nat.limbs4_spec _ _ h0).2]
         exact hq
-    · have e : Nat.divW a b = trim (Nat.divWord a b) := by simp [Nat.divW, h]
-      rw [e, toNat_trim, Nat.divWord_eq, (Nat.divRemWord_spec a b hb).1]
+    · have e : Nat.divW a b = MPN.div a (limbsOfWord b) := by simp [Nat.divW, h]
+      rw [e, toNat_div, (limbsOfWord_spec b).1]
   modW := Nat.modW
   val_modW a b hb := by
     unfold Nat.modW
     split
     · rename_i h; exact (Nat.divRem128_spec a b h.1 h.2).2
-    · exact (Nat.divRemWord_spec a b hb).2
+    · have hb' : 0 < b.toNat := by
+        rcases Nat.eq_zero_or_pos b.toNat with h | h
+        · exact absurd (UInt64.toNat_inj.1 (by simpa using h)) hb
+        · exact h
+      rw [toNat_mod, (limbsOfWord_spec b).1, UInt64.toNat_ofNat', Nat.mod_eq_of_lt]
+      exact Nat.lt_of_lt_of_le (Nat.mod_lt _ hb') (Nat.le_of_lt b.toNat_lt)
   shl a n := MPN.shiftLeft a n
   trimmed_shl a n := isTrimmed_shiftLeft a n
   val_shl a n := MPN.toNat_shiftLeft a n
