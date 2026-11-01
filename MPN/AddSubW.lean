@@ -31,7 +31,7 @@ private theorem toNat_toUSize₃ {n : Nat} (h : n < 4294967295) : n.toUSize.toNa
 
 /-- The bounds of `addW` and `subW` on the arrays they read and write, from their checks. -/
 public structure AddOK (z : A) (zo : Nat) (a : A) (ao al : Nat) (b : A) (bo bl : Nat) : Prop where
-  hz : zo + al + 1 ≤ LA.size z
+  hz : zo + al ≤ LA.size z
   hzS : LA.size z < 4294967295
   ha : ao + al ≤ LA.size a
   haS : LA.size a < 4294967295
@@ -42,7 +42,7 @@ public structure AddOK (z : A) (zo : Nat) (a : A) (ao al : Nat) (b : A) (bo bl :
 /-- The checks of `addW` and `subW`. -/
 @[inline, expose] public def addOK (z : A) (zo : Nat) (a : A) (ao al : Nat) (b : A)
     (bo bl : Nat) : Bool :=
-  decide (zo + al + 1 ≤ LA.size z) && decide (LA.size z < 4294967295) &&
+  decide (zo + al ≤ LA.size z) && decide (LA.size z < 4294967295) &&
     decide (ao + al ≤ LA.size a) && decide (LA.size a < 4294967295) &&
     decide (bo + bl ≤ LA.size b) && decide (LA.size b < 4294967295) && decide (bl ≤ al)
 
@@ -107,9 +107,10 @@ public theorem lbat (h : AddOK z zo a ao al b bo bl) :
   constructor <;> rw [e₆, e₇] <;> lia
 
 omit R F in
-public theorem top (h : AddOK z zo a ao al b bo bl) : (zo + al).toUSize.toNat < LA.size z := by
+public theorem top (h : AddOK z zo a ao al b bo bl) (ht : zo + al < LA.size z) :
+    (zo + al).toUSize.toNat < LA.size z := by
   obtain ⟨-, -, -, -, -, -, -, e₈⟩ := h.e
-  have := h.hz; rw [e₈]; lia
+  rw [e₈]; exact ht
 
 end AddOK
 
@@ -143,17 +144,18 @@ variable (A) in
 
 /-- The second pass of `addW` and the carry out, on the array of the first pass. -/
 @[inline, expose] public def addTail (z : A) (zo : Nat) (a : A) (ao al : Nat) (b : A)
-    (bo bl : Nat) (h : AddOK z zo a ao al b bo bl) (c : L) : A :=
+    (bo bl : Nat) (h : AddOK z zo a ao al b bo bl) (ht : zo + al < LA.size z) (c : L) : A :=
   F.foldThen (al - bl).toUSize (add1Step A a (ao + bl).toUSize (al - bl).toUSize h.lbat) z
     (zo + bl).toUSize h.lbzt 0 c fun z₂ e₂ c₂ => R.uset z₂ (zo + al).toUSize c₂ (by
-      rw [e₂]; exact h.top)
+      rw [e₂]; exact h.top ht)
 
 /-- `A + B` into the `al + 1` limbs of `z` from `zo` on, for `bl ≤ al`. -/
 public def addW (z : A) (zo : Nat) (a : A) (ao al : Nat) (b : A) (bo bl : Nat) : A :=
-  if h : addOK z zo a ao al b bo bl = true then
-    have hb := addOK_spec h
+  if h : addOK z zo a ao al b bo bl = true ∧ zo + al < LA.size z then
+    have hb := addOK_spec h.1
     F.foldThen bl.toUSize (addNStep A a ao.toUSize b bo.toUSize bl.toUSize hb.lba hb.lbb) z
-      zo.toUSize hb.lbz 0 R.zero fun z₁ e₁ c => addTail z₁ zo a ao al b bo bl (hb.of_size e₁) c
+      zo.toUSize hb.lbz 0 R.zero fun z₁ e₁ c =>
+        addTail z₁ zo a ao al b bo bl (hb.of_size e₁) (by rw [e₁]; exact h.2) c
   else writeNat z zo (al + 1) (valAt a ao al + valAt b bo bl)
 
 omit R F in
@@ -169,11 +171,11 @@ private theorem pow_split (al bl : Nat) (h : bl ≤ al) :
 
 /-- The second pass of `addW`, on any array that holds the first. -/
 private theorem addTail_spec (z : A) (zo : Nat) (a : A) (ao al : Nat) (b : A) (bo bl : Nat)
-    (h : AddOK z zo a ao al b bo bl) (c : L) :
-    LA.size (addTail z zo a ao al b bo bl h c) = LA.size z ∧
+    (h : AddOK z zo a ao al b bo bl) (ht : zo + al < LA.size z) (c : L) :
+    LA.size (addTail z zo a ao al b bo bl h ht c) = LA.size z ∧
       (∀ i, (i < zo + bl ∨ zo + al + 1 ≤ i) →
-        LA.get (addTail z zo a ao al b bo bl h c) i = LA.get z i) ∧
-      valAt (addTail z zo a ao al b bo bl h c) (zo + bl) (al - bl + 1) =
+        LA.get (addTail z zo a ao al b bo bl h ht c) i = LA.get z i) ∧
+      valAt (addTail z zo a ao al b bo bl h ht c) (zo + bl) (al - bl + 1) =
         valAt a (ao + bl) (al - bl) + LA.val c := by
   obtain ⟨-, -, -, -, e₅, e₆, e₇, e₈⟩ := h.e
   have hba := h.hba
@@ -203,7 +205,7 @@ public theorem addW_spec (z : A) (zo : Nat) (a : A) (ao al : Nat) (b : A) (bo bl
   unfold addW
   split
   · rename_i h
-    have hb := addOK_spec h
+    have hb := addOK_spec h.1
     obtain ⟨e₁, e₂, e₃, e₄, -⟩ := hb.e
     dsimp only
     rw [F.foldThen_eq, foldUInPlaceThen]
@@ -218,10 +220,10 @@ public theorem addW_spec (z : A) (zo : Nat) (a : A) (ao al : Nat) (b : A) (bo bl
       z zo.toUSize hb.lbz 0 R.zero trivial
     simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, e₁, e₂, e₃, e₄, Nat.one_mul,
       Nat.zero_mul, Nat.mul_zero, R.val_zero] at f₂ f₃
-    obtain ⟨t₁, t₂, t₃⟩ := addTail_spec _ zo a ao al b bo bl (hb.of_size f₁) _
+    obtain ⟨t₁, t₂, t₃⟩ := addTail_spec _ zo a ao al b bo bl (hb.of_size f₁) (by rw [f₁]; exact h.2) _
     refine ⟨⟨by rw [t₁, f₁], fun i hi => by rw [t₂ i (by lia), f₂ i (by lia)]⟩, ?_⟩
     -- The window: the low `bl` limbs of the first pass, then the second pass.
-    have hlow : valAt (addTail _ zo a ao al b bo bl (hb.of_size f₁) _) zo bl =
+    have hlow : valAt (addTail _ zo a ao al b bo bl (hb.of_size f₁) (by rw [f₁]; exact h.2) _) zo bl =
         valAt (foldUInPlace bl.toUSize
           (addNStep A a ao.toUSize b bo.toUSize bl.toUSize hb.lba hb.lbb) z zo.toUSize hb.lbz 0
             R.zero).1 zo bl := valAt_congr _ fun i _ _ => t₂ i (by lia)
@@ -247,9 +249,8 @@ public theorem addW_spec (z : A) (zo : Nat) (a : A) (ao al : Nat) (b : A) (bo bl
 
 @[simp] public theorem size_addW (z : A) (zo : Nat) (a : A) (ao al : Nat) (b : A)
     (bo bl : Nat) : LA.size (addW z zo a ao al b bo bl) = LA.size z := by
-  by_cases h : addOK z zo a ao al b bo bl = true
-  · have hb := addOK_spec h
-    exact (addW_spec z zo a ao al b bo bl hb.hz hb.hba).1.1
+  by_cases h : addOK z zo a ao al b bo bl = true ∧ zo + al < LA.size z
+  · exact (addW_spec z zo a ao al b bo bl (by have := h.2; lia) (addOK_spec h.1).hba).1.1
   · unfold addW; rw [dite_eq_right h]; exact size_writeNat ..
 
 /-! ## Subtraction -/
