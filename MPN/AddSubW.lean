@@ -245,6 +245,13 @@ public theorem addW_spec (z : A) (zo : Nat) (a : A) (ao al : Nat) (b : A) (bo bl
     have := Nat.mul_le_mul_left (2 ^ (LA.w * al)) (show 2 ≤ 2 ^ LA.w by lia)
     lia
 
+@[simp] public theorem size_addW (z : A) (zo : Nat) (a : A) (ao al : Nat) (b : A)
+    (bo bl : Nat) : LA.size (addW z zo a ao al b bo bl) = LA.size z := by
+  by_cases h : addOK z zo a ao al b bo bl = true
+  · have hb := addOK_spec h
+    exact (addW_spec z zo a ao al b bo bl hb.hz hb.hba).1.1
+  · unfold addW; rw [dite_eq_right h]; exact size_writeNat ..
+
 /-! ## Subtraction -/
 
 /-- The second pass of `subW`, on the array of the first pass. -/
@@ -356,5 +363,15 @@ public theorem subW_spec (z : A) (zo : Nat) (a : A) (ao al : Nat) (b : A) (bo bl
   · refine ⟨writes_writeNat .., ?_⟩
     rw [valAt_writeNat _ _ _ _ hz, Nat.mod_eq_of_lt]
     exact Nat.lt_of_le_of_lt (Nat.sub_le _ _) (valAt_lt ..)
+
+@[simp] public theorem size_subW (z : A) (zo : Nat) (a : A) (ao al : Nat) (b : A)
+    (bo bl : Nat) : LA.size (subW z zo a ao al b bo bl) = LA.size z := by
+  unfold subW
+  split
+  · dsimp only
+    rw [F.foldThen_eq, foldUInPlaceThen]
+    unfold subTail
+    rw [F.foldThen_eq, foldUInPlaceThen, size_foldUInPlace, size_foldUInPlace]
+  · exact size_writeNat ..
 
 end MPN.WordArray
