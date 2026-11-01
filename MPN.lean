@@ -68,3 +68,4 @@ public import MPN.Decimal
 public import MPN.Nat
 public import MPN.DecChunks
 public import MPN.Shift
+public import MPN.Bitwise
