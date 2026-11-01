@@ -610,6 +610,9 @@ public instance wordArray32 : MPN.WordArray UInt32Array UInt32 where
   addC x y c :=
     let t := x.toUInt64 + y.toUInt64 + c.toUInt64
     (t.toUInt32, (t >>> 32).toUInt32)
+  subC x y c :=
+    let t := x.toUInt64 - y.toUInt64 - c.toUInt64
+    (t.toUInt32, (0 : UInt32) - (t >>> 32).toUInt32)
   isZero x := x == 0
   ofUSize i := i.toUInt32
   wU := 32
@@ -653,6 +656,15 @@ public instance wordArray32 : MPN.WordArray UInt32Array UInt32 where
     simp only [UInt64.toNat_add, UInt64.toNat_toUInt32, UInt32.toNat_toUInt64,
       UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow, UInt64.toNat_ofNat, Nat.reduceMod,
       Nat.reducePow]
+    lia
+  val_subC x y c := by
+    show (x.toUInt64 - y.toUInt64 - c.toUInt64).toUInt32.toNat + y.toNat + c.toNat =
+      x.toNat + 2 ^ 32 *
+        ((0 : UInt32) - ((x.toUInt64 - y.toUInt64 - c.toUInt64) >>> 32).toUInt32).toNat
+    have := x.toNat_lt; have := y.toNat_lt; have := c.toNat_lt
+    simp only [UInt64.toNat_sub, UInt32.toNat_sub, UInt64.toNat_toUInt32, UInt32.toNat_toUInt64,
+      UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow, UInt64.toNat_ofNat, UInt32.toNat_zero,
+      Nat.reduceMod, Nat.reducePow, UInt64.toNat_toUInt32]
     lia
   ltB_iff x y := by
     show decide (x < y) = true ↔ x.toNat < y.toNat
