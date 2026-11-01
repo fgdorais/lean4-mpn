@@ -161,7 +161,7 @@ def ops : List String :=
   ["add", "sub", "shl", "shr", "div1", "sbdiv", "div", "divmod", "sqrt", "mulmod", "gcd", "str", "parse",
     "mul1", "addmul1", "mul", "sqr", "kara", "toom", "kara2", "toom2", "fft", "fft2",
     "auto", "ksqr", "fftsqr", "toomsqr", "autosqr", "mulref", "badd", "bsub", "bmul", "bdiv",
-    "bgcd", "bshl", "bshr", "bsqrt", "btostr", "bofstr"]
+    "bgcd", "bshl", "bshr", "band", "bor", "bxor", "bsqrt", "btostr", "bofstr"]
 
 def main (args : List String) : IO Unit := do
   let noNat := args.contains "--no-nat"
@@ -192,6 +192,15 @@ def main (args : List String) : IO Unit := do
         let na2 := toNat (sample (2 * n) 4)
         let (x, y) := (MPN.Nat.ofNat na2, MPN.Nat.ofNat nb)
         row noNat op n (time (· / ·) checkBig x y) (time (· / ·) checkNat na2 nb)
+      | "band" =>
+        let (x, y) := (MPN.Nat.ofNat na, MPN.Nat.ofNat nb)
+        row noNat op n (time (· &&& ·) checkBig x y) (time (· &&& ·) checkNat na nb)
+      | "bor" =>
+        let (x, y) := (MPN.Nat.ofNat na, MPN.Nat.ofNat nb)
+        row noNat op n (time (· ||| ·) checkBig x y) (time (· ||| ·) checkNat na nb)
+      | "bxor" =>
+        let (x, y) := (MPN.Nat.ofNat na, MPN.Nat.ofNat nb)
+        row noNat op n (time (· ^^^ ·) checkBig x y) (time (· ^^^ ·) checkNat na nb)
       | "bgcd" =>
         let (x, y) := (MPN.Nat.ofNat na, MPN.Nat.ofNat nb)
         row noNat op n (time MPN.Nat.gcd checkBig x y) (time Nat.gcd checkNat na nb)
