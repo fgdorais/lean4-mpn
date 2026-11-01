@@ -7,6 +7,8 @@ module
 public import MPN.Generic.Sqrt
 import Std.Data.String.ToNat
 import all Init.Data.Repr
+import all Init.Data.UInt.Log2
+import all Init.Data.Fin.Log2
 
 /-!
 # Natural numbers
@@ -617,12 +619,12 @@ public theorem blt_iff (x y : GNat A) : blt x y = true ↔ x.toNat < y.toNat := 
 
 /-- `⌊log₂ x⌋`, and `0` for `0`, like `Nat.log2`. -/
 @[expose, specialize] public def log2 : GNat A → Nat
-  | small a => a.toNat.log2
+  | small a => a.log2.toNat
   | large a _ => C.log2 a
 
 @[simp] public theorem log2_eq (x : GNat A) : x.log2 = x.toNat.log2 := by
   cases x with
-  | small a => rfl
+  | small a => show a.log2.toNat = a.toNat.log2; rfl
   | large a ha => exact C.log2_eq a ha.1 ha.2
 
 /-! ## Powers and square roots -/
