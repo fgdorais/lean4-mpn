@@ -6,13 +6,14 @@ module
 
 public import MPN.Generic.Ops64
 public import MPN.Generic.Sqrt
+public import MPN.WordSqrt
 
 /-!
 # Square root
 
 `sqrtRem` computes `⌊√a⌋` and the remainder `a - ⌊√a⌋²` by Zimmermann's Karatsuba square root,
 like GMP's `mpn_sqrtrem`: `main`'s base-generic `NatOps.sqrtRemAux` on `ops64`, after normalizing
-by `4ᶜ`. The base case is a double word, by Newton's iteration on words (`sqrtIter`).
+by `4ᶜ`. The base case is a double word, by Newton's iteration on words (`main`'s `sqrt2W`).
 -/
 
 open ScalarArray UInt64Array
@@ -21,83 +22,12 @@ namespace MPN
 
 /-! ## Words -/
 
-/-- The average `⌊(x + q) / 2⌋` of two words, without overflow. -/
-@[inline] public def avg (x q : UInt64) : UInt64 := (x >>> 1) + (q >>> 1) + (x &&& 1) * (q &&& 1)
-
-private theorem toNat_avg (x q : UInt64) : (avg x q).toNat = (x.toNat + q.toNat) / 2 := by
-  have hx := x.toNat_lt; have hq := q.toNat_lt
-  have hand : ((x &&& 1) * (q &&& 1)).toNat = x.toNat % 2 * (q.toNat % 2) := by
-    rw [UInt64.toNat_mul, UInt64.toNat_and, UInt64.toNat_and, UInt64.toNat_one, Nat.and_one_is_mod,
-      Nat.and_one_is_mod]
-    have h₁ := Nat.mod_lt x.toNat (show 0 < 2 by decide)
-    have h₂ := Nat.mod_lt q.toNat (show 0 < 2 by decide)
-    have := Nat.mul_le_mul h₁ h₂
-    exact Nat.mod_eq_of_lt (by lia)
-  simp only [avg, UInt64.toNat_add, UInt64.toNat_shiftRight, hand, Nat.shiftRight_eq_div_pow]
-  simp only [UInt64.reduceToNat, Nat.reduceMod, Nat.pow_one]
-  rcases Nat.mod_two_eq_zero_or_one x.toNat with h | h <;>
-    rcases Nat.mod_two_eq_zero_or_one q.toNat with h' | h' <;>
-    simp only [h, h', Nat.mul_zero, Nat.mul_one] <;> lia
-
-/--
-Newton's iteration for `⌊√N⌋`, `N = hi β + lo`, from `x ≥ ⌊√N⌋`, while it decreases: the next
-step is the average of `x` and `N / x`. When `hi ≥ x`, `x` is already `⌊√N⌋`, since `⌊√N⌋ ≥ hi`.
--/
-public def sqrtIter (hi lo x : UInt64) : UInt64 :=
-  if hi < x then
-    let y := avg x (UInt64.div2 hi lo x)
-    if y < x then sqrtIter hi lo y else x
-  else x
-termination_by x.toNat
-decreasing_by exact UInt64.lt_iff_toNat_lt.1 (by assumption)
-
-private theorem sqrtIter_eq (hi lo x : UInt64)
-    (hx : _root_.Nat.sqrt (hi.toNat * 2 ^ 64 + lo.toNat) ≤ x.toNat) :
-    (sqrtIter hi lo x).toNat = _root_.Nat.sqrt (hi.toNat * 2 ^ 64 + lo.toNat) := by
-  induction x using sqrtIter.induct hi lo with
-  | case1 x h y hy ih =>
-    rw [sqrtIter, ite_eq_left h]
-    simp only [y] at hy ⊢
-    rw [ite_eq_left hy]
-    apply ih
-    rw [toNat_avg, UInt64.toNat_div2 _ _ _ (UInt64.lt_iff_toNat_lt.1 h)]
-    exact le_newton (by have := UInt64.lt_iff_toNat_lt.1 h; lia) (Nat.sqrt_le _)
-  | case2 x h y hy =>
-    rw [sqrtIter, ite_eq_left h]
-    simp only [y] at hy ⊢
-    rw [ite_eq_right hy]
-    rw [UInt64.lt_iff_toNat_lt, toNat_avg, UInt64.toNat_div2 _ _ _ (UInt64.lt_iff_toNat_lt.1 h)]
-      at hy
-    -- `N / x ≥ x`, so `x² ≤ N`.
-    have hxx : x.toNat * x.toNat ≤ hi.toNat * 2 ^ 64 + lo.toNat :=
-      (Nat.le_div_iff_mul_le (by have := UInt64.lt_iff_toNat_lt.1 h; lia)).1 (by lia)
-    exact Nat.le_antisymm (le_sqrt_of hxx) hx
-  | case3 x h =>
-    rw [sqrtIter, ite_eq_right h]
-    -- `hi² ≤ N`, so `hi ≤ ⌊√N⌋ ≤ x ≤ hi`.
-    have hle : hi.toNat ≤ _root_.Nat.sqrt (hi.toNat * 2 ^ 64 + lo.toNat) :=
-      le_sqrt_of (by
-        have := Nat.mul_le_mul_left hi.toNat (Nat.le_of_lt hi.toNat_lt)
-        lia)
-    have := UInt64.le_iff_toNat_le.1 (UInt64.not_lt.1 h)
-    lia
-
-/-- `⌊√N⌋` of a double word `N = hi β + lo`. -/
-public def sqrt2 (hi lo : UInt64) : UInt64 := sqrtIter hi lo 0xFFFFFFFFFFFFFFFF
+/-- `⌊√N⌋` of a double word `N = hi β + lo`, by `main`'s `WordArray.sqrt2W`. -/
+public def sqrt2 (hi lo : UInt64) : UInt64 := WordArray.sqrt2W UInt64Array hi lo
 
 public theorem toNat_sqrt2 (hi lo : UInt64) :
-    (sqrt2 hi lo).toNat = _root_.Nat.sqrt (hi.toNat * 2 ^ 64 + lo.toNat) := by
-  apply sqrtIter_eq
-  -- `⌊√N⌋ < β`, since `N < β²`.
-  have := hi.toNat_lt; have := lo.toNat_lt
-  have h : _root_.Nat.sqrt (hi.toNat * 2 ^ 64 + lo.toNat) < 2 ^ 64 := by
-    refine Nat.lt_of_not_le fun hge => ?_
-    have := Nat.mul_self_le_mul_self hge
-    have := Nat.sqrt_le (hi.toNat * 2 ^ 64 + lo.toNat)
-    have := Nat.mul_le_mul_right (2 ^ 64) (show hi.toNat + 1 ≤ 2 ^ 64 by lia)
-    lia
-  simp only [UInt64.reduceToNat]
-  lia
+    (sqrt2 hi lo).toNat = _root_.Nat.sqrt (hi.toNat * 2 ^ 64 + lo.toNat) :=
+  WordArray.val_sqrt2W (A := UInt64Array) hi lo
 
 /-! ## The base case -/
 
