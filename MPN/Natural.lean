@@ -654,6 +654,7 @@ public theorem blt_iff (x y : GNat A) : blt x y = true ↔ x.toNat < y.toNat := 
 /-- `xⁿ`, by repeated squaring. -/
 @[expose, specialize] public def pow (x : GNat A) (n : Nat) : GNat A :=
   if n = 0 then small 1
+  else if n = 1 then x
   else if n % 2 = 0 then pow (sqr x) (n / 2)
   else mul x (pow (sqr x) (n / 2))
 termination_by n
@@ -665,7 +666,9 @@ decreasing_by all_goals lia
     rw [pow]
     split
     · rename_i h; subst h; rfl
-    · rename_i h0
+    · split
+      · rename_i h; subst h; simp
+      rename_i h0 h1
       have hn := Nat.div_add_mod n 2
       split
       · rename_i h
