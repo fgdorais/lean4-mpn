@@ -90,6 +90,10 @@ public structure Config extends Toom.Config where
   /-- The size of a normalized divisor from which schoolbook division estimates the quotient limbs
   by GMP's 3-by-2 steps with a precomputed reciprocal instead of the hardware divider. -/
   div32Recip : Nat := 64
+  /-- The size from which division by an unnormalized limb takes the steps with a precomputed
+  reciprocal of the divisor normalized by a shift, with the dividend shifted, instead of the
+  hardware divider. -/
+  div1Unnorm : Nat := 1000000
   /-- The size of the root, in limbs, from which the square root uses Zimmermann's recursion
   instead of Newton's iteration. -/
   sqrtZimmermann : Nat := 40
@@ -240,6 +244,12 @@ public meta register_option mpn.sqr.rowsThreshold : Nat := {
     instead of Comba's method"
 }
 
+public meta register_option mpn.div.recip1UnnormThreshold : Nat := {
+  defValue := ({} : Config).div1Unnorm
+  descr := "the size, in limbs, from which division by an unnormalized limb uses steps with a \
+    precomputed reciprocal"
+}
+
 public meta register_option mpn.gcd.halfThreshold : Nat := {
   defValue := ({} : Config).gcdHalf
   descr := "the size of the smaller number, in limbs, from which the greatest common divisor \
@@ -299,6 +309,7 @@ elab "mpn_config%" : term => do
   let divMu := mpn.div.muThreshold.get opts
   let div1Recip := mpn.div.recip1Threshold.get opts
   let div32Recip := mpn.div.recip32Threshold.get opts
+  let div1Unnorm := mpn.div.recip1UnnormThreshold.get opts
   let sqrtZimmermann := mpn.sqrt.zimmermannThreshold.get opts
   let sqrtBase := mpn.sqrt.baseThreshold.get opts
   let mulRows := mpn.mul.rowsThreshold.get opts
@@ -330,6 +341,7 @@ elab "mpn_config%" : term => do
   let mu := quote divMu
   let d1 := quote div1Recip
   let d32 := quote div32Recip
+  let d1u := quote div1Unnorm
   let sz := quote sqrtZimmermann
   let sb := quote sqrtBase
   let mr := quote mulRows
@@ -357,6 +369,7 @@ elab "mpn_config%" : term => do
                  divMu := $mu
                  div1Recip := $d1
                  div32Recip := $d32
+                 div1Unnorm := $d1u
                  sqrtZimmermann := $sz
                  sqrtBase := $sb
                  mulRows := $mr

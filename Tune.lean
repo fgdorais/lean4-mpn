@@ -358,8 +358,25 @@ precomputed reciprocal beats the hardware divider, or `1000000`, never, if it do
 -/
 def tuneDiv1Recip (log : Bool) : IO Nat := medianOf 3 do
   let sizes := [2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512]
-  match ← crossoverOn (fun (a _ : UInt32Array) => divRem1With 4294967295 a 0xF1234567)
-      (fun a _ => divRem1With 0 a 0xF1234567) (fun p => p.2 + p.1.size.toUInt32)
+  match ← crossoverOn (fun (a _ : UInt32Array) => divRem1With 4294967295 4294967295 a 0xF1234567)
+      (fun a _ => divRem1With 0 4294967295 a 0xF1234567) (fun p => p.2 + p.1.size.toUInt32)
+      (fun n => (sample n 1, sample n 1)) sizes (log := log) with
+  | some n =>
+    if log then IO.println s!"  found {n}"
+    return n
+  | none =>
+    if log then IO.println "  the hardware divider always won"
+    return 1000000
+
+/--
+Tunes `div1Unnorm`: where division by the unnormalized limb `10⁹`, the base of decimal strings, with
+the steps with the reciprocal after a shift beats the hardware divider, or `1000000`, never, if it
+does not win up to 512 limbs.
+-/
+def tuneDiv1Unnorm (log : Bool) : IO Nat := medianOf 3 do
+  let sizes := [2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512]
+  match ← crossoverOn (fun (a _ : UInt32Array) => divRem1With 4294967295 4294967295 a 1000000000)
+      (fun a _ => divRem1With 4294967295 0 a 1000000000) (fun p => p.2 + p.1.size.toUInt32)
       (fun n => (sample n 1, sample n 1)) sizes (log := log) with
   | some n =>
     if log then IO.println s!"  found {n}"
@@ -563,6 +580,8 @@ public def main (args : List String) : IO UInt32 := do
   let divDC ← tuneDivDC log
   IO.println "div1Recip: division by a limb with a reciprocal against the hardware divider"
   let div1Recip ← tuneDiv1Recip log
+  IO.println "div1Unnorm: the same after a shift, for an unnormalized limb"
+  let div1Unnorm ← tuneDiv1Unnorm log
   IO.println "div32Recip: schoolbook steps with a reciprocal against the hardware divider"
   let div32Recip ← tuneDiv32Recip log
   IO.println "gcdHalf: half-gcd against Lehmer's algorithm"
@@ -588,7 +607,7 @@ public def main (args : List String) : IO UInt32 := do
     sqrToom3 := max 12 sqrToom3, twelve_le_sqrToom3 := by lia,
     sqrToom4 := max 32 sqrToom4, thirtytwo_le_sqrToom4 := by lia,
     sqrToom6 := max 32 sqrToom6, thirtytwo_le_sqrToom6 := by lia, sqrFFT,
-    divDC := max 4 divDC, four_le_divDC := by lia, div1Recip, div32Recip, gcdHalf,
+    divDC := max 4 divDC, four_le_divDC := by lia, div1Recip, div1Unnorm, div32Recip, gcdHalf,
     strDC, parseDC, sqrtZimmermann, sqrtBase, mulRows, mulCombaW, sqrRows }
   IO.println ""
   IO.println s!"Found:   {repr cfg}"
@@ -600,7 +619,8 @@ public def main (args : List String) : IO UInt32 := do
     ("mulUnbalanced", cfg.mulUnbalanced), ("sqrBasecase", cfg.sqrBasecase),
     ("sqrKaratsuba", cfg.sqrKaratsuba), ("sqrToom3", cfg.sqrToom3), ("sqrToom4", cfg.sqrToom4),
     ("sqrToom6", cfg.sqrToom6), ("sqrFFT", cfg.sqrFFT), ("divDC", cfg.divDC),
-    ("div1Recip", cfg.div1Recip), ("div32Recip", cfg.div32Recip), ("gcdHalf", cfg.gcdHalf),
+    ("div1Recip", cfg.div1Recip), ("div1Unnorm", cfg.div1Unnorm), ("div32Recip", cfg.div32Recip),
+    ("gcdHalf", cfg.gcdHalf),
     ("strDC", cfg.strDC), ("parseDC", cfg.parseDC), ("sqrtZimmermann", cfg.sqrtZimmermann),
     ("sqrtBase", cfg.sqrtBase), ("mulRows", cfg.mulRows), ("mulCombaW", cfg.mulCombaW),
     ("sqrRows", cfg.sqrRows)]

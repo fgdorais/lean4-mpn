@@ -304,9 +304,9 @@ def sqrFFTConfig : Config := { sqrBasecase := 2, sqrKaratsuba := 4, sqrToom3 := 
   let (q, r) := divRem1 (ofNat m) d
   q.size == (ofNat m).size && toNat q == m / d.toNat && r.toNat == m % d.toNat
 
--- With the steps with the reciprocal from the first limb.
+-- With the steps with the reciprocal from the first limb, for normalized and other divisors.
 #guard values.all fun m => limbs.all fun d => d == 0 ||
-  let (q, r) := divRem1With 0 (ofNat m) d
+  let (q, r) := divRem1With 0 0 (ofNat m) d
   q.size == (ofNat m).size && toNat q == m / d.toNat && r.toNat == m % d.toNat
 
 /-! Comparison -/
