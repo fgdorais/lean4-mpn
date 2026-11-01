@@ -105,17 +105,6 @@ public theorem Slice.getElem_eq_getElem! (s : UInt32Array.Slice) (i : Nat) (h : 
 
 /-! ### `USize` arithmetic -/
 
-public theorem _root_.USize.toNat_min (a b : USize) : (min a b).toNat = min a.toNat b.toNat := by
-  show (if a ≤ b then a else b).toNat = _
-  have := @USize.le_iff_toNat_le a b
-  split <;> lia
-
-public theorem _root_.USize.min_le_left (a b : USize) : min a b ≤ a :=
-  USize.le_iff_toNat_le.2 (by rw [USize.toNat_min]; lia)
-
-public theorem _root_.USize.min_le_right (a b : USize) : min a b ≤ b :=
-  USize.le_iff_toNat_le.2 (by rw [USize.toNat_min]; lia)
-
 public theorem getElem!_uset (a : UInt32Array) (i : USize) (v : UInt32) (h : i.toNat < a.size)
     (j : Nat) : (a.uset i v h)[j]! = if i.toNat = j then v else a[j]! := by
   rw [getElem!_eq_getElem!_toArray, getElem!_eq_getElem!_toArray, toArray_uset]
