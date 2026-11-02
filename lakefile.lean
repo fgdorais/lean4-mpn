@@ -157,9 +157,9 @@ lean_lib MPNDefault where
 lean_lib MPNTest where
   precompileModules := true
 
-/-- The harness and the searches that both widths' tuners share. -/
-lean_lib TuneHarness where
-  roots := #[`Tune.Harness, `Tune.Shared]
+/-- What both widths' benches and tuners share: their harnesses and the shared searches. -/
+lean_lib Harness where
+  roots := #[`Tune.Harness, `Tune.Shared, `Bench.Harness]
 
 /-- Times `MPN32` against `Nat`: `lake exe bench32 [op…] [size…]`, see `MPN32/BENCH.md`. -/
 lean_exe bench32 where
