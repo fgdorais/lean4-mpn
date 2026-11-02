@@ -45,31 +45,30 @@ public def addAt (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) : UInt32A
 private theorem addAtLoop_spec (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (j : Nat)
     (c : Bool) (ha : off + a.size ≤ r.size) (hj : off + j ≤ r.size) :
     (addAtLoop r off a j c).1.size = r.size ∧
-      ofLimbs (addAtLoop r off a j c).1.toList +
+      (addAtLoop r off a j c).1.valAt 0 r.size +
           2 ^ (32 * r.size) * (addAtLoop r off a j c).2.toNat =
-        ofLimbs r.toList + 2 ^ (32 * (off + j)) * (c.toNat + ofLimbs (a.copy.toList.drop j)) := by
+        r.valAt 0 r.size +
+          2 ^ (32 * (off + j)) * (c.toNat + a.array.valAt (a.start + j) (a.size - j)) := by
   induction r, j, c using addAtLoop.induct off a with
   | case1 r j c h hstop =>
     rw [addAtLoop]
     simp only [h, hstop, ↓reduceDIte, ↓reduceIte, and_self]
-    have : a.copy.toList.drop j = [] := List.drop_of_length_le (by simp; lia)
-    simp [this]
+    simp [valAt_from_of_le a hstop.1]
   | case2 r j c h hstop p ih =>
     rw [addAtLoop]
     simp only [h, hstop, ↓reduceDIte, ↓reduceIte]
     obtain ⟨ih₁, ih₂⟩ := ih (by simpa using ha) (by simp; lia)
     simp only [UInt32Array.size_set] at ih₁ ih₂
     refine ⟨ih₁, ?_⟩
-    have hk : off + j < r.toList.length := by simp; lia
-    have hset := ofLimbs_set r.toList (off + j) p.1 hk
+    have hset := UInt32Array.valAt_set r (off + j) p.1 h 0 r.size (by lia) (by lia)
     have : p.1.toNat + p.2.toNat * 2 ^ 32 = r[off + j].toNat + (a.getD j 0).toNat + c.toNat :=
       UInt32.addWithCarry_spec r[off + j] (a.getD j 0) c
-    simp only [UInt32Array.getElem_toList] at hset
-    rw [ih₂, UInt32Array.toList_set, ofLimbs_drop a.copy.toList j, ← getD_eq_getD_toList_copy,
-      ← Nat.add_assoc off j 1, Nat.mul_add 32 (off + j) 1, Nat.mul_one, Nat.pow_add]
-    generalize ofLimbs (r.toList.set (off + j) p.1) = R₁ at *
-    generalize ofLimbs r.toList = R at *
-    generalize ofLimbs (a.copy.toList.drop (j + 1)) = A at *
+    rw [Nat.sub_zero] at hset
+    rw [ih₂, valAt_from a j, ← Nat.add_assoc off j 1, Nat.mul_add 32 (off + j) 1, Nat.mul_one,
+      Nat.pow_add]
+    generalize (r.set (off + j) p.1 h).valAt 0 r.size = R₁ at *
+    generalize r.valAt 0 r.size = R at *
+    generalize a.array.valAt (a.start + (j + 1)) (a.size - (j + 1)) = A at *
     generalize 2 ^ (32 * (off + j)) = P at *
     generalize p.1.toNat = lo at *
     generalize p.2.toNat = hi at *
@@ -79,9 +78,8 @@ private theorem addAtLoop_spec (r : UInt32Array) (off : Nat) (a : UInt32Array.Sl
   | case3 r j c h =>
     rw [addAtLoop]
     simp only [h, ↓reduceDIte]
-    have h₁ : a.copy.toList.drop j = [] := List.drop_of_length_le (by simp; lia)
     have h₂ : off + j = r.size := by lia
-    simp [h₁, h₂]
+    simp [valAt_from_of_le a (show a.size ≤ j by lia), h₂]
 
 @[simp] public theorem size_addAt (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
     (ha : off + a.size ≤ r.size) : (addAt r off a).1.size = r.size :=
@@ -92,7 +90,8 @@ public theorem toNat_addAt (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
     toNat (addAt r off a).1 + 2 ^ (32 * r.size) * (addAt r off a).2.toNat =
       toNat r + 2 ^ (32 * off) * toNat a := by
   have := (addAtLoop_spec r off a 0 false ha (by lia)).2
-  simpa [addAt, toNat] using this
+  rw [toNat_array_eq_valAt, toNat_array_eq_valAt, size_addAt r off a ha, toNat_eq_valAt a]
+  simpa [addAt] using this
 
 /-- When the sum fits in `r`, `addAt` has no carry out. -/
 public theorem toNat_addAt_of_lt (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
@@ -209,38 +208,35 @@ termination_by r.size - i
 
 /-- `incrFrom r i` adds `2^(32 i)` to `r` when the sum fits. -/
 public theorem incrFrom_spec (r : UInt32Array) (i : Nat) (hi : i ≤ r.size)
-    (hlt : ofLimbs r.toList + 2 ^ (32 * i) < 2 ^ (32 * r.size)) :
+    (hlt : r.valAt 0 r.size + 2 ^ (32 * i) < 2 ^ (32 * r.size)) :
     (incrFrom r i).size = r.size ∧
-      ofLimbs (incrFrom r i).toList = ofLimbs r.toList + 2 ^ (32 * i) := by
+      (incrFrom r i).valAt 0 r.size = r.valAt 0 r.size + 2 ^ (32 * i) := by
   induction r, i using incrFrom.induct with
   | case1 r i h hmax ih =>
     rw [incrFrom]
     simp only [h, hmax, ↓reduceDIte, ↓reduceIte]
-    have hk : i < r.toList.length := by simp; lia
-    have hset := ofLimbs_set r.toList i 0 hk
-    simp only [UInt32Array.getElem_toList, hmax, UInt32.toNat_zero, Nat.mul_zero,
-      Nat.add_zero, UInt32.reduceToNat] at hset
+    have hset := UInt32Array.valAt_set r i 0 h 0 r.size (by lia) (by lia)
+    simp only [Nat.sub_zero, hmax, UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero,
+      UInt32.reduceToNat] at hset
     have hpow : 2 ^ (32 * (i + 1)) = 2 ^ (32 * i) * 4294967296 := by
       rw [Nat.mul_add, Nat.mul_one, Nat.pow_add]
-    simp only [UInt32Array.size_set, UInt32Array.toList_set, hpow] at ih ⊢
-    generalize ofLimbs (r.toList.set i 0) = R' at *
-    generalize ofLimbs r.toList = R at *
+    simp only [UInt32Array.size_set, hpow] at ih ⊢
+    generalize (r.set i 0 h).valAt 0 r.size = R' at *
+    generalize r.valAt 0 r.size = R at *
     generalize 2 ^ (32 * i) = P at *
     obtain ⟨ih₁, ih₂⟩ := ih (by lia) (by lia)
     exact ⟨ih₁, by lia⟩
   | case2 r i h hmax =>
     rw [incrFrom]
     simp only [h, hmax, ↓reduceDIte, ↓reduceIte, UInt32Array.size_set, true_and]
-    have hk : i < r.toList.length := by simp; lia
-    have hset := ofLimbs_set r.toList i (r[i] + 1) hk
-    simp only [UInt32Array.getElem_toList] at hset
+    have hset := UInt32Array.valAt_set r i (r[i] + 1) h 0 r.size (by lia) (by lia)
+    rw [Nat.sub_zero] at hset
     generalize r[i] = v at hmax hset
     have hv : (v + 1).toNat = v.toNat + 1 := by
       have : v.toNat ≠ 4294967295 := fun e => hmax (UInt32.toNat_inj.1 e)
       have := v.toNat_lt
       rw [UInt32.toNat_add, UInt32.toNat_one]
       lia
-    rw [UInt32Array.toList_set]
     rw [hv, Nat.mul_add, Nat.mul_one] at hset
     lia
   | case3 r i h =>

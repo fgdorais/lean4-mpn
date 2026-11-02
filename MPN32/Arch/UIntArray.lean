@@ -82,6 +82,89 @@ public theorem getElem!_eq_getElem (a : UInt32Array) (i : Nat) (h : i < a.size) 
   rw [getElem!_eq_getElem!_toArray, getElem_eq_getElem_toArray]
   simp [h]
 
+/-- `getD` with `0` reads as `getElem!`. -/
+public theorem getD_zero_eq_getElem! (a : UInt32Array) (i : Nat) : a.getD i 0 = a[i]! := by
+  rw [getD_eq_getD_getElem?]
+  by_cases h : i < a.size
+  · rw [getElem?_pos a i h, getElem!_eq_getElem a i h]
+    rfl
+  · rw [getElem?_neg a i h, getElem!_neg a i h]
+    rfl
+
+/-- The limbs past the end of `a` are zero. -/
+public theorem valAt_of_size_le (a : UInt32Array) {lo : Nat} (n : Nat) (h : a.size ≤ lo) :
+    a.valAt lo n = 0 := by
+  induction n generalizing lo with
+  | zero => simp
+  | succ n ih => rw [valAt_succ, ih (by lia), getElem!_neg a lo (by lia)]; rfl
+
+/-- Reading past the end of `a` adds nothing. -/
+public theorem valAt_extend (a : UInt32Array) {lo m : Nat} (n : Nat) (h : a.size ≤ lo + m)
+    (hm : m ≤ n) : a.valAt lo n = a.valAt lo m := by
+  rw [show n = m + (n - m) by lia, valAt_add, valAt_of_size_le _ _ h, Nat.mul_zero, Nat.add_zero]
+
+/-- The `n` limbs of `a` from `lo`, as many as there are past `lo`. -/
+public theorem valAt_size_sub (a : UInt32Array) (lo n : Nat) :
+    a.valAt lo (min n (a.size - lo)) = a.valAt lo n := by
+  by_cases h : n ≤ a.size - lo
+  · rw [Nat.min_eq_left h]
+  · rw [Nat.min_eq_right (by lia), valAt_extend a (m := a.size - lo) n (by lia) (by lia)]
+
+public theorem getElem!_set (a : UInt32Array) (i : Nat) (v : UInt32) (h : i < a.size) (j : Nat) :
+    (a.set i v h)[j]! = if i = j then v else a[j]! := by
+  rw [getElem!_eq_getElem!_toArray, getElem!_eq_getElem!_toArray, toArray_set]
+  have := a.size_toArray
+  grind
+
+/-- Limb `k` of `a` is a digit of its value. -/
+public theorem toNat_getElem_eq (a : UInt32Array) {k : Nat} (hk : k < a.size) :
+    a[k].toNat = a.valAt 0 a.size / 2 ^ (32 * k) % 2 ^ 32 := by
+  have := MPN.LimbArray.val_get_eq a (n := a.size) hk
+  change a[k]!.toNat = a.valAt 0 a.size / 2 ^ (32 * k) % 2 ^ 32 at this
+  rwa [getElem!_eq_getElem a k hk] at this
+
+/-- The limbs of a value below `2^(32 k)` are zero from `k` on. -/
+public theorem getElem_eq_zero_of_valAt_lt (a : UInt32Array) {k : Nat} (hk : k < a.size)
+    (h : a.valAt 0 a.size < 2 ^ (32 * k)) : a[k] = 0 :=
+  UInt32.toNat_inj.1 (by rw [toNat_getElem_eq a hk, Nat.div_eq_of_lt h, Nat.zero_mod]; rfl)
+
+/-- Arrays of the same size are determined by their values. -/
+public theorem eq_of_valAt_eq {a b : UInt32Array} (h : a.size = b.size)
+    (hv : a.valAt 0 a.size = b.valAt 0 b.size) : a = b :=
+  ext_getElem h fun k hka hkb =>
+    UInt32.toNat_inj.1 (by rw [toNat_getElem_eq a hka, toNat_getElem_eq b hkb, hv])
+
+/-- Zeros are zero. -/
+@[simp] public theorem valAt_replicate_zero (n lo m : Nat) :
+    (UInt32Array.replicate n 0).valAt lo m = 0 :=
+  MPN.LimbArray.valAt_eq_zero _ fun i _ _ => by
+    change (UInt32Array.replicate n 0)[i]!.toNat = 0
+    by_cases h : i < n
+    · rw [getElem!_eq_getElem _ _ (by simpa using h)]
+      simp
+    · rw [getElem!_neg _ _ (by simpa using h)]
+      rfl
+
+/-- Replacing limb `k`, one of the `n` from `lo`, changes their value by the difference. -/
+public theorem valAt_set (a : UInt32Array) (k : Nat) (v : UInt32) (h : k < a.size) (lo n : Nat)
+    (h₁ : lo ≤ k) (h₂ : k < lo + n) :
+    (a.set k v h).valAt lo n + 2 ^ (32 * (k - lo)) * a[k].toNat =
+      a.valAt lo n + 2 ^ (32 * (k - lo)) * v.toNat := by
+  have e : n = (k - lo) + (1 + (n - (k - lo) - 1)) := by lia
+  have hk : lo + (k - lo) = k := by lia
+  have hlow : (a.set k v h).valAt lo (k - lo) = a.valAt lo (k - lo) :=
+    valAt_congr _ fun i _ hi => by rw [getElem!_set, ite_eq_right (by lia)]
+  have hhigh :
+      (a.set k v h).valAt (k + 1) (n - (k - lo) - 1) = a.valAt (k + 1) (n - (k - lo) - 1) :=
+    valAt_congr _ fun i hi _ => by rw [getElem!_set, ite_eq_right (by lia)]
+  rw [e, valAt_add, valAt_add a, hk, valAt_add (a.set k v h) k, valAt_add a k, valAt_one,
+    valAt_one, getElem!_set, ite_eq_left rfl, getElem!_eq_getElem a k h, hlow, hhigh]
+  generalize a.valAt lo (k - lo) = L
+  generalize a.valAt (k + 1) (n - (k - lo) - 1) = H
+  generalize 2 ^ (32 * (k - lo)) = P
+  rw [Nat.mul_add, Nat.mul_add]
+  lia
+
 public theorem getElem!_set! (a : UInt32Array) (i j : Nat) (v : UInt32) :
     (a.set! i v)[j]! = if i = j ∧ i < a.size then v else a[j]! := by
   rw [getElem!_eq_getElem!_toArray, getElem!_eq_getElem!_toArray, toArray_set!]

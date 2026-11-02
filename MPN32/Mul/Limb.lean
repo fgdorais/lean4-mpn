@@ -173,10 +173,10 @@ private theorem addMul1_fold (r : UInt32Array) (off : Nat) (a : UInt32Array.Slic
 private theorem addMul1Loop_spec (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
     (x : UInt32) (j : Nat) (c : UInt32) (h : off + a.size ≤ r.size) (hj : j ≤ a.size) :
     (addMul1Loop r off a x j c h).1.size = r.size ∧
-      ofLimbs (addMul1Loop r off a x j c h).1.toList +
+      (addMul1Loop r off a x j c h).1.valAt 0 r.size +
           2 ^ (32 * (off + a.size)) * (addMul1Loop r off a x j c h).2.toNat =
-        ofLimbs r.toList +
-          2 ^ (32 * (off + j)) * (c.toNat + ofLimbs (a.copy.toList.drop j) * x.toNat) := by
+        r.valAt 0 r.size + 2 ^ (32 * (off + j)) *
+          (c.toNat + a.array.valAt (a.start + j) (a.size - j) * x.toNat) := by
   induction r, j, c, h using addMul1Loop.induct off a x with
   | case1 r j c h hj' p ih =>
     rw [addMul1Loop]
@@ -184,16 +184,16 @@ private theorem addMul1Loop_spec (r : UInt32Array) (off : Nat) (a : UInt32Array.
     obtain ⟨ih₁, ih₂⟩ := ih (by lia)
     simp only [UInt32Array.size_set] at ih₁
     refine ⟨ih₁, ?_⟩
-    have hk : off + j < r.toList.length := by simp; lia
-    have hset := ofLimbs_set r.toList (off + j) p.1 hk
+    have hset := UInt32Array.valAt_set r (off + j) p.1 (by lia) 0 r.size (by lia) (by lia)
     have : p.1.toNat + p.2.toNat * 2 ^ 32 = a[j].toNat * x.toNat + r[off + j].toNat + c.toNat :=
       UInt32.mulAddAdd_spec a[j] x r[off + j] c
-    simp only [UInt32Array.getElem_toList] at hset
-    rw [ih₂, UInt32Array.toList_set, toList_copy_drop hj', ofLimbs_cons, ← Nat.add_assoc off j 1,
+    rw [Nat.sub_zero] at hset
+    simp only [UInt32Array.size_set] at ih₂
+    rw [ih₂, valAt_from_of_lt a hj', ← Nat.add_assoc off j 1,
       Nat.mul_add 32 (off + j) 1, Nat.mul_one, Nat.pow_add]
-    generalize ofLimbs (r.toList.set (off + j) p.1) = R₁ at *
-    generalize ofLimbs r.toList = R at *
-    generalize ofLimbs (a.copy.toList.drop (j + 1)) = D at *
+    generalize (r.set (off + j) p.1 _).valAt 0 r.size = R₁ at *
+    generalize r.valAt 0 r.size = R at *
+    generalize a.array.valAt (a.start + (j + 1)) (a.size - (j + 1)) = D at *
     generalize 2 ^ (32 * (off + j)) = P at *
     generalize p.1.toNat = lo at *
     generalize p.2.toNat = hi at *
@@ -203,9 +203,8 @@ private theorem addMul1Loop_spec (r : UInt32Array) (off : Nat) (a : UInt32Array.
   | case2 r j c h hj' =>
     rw [addMul1Loop]
     simp only [hj', ↓reduceDIte]
-    have h₂ : a.copy.toList.drop j = [] := List.drop_of_length_le (by simp; lia)
     have h₃ : j = a.size := by lia
-    rw [h₂, h₃]
+    rw [valAt_from_of_le a (by lia), h₃]
     simp
 
 private theorem getElem?_toList_addMul1Loop (r : UInt32Array) (off : Nat)
@@ -236,7 +235,9 @@ public theorem toNat_addMul1 (r : UInt32Array) (off : Nat) (a : UInt32Array.Slic
     (h : off + a.size ≤ r.size) :
     toNat (addMul1 r off a x h).1 + 2 ^ (32 * (off + a.size)) * (addMul1 r off a x h).2.toNat =
       toNat r + 2 ^ (32 * off) * (toNat a * x.toNat) := by
-  simpa [addMul1, toNat] using (addMul1Loop_spec r off a x 0 0 h (Nat.zero_le _)).2
+  have := (addMul1Loop_spec r off a x 0 0 h (Nat.zero_le _)).2
+  rw [toNat_array_eq_valAt, toNat_array_eq_valAt, size_addMul1, toNat_eq_valAt a]
+  simpa [addMul1] using this
 
 /-! ## Storing the carry -/
 
@@ -345,12 +346,12 @@ public theorem toNat_addMul1Set (r : UInt32Array) (off : Nat) (a : UInt32Array.S
     rw [getElem?_pos (addMul1 r off a x (by lia)).1 (off + a.size) (by simp; lia),
       getElem?_pos r (off + a.size) h, Option.some.injEq] at this
     rw [this, hz]
-  have hset := ofLimbs_set (addMul1 r off a x (by lia)).1.toList (off + a.size)
-    (addMul1 r off a x (by lia)).2 (by simp; lia)
-  simp only [UInt32Array.getElem_toList, hz', UInt32.toNat_zero, Nat.mul_zero,
-    Nat.add_zero] at hset
-  simp only [toNat_toSlice] at hadd
-  rw [toNat_toSlice, addMul1Set, UInt32Array.toList_set, hset, hadd, toNat_toSlice]
+  have hset := UInt32Array.valAt_set (addMul1 r off a x (by lia)).1 (off + a.size)
+    (addMul1 r off a x (by lia)).2 (by simp; lia) 0 r.size (by lia) (by lia)
+  simp only [hz', UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero, Nat.sub_zero] at hset
+  rw [toNat_array_eq_valAt, toNat_array_eq_valAt, size_addMul1] at hadd
+  rw [toNat_array_eq_valAt, addMul1Set, UInt32Array.size_set, size_addMul1, hset, hadd,
+    toNat_array_eq_valAt]
 
 /-- `a * x` as `a.size` limbs and a carry limb, like GMP's `mpn_mul_1`: `addMul1` into zeros. -/
 public def mul1 (a : UInt32Array.Slice) (x : UInt32) : UInt32Array × UInt32 :=
@@ -363,8 +364,6 @@ public def mul1 (a : UInt32Array.Slice) (x : UInt32) : UInt32Array × UInt32 :=
 public theorem toNat_mul1 (a : UInt32Array.Slice) (x : UInt32) :
     toNat (mul1 a x).1 + 2 ^ (32 * a.size) * (mul1 a x).2.toNat = toNat a * x.toNat := by
   have := toNat_addMul1 (.replicate a.size 0) 0 a x (by simp)
-  rw [toNat_toSlice, toNat_toSlice] at this
-  rw [toNat_toSlice]
   simpa [mul1] using this
 
 /-- `v * x` as `v.size + 1` limbs. -/
@@ -459,9 +458,9 @@ public def subMul1Fast (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (x 
 private theorem subMul1Loop_spec (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
     (x : UInt32) (j : Nat) (c : UInt32) (h : off + a.size ≤ r.size) (hj : j ≤ a.size) :
     (subMul1Loop r off a x j c h).1.size = r.size ∧
-      ofLimbs (subMul1Loop r off a x j c h).1.toList +
-          2 ^ (32 * (off + j)) * (c.toNat + ofLimbs (a.copy.toList.drop j) * x.toNat) =
-        ofLimbs r.toList +
+      (subMul1Loop r off a x j c h).1.valAt 0 r.size + 2 ^ (32 * (off + j)) *
+          (c.toNat + a.array.valAt (a.start + j) (a.size - j) * x.toNat) =
+        r.valAt 0 r.size +
           2 ^ (32 * (off + a.size)) * (subMul1Loop r off a x j c h).2.toNat := by
   induction r, j, c, h using subMul1Loop.induct off a x with
   | case1 r j c h hj' p ih =>
@@ -470,21 +469,19 @@ private theorem subMul1Loop_spec (r : UInt32Array) (off : Nat) (a : UInt32Array.
     obtain ⟨ih₁, ih₂⟩ := ih (by lia)
     simp only [UInt32Array.size_set] at ih₁ ih₂
     refine ⟨ih₁, ?_⟩
-    have hk : off + j < r.toList.length := by simp; lia
-    have hset := ofLimbs_set r.toList (off + j) p.1 hk
+    have hset := UInt32Array.valAt_set r (off + j) p.1 (by lia) 0 r.size (by lia) (by lia)
     have : p.1.toNat + a[j].toNat * x.toNat + c.toNat = r[off + j].toNat + p.2.toNat * 2 ^ 32 :=
       UInt32.subMul_spec r[off + j] a[j] x c
-    simp only [UInt32Array.getElem_toList] at hset
-    rw [UInt32Array.toList_set, ← Nat.add_assoc off j 1, Nat.mul_add 32 (off + j) 1, Nat.mul_one,
+    rw [Nat.sub_zero] at hset
+    rw [← Nat.add_assoc off j 1, Nat.mul_add 32 (off + j) 1, Nat.mul_one,
       Nat.pow_add] at ih₂
-    rw [toList_copy_drop hj', ofLimbs_cons]
-    generalize subMul1Loop (r.set (off + j) p.1 (by lia)) off a x (j + 1) p.2
-      (by simpa using h) = q at *
-    generalize ofLimbs q.1.toList = F at *
-    generalize q.2.toNat = b at *
-    generalize ofLimbs (r.toList.set (off + j) p.1) = R₁ at *
-    generalize ofLimbs r.toList = R at *
-    generalize ofLimbs (a.copy.toList.drop (j + 1)) = D at *
+    rw [valAt_from_of_lt a hj']
+    clear ih
+    generalize (subMul1Loop _ off a x (j + 1) p.2 _).1.valAt 0 r.size = F at *
+    generalize (subMul1Loop _ off a x (j + 1) p.2 _).2.toNat = b at *
+    generalize (r.set (off + j) p.1 _).valAt 0 r.size = R₁ at *
+    generalize r.valAt 0 r.size = R at *
+    generalize a.array.valAt (a.start + (j + 1)) (a.size - (j + 1)) = D at *
     generalize 2 ^ (32 * (off + j)) = P at *
     generalize p.1.toNat = lo at *
     generalize p.2.toNat = hi at *
@@ -494,9 +491,8 @@ private theorem subMul1Loop_spec (r : UInt32Array) (off : Nat) (a : UInt32Array.
   | case2 r j c h hj' =>
     rw [subMul1Loop]
     simp only [hj', ↓reduceDIte]
-    have h₂ : a.copy.toList.drop j = [] := List.drop_of_length_le (by simp; lia)
     have h₃ : j = a.size := by lia
-    rw [h₂, h₃]
+    rw [valAt_from_of_le a (by lia), h₃]
     simp
 
 private theorem getElem?_toList_subMul1Loop (r : UInt32Array) (off : Nat)
@@ -527,7 +523,9 @@ public theorem toNat_subMul1 (r : UInt32Array) (off : Nat) (a : UInt32Array.Slic
     (h : off + a.size ≤ r.size) :
     toNat (subMul1 r off a x h).1 + 2 ^ (32 * off) * (toNat a * x.toNat) =
       toNat r + 2 ^ (32 * (off + a.size)) * (subMul1 r off a x h).2.toNat := by
-  simpa [subMul1, toNat] using (subMul1Loop_spec r off a x 0 0 h (Nat.zero_le _)).2
+  have := (subMul1Loop_spec r off a x 0 0 h (Nat.zero_le _)).2
+  rw [toNat_array_eq_valAt, toNat_array_eq_valAt, size_subMul1, toNat_eq_valAt a]
+  simpa [subMul1] using this
 
 /-! ## Framing
 

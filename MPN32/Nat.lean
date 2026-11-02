@@ -48,12 +48,8 @@ namespace MPN.W32
 public theorem pow_le_toNat_of_isTrimmed {a : UInt32Array} (h : isTrimmed a = true)
     (hpos : 0 < a.size) : 2 ^ (32 * (a.size - 1)) ≤ toNat a := by
   refine Nat.le_of_not_lt fun hlt => ?_
-  rw [toNat_toSlice] at hlt
-  have := getElem_eq_zero_of_ofLimbs_lt (l := a.toList) (k := a.size - 1) (by simp; lia) hlt
-  rw [isTrimmed_iff, IsTrimmed, List.getLast?_eq_getElem?] at h
-  simp only [UInt32Array.length_toList] at h
-  rw [List.getElem?_eq_getElem (by simp; lia), this] at h
-  exact h rfl
+  rw [toNat_array_eq_valAt] at hlt
+  exact getElem_top_ne_zero h hpos (UInt32Array.getElem_eq_zero_of_valAt_lt a (by lia) hlt)
 
 /-- The limbs of a word: none for `0`, one below `2³²`, two otherwise. -/
 public def limbsOfWord (n : UInt64) : UInt32Array :=
@@ -64,34 +60,27 @@ public def limbsOfWord (n : UInt64) : UInt32Array :=
   else
     ((UInt32Array.emptyWithCapacity 2).push n.toUInt32).push (n >>> 32).toUInt32
 
-public theorem isTrimmed_of_getLast {a : UInt32Array} {x : UInt32} (h : a.toList.getLast? = some x)
-    (hx : x ≠ 0) : isTrimmed a = true := by
-  rw [isTrimmed_iff, IsTrimmed, h]
-  intro h'
-  exact hx (Option.some.inj h')
-
 public theorem limbsOfWord_spec (n : UInt64) :
     toNat (limbsOfWord n) = n.toNat ∧ isTrimmed (limbsOfWord n) = true := by
   have hn := n.toNat_lt
   by_cases h : n = 0
   · have heq : limbsOfWord n = .empty := by rw [limbsOfWord, ite_eq_left h]
     rw [heq, h]
-    exact ⟨by rw [toNat_toSlice]; rfl, by rw [isTrimmed_iff]; simp⟩
+    exact ⟨toNat_empty, isTrimmed_empty⟩
   · have h0 : n.toNat ≠ 0 := fun h'' => h (UInt64.toNat_inj.1 (by simpa using h''))
     by_cases h' : n < 4294967296
     · have heq : limbsOfWord n = (UInt32Array.emptyWithCapacity 1).push n.toUInt32 := by
         rw [limbsOfWord, ite_eq_right h, ite_eq_left h']
       have h' : n.toNat < 2 ^ 32 := by simpa [UInt64.lt_iff_toNat_lt] using h'
-      have hl : (limbsOfWord n).toList = [n.toUInt32] := by
-        rw [heq, UInt32Array.toList_push, UInt32Array.emptyWithCapacity_eq_empty]
-        simp
       have hx : n.toUInt32 ≠ 0 := fun h'' => by
         have := congrArg UInt32.toNat h''
         simp only [UInt64.toNat_toUInt32, UInt32.toNat_zero] at this
         lia
-      refine ⟨?_, isTrimmed_of_getLast (by rw [hl]; rfl) hx⟩
-      rw [toNat_toSlice, hl]
-      simp only [ofLimbs_cons, ofLimbs_nil, Nat.mul_zero, Nat.add_zero, UInt64.toNat_toUInt32]
+      rw [heq]
+      refine ⟨?_, isTrimmed_push _ hx⟩
+      rw [toNat_push, UInt32Array.emptyWithCapacity_eq_empty, toNat_empty]
+      simp only [UInt32Array.size_empty, Nat.mul_zero, Nat.pow_zero, Nat.one_mul, Nat.zero_add,
+        UInt64.toNat_toUInt32]
       lia
     · have heq : limbsOfWord n =
           ((UInt32Array.emptyWithCapacity 2).push n.toUInt32).push (n >>> 32).toUInt32 := by
@@ -99,17 +88,15 @@ public theorem limbsOfWord_spec (n : UInt64) :
       have h' : 2 ^ 32 ≤ n.toNat := by simpa [UInt64.lt_iff_toNat_lt] using h'
       have hhi : (n >>> 32).toNat = n.toNat / 2 ^ 32 := by
         simp [UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow]
-      have hl : (limbsOfWord n).toList = [n.toUInt32, (n >>> 32).toUInt32] := by
-        rw [heq, UInt32Array.toList_push, UInt32Array.toList_push,
-          UInt32Array.emptyWithCapacity_eq_empty]
-        simp
       have hx : (n >>> 32).toUInt32 ≠ 0 := fun h'' => by
         have := congrArg UInt32.toNat h''
         simp only [UInt64.toNat_toUInt32, UInt32.toNat_zero, hhi] at this
         lia
-      refine ⟨?_, isTrimmed_of_getLast (by rw [hl]; rfl) hx⟩
-      rw [toNat_toSlice, hl]
-      simp only [ofLimbs_cons, ofLimbs_nil, Nat.mul_zero, Nat.add_zero, UInt64.toNat_toUInt32, hhi]
+      rw [heq]
+      refine ⟨?_, isTrimmed_push _ hx⟩
+      rw [toNat_push, toNat_push, UInt32Array.emptyWithCapacity_eq_empty, toNat_empty]
+      simp only [UInt32Array.size_empty, UInt32Array.size_push, Nat.mul_zero, Nat.pow_zero,
+        Nat.one_mul, Nat.zero_add, UInt64.toNat_toUInt32, hhi]
       have : n.toNat / 2 ^ 32 < 2 ^ 32 := by lia
       rw [Nat.mod_eq_of_lt this]
       lia
@@ -126,11 +113,9 @@ public theorem toNat_wordOfLimbs (a : UInt32Array) (h : a.size ≤ 2) :
     simp only [wordOfLimbs, UInt64.toNat_add, UInt64.toNat_shiftLeft, UInt32.toNat_toUInt64,
       UInt64.reduceToNat, Nat.reduceMod, Nat.shiftLeft_eq]
     rw [Nat.mod_eq_of_lt (by lia), Nat.mod_eq_of_lt (by lia)]
-  rw [hw, toNat_toSlice]
-  have hl : a.toList = (a.toList.take 2) := (List.take_of_length_le (by simp; lia)).symm
-  rw [hl, ofLimbs_take_add_one_getD, ofLimbs_take_add_one_getD]
-  simp only [List.take_zero, ofLimbs_nil, Nat.mul_zero, Nat.pow_zero, Nat.one_mul, Nat.zero_add,
-    UInt32Array.getD_eq_getD_getElem?, List.getD_eq_getElem?_getD, UInt32Array.getElem?_toList]
+  rw [hw, toNat_array_eq_valAt,
+    ← UInt32Array.valAt_extend a (lo := 0) (m := a.size) 2 (by lia) h]
+  simp only [UInt32Array.valAt_succ, UInt32Array.valAt_zero, UInt32Array.getD_zero_eq_getElem!]
   lia
 
 namespace Nat
@@ -143,44 +128,51 @@ public def limbs4 (lo hi : UInt64) : UInt32Array :=
     hi.toUInt32
   if hi < 4294967296 then r else r.push (hi >>> 32).toUInt32
 
-public theorem toList_limbs4 (lo hi : UInt64) :
-    (limbs4 lo hi).toList = [lo.toUInt32, (lo >>> 32).toUInt32, hi.toUInt32] ++
-      (if hi < 4294967296 then [] else [(hi >>> 32).toUInt32]) := by
-  unfold limbs4
-  split <;> simp
-
 public theorem limbs4_spec (lo hi : UInt64) (h : hi ≠ 0) :
     isTrimmed (limbs4 lo hi) = true ∧
       MPN.W32.toNat (limbs4 lo hi) = lo.toNat + 2 ^ 64 * hi.toNat := by
   have hl := lo.toNat_lt
   have hh := hi.toNat_lt
   have h0 : hi.toNat ≠ 0 := fun e => h (UInt64.toNat_inj.1 (by simpa using e))
-  rw [toNat_toSlice, toList_limbs4]
+  have hsz : 2 ^ (32 * (((UInt32Array.emptyWithCapacity 4).push lo.toUInt32).push
+      (lo >>> 32).toUInt32).size) = 2 ^ 64 := by simp
   by_cases hs : hi < 4294967296
-  · have hs' := hs
+  · have e : limbs4 lo hi = (((UInt32Array.emptyWithCapacity 4).push lo.toUInt32).push
+        (lo >>> 32).toUInt32).push hi.toUInt32 := by
+      simp only [limbs4, hs, ite_true]
+    rw [e]
+    have hs' := hs
     rw [UInt64.lt_iff_toNat_lt] at hs'
     simp only [UInt64.reduceToNat] at hs'
-    refine ⟨isTrimmed_of_getLast (x := hi.toUInt32) (by rw [toList_limbs4]; simp [hs]) ?_, ?_⟩
+    refine ⟨isTrimmed_push _ ?_, ?_⟩
     · intro e
       have := congrArg UInt32.toNat e
       simp only [UInt64.toNat_toUInt32, UInt32.toNat_zero] at this
       lia
-    · simp only [hs, ite_true, List.append_nil, ofLimbs_cons, ofLimbs_nil, UInt64.toNat_toUInt32,
+    · rw [toNat_push, hsz, toNat_push, toNat_push, UInt32Array.emptyWithCapacity_eq_empty,
+        toNat_empty]
+      simp only [
+        UInt32Array.size_empty, UInt32Array.size_push, UInt64.toNat_toUInt32,
         UInt64.toNat_shiftRight, UInt64.reduceToNat, Nat.reduceMod, Nat.shiftRight_eq_div_pow]
       lia
-  · have hs' := hs
+  · have e : limbs4 lo hi = ((((UInt32Array.emptyWithCapacity 4).push lo.toUInt32).push
+        (lo >>> 32).toUInt32).push hi.toUInt32).push (hi >>> 32).toUInt32 := by
+      simp only [limbs4, hs, ite_false]
+    rw [e]
+    have hs' := hs
     rw [UInt64.lt_iff_toNat_lt] at hs'
     simp only [UInt64.reduceToNat] at hs'
-    refine ⟨isTrimmed_of_getLast (x := (hi >>> 32).toUInt32) (by rw [toList_limbs4]; simp [hs])
-      ?_, ?_⟩
+    refine ⟨isTrimmed_push _ ?_, ?_⟩
     · intro e
       have := congrArg UInt32.toNat e
       simp only [UInt64.toNat_toUInt32, UInt64.toNat_shiftRight, UInt64.reduceToNat,
         Nat.reduceMod, Nat.shiftRight_eq_div_pow, UInt32.toNat_zero] at this
       lia
-    · simp only [hs, ite_false, List.cons_append, List.nil_append, ofLimbs_cons, ofLimbs_nil,
-        UInt64.toNat_toUInt32, UInt64.toNat_shiftRight, UInt64.reduceToNat, Nat.reduceMod,
-        Nat.shiftRight_eq_div_pow]
+    · rw [toNat_push, toNat_push, hsz, toNat_push, toNat_push,
+        UInt32Array.emptyWithCapacity_eq_empty, toNat_empty]
+      simp only [
+        UInt32Array.size_empty, UInt32Array.size_push, UInt64.toNat_toUInt32,
+        UInt64.toNat_shiftRight, UInt64.reduceToNat, Nat.reduceMod, Nat.shiftRight_eq_div_pow]
       lia
 
 /--
@@ -290,14 +282,10 @@ public theorem div_of_scaled {X Q b S r : Nat} (hS : 0 < S) (h : X * S = Q * (b 
 public theorem toNat_four (a : UInt32Array) (ha : a.size ≤ 4) :
     MPN.W32.toNat a = (a.getD 0 0).toNat + 2 ^ 32 * (a.getD 1 0).toNat +
       2 ^ 64 * (a.getD 2 0).toNat + 2 ^ 96 * (a.getD 3 0).toNat := by
-  rw [toNat_toSlice]
-  have hl : a.toList = (a.toList.take 4) := (List.take_of_length_le (by simp; lia)).symm
-  rw [hl, ofLimbs_take_add_one_getD, ofLimbs_take_add_one_getD, ofLimbs_take_add_one_getD,
-    ofLimbs_take_add_one_getD]
-  simp only [List.take_zero, ofLimbs_nil, UInt32Array.getD_eq_getD_getElem?,
-    List.getD_eq_getElem?_getD, UInt32Array.getElem?_toList]
-  simp only [Nat.mul_zero, Nat.pow_zero, Nat.one_mul, Nat.zero_add, Nat.mul_one,
-    Nat.reduceMul]
+  rw [toNat_array_eq_valAt,
+    ← UInt32Array.valAt_extend a (lo := 0) (m := a.size) 4 (by lia) ha]
+  simp only [UInt32Array.valAt_succ, UInt32Array.valAt_zero, UInt32Array.getD_zero_eq_getElem!]
+  lia
 
 public theorem divRem128L_spec (x₀ x₁ x₂ x₃ : UInt32) (b : UInt64)
     (hb : 4294967296 ≤ b) :

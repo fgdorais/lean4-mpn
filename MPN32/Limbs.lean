@@ -7,10 +7,10 @@ module
 /-!
 # The value of a list of limbs
 
-`ofLimbs l` is the natural number that the little-endian base 2³² limbs `l` denote. It is the
-specification of the arithmetic: every operation is proved correct by computing `ofLimbs` of
-its result. A list is *trimmed* when its last limb is nonzero, and trimmed lists represent each
-natural number exactly once.
+`ofLimbs l` is the natural number that the little-endian base 2³² limbs `l` denote: the model of
+the kernels of `Arch/`, which are proved by computing `ofLimbs` of their results, and which
+`toNat_eq_ofLimbs` (`MPN32.Basic`) relates to the specification by `valAt`. A list is *trimmed*
+when its last limb is nonzero, and trimmed lists represent each natural number exactly once.
 -/
 
 namespace MPN.W32

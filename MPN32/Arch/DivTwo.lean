@@ -492,8 +492,7 @@ private theorem shl_digit_succ (a s j : Nat) (hs : s < 32) :
 /-- Digit `j` of `toNat a` in base `β` is its limb `j`, or `0` past its end. -/
 private theorem toNat_getD_slice (a : UInt32Array.Slice) (j : Nat) :
     (a.getD j 0).toNat = toNat a / 2 ^ (32 * j) % 2 ^ 32 := by
-  rw [getD_eq_getD_toList_copy, toNat_getD_eq]
-  rfl
+  rw [getD_eq_getD_toList_copy, toNat_getD_eq, toNat_eq_ofLimbs]
 
 /--
 Limb `k` of `a 2ˢ`, for `s < 32`, read from limbs `k` and `k - 1` of the `n` limbs of `arr` from
@@ -879,7 +878,7 @@ public theorem divRem2_spec (a : UInt32Array.Slice) (d₁ d₀ : UInt32) (hd : d
       (divRem2Limbs (shiftLeft a (31 - l)) D (31 - l).toUInt64).2.toNat < d := by
     simp only [divRem2Limbs, UInt32Array.Slice.foldrInPlaceThen_eq, UInt32Array.Slice.foldrInPlace]
     have hx := toNat_shiftLeft a (31 - l)
-    rw [toNat_toSlice] at hx
+    rw [toNat_toSlice_ofLimbs] at hx
     have h := div2_loop D.toNat (div2Step (D >>> 32).toUInt32 D.toUInt32)
       (fun r x hr => by
         have := div2Step_spec (D >>> 32).toUInt32 D.toUInt32 r x hvt0 (by rw [hV]; exact hr)
@@ -899,7 +898,7 @@ public theorem divRem2_spec (a : UInt32Array.Slice) (d₁ d₀ : UInt32) (hd : d
     simp only at h
     rw [hD] at h
     exact hcore _ _ h.1 h.2
-  rw [toNat_toSlice]
+  rw [toNat_toSlice_ofLimbs]
   by_cases has : a.array.size < 4294967295
   · -- Normalizing on the fly: the loop reads the limbs of `a 2ˢ` with `shlLimbU`.
     simp only [has, ↓reduceDIte]
@@ -931,7 +930,7 @@ public theorem divRem2_spec (a : UInt32Array.Slice) (d₁ d₀ : UInt32) (hd : d
 /-- A number of two limbs is `s₀ + β s₁`. -/
 public theorem toNat_of_size_eq_two {s : UInt32Array.Slice} (h : s.size = 2) :
     toNat s = (s.getD 0 0).toNat + 2 ^ 32 * (s.getD 1 0).toNat := by
-  rw [toNat, ← List.take_of_length_le (l := s.copy.toList) (i := 2) (by simp [h]),
+  rw [toNat_eq_ofLimbs, ← List.take_of_length_le (l := s.copy.toList) (i := 2) (by simp [h]),
     ofLimbs_take_add_one_getD, ofLimbs_take_add_one_getD, getD_eq_getD_toList_copy,
     getD_eq_getD_toList_copy]
   simp
@@ -941,7 +940,7 @@ public def ofWord64 (w : UInt64) : UInt32Array :=
   trim (((UInt32Array.emptyWithCapacity 2).push w.toUInt32).push (w >>> 32).toUInt32)
 
 @[simp] public theorem toNat_ofWord64 (w : UInt64) : toNat (ofWord64 w) = w.toNat := by
-  rw [ofWord64, toNat_trim, toNat_toSlice]
+  rw [ofWord64, toNat_trim, toNat_toSlice_ofLimbs]
   simp only [UInt32Array.toList_push, UInt32Array.emptyWithCapacity_eq_empty,
     UInt32Array.toList_empty, List.nil_append, List.cons_append, ofLimbs_cons, ofLimbs_nil,
     UInt64.toNat_toUInt32, UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow]

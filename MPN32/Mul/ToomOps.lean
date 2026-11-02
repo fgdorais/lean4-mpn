@@ -106,8 +106,7 @@ private theorem cut_spec {a : UInt32Array} {o len : Nat} (h : o + len ≤ a.size
     (cut a o len).size = len ∧ MPN.W32.toNat (cut a o len) = a.valAt o len := by
   have hs : (cut a o len).size = len := by rw [cut, UInt32Array.size_extract]; lia
   refine ⟨hs, ?_⟩
-  rw [toNat_toSlice, cut, UInt32Array.toList_extract, List.extract_eq_take_drop,
-    show o + len - o = len by lia, ofLimbs_drop_take]
+  rw [cut, toNat_extract, show o + len - o = len by lia]
 
 /-- The fallback: the value of the specification, when it fits. -/
 private theorem fallback (d : UInt32Array) (o len v : Nat) (h : o + len ≤ d.size)

@@ -45,34 +45,32 @@ public def subAt (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) : UInt32A
 private theorem subAtLoop_spec (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice) (j : Nat)
     (β : Bool) (ha : off + a.size ≤ r.size) (hj : off + j ≤ r.size) :
     (subAtLoop r off a j β).1.size = r.size ∧
-      ofLimbs (subAtLoop r off a j β).1.toList +
-          2 ^ (32 * (off + j)) * (β.toNat + ofLimbs (a.copy.toList.drop j)) =
-        ofLimbs r.toList + 2 ^ (32 * r.size) * (subAtLoop r off a j β).2.toNat := by
+      (subAtLoop r off a j β).1.valAt 0 r.size +
+          2 ^ (32 * (off + j)) * (β.toNat + a.array.valAt (a.start + j) (a.size - j)) =
+        r.valAt 0 r.size + 2 ^ (32 * r.size) * (subAtLoop r off a j β).2.toNat := by
   induction r, j, β using subAtLoop.induct off a with
   | case1 r j β h hstop =>
     rw [subAtLoop]
     simp only [h, hstop, ↓reduceDIte, ↓reduceIte, and_self]
-    have : a.copy.toList.drop j = [] := List.drop_of_length_le (by simp; lia)
-    simp [this]
+    simp [valAt_from_of_le a hstop.1]
   | case2 r j β h hstop p ih =>
     rw [subAtLoop]
     simp only [h, hstop, ↓reduceDIte, ↓reduceIte]
     obtain ⟨ih₁, ih₂⟩ := ih (by simpa using ha) (by simp; lia)
     simp only [UInt32Array.size_set] at ih₁ ih₂
     refine ⟨ih₁, ?_⟩
-    have hk : off + j < r.toList.length := by simp; lia
-    have hset := ofLimbs_set r.toList (off + j) p.1 hk
+    have hset := UInt32Array.valAt_set r (off + j) p.1 h 0 r.size (by lia) (by lia)
     have : p.1.toNat + (a.getD j 0).toNat + β.toNat = r[off + j].toNat + p.2.toNat * 2 ^ 32 :=
       UInt32.subWithBorrow_spec r[off + j] (a.getD j 0) β
-    simp only [UInt32Array.getElem_toList] at hset
-    rw [UInt32Array.toList_set, ← Nat.add_assoc off j 1, Nat.mul_add 32 (off + j) 1, Nat.mul_one,
+    rw [Nat.sub_zero] at hset
+    rw [← Nat.add_assoc off j 1, Nat.mul_add 32 (off + j) 1, Nat.mul_one,
       Nat.pow_add] at ih₂
-    rw [ofLimbs_drop a.copy.toList j, ← getD_eq_getD_toList_copy]
-    generalize ofLimbs (subAtLoop (r.set (off + j) p.1 h) off a (j + 1) p.2).1.toList = F at *
+    rw [valAt_from a j]
+    generalize (subAtLoop (r.set (off + j) p.1 h) off a (j + 1) p.2).1.valAt 0 r.size = F at *
     generalize (subAtLoop (r.set (off + j) p.1 h) off a (j + 1) p.2).2.toNat = βf at *
-    generalize ofLimbs (r.toList.set (off + j) p.1) = R₁ at *
-    generalize ofLimbs r.toList = R at *
-    generalize ofLimbs (a.copy.toList.drop (j + 1)) = A at *
+    generalize (r.set (off + j) p.1 h).valAt 0 r.size = R₁ at *
+    generalize r.valAt 0 r.size = R at *
+    generalize a.array.valAt (a.start + (j + 1)) (a.size - (j + 1)) = A at *
     generalize 2 ^ (32 * (off + j)) = P at *
     generalize 2 ^ (32 * r.size) = Q at *
     generalize p.1.toNat = lo at *
@@ -83,9 +81,8 @@ private theorem subAtLoop_spec (r : UInt32Array) (off : Nat) (a : UInt32Array.Sl
   | case3 r j β h =>
     rw [subAtLoop]
     simp only [h, ↓reduceDIte]
-    have h₁ : a.copy.toList.drop j = [] := List.drop_of_length_le (by simp; lia)
     have h₂ : off + j = r.size := by lia
-    simp [h₁, h₂]
+    simp [valAt_from_of_le a (show a.size ≤ j by lia), h₂]
 
 @[simp] public theorem size_subAt (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
     (ha : off + a.size ≤ r.size) : (subAt r off a).1.size = r.size :=
@@ -96,18 +93,17 @@ public theorem toNat_subAt (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
     toNat (subAt r off a).1 + 2 ^ (32 * off) * toNat a =
       toNat r + 2 ^ (32 * r.size) * (subAt r off a).2.toNat := by
   have := (subAtLoop_spec r off a 0 false ha (by lia)).2
-  simpa [subAt, toNat] using this
+  rw [toNat_array_eq_valAt, toNat_array_eq_valAt, size_subAt r off a ha, toNat_eq_valAt a]
+  simpa [subAt] using this
 
 /-- When the difference is not negative, `subAt` has no borrow out. -/
 public theorem toNat_subAt_of_le (r : UInt32Array) (off : Nat) (a : UInt32Array.Slice)
     (ha : off + a.size ≤ r.size) (hle : 2 ^ (32 * off) * toNat a ≤ toNat r) :
     toNat (subAt r off a).1 = toNat r - 2 ^ (32 * off) * toNat a := by
   have h := toNat_subAt r off a ha
-  have hlt := ofLimbs_lt (subAt r off a).1.toList
-  rw [UInt32Array.length_toList, size_subAt r off a ha] at hlt
-  rw [toNat_toSlice, toNat_toSlice] at h
-  rw [toNat_toSlice] at hle
-  rw [toNat_toSlice, toNat_toSlice]
+  have hlt : toNat (subAt r off a).1 < 2 ^ (32 * r.size) := by
+    rw [← size_subAt r off a ha]
+    simpa using toNat_lt (subAt r off a).1.toSlice
   cases hβ : (subAt r off a).2
   · simp only [hβ, Bool.toNat_false, Nat.mul_zero, Nat.add_zero] at h
     lia

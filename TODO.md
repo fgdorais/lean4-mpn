@@ -57,11 +57,11 @@ two widths moved into one package is in the history of `MPN32/TODO.md`.
 
 ## Sharing
 
-- [ ] **32-bit limbs on `valAt`**: `MPN32`'s specification is the value of the list of limbs
-  (`MPN32.Limbs`), and it reaches `MPN`'s kernels, specified by `valAt`, through
-  `toNat_eq_valAt` (`MPN32.Basic`). Converting everything is a proof rewrite of about 750 uses of
-  the list model in 20 files, 260 of them in the kernels of `MPN32/Arch/`, which stay 32-bit-only,
-  for little new sharing; files move to `valAt` when they are changed for another reason.
+- [ ] **The kernels of `MPN32/Arch/` on `valAt`**: `MPN32`'s specification is `valAt`, as in
+  `MPN`, but `Comba`, `SqrBasecase`, `Rows` and `DivTwo` are still proved on the list of limbs
+  (`MPN32.Limbs`), through `toNat_eq_ofLimbs` and the other lemmas of the list model in
+  `MPN32.Basic`. They move to `valAt` when they are changed for another reason; then
+  `MPN32.Limbs` and the list model go.
 - [ ] **What each width keeps**: its `Arch/` kernels, its `Nat` instance (`natLimbs32`,
   `natLimbs64`) and gcd instance, its decimal chunks, and the normalization of a division (bit
   shifts, which `NatOps` does not have).

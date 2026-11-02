@@ -38,36 +38,32 @@ public def mulBasecase (a b : UInt32Array.Slice) : UInt32Array :=
 
 private theorem mulBasecaseLoop_spec (a b : UInt32Array.Slice) (r : UInt32Array) (i : Nat)
     (h : r.size = a.size + b.size) (hi : i ≤ a.size)
-    (hr : ofLimbs r.toList = ofLimbs (a.copy.toList.take i) * toNat b) :
+    (hr : r.valAt 0 r.size = a.array.valAt a.start i * toNat b) :
     (mulBasecaseLoop a b r i h).size = a.size + b.size ∧
-      ofLimbs (mulBasecaseLoop a b r i h).toList = toNat a * toNat b := by
+      (mulBasecaseLoop a b r i h).valAt 0 (a.size + b.size) = toNat a * toNat b := by
   induction r, i, h using mulBasecaseLoop.induct a b with
   | case1 r i h hi' ih =>
     rw [mulBasecaseLoop]
     simp only [hi', ↓reduceDIte]
     apply ih (by lia)
     -- The limb at `i + b.size` is zero, since the value so far is below `2^(32 (i + b.size))`.
-    have hA := ofLimbs_lt (a.copy.toList.take i)
+    have hA := UInt32Array.valAt_lt a.array a.start i
     have hB := toNat_lt b
-    simp only [List.length_take, UInt32Array.length_toList, UInt32Array.Slice.size_copy,
-      Nat.min_eq_left (Nat.le_of_lt hi')] at hA
-    have hlt : ofLimbs r.toList < 2 ^ (32 * (i + b.size)) := by
+    have hlt : r.valAt 0 r.size < 2 ^ (32 * (i + b.size)) := by
       rw [hr, Nat.mul_add, Nat.pow_add]
       exact Nat.mul_lt_mul'' hA hB
-    have hk : i + b.size < r.toList.length := by simp; lia
-    have hz : r.toList[i + b.size] = 0 := getElem_eq_zero_of_ofLimbs_lt hk hlt
-    simp only [UInt32Array.getElem_toList] at hz
+    have hz := UInt32Array.getElem_eq_zero_of_valAt_lt r (k := i + b.size) (by lia) hlt
     have hadd := toNat_addMul1Set r i b a[i] (by lia) hz
-    simp only [toNat_toSlice] at hadd
-    rw [hadd, hr, ofLimbs_take_add_one _ _ (by simpa using hi'), toNat]
-    simp only [UInt32Array.getElem_toList, UInt32Array.Slice.getElem_copy]
+    rw [toNat_array_eq_valAt, toNat_array_eq_valAt, size_addMul1Set] at hadd
+    rw [size_addMul1Set, hadd, hr, UInt32Array.valAt_add, UInt32Array.valAt_one,
+      ← UInt32Array.Slice.getElem_eq_getElem! a i hi']
     rw [Nat.add_mul, Nat.mul_assoc, Nat.mul_comm a[i].toNat]
   | case2 r i h hi' =>
     rw [mulBasecaseLoop]
     simp only [hi', ↓reduceDIte]
     refine ⟨h, ?_⟩
     have : i = a.size := by lia
-    rw [hr, this, List.take_of_length_le (by simp)]
+    rw [← h, hr, this]
     rfl
 
 @[simp] public theorem size_mulBasecase (a b : UInt32Array.Slice) :
@@ -76,7 +72,7 @@ private theorem mulBasecaseLoop_spec (a b : UInt32Array.Slice) (r : UInt32Array)
 
 public theorem toNat_mulBasecase (a b : UInt32Array.Slice) :
     toNat (mulBasecase a b) = toNat a * toNat b := by
-  rw [toNat_toSlice, mulBasecase]
+  rw [toNat_array_eq_valAt, size_mulBasecase]
   exact (mulBasecaseLoop_spec a b (.replicate (a.size + b.size) 0) 0 _ (Nat.zero_le _) (by simp)).2
 
 /-! ## The compiled product
@@ -103,15 +99,13 @@ public theorem mulBasecase_eq_mulBasecaseWith (r w : Nat) (a b : UInt32Array.Sli
   split
   · rename_i h
     obtain ⟨hs, hv⟩ := rowsMul_spec a b h.2
-    apply UInt32Array.toList_inj.1
-    apply ofLimbs_inj_of_length (by simp [hs])
-    rw [← toNat_toSlice, ← toNat_toSlice, toNat_mulBasecase, hv]
+    apply UInt32Array.eq_of_valAt_eq (by simp [hs])
+    rw [← toNat_array_eq_valAt, ← toNat_array_eq_valAt, toNat_mulBasecase, hv]
   · split
     · rename_i h
       obtain ⟨hs, hv⟩ := combaMul_spec w a b h
-      apply UInt32Array.toList_inj.1
-      apply ofLimbs_inj_of_length (by simp [hs])
-      rw [← toNat_toSlice, ← toNat_toSlice, toNat_mulBasecase, hv]
+      apply UInt32Array.eq_of_valAt_eq (by simp [hs])
+      rw [← toNat_array_eq_valAt, ← toNat_array_eq_valAt, toNat_mulBasecase, hv]
     · rfl
 
 /-- `mulBasecaseWith` with the thresholds `config.mulRows` and `config.mulCombaW`. -/

@@ -8,7 +8,6 @@ public import MPN
 public import MPN32.Arch
 public import MPN32.Limbs
 public import MPN32.FoldInPlace
-public import MPN32.ListIndex
 public import MPN32.Arch.UInt
 public import MPN32.Basic
 public import MPN32.Add

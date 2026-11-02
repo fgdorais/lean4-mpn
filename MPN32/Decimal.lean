@@ -32,9 +32,12 @@ public abbrev chunkBase : UInt32 := 1000000000
 
 private theorem pos_of_isTrimmed {a : UInt32Array} (h : isTrimmed a = true) (hz : a.size ≠ 0) :
     0 < toNat a := by
-  rw [toNat_toSlice]
-  rw [isTrimmed_iff] at h
-  exact h.ofLimbs_pos (by simpa [← List.length_eq_zero_iff] using hz)
+  have ht := getElem_top_ne_zero h (by lia)
+  have hd := UInt32Array.toNat_getElem_eq a (k := a.size - 1) (by lia)
+  rw [toNat_array_eq_valAt]
+  refine Nat.pos_of_ne_zero fun h0 => ht (UInt32.toNat_inj.1 ?_)
+  rw [hd, h0, Nat.zero_div, Nat.zero_mod]
+  rfl
 
 private theorem divRem1_chunk (a : UInt32Array) :
     toNat (divRem1 a chunkBase).1 = toNat a / 10 ^ 9 ∧

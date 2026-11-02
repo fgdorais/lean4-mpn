@@ -977,7 +977,7 @@ private theorem pop_of_toNat_eq_mul (a b : UInt32Array.Slice) (r : UInt32Array)
   have hlast : r.toList.getLast hne = 0 := by
     rw [List.getLast_eq_getElem]; simpa [hrsz] using htop
   refine ⟨by simp [hrsz], ?_⟩
-  rw [toNat_toSlice, UInt32Array.toList_pop, ← hv]
+  rw [toNat_toSlice_ofLimbs, UInt32Array.toList_pop, ← hv]
   conv => rhs; rw [← List.dropLast_concat_getLast hne, hlast]
   rw [ofLimbs_concat, UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero]
 
@@ -1005,7 +1005,7 @@ public theorem combaMul_spec (w : Nat) (a b : UInt32Array.Slice) (h : CombaOK a 
         weighted a.copy.toList b.copy.toList (a.size + b.size - 1).toUSize.toNat) :
       r.pop.size = a.size + b.size ∧ toNat r.pop = toNat a * toNat b :=
     pop_of_toNat_eq_mul a b r (by rw [hsize]; have := h.1; lia)
-      (by rw [hspec, hkE', weighted_eq _ _ _ (by simp; lia)]; rfl)
+      (by rw [hspec, hkE', weighted_eq _ _ _ (by simp; lia), toNat_eq_ofLimbs, toNat_eq_ofLimbs])
   have hv0 : ofLimbs (UInt32Array.replicate (a.size + b.size + 1) 0).toList =
       weighted a.copy.toList b.copy.toList (0 : USize).toNat := by
     simp [weighted, UInt32Array.toList_replicate, ofLimbs_replicate_zero]
@@ -1286,8 +1286,7 @@ public theorem csqMul_spec (a : UInt32Array.Slice) (h : SqrOK a) :
     rw [hsize]
     have := mod_usize (n := 2 * a.size - 1) (by lia); have := h.1; simp; lia
   have hv : ofLimbs r.toList = toNat a * toNat a := by
-    rw [hspec, hkE', weighted_eq _ _ _ (by simp; lia)]
-    rfl
+    rw [hspec, hkE', weighted_eq _ _ _ (by simp; lia), toNat_eq_ofLimbs]
   have hlt : ofLimbs r.toList < 2 ^ (32 * (2 * a.size)) := by
     rw [hv, show 32 * (2 * a.size) = 32 * a.size + 32 * a.size by lia, Nat.pow_add]
     exact Nat.mul_lt_mul'' (toNat_lt a) (toNat_lt a)
@@ -1298,7 +1297,7 @@ public theorem csqMul_spec (a : UInt32Array.Slice) (h : SqrOK a) :
   have hlast : r.toList.getLast hne = 0 := by
     rw [List.getLast_eq_getElem]; simpa [hrsz] using htop
   refine ⟨by simp [hrsz]; lia, ?_⟩
-  rw [toNat_toSlice, UInt32Array.toList_pop, ← hv]
+  rw [toNat_toSlice_ofLimbs, UInt32Array.toList_pop, ← hv]
   conv => rhs; rw [← List.dropLast_concat_getLast hne, hlast]
   rw [ofLimbs_concat, UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero]
 

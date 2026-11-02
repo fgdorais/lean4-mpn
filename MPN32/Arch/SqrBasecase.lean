@@ -67,7 +67,7 @@ private theorem sqrRowsLoop_spec (a : UInt32Array.Slice) (r : UInt32Array) (i : 
     rw [addMul1SetPre_eq]
     have hsl : (a.slice 0 i).size = i := by simp; lia
     have hsl' : toNat (a.slice 0 i) = ofLimbs (a.copy.toList.take i) := by
-      simp [toNat, UInt32Array.Slice.copy_slice, List.extract_eq_take_drop]
+      simp [toNat_eq_ofLimbs, UInt32Array.Slice.copy_slice, List.extract_eq_take_drop]
     -- The limb at `i + i` is zero, since the rows so far are below `2^(32 (i + i))`.
     have hA := ofLimbs_lt (a.copy.toList.take i)
     simp only [List.length_take, UInt32Array.length_toList, UInt32Array.Slice.size_copy,
@@ -81,7 +81,7 @@ private theorem sqrRowsLoop_spec (a : UInt32Array.Slice) (r : UInt32Array) (i : 
     have hz : r.toList[i + i] = 0 := getElem_eq_zero_of_ofLimbs_lt hk hlt
     simp only [UInt32Array.getElem_toList] at hz
     have hadd := toNat_addMul1Set r i (a.slice 0 i) a[i] (by simp; lia) (by simpa [hsl] using hz)
-    simp only [toNat_toSlice, hsl'] at hadd
+    simp only [toNat_toSlice_ofLimbs, hsl'] at hadd
     rw [hadd]
     have hai : (a.copy.toList)[i]'(by simpa using hi') = a[i] := by simp
     rw [ofLimbs_take_add_one _ _ (by simpa using hi'), hai,
@@ -105,8 +105,7 @@ private theorem sqrRowsLoop_spec (a : UInt32Array.Slice) (r : UInt32Array) (i : 
     refine ⟨h, ?_⟩
     have : i = a.size := by lia
     rw [this, List.take_of_length_le (by simp)] at hr
-    rw [hr]
-    rfl
+    rw [hr, toNat_eq_ofLimbs]
 
 /-! ## Doubling and adding the diagonal
 
@@ -353,7 +352,7 @@ public def sqrBasecase (a : UInt32Array.Slice) : UInt32Array :=
 
 public theorem sqrBasecase_spec (a : UInt32Array.Slice) :
     (sqrBasecase a).size = a.size + a.size ∧ toNat (sqrBasecase a) = toNat a * toNat a := by
-  rw [toNat_toSlice]
+  rw [toNat_toSlice_ofLimbs]
   unfold sqrBasecase
   obtain ⟨hss, hs⟩ := sqrRowsLoop_spec a (.replicate (2 * a.size) 0) 0 (by simp) (Nat.zero_le _)
     (by simp [sqDiag])
@@ -394,8 +393,8 @@ private theorem slice_from_array (a : UInt32Array.Slice) (k : Nat) :
 
 private theorem toNat_slice_from_drop (a : UInt32Array.Slice) (k : Nat) :
     toNat (a.slice k a.size) = ofLimbs (a.copy.toList.drop k) := by
-  rw [toNat, UInt32Array.Slice.copy_slice, UInt32Array.toList_extract, List.extract_eq_take_drop,
-    List.take_of_length_le (by simp)]
+  rw [toNat_eq_ofLimbs, UInt32Array.Slice.copy_slice, UInt32Array.toList_extract,
+    List.extract_eq_take_drop, List.take_of_length_le (by simp)]
 
 /-- The rows `aᵢ a[i + 1...]` from `i` on, added into `acc` at limb `2 i + 1`. -/
 def sqrRowsAcc (a : UInt32Array.Slice) (ha : a.array.size < USize.size)
@@ -668,7 +667,7 @@ public theorem sqrRowsMul_spec (a : UInt32Array.Slice) (h : SqrRowsOK a) :
   obtain ⟨hs, hv, hbd⟩ := sqrRowsAcc_spec a ha hn ha30 _ _ rfl rfl a.size 0
     (UInt64Array.replicate (2 * a.size) 0) (by simp) (by simp) (Nat.zero_le _)
     (by intro v hv; rw [hrep] at hv; rw [(List.mem_replicate.1 hv).2]; simp)
-    (by rw [hrep, accVal_replicate_zero]; simp [sqDiag, toNat])
+    (by rw [hrep, accVal_replicate_zero]; simp [sqDiag, toNat_eq_ofLimbs])
   simp only [sqrRowsMul, UInt32Array.foldInPlaceThen_eq, UInt32Array.foldInPlace]
   have hE : 2 * (2 ^ 33 * a.size) + 2 ^ 36 < 2 ^ 64 := by
     have h1 : a.size < 2 ^ 26 := h.2.1
@@ -704,7 +703,7 @@ public theorem sqrRowsMul_spec (a : UInt32Array.Slice) (h : SqrRowsOK a) :
         Nat.le_mul_of_pos_right _ h0
       lia
   rw [hR2, Nat.mul_zero, Nat.add_zero] at h₂
-  exact ⟨by rw [h₁]; simp; lia, by rw [toNat_toSlice, h₂]⟩
+  exact ⟨by rw [h₁]; simp; lia, by rw [toNat_toSlice_ofLimbs, h₂]⟩
 
 /-! ## The compiled square
 
@@ -730,13 +729,13 @@ public theorem sqrBasecase_eq_sqrBasecaseWith (r : Nat) (a : UInt32Array.Slice) 
     obtain ⟨hs, hv⟩ := sqrRowsMul_spec a h.2
     apply UInt32Array.toList_inj.1
     apply ofLimbs_inj_of_length (by simp [hs, hs'])
-    rw [← toNat_toSlice, ← toNat_toSlice, hv', hv]
+    rw [← toNat_toSlice_ofLimbs, ← toNat_toSlice_ofLimbs, hv', hv]
   · split
     · rename_i h
       obtain ⟨hs, hv⟩ := csqMul_spec a h
       apply UInt32Array.toList_inj.1
       apply ofLimbs_inj_of_length (by simp [hs, hs'])
-      rw [← toNat_toSlice, ← toNat_toSlice, hv', hv]
+      rw [← toNat_toSlice_ofLimbs, ← toNat_toSlice_ofLimbs, hv', hv]
     · rfl
 
 /-- `sqrBasecaseWith` with the threshold `config.sqrRows`. -/

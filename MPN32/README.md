@@ -2,7 +2,7 @@
 
 Verified arbitrary-precision natural numbers for Lean 4, stored as `UInt32` limbs in the unboxed
 arrays of [lean4-scalar-arrays](https://github.com/fgdorais/lean4-scalar-arrays). Each operation is
-proved correct against `Nat`, the specification being the value of the list of limbs. Addition and
+proved correct against `Nat`, the specification being the value of the limbs (`valAt`). Addition and
 subtraction are linear. Multiplication uses schoolbook, Karatsuba, Toom-3, Toom-4 or Toom-6, or
 the unbalanced variants, and Schönhage–Strassen's FFT modulo `2ᴺ + 1` for the largest numbers,
 depending on the sizes, and splits very unbalanced products into nearly balanced ones; squaring uses

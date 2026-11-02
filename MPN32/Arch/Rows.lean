@@ -278,7 +278,7 @@ public theorem addRow_spec (b : UInt32Array.Slice) (arr : UInt32Array) (harr)
     rw [hgl, hv] at hset
     rw [UInt64Array.toList_set]
     simp only [Nat.add_zero, List.drop_zero, UInt32.toNat_toUInt64] at h₂
-    rw [toNat]
+    rw [toNat_eq_ofLimbs]
     lia
   · obtain ⟨k, hk, rfl⟩ := List.mem_iff_getElem.1 hv'
     have hk' : k < R.1.size := by simpa using hk
@@ -509,7 +509,7 @@ public theorem rowsMul_spec (a b : UInt32Array.Slice) (h : RowsOK a b) :
   obtain ⟨hs, hv, hbd⟩ := rowsLoop_spec a b ha hb hab ha31 h.1 _ _ _ _ rfl rfl rfl rfl a.size 0
     (UInt64Array.replicate (a.size + b.size) 0) (by simp) (by simp) (Nat.zero_le _)
     (by intro v hv; rw [hrep] at hv; rw [(List.mem_replicate.1 hv).2]; simp)
-    (by rw [hrep, accVal_replicate_zero]; simp [toNat, Nat.mul_comm])
+    (by rw [hrep, accVal_replicate_zero]; simp [toNat_eq_ofLimbs, Nat.mul_comm])
   simp only [rowsMul, UInt32Array.foldInPlaceThen_eq, UInt32Array.foldInPlace]
   have hE : 2 ^ 33 * a.size + 2 ^ 33 < 2 ^ 64 := by
     have h1 : a.size + 1 < 2 ^ 31 := by have := h.2.1; have := h.1; lia
@@ -547,6 +547,6 @@ public theorem rowsMul_spec (a b : UInt32Array.Slice) (h : RowsOK a b) :
         Nat.le_mul_of_pos_right _ h0
       lia
   rw [hR2, Nat.mul_zero, Nat.add_zero] at h₂
-  exact ⟨by rw [h₁]; simp, by rw [toNat_toSlice, h₂]⟩
+  exact ⟨by rw [h₁]; simp, by rw [toNat_toSlice_ofLimbs, h₂]⟩
 
 end MPN.W32
