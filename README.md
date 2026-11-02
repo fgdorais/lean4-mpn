@@ -65,7 +65,21 @@ lake build bench64 tune64      # the executables, which `lake build` does not bu
 | `MPN.Generic.HGCD` | half-gcd over `NatOps` (Schönhage, Möller), with the instance's base case |
 | `MPN.Generic.Radix` | decimal strings by divide and conquer over `NatOps` |
 | `MPN.Trim` | trimming (`trimTo k`, `isTrimmedTo k`), the limbs of a `Nat` by halves (`ofNatW`, `ofNatLen`), and comparison of windows and arrays (`ltWin`, `ltA`) on any `WordArray`, with `valAt` as their specification |
-| `MPN.Dispatch` | the products and squares of both widths, written into a window: the choice between the FFT, the Toom methods and unbalanced pieces by the thresholds of a `MulConfig` |
+| `MPN.Dispatch` | the products and squares of both widths, written into a window: the choice between the FFT, the Toom methods and unbalanced pieces by the thresholds of a `MulConfig`; the wrapped product modulo `β^N - 1` of Barrett's division (`mulModW`) |
+| `MPN.Bridge` | `Bridge A α`, a width's `NatOps α` with the conversions from and to `GNat A`, and over it Zimmermann's square root (`sqrtZ`), half-gcd and Lehmer's step on `GNat` |
 | `MPN.Dispatch.Div` | the choice of a division of normalized operands over `NatOps` (divide and conquer, Barrett's division, the quotient alone) by the thresholds of a `DivConfig`, and of a square root over `GNat` (`SqrtConfig`) |
 
 An algorithm written and proved over `NatOps` serves both libraries with only a new instance.
+What each width keeps of its own is in its `Arch/` directory, its hand-tuned kernels (Comba's
+products, the rows of the schoolbook product and square, division by two limbs, the high words in
+C on 64-bit limbs), and in the glue between those kernels and the shared code.
+
+## Benches and tuners
+
+`Bench.Harness` and `Tune.Harness` (the library `Harness`) are the parts of the benches and tuners
+that both widths share: the timing, the rows, the command line, the rows of `MPN.W32.Nat` and
+`MPN.W64.Nat` against `Nat` (`bigRow`), and the crossover search. `Tune.Shared` tunes the
+thresholds of the shared dispatchers once for any width (`tuneMul`, `tuneSqr`, `tuneDiv`). The
+tuners measure size crossovers; the choices of algorithm follow GMP's on modern platforms.
+
+What is left to do is in [TODO.md](TODO.md).

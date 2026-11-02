@@ -27,13 +27,13 @@ comes with Lean.
 | `MPN64.Num` | whole arrays as numbers: `add`, `sub`, `mul`, `sqr`, `shl`, `shr`, `low`, `lt`, `divMod`, each returning a new array | |
 | `MPN64.Div.DC` | `Num.divMod`: divide-and-conquer division (`MPN`'s `NatOps.divNorm`, Burnikel and Ziegler) from `divDC = 208` limbs, and Barrett's division with Newton's reciprocal and wrapped remainders (`MPN`'s `NatOps.divMuW`, the products modulo `β^N - 1` by the FFT) from `divMu = 8192`; `Num.div`, the quotient alone, by Barrett's division without the last remainder (`NatOps.divQMuW`) from `divQMu = 6144` | `mpn_dcpi1_div_qr`, `mpn_mu_div_qr`, `mpn_mu_div_q` |
 | `MPN.Generic.*` | shared with `MPN32` in `MPN`: `NatOps` (whole-number operations at any base), half-gcd (`HGCD`), decimal strings by divide and conquer (`Radix`); `Ops64` is the 64-bit instance on `MPN64.Num` | `mpn_hgcd`, `mpn_get_str`, `mpn_set_str` |
-| `MPN64.Arch.LinComb`, `MPN64.Gcd` | `mulSubMul` (`a x - b y` in one pass), `mulAddMul` (`a x + b y`); `Num.gcd`: Euclid's algorithm on pairs of words (`gcd2`) up to two limbs, Lehmer's algorithm, and half-gcd with its own base case | `mpn_gcd_22`, `mpn_hgcd_mul_matrix1_vector`, `mpn_hgcd_matrix_mul_1`, `mpn_gcd` |
+| `MPN64.Arch.LinComb`, `MPN64.Gcd` | `mulSubMul` (`a x - b y` in one pass), `mulAddMul` (`a x + b y`); `Num.gcd`: Euclid's algorithm on pairs of words (`gcd2`) up to two limbs, Lehmer's algorithm, and half-gcd (`MPN`'s `Bridge.hgcd`) with Lehmer's steps at its base | `mpn_gcd_22`, `mpn_hgcd_mul_matrix1_vector`, `mpn_hgcd_matrix_mul_1`, `mpn_gcd` |
 | `MPN64.Decimal` | `Num.toDecimal`, `Num.ofDecimal?`: chunks of 19 digits, divide and conquer on long numbers | `mpn_get_str`, `mpn_set_str` |
 | `MPN64.Sqrt` | `sqrtBase`: the base case of Zimmermann's Karatsuba square root (`MPN.Bridge.sqrtZ`), Newton's iteration on a double word (`sqrt2`) | `mpn_sqrtrem`, `mpn_dc_sqrtrem` |
-| `MPN64.Mul.Toom` | by `MPN`'s `MPN.Toom.mulToom` and `MPN.Toom.sqrToom` on `toomOpsW`; `mulToom`: Toom-6 from `mulToom6 = 768` limbs, Toom-4 from `mulToom4 = 512` and Toom-4 by 3 from `mulToom43 = 592` limbs, Toom-3 from `mulToom3 = 368`, Toom-3 by 2 from `mulToom32 = 192` and Toom-4 by 2 from `mulToom42 = 104` limbs, by the shape; `sqrToom`: the Toom-6 square from 1152 limbs, the Toom-4 square from 1000, the Toom-3 square from 600 | `mpn_toom6h_mul`, `mpn_toom44_mul`, `mpn_toom43_mul`, `mpn_toom33_mul`, `mpn_toom32_mul`, `mpn_toom42_mul`, `mpn_toom6_sqr`, `mpn_toom4_sqr`, `mpn_toom3_sqr` |
+| `MPN64.Mul.Toom` | by `MPN`'s `MPN.Toom.mulToom` and `MPN.Toom.sqrToom` on `toomOpsW`; `mulToom`: Toom-6 from `mulToom6 = 768` limbs, Toom-4 from `mulToom4 = 512` and Toom-4 by 3 from `mulToom43 = 592` limbs, Toom-3 from `mulToom3 = 368`, Toom-3 by 2 from `mulToom32 = 192` and Toom-4 by 2 from `mulToom42 = 104` limbs, by the shape; `sqrToom`: the Toom-6 square from 1039 limbs, the Toom-4 square from 714, the Toom-3 square from 544 | `mpn_toom6h_mul`, `mpn_toom44_mul`, `mpn_toom43_mul`, `mpn_toom33_mul`, `mpn_toom32_mul`, `mpn_toom42_mul`, `mpn_toom6_sqr`, `mpn_toom4_sqr`, `mpn_toom3_sqr` |
 | `MPN.FFT.Fermat` | in place on windows of one array, modulo `2^(64 n) + 1`: `normAt`, `addModAt`, `subModAt`, `mulPow2At` | `mpn_fft_add_modF`, `mpn_fft_sub_modF`, `mpn_fft_mul_2exp_modF` |
 | `MPN64.FFT.Transform` | `fwd`, `inv`: the transforms of length `2ᵏ`, in place, by `MPN`'s `MPN.FFT.Windows` on `MPN`'s instance `winOpsW` | `mpn_fft_fft`, `mpn_fft_fftinv` |
-| `MPN64.FFT.Mul` | `fftMul`, `fftSqr`: Schönhage–Strassen with `2ᵏ` pieces; `MPN.mul` and `MPN.sqr`, which split unbalanced products into pieces (`mulChunked`) and choose the FFT from `mulFFT = 6144` limbs in the larger operand and `sqrFFT = 5120` limbs, and `mulToom` or `sqrToom` below | `mpn_mul_fft`, `mpn_mul`, `mpn_sqr` |
+| `MPN64.FFT.Mul` | `fftMul`, `fftSqr`: Schönhage–Strassen with `2ᵏ` pieces; `MPN.W64.mul` and `MPN.W64.sqr`, by `MPN`'s `Dispatch.mul` and `Dispatch.sqr`, which split unbalanced products into pieces (`mulChunked`) and choose the FFT from `mulFFT = 6144` limbs in the larger operand and `sqrFFT = 5120` limbs, and `mulToom` or `sqrToom` below | `mpn_mul_fft`, `mpn_mul`, `mpn_sqr` |
 | `MPN64.Arch.SqrBasecase` | `sqrBasecase` | `mpn_sqr_basecase` |
 | `MPN64.Sqr.Karatsuba` | `sqrKaratsuba`, from `sqrKaratsuba = 88` limbs, by `MPN`'s `MPN.Toom.sqrKaratsuba` | `mpn_kara_sqr_n` |
 
@@ -71,16 +71,16 @@ lake build bench64  # then .lake/build/bin/bench64, see BENCH.md
 lake exe tune64     # the thresholds for this machine, see below
 ```
 
-The toolchain is Lean `v4.36.0-rc1`. [BENCH.md](BENCH.md) has the timings against `Nat`, how to
+The toolchain is Lean `v4.36.0-rc2`. [BENCH.md](BENCH.md) has the timings against `Nat`, how to
 run them, and a history of the changes that affected speed.
 
 ## Tuning
 
 Multiplication, squaring, division, the greatest common divisor and decimal strings switch
 algorithms at size thresholds collected in `MPN64.Config`; the functions that dispatch take a
-`Config`, and the library's `MPN.config` comes from its build options. The defaults were measured
-on one machine; `lake exe tune64` measures them on yours in several minutes and prints the options
-that set them. A project that depends on this library passes them with its `require`, together
+`Config`, and the library's `MPN.W64.config` comes from its build options. The size crossovers were measured
+on one machine (Zen 3), the choices of algorithm follow GMP's; `lake exe tune64` measures them on
+yours in a few minutes and prints the options that set them. A project that depends on this library passes them with its `require`, together
 with `march`, which compiles the library's C code for a given processor:
 
 ```toml
@@ -97,7 +97,7 @@ The keys are the fields of `MPN64.Config`: `mulKaratsuba`, `mulToom3`, `mulToom3
 `divQMu`, `div1Recip`, `div1Unnorm`, `div32Recip`, `sqrtZimmermann`, `sqrtBase`, `gcdHalf`, `strDC`
 and `parseDC`; an invalid value stops the build. Lake keeps the configuration it elaborated, so
 after changing the options, build once with `lake build -R`. In this package itself, the same
-options go on the command line: `lake build -R -K mulKaratsuba=48`.
+options go on the command line: `lake build -R -K w64_mulKaratsuba=48`.
 
 `MPN64.Config` imports `Lean` at compile time for its thresholds, so write the main file of a
 program as a `module` with a `public def main`: a main file that is not a module initializes

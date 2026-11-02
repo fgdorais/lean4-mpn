@@ -6,10 +6,11 @@ proved correct against `Nat`, the specification being the value of the list of l
 subtraction are linear. Multiplication uses schoolbook, Karatsuba, Toom-3, Toom-4 or Toom-6, or
 the unbalanced variants, and Schönhage–Strassen's FFT modulo `2ᴺ + 1` for the largest numbers,
 depending on the sizes, and splits very unbalanced products into nearly balanced ones; squaring uses
-the same algorithms. Division is Knuth's Algorithm D, and divide-and-conquer (Burnikel–Ziegler) for
-large divisors.
+the same algorithms. Division is Knuth's Algorithm D, divide-and-conquer (Burnikel–Ziegler) for
+large divisors, and Barrett's division with Newton's reciprocal for the largest, by `MPN`'s shared
+dispatch (`MPN.Dispatch.Div`).
 
-`MPN32.Nat` packages this as a `Nat`-like type, with a fast path on machine words below `2⁶⁴`
+`MPN.W32.Nat` packages this as a `Nat`-like type, with a fast path on machine words below `2⁶⁴`
 and the usual instances (`+ - * / %`, comparisons, `DecidableEq`, `Hashable`, literals, shifts,
 bitwise operations, `^`, `ToString`, `Repr`), as well as `gcd`, `lcm`, `log2`, `sqrt` and
 `ofString?`: every operation is proved to agree with `Nat` through `MPN.W32.Nat.toNat`, which is a
@@ -18,17 +19,18 @@ bijection, and `toString` and `ofString?` with `Nat.repr` and `String.toNat?`.
 This is the library `MPN32` (namespace `MPN.W32`). The part that does not depend on the width of a
 limb (finite sums, polynomials, the FFT, Karatsuba and the Toom methods, the kernels over
 `WordArray` and the base-generic algorithms of `MPN.Generic`) is the shared library `MPN`, with
-instances for 32-bit limbs here such as `toomBase32` (`MPN32.Mul.ToomOps`), from which `MPN` derives `ToomOps`; `MPN64` is the same on
-`UInt64` limbs.
+instances for 32-bit limbs here such as `toomBase32` (`MPN32.Mul.ToomOps`), from which `MPN`
+derives `ToomOps`, and `bridge32`, the bridge from `MPN.W32.Nat` to `MPN`'s algorithms; the
+hand-tuned kernels of this width are in `MPN32/Arch/`. `MPN64` is the same on `UInt64` limbs.
 
 ## Tuning
 
 Multiplication, squaring, division, the greatest common divisor and decimal strings switch
-algorithms at size thresholds collected in `MPN32.Config`. The defaults were measured on one
-machine; `lake exe tune32` measures them on yours in several minutes (all but `divMu`, which is off
-by default) and prints the options that set them. A project that depends on this library passes
-them with its `require`, together with `march`, which compiles the library's C code for a
-given processor:
+algorithms at size thresholds collected in `MPN32.Config`. The size crossovers were measured on
+one machine (Zen 3), the choices of algorithm follow GMP's; `lake exe tune32` measures them on
+yours in a few minutes and prints the options that set them. A project that depends on this
+library passes them with its `require`, together with `march`, which compiles the library's C code
+for a given processor:
 
 ```toml
 [[require]]
@@ -39,13 +41,14 @@ options = { march = "native", w32_mulKaratsuba = "64", w32_mulToom3 = "480", w32
 ```
 
 The keys are the fields of `MPN32.Config`: `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`,
-`mulToom43`, `mulToom4`, `mulToom6`, `mulFFT`, `mulUnbalanced`, `mulRows`, `mulCombaW`,
-`sqrBasecase`, `sqrRows`, `sqrKaratsuba`, `sqrToom3`, `sqrToom4`, `sqrToom6`, `sqrFFT`, `divDC`,
-`divMu`, `div1Recip`, `div1Unnorm`, `div32Recip`, `sqrtZimmermann`, `sqrtBase`, `gcdHalf`, `strDC`
-and `parseDC`; an invalid value stops the build. With `march = "native"` the C compiler may use the
-vector instructions of the build machine (5–12% faster products with AVX2), and the program then
-runs only on processors that have them. Lake keeps the configuration it elaborated, so after
-changing the options, build once with `lake build -R`. In this package itself, the same options go
+`mulToom43`, `mulToom4`, `mulToom6`, `mulFFT`, `mulFFTUnbal`, `mulFFTMin`, `mulUnbalanced`,
+`mulChunkMax`, `mulRows`, `mulCombaW`, `sqrBasecase`, `sqrRows`, `sqrKaratsuba`, `sqrToom3`,
+`sqrToom4`, `sqrToom6`, `sqrFFT`, `divDC`, `divMu`, `divQMu`, `div1Recip`, `div1Unnorm`,
+`div32Recip`, `sqrtZimmermann`, `sqrtBase`, `gcdHalf`, `strDC` and `parseDC`; an invalid value
+stops the build. With `march = "native"` the C compiler may use the vector instructions of the
+build machine (5–12% faster products with AVX2), and the program then runs only on processors that
+have them. Lake keeps the configuration it elaborated, so after changing the options, build once
+with `lake build -R`. In this package itself, the same options go
 on the command line: `lake build -R -K march=native`.
 
 ## Programs
@@ -68,8 +71,10 @@ all of Lean (about 120 MB) and spends about 20 ms initializing it at startup.
 
 `lake exe bench32` times addition, subtraction, multiplication by a limb, multiplication, squaring
 and division against the same operations on `Nat`, which Lean implements with GMP, from 1 to 4096
-limbs; the `MPN32.Nat` operations are `badd`, `bsub`, `bmul`, `bdiv`, `bgcd`, `bshl`, `bshr`,
-`bsqrt`, `btostr`, `bofstr`, and the conversions `btonat` and `bofnat`. Arguments select
+limbs; the `MPN.W32.Nat` operations, the same on both widths (`Bench.Harness`), are `badd`, `bsub`,
+`bmul`, `bdiv`, `bmod`, `band`, `bor`, `bxor`, `bgcd`, `blcm`, `bsqr`, `bpow`, `bshl`, `bshr`,
+`bsqrt`, `blog2`, `bcmp`, `beq`, `bhash`, `btostr`, `bofstr`, and the conversions `btonat` and
+`bofnat`. Arguments select
 operations and sizes: `lake exe bench32 mul div 64 256` runs only those, and `--no-nat` skips `Nat`,
 which is useful under a profiler. Current results, how to read them, and the history of
 performance changes are in [BENCH.md](BENCH.md).
