@@ -88,7 +88,7 @@ code for a given processor:
 [[require]]
 name = "lean4-mpn"
 git = "https://github.com/fgdorais/lean4-mpn"
-rev = "unified"
+rev = "main"
 options = { march = "native", w64_mulKaratsuba = "48", w64_divDC = "384" }
 ```
 

@@ -36,7 +36,7 @@ for a given processor:
 [[require]]
 name = "lean4-mpn"
 git = "https://github.com/fgdorais/lean4-mpn"
-rev = "unified"
+rev = "main"
 options = { march = "native", w32_mulKaratsuba = "64", w32_mulToom3 = "480", w32_divDC = "176" }
 ```
 

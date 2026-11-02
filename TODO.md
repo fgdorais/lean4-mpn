@@ -86,8 +86,6 @@ two widths moved into one package is in the history of `MPN32/TODO.md`.
   operands and the result and allocates twice per operation, so below about 64 limbs it measures
   mostly that overhead. Calling `mpn_*` directly needs C in the bench executables (never in the
   libraries, which call no GMP).
-- [ ] **`unified` as `main`**: the branches `main32` and `main64` are frozen; `main` still holds
-  the shared core as it was before the move, and the version needs a tag.
 
 ## Proof engineering
 

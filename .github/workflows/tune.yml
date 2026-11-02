@@ -3,12 +3,16 @@ name: Tune
 on:
   workflow_dispatch:
   schedule:
-    # Weekly, as a rough check of the default thresholds in `MPN.Config`.
+    # Weekly, as a rough check of the default thresholds in `MPN32.Config` and `MPN64.Config`.
     - cron: "17 5 * * 1"
 
 jobs:
   tune:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        width: [ "32", "64" ]
     steps:
 
       - name: checkout
@@ -19,7 +23,7 @@ jobs:
         with:
           auto-config: false
           build: true
-          build-args: "tune"
+          build-args: "tune${{ matrix.width }}"
 
       # Shared runners are noisy and their machines vary, so the thresholds found are only a rough
       # check of the defaults; with `--verbose` the log shows the timings at each size, so how clear
@@ -28,9 +32,9 @@ jobs:
         run: |
           cpu="Runner: $(nproc) cores, $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2)"
           echo "$cpu" | tee tune.txt
-          lake exe tune --verbose | tee -a tune.txt
+          .lake/build/bin/tune${{ matrix.width }} --verbose | tee -a tune.txt
           {
-            echo '## Thresholds on the runner'
+            echo '## Thresholds of ${{ matrix.width }}-bit limbs on the runner'
             echo
             echo '```'
             cat tune.txt
@@ -40,5 +44,5 @@ jobs:
       - name: upload
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: tune
+          name: tune${{ matrix.width }}
           path: tune.txt

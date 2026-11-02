@@ -23,7 +23,7 @@ widths build in one environment, and the tests (`lake test`) check both. The bra
 [[require]]
 name = "lean4-mpn"
 git = "https://github.com/fgdorais/lean4-mpn"
-rev = "unified"
+rev = "main"
 ```
 
 then `import MPN.Default` for `MPN.Nat`, or `import MPN64` / `import MPN32` for a width. The
