@@ -1,7 +1,7 @@
 # Lean 4 / MPN, 64-bit branch
 
 > **Frozen.** This branch is no longer developed: the 64-bit library now lives in the branch
-> [`unified`](https://github.com/fgdorais/lean4-mpn/tree/unified), as the library `MPN64` (namespace
+> [`main`](https://github.com/fgdorais/lean4-mpn/tree/main), as the library `MPN64` (namespace
 > `MPN.W64`), next to `MPN32` and the shared `MPN`.
 
 Verified multi-precision arithmetic for Lean 4 on `UInt64` limbs, in the style of GMP's `mpn`
