@@ -35,38 +35,38 @@ namespace MPN.W64
 
 /-- The size thresholds, in limbs, at which the arithmetic switches algorithms. -/
 public structure Config extends Dispatch.MulConfig, Dispatch.DivConfig, Dispatch.SqrtConfig where
-  mulKaratsuba := 64
+  mulKaratsuba := 56
   four_le_mulKaratsuba := by decide
-  mulToom3 := 384
+  mulToom3 := 368
   twelve_le_mulToom3 := by decide
-  mulToom32 := 176
+  mulToom32 := 192
   twelve_le_mulToom32 := by decide
-  mulToom42 := 88
+  mulToom42 := 104
   twelve_le_mulToom42 := by decide
-  mulToom4 := 600
+  mulToom4 := 512
   thirtytwo_le_mulToom4 := by decide
-  mulToom43 := 600
+  mulToom43 := 592
   thirtytwo_le_mulToom43 := by decide
   mulToom6 := 768
   thirtytwo_le_mulToom6 := by decide
-  sqrKaratsuba := 96
+  sqrKaratsuba := 88
   four_le_sqrKaratsuba := by decide
-  sqrToom3 := 600
+  sqrToom3 := 544
   twelve_le_sqrToom3 := by decide
-  sqrToom4 := 1000
+  sqrToom4 := 714
   thirtytwo_le_sqrToom4 := by decide
-  sqrToom6 := 1152
+  sqrToom6 := 1039
   thirtytwo_le_sqrToom6 := by decide
-  mulFFT := 4096
-  mulFFTUnbal := 3072
-  mulFFTMin := 320
-  mulUnbalanced := 96
-  mulChunkMax := 1024
-  sqrFFT := 2816
+  mulFFT := 6144
+  mulFFTUnbal := 4992
+  mulFFTMin := 352
+  mulUnbalanced := 64
+  mulChunkMax := 1536
+  sqrFFT := 5120
   fftKFactor := 10
-  divDC := 512
+  divDC := 208
   divMu := 8192
-  divQMu := 5632
+  divQMu := 6144
   /--
   The size from which division by a normalized limb takes Möller and Granlund's steps with a
   precomputed reciprocal instead of the hardware divider: always, like GMP's `mpn_divrem_1`.
@@ -87,13 +87,13 @@ public structure Config extends Dispatch.MulConfig, Dispatch.DivConfig, Dispatch
   sqrtZimmermann := 1
   sqrtBase := 1
   /-- The size of the smaller number from which the greatest common divisor uses half-gcd. -/
-  gcdHalf : Nat := 1024
+  gcdHalf : Nat := 2560
   /-- The size from which decimal strings are written by divide and conquer. -/
-  strDC : Nat := 40
+  strDC : Nat := 44
   /--
   The size of the result, in limbs, from which decimal strings are read by divide and conquer.
   -/
-  parseDC : Nat := 512
+  parseDC : Nat := 1536
   deriving Repr
 
 /-- The thresholds of the Karatsuba and Toom methods of `MPN.Toom`, a projection. -/
