@@ -59,8 +59,8 @@ width, over the class `WinOps` of residue operations.
   `@[csimp]` lemma or a continuation, to `foldUInPlaceThen` or `foldUInPlace2Then`, which `@[csimp]`
   lemmas in turn replace with lean4-scalar-arrays' in-place folds (`foldlInPlaceRangeThen`,
   `foldlInPlace2Then`). Those make the array exclusive once and then store without checks. The
-  library has no `implemented_by` of its own; the inline C of the high words in `MPN64.Arch.UInt` is the
-  only code outside Lean.
+  library has no `implemented_by` of its own; the inline C of the high words in `MPN64.Arch.UInt`
+  is the only code outside Lean.
 
 ## Building
 
@@ -78,10 +78,11 @@ run them, and a history of the changes that affected speed.
 
 Multiplication, squaring, division, the greatest common divisor and decimal strings switch
 algorithms at size thresholds collected in `MPN64.Config`; the functions that dispatch take a
-`Config`, and the library's `MPN.W64.config` comes from its build options. The size crossovers were measured
-on one machine (Zen 3), the choices of algorithm follow GMP's; `lake exe tune64` measures them on
-yours in a few minutes and prints the options that set them. A project that depends on this library passes them with its `require`, together
-with `march`, which compiles the library's C code for a given processor:
+`Config`, and the library's `MPN.W64.config` comes from its build options. The size crossovers were
+measured on one machine (Zen 3), the choices of algorithm follow GMP's; `lake exe tune64` measures
+them on yours in a few minutes and prints the options that set them. A project that depends on
+this library passes them with its `require`, together with `march`, which compiles the library's C
+code for a given processor:
 
 ```toml
 [[require]]
