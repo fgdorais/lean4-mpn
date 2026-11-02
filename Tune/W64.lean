@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 import MPN64
+import Tune.Harness
 
 /-!
 # Threshold tuning
@@ -24,94 +25,11 @@ open ScalarArray MPN MPN.W64
 
 namespace Tune
 
-/-- `n` pseudorandom limbs, with a nonzero top limb. -/
-def sample (n seed : Nat) : UInt64Array := Id.run do
-  let mut s := seed
-  let mut r := UInt64Array.emptyWithCapacity n
-  for _ in [0:n] do
-    s := (s * 6364136223846793005 + 1442695040888963407) % 2 ^ 64
-    r := r.push s.toUInt64
-  if n > 0 then r := r.set! (n - 1) (r[n - 1]! ||| 1)
-  return r
-
-/-- Runs `f a b` `reps` times, folding `check` of each result, constant time, into a checksum. -/
-@[noinline] def repeatOp {α β : Type} (f : α → α → β) (check : β → UInt64) (a b : α)
-    (reps : Nat) : UInt64 := Id.run do
-  let mut acc : UInt64 := 0
-  for _ in [0:reps] do
-    acc := acc + check (f a b)
-  return acc
-
-/-- The median time of `f a b` in nanoseconds, over trials of at least `minNs` each. -/
-def timeOp {α β : Type} (f : α → α → β) (check : β → UInt64) (a b : α) (trials := 7)
-    (minNs := 5_000_000) : IO Nat := do
-  let mut reps := 1
-  repeat
-    let t₀ ← IO.monoNanosNow
-    let _ ← IO.lazyPure fun _ => repeatOp f check a b reps
-    let t₁ ← IO.monoNanosNow
-    if t₁ - t₀ ≥ minNs then break
-    reps := reps * 2
-  let mut samples := #[]
-  for _ in [0:trials] do
-    let t₀ ← IO.monoNanosNow
-    let _ ← IO.lazyPure fun _ => repeatOp f check a b reps
-    let t₁ ← IO.monoNanosNow
-    samples := samples.push ((t₁ - t₀) / reps)
-  return (samples.qsort (· < ·))[trials / 2]!
-
-/--
-The smallest size `n` in `sizes` from which `fast n` beats `slow` on the inputs `input n` at `n`
-and at the next `confirm` sizes, or `none` if it never does.
--/
-def crossoverOn {α β : Type} (slow : α → α → β) (fast : Nat → α → α → β) (check : β → UInt64)
-    (input : Nat → α × α) (sizes : List Nat) (confirm := 3) (log : Bool := false) :
-    IO (Option Nat) := do
-  let mut wins : List Nat := []
-  for n in sizes do
-    let (a, b) := input n
-    let ts ← timeOp slow check a b
-    let tf ← timeOp (fast n) check a b
-    if log then IO.println s!"  {n}: {ts} ns vs {tf} ns"
-    if tf < ts then
-      wins := wins ++ [n]
-      if wins.length > confirm then return wins.head?
-    else
-      wins := []
-  return wins.head?
-
-/-- The median of `runs` searches, since the timings near a crossover are close. -/
-def medianOf (runs : Nat) (search : IO Nat) : IO Nat := do
-  let mut found := #[]
-  for _ in [0:runs] do
-    found := found.push (← search)
-  return (found.qsort (· < ·))[runs / 2]!
-
 /-- A threshold beyond every size tried: the method it starts never runs. -/
 def never : Nat := 1_000_000_000
 
-/--
-Tunes a threshold by `crossoverOn`, three times, with `fallback` and a warning when the faster
-side never wins.
--/
-def tune {α β : Type} (name : String) (slow : α → α → β) (fast : Nat → α → α → β)
-    (check : β → UInt64) (input : Nat → α × α) (sizes : List Nat) (confirm := 3)
-    (log : Bool) : IO Nat := medianOf 3 do
-  match ← crossoverOn slow fast check input sizes confirm log with
-  | some n =>
-    if log then IO.println s!"  found {n}"
-    return n
-  | none =>
-    let last := sizes.getLast?.getD 0
-    IO.eprintln s!"warning: {name} never won up to {last} limbs; using {last}"
-    return last
-
-/-- The sizes `start`, `start + step`, …, below `stop`. -/
-def range (start stop step : Nat) : List Nat :=
-  (List.range ((stop - start + step - 1) / step)).map (start + step * ·)
-
 /-- A constant-time check of a result. -/
-def checkArr (a : UInt64Array) : UInt64 := a.size.toUInt64 + a[0]!
+def checkArr (a : UInt64Array) : UInt64 := checkA a
 
 /-- Pseudorandom operands of `m` and `n` limbs. -/
 def operands (m n : Nat) : UInt64Array × UInt64Array := (sample m 1, sample n 2)
@@ -264,8 +182,8 @@ A normalized division of `2 n` by `n` limbs: `V` with its top bit set, and `U < 
 bit of its top limb clear.
 -/
 def divOperands (n : Nat) : UInt64Array × UInt64Array :=
-  let v := sample n 2
-  let u := sample (2 * n) 1
+  let v : UInt64Array := sample n 2
+  let u : UInt64Array := sample (2 * n) 1
   (u.set! (2 * n - 1) (u[2 * n - 1]! &&& 0x7FFFFFFFFFFFFFFF),
     v.set! (n - 1) (v[n - 1]! ||| 0x8000000000000000))
 
@@ -318,7 +236,7 @@ def tuneDiv1Recip (log : Bool) : IO Nat := medianOf 3 do
 
 /-- `n` pseudorandom limbs as a number. -/
 def sampleNat (n seed : Nat) : MPN.W64.Nat :=
-  MPN.W64.Nat.ofLimbs (Limbs64.norm (sample n seed)) (Limbs64.isTrim_norm _)
+  MPN.W64.Nat.ofLimbs (Limbs64.norm (sample (A := UInt64Array) n seed)) (Limbs64.isTrim_norm _)
 
 /--
 Tunes `sqrtBase`: the largest root, in limbs, that Zimmermann's recursion finishes by Newton's

@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 import MPN32
+import Tune.Harness
 
 /-!
 # Threshold tuning
@@ -19,60 +20,6 @@ open ScalarArray MPN MPN.W32
 
 namespace Tune
 
-/-- `n` pseudorandom limbs. -/
-def sample (n seed : Nat) : UInt32Array := Id.run do
-  let mut s := seed
-  let mut r := UInt32Array.emptyWithCapacity n
-  for _ in [0:n] do
-    s := (s * 6364136223846793005 + 1442695040888963407) % 2 ^ 64
-    r := r.push (s / 2 ^ 32).toUInt32
-  return r
-
-/-- Runs `f a b` `reps` times, folding `check` of each result, constant time, into a checksum. -/
-@[noinline] def repeatOp {α β : Type} (f : α → α → β) (check : β → UInt32) (a b : α)
-    (reps : Nat) : UInt32 := Id.run do
-  let mut acc : UInt32 := 0
-  for _ in [0:reps] do
-    acc := acc + check (f a b)
-  return acc
-
-/-- The median time of `f a b` in nanoseconds, over trials of at least `minNs` each. -/
-def timeOp {α β : Type} (f : α → α → β) (check : β → UInt32) (a b : α) (trials := 7)
-    (minNs := 5_000_000) : IO Nat := do
-  let mut reps := 1
-  repeat
-    let t₀ ← IO.monoNanosNow
-    let _ ← IO.lazyPure fun _ => repeatOp f check a b reps
-    let t₁ ← IO.monoNanosNow
-    if t₁ - t₀ ≥ minNs then break
-    reps := reps * 2
-  let mut samples := #[]
-  for _ in [0:trials] do
-    let t₀ ← IO.monoNanosNow
-    let _ ← IO.lazyPure fun _ => repeatOp f check a b reps
-    let t₁ ← IO.monoNanosNow
-    samples := samples.push ((t₁ - t₀) / reps)
-  return (samples.qsort (· < ·))[trials / 2]!
-
-/--
-The smallest size `n` in `sizes` from which `fast` beats `slow` on the inputs `input n` at `n` and
-at the next `confirm` sizes, or `none` if it never does.
--/
-def crossoverOn {α β : Type} (slow fast : α → α → β) (check : β → UInt32) (input : Nat → α × α)
-    (sizes : List Nat) (confirm := 3) (log : Bool := false) : IO (Option Nat) := do
-  let mut wins : List Nat := []
-  for n in sizes do
-    let (a, b) := input n
-    let ts ← timeOp slow check a b
-    let tf ← timeOp fast check a b
-    if log then IO.println s!"  {n} limbs: {ts} ns vs {tf} ns"
-    if tf < ts then
-      wins := wins ++ [n]
-      if wins.length > confirm then return wins.head?
-    else
-      wins := []
-  return wins.head?
-
 /--
 The smallest size `n` in `sizes` from which `fast` beats `slow` on operands of `shape n` limbs at
 `n` and at the next `confirm` sizes, or `none` if it never does. The operands are balanced unless
@@ -81,15 +28,8 @@ The smallest size `n` in `sizes` from which `fast` beats `slow` on operands of `
 def crossover (slow fast : UInt32Array.Slice → UInt32Array.Slice → UInt32Array)
     (sizes : List Nat) (shape : Nat → Nat × Nat := fun n => (n, n)) (confirm := 3)
     (log : Bool := false) : IO (Option Nat) :=
-  crossoverOn (fun a b : UInt32Array => slow a b) (fun a b => fast a b) (·[0]!)
+  crossoverFixed (fun a b : UInt32Array => slow a b) (fun a b => fast a b) (·[0]!)
     (fun n => (sample (shape n).1 1, sample (shape n).2 2)) sizes confirm log
-
-/-- The median of `runs` searches, since the timings near a crossover are close. -/
-def medianOf (runs : Nat) (search : IO Nat) : IO Nat := do
-  let mut found := #[]
-  for _ in [0:runs] do
-    found := found.push (← search)
-  return (found.qsort (· < ·))[runs / 2]!
 
 /-- A threshold beyond every size tried. -/
 def never : Nat := 100000
@@ -330,7 +270,7 @@ def checkNat : MPN.W32.Nat → UInt32
   | .large a _ => a.size.toUInt32 + a[0]!
 
 /-- `n` pseudorandom limbs as a number. -/
-def sampleNat (n seed : Nat) : MPN.W32.Nat := MPN.W32.Nat.ofNat (MPN.W32.toNat (sample n seed))
+def sampleNat (n seed : Nat) : MPN.W32.Nat := MPN.W32.Nat.ofNat (MPN.W32.toNat (sample (A := UInt32Array) n seed))
 
 /-- Decimal digits by `toDecimalWith strDC`, of a trimmed array. -/
 def decimalWith (strDC : Nat) (a _ : UInt32Array) : String :=
@@ -342,7 +282,7 @@ from `n` limbs, so that the numbers it reduces finish by Lehmer's algorithm.
 -/
 def tuneGcdHalf (log : Bool) : IO Nat := medianOf 3 do
   let sizes := (List.range 32).map (1024 + 512 * ·)
-  match ← crossoverOn (MPN.W32.Nat.gcdWith 1000000000) (fun x y => MPN.W32.Nat.gcdWith x.limbs.size x y) checkNat
+  match ← crossoverFixed (MPN.W32.Nat.gcdWith 1000000000) (fun x y => MPN.W32.Nat.gcdWith x.limbs.size x y) checkNat
       (fun n => (sampleNat n 1, sampleNat n 2)) sizes (confirm := 2) (log := log) with
   | some n =>
     if log then IO.println s!"  found {n}"
@@ -358,7 +298,7 @@ precomputed reciprocal beats the hardware divider, or `1000000`, never, if it do
 -/
 def tuneDiv1Recip (log : Bool) : IO Nat := medianOf 3 do
   let sizes := [2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512]
-  match ← crossoverOn (fun (a _ : UInt32Array) => divRem1With 4294967295 4294967295 a 0xF1234567)
+  match ← crossoverFixed (fun (a _ : UInt32Array) => divRem1With 4294967295 4294967295 a 0xF1234567)
       (fun a _ => divRem1With 0 4294967295 a 0xF1234567) (fun p => p.2 + p.1.size.toUInt32)
       (fun n => (sample n 1, sample n 1)) sizes (log := log) with
   | some n =>
@@ -375,7 +315,7 @@ does not win up to 512 limbs.
 -/
 def tuneDiv1Unnorm (log : Bool) : IO Nat := medianOf 3 do
   let sizes := [2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512]
-  match ← crossoverOn (fun (a _ : UInt32Array) => divRem1With 4294967295 4294967295 a 1000000000)
+  match ← crossoverFixed (fun (a _ : UInt32Array) => divRem1With 4294967295 4294967295 a 1000000000)
       (fun a _ => divRem1With 4294967295 0 a 1000000000) (fun p => p.2 + p.1.size.toUInt32)
       (fun n => (sample n 1, sample n 1)) sizes (log := log) with
   | some n =>
@@ -395,9 +335,9 @@ def tuneDiv32Recip (log : Bool) : IO Nat := medianOf 3 do
     if h : 2 ≤ v.toSlice.size then (divRemBasecase t u v h).1 else u
   let sizes := [4, 6, 8, 12, 16, 24, 32, 40, 48, 56, 64, 80, 96, 128, 192, 256, 384, 512]
   let input (n : Nat) : UInt32Array × UInt32Array :=
-    let v := sample n 2
+    let v : UInt32Array := sample n 2
     (sample (2 * n) 1, v.set! (n - 1) (v[n - 1]! ||| 0x80000000))
-  match ← crossoverOn (div 4294967295) (div 0) (fun q => q.size.toUInt32 + q[0]!) input sizes
+  match ← crossoverFixed (div 4294967295) (div 0) (fun q => q.size.toUInt32 + q[0]!) input sizes
       (log := log) with
   | some n =>
     if log then IO.println s!"  found {n}"
@@ -413,7 +353,7 @@ below, beats Newton's iteration on the whole root.
 -/
 def tuneSqrtBase (log : Bool) : IO Nat := medianOf 3 do
   let sizes := [4, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32, 40, 48, 56, 64, 80, 96, 128]
-  match ← crossoverOn (fun x (_ : MPN.W32.Nat) => MPN.W32.Nat.sqrtWith 1 1000000 x)
+  match ← crossoverFixed (fun x (_ : MPN.W32.Nat) => MPN.W32.Nat.sqrtWith 1 1000000 x)
       (fun x _ => MPN.W32.Nat.sqrtWith 1 (x.limbs.size / 2 - 1) x) checkNat
       (fun n => (sampleNat (2 * n) 1, sampleNat (2 * n) 1)) sizes (log := log) with
   | some n =>
@@ -429,7 +369,7 @@ roots of `T` limbs, beats Newton's iteration.
 -/
 def tuneSqrtZimmermann (T : Nat) (log : Bool) : IO Nat := medianOf 3 do
   let sizes := [4, 6, 8, 12, 16, 20, 24, 28, 32, 40, 48, 56, 64, 80, 96, 128, 160, 192, 256]
-  match ← crossoverOn (fun x (_ : MPN.W32.Nat) => MPN.W32.Nat.sqrtWith 1000000 T x)
+  match ← crossoverFixed (fun x (_ : MPN.W32.Nat) => MPN.W32.Nat.sqrtWith 1000000 T x)
       (fun x _ => MPN.W32.Nat.sqrtWith 1 T x) checkNat
       (fun n => (sampleNat (2 * n) 1, sampleNat (2 * n) 1)) sizes (log := log) with
   | some n =>
@@ -448,7 +388,7 @@ wide accumulators beats Comba's method, at `n` by `n` limbs.
 -/
 def tuneMulRows (log : Bool) : IO Nat := medianOf 3 do
   let sizes := [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20, 24, 32, 40, 48, 64]
-  match ← crossoverOn (fun (a b : UInt32Array) => mulBasecaseWith 1000000 config.mulCombaW a b)
+  match ← crossoverFixed (fun (a b : UInt32Array) => mulBasecaseWith 1000000 config.mulCombaW a b)
       (fun a b => mulBasecaseWith 0 config.mulCombaW a b) checkArr32
       (fun n => (sample n 1, sample n 2)) sizes (log := log) with
   | some n =>
@@ -464,7 +404,7 @@ in its columns beats the one with single products, at `n` by `n` limbs.
 -/
 def tuneMulCombaW (log : Bool) : IO Nat := medianOf 3 do
   let sizes := [4, 6, 8, 12, 16, 20, 24, 28, 32, 40, 48, 56, 64, 80, 96, 128]
-  match ← crossoverOn (fun (a b : UInt32Array) => mulBasecaseWith 1000000 1000000 a b)
+  match ← crossoverFixed (fun (a b : UInt32Array) => mulBasecaseWith 1000000 1000000 a b)
       (fun a b => mulBasecaseWith 1000000 0 a b) checkArr32
       (fun n => (sample n 1, sample n 2)) sizes (log := log) with
   | some n =>
@@ -477,7 +417,7 @@ def tuneMulCombaW (log : Bool) : IO Nat := medianOf 3 do
 /-- Tunes `sqrRows`: the size from which the schoolbook square by rows beats Comba's method. -/
 def tuneSqrRows (log : Bool) : IO Nat := medianOf 3 do
   let sizes := [2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20, 24, 32, 40, 48, 64]
-  match ← crossoverOn (fun (a _ : UInt32Array) => sqrBasecaseWith 1000000 a)
+  match ← crossoverFixed (fun (a _ : UInt32Array) => sqrBasecaseWith 1000000 a)
       (fun a _ => sqrBasecaseWith 0 a) checkArr32 (fun n => (sample n 1, sample n 1)) sizes
       (log := log) with
   | some n =>
@@ -490,8 +430,8 @@ def tuneSqrRows (log : Bool) : IO Nat := medianOf 3 do
 /-- Tunes `strDC`: where writing decimal digits by divide and conquer beats the base case. -/
 def tuneStrDC (log : Bool) : IO Nat := medianOf 3 do
   let sizes := (List.range 60).map (16 + 8 * ·)
-  match ← crossoverOn (decimalWith 1000000000) (decimalWith 0) (·.utf8ByteSize.toUInt32)
-      (fun n => let a := (sample (n - 1) 1).push 1; (a, a)) sizes (log := log) with
+  match ← crossoverFixed (decimalWith 1000000000) (decimalWith 0) (·.utf8ByteSize.toUInt32)
+      (fun n => let a := (sample (A := UInt32Array) (n - 1) 1).push 1; (a, a)) sizes (log := log) with
   | some n =>
     if log then IO.println s!"  found {n}"
     return n
@@ -507,7 +447,7 @@ def tuneParseDC (log : Bool) : IO Nat := medianOf 3 do
   let sizes := (List.range 48).map (128 + 64 * ·)
   let digits (n : Nat) : String :=
     String.ofList ((List.range (9 * n)).map fun i => Char.ofNat (48 + (i * 7 + i / 3) % 10))
-  match ← crossoverOn (fun t (_ : String) => MPN.W32.Nat.ofStringWith 1000000000 t)
+  match ← crossoverFixed (fun t (_ : String) => MPN.W32.Nat.ofStringWith 1000000000 t)
       (fun t _ => MPN.W32.Nat.ofStringWith 0 t) (fun r => checkNat r.get!)
       (fun n => (digits n, digits n)) sizes (log := log) with
   | some n =>
