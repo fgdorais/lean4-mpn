@@ -177,9 +177,10 @@ def main (args : List String) : IO Unit := do
     for n in sizes do
       let a := sample n 1
       let b := sample n 2
-      let (na, nb) := if noNat then (0, 0) else (toNat a, toNat b)
+      -- The operands of the `MPN.Nat` rows come from these, with or without `--no-nat`.
+      let (na, nb) := (toNat a, toNat b)
       let s := sample (n + 1) 3
-      let ns := if noNat then 0 else toNat s
+      let ns := toNat s
       match op with
       | "badd" =>
         let (x, y) := (MPN.W64.Nat.ofNat na, MPN.W64.Nat.ofNat nb)
