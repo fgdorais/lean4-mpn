@@ -5,7 +5,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN32.Mul.Basecase
-public import MPN32.FFT.Mul
+public import MPN.Dispatch
+public import MPN32.Mul.ToomOps
 public import MPN32.Settings
 public import MPN32.Basic
 
@@ -75,7 +76,8 @@ private theorem mulSmall_ok (a b : UInt32Array.Slice) : MulOK a b (mulSmall a b)
     · exact (show MulOK b a (mulBasecase b a) from ⟨size_mulBasecase b a,
         toNat_mulBasecase b a⟩).swap
 
-private theorem mulBig_ok (cfg : Config) (a b : UInt32Array.Slice) : MulOK a b (mulBig cfg a b) := by
+private theorem mulBig_ok (cfg : Config) (a b : UInt32Array.Slice) :
+    MulOK a b (mulBig cfg a b) := by
   obtain ⟨⟨s₁, -⟩, s₂⟩ := Dispatch.mul_spec cfg.mul (UInt32Array.replicate (a.size + b.size) 0) 0
     a.array a.start a.size b.array b.start b.size (by simp [LimbArray.size])
   have hs : (mulBig cfg a b).size = a.size + b.size := s₁.trans (by simp [LimbArray.size])
