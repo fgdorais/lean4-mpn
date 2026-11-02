@@ -1,7 +1,7 @@
 # Lean 4 / MPN
 
 > **Frozen.** This branch is no longer developed: the 32-bit library now lives in the branch
-> [`unified`](https://github.com/fgdorais/lean4-mpn/tree/unified), as the library `MPN32` (namespace
+> [`main`](https://github.com/fgdorais/lean4-mpn/tree/main), as the library `MPN32` (namespace
 > `MPN.W32`), next to `MPN64` and the shared `MPN`.
 
 Verified arbitrary-precision natural numbers for Lean 4, stored as `UInt32` limbs in the unboxed
