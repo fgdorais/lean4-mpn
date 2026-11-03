@@ -20,10 +20,12 @@ two widths moved into one package is in the history of `MPN32/TODO.md`.
   `subMul1` 25%, so faster products help it most. Ruled out on 32-bit limbs: two quotient limbs per
   pass (`submul_2`, whose sums overflow 64 bits) and a carry chain under three operations in
   `subMul1` (LLVM reassociates it).
-- [ ] **`Num.divMod` on 64-bit limbs at exactly 8192 limbs** is 12.5% slower since the wrapped
-  product became `Dispatch.mulModW` (`dd67e5e`), also with aligned builds, while 8320 limbs and up
-  and 7168 are flat; the profile of the library's code and the page faults are the same as with
-  the old `mulMod64`, which removes it. Not explained.
+- [ ] **`Num.divMod` on 64-bit limbs by Barrett is bimodal**: from `divMu` (8192 limbs) on, `2 n / n`
+  takes either about 1.13 or about 1.36 times the quotient alone, by size (13.2 ms at 8192, 8224 and
+  8256 limbs, 11.7 ms at 8200, 8288 and 8320). Both kinds do the same work: the same Barrett blocks,
+  FFT parameters and numbers of FFT products, wrapped products, pointwise products and butterflies
+  (counted with breakpoints), and glibc's allocation settings don't move it, so it is a memory or
+  cache effect in the FFT, not the division.
 - [ ] **The fixed cost of small divisions**: `2 n / n` from 8 limbs goes through Algorithm D,
   whose fixed cost is the normalization of both operands and their arrays (on 32-bit limbs 245 ns
   for 8 by 4 limbs and 555 ns for 32 by 16, against 95 and 154 ns for `Nat`).
