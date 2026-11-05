@@ -17,9 +17,9 @@ two widths moved into one package is in the history of `MPN32/TODO.md`.
   D's last steps, a remainder it throws away. A quotient off by at most one and then checked needs
   high-half products (`mulhi` variants of the base case, Karatsuba and Toom-3) and a proof of the
   error bound: a big project. On 32-bit limbs at 1024 limbs, Comba is about 50% of the time and
-  `subMul1` 25%, so faster products help it most. Ruled out on 32-bit limbs: two quotient limbs per
-  pass (`submul_2`, whose sums overflow 64 bits) and a carry chain under three operations in
-  `subMul1` (LLVM reassociates it).
+  `subMul1` 25%, so faster products help it most. Ruled out on 32-bit limbs: a carry chain under
+  three operations in `subMul1` (LLVM reassociates it). Schoolbook division takes two quotient
+  limbs per pass since `4143568`, on both widths.
 - [ ] **`Num.divMod` on 64-bit limbs by Barrett is bimodal**: from `divMu` (8192 limbs) on, `2 n / n`
   takes either about 1.13 or about 1.36 times the quotient alone, by size (13.2 ms at 8192, 8224 and
   8256 limbs, 11.7 ms at 8200, 8288 and 8320). Both kinds do the same work: the same Barrett blocks,
