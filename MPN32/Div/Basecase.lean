@@ -8,14 +8,16 @@ public import MPN32.Mul.Limb
 public import MPN32.Basic
 public import MPN.Div.Schoolbook
 public import MPN.Div.ByLimb
+public import MPN32.Settings
 
 /-!
 # Schoolbook division
 
 `divRemBasecase t u v` divides `u` by a divisor `v` of at least two limbs with a nonzero top limb,
 by Knuth's Algorithm D, like GMP's schoolbook division, through `main`'s `MPN.Div.Schoolbook` on
-`UInt32Array` (`divLoopIn`): one quotient limb per step from the top down, in one array, the
-remainder in the limbs below `n` and the quotient from limb `n` on. Its multiply-subtract pass
+`UInt32Array` (`divLoop2In`): two quotient limbs per step from the top down, by one pass of two
+rows, from `config.div2Rows` limbs in the divisor, in one array, the remainder in the limbs below
+`n` and the quotient from limb `n` on. Its multiply-subtract pass
 carries the biased borrow of `subMulBiased`. `Div` normalizes the divisor and the dividend, and
 divides the latter in place with `divRemBasecaseTop` when its top limb is below the divisor's, as
 it is after normalization.
@@ -196,6 +198,9 @@ private theorem slice_bound (v : UInt32Array.Slice) (h : v.array.usize.toNat = v
   rw [h₁, h₂]
   exact ⟨by lia, by lia⟩
 
+/-- `config.div2Rows` as a `USize`, at most `4294967295`. -/
+public def div2RowsU : USize := (min config.div2Rows 4294967295).toUSize
+
 /--
 The quotient limbs below `k`, from the top down, in one array, by `main`'s
 `Schoolbook.divLoopIn`: the remainder stays in the limbs below `k + n` and each quotient limb goes
@@ -208,10 +213,11 @@ array too large for them, which none is, the limbs would be written from the val
 def divLoopIn (t : USize) (v : UInt32Array.Slice) (hn : 2 ≤ v.size) (k : Nat) (r : UInt32Array)
     (_hr : k + v.size ≤ r.size) : UInt32Array :=
   if h : r.usize.toNat = r.size ∧ v.array.usize.toNat = v.array.size then
-    Schoolbook.divLoopIn r v.array v.start.toUSize v.size.toUSize (slice_bound v h.2)
+    Schoolbook.divLoop2In r v.array v.start.toUSize v.size.toUSize (slice_bound v h.2)
       (v[v.size - 1]'(by lia)) (v[v.size - 2]'(by lia))
+      (if h3 : 3 ≤ v.size then v[v.size - 3]'(by lia) else 0)
       (WordArray.divRecip32 UInt32Array t v.size.toUSize (v[v.size - 1]'(by lia))
-        (v[v.size - 2]'(by lia))) k.toUSize
+        (v[v.size - 2]'(by lia))) div2RowsU k.toUSize
   else
     LimbArray.writeNat (LimbArray.writeNat r 0 v.size (r.valAt 0 (k + v.size) % toNat v)) v.size k
       (r.valAt 0 (k + v.size) / toNat v)
@@ -249,14 +255,20 @@ private theorem divLoopIn_spec (t : USize) (v : UInt32Array.Slice) (hn : 2 ≤ v
     have hk' : k.toUSize.toNat = k := toNat_toUSize' (by lia)
     have hV : toNat v = LimbArray.valAt v.array v.start v.size := toNat_eq_valAt v
     have hb' : LimbArray.valAt r 0 (k + v.size) < toNat v * 2 ^ (32 * k) := hbound
-    obtain ⟨s₁, -, s₃, s₄⟩ := Schoolbook.divLoopIn_spec r v.array v.start.toUSize v.size.toUSize
+    obtain ⟨s₁, -, s₃, s₄⟩ := Schoolbook.divLoop2In_spec r v.array v.start.toUSize v.size.toUSize
       (slice_bound v h.2) (v[v.size - 1]'(by lia)) (v[v.size - 2]'(by lia))
+      (if h3 : 3 ≤ v.size then v[v.size - 3]'(by lia) else 0)
       (WordArray.divRecip32 UInt32Array t v.size.toUSize (v[v.size - 1]'(by lia))
-        (v[v.size - 2]'(by lia))) k.toUSize
+        (v[v.size - 2]'(by lia))) div2RowsU k.toUSize
       (by rw [hn']; exact hn) (by rw [hn', hk']; change k + v.size ≤ r.size; lia)
       (by change r.size < USize.size; lia) (by rw [hs', hn', ← hV]; exact hv₀)
       (by rw [hs', hn', UInt32Array.Slice.getElem_eq_getElem!]; congr 1; lia)
       (by rw [hs', hn', UInt32Array.Slice.getElem_eq_getElem!]; congr 1; lia)
+      (fun h3 => by
+        rw [hn'] at h3
+        simp only [h3, ↓reduceDIte]
+        rw [hs', hn', UInt32Array.Slice.getElem_eq_getElem!]
+        congr 1; lia)
       (by rw [hs', hn', hk', ← hV]; exact hb')
     simp only [hs', hn', hk', ← hV] at s₃ s₄
     exact ⟨s₁, s₄, by rw [Nat.add_comm]; exact s₃⟩

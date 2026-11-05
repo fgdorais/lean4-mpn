@@ -608,6 +608,33 @@ private theorem rangeLoop_eq {β : Type} (n : USize)
       (fun k hk x b => f (j + k) (toNat_shift h hk).2 x b) g
   else g arr rfl b
 
+/--
+`foldUInPlaceThen` with an accumulator of two parts by `foldlInPlaceRangeWith2AccThen` on
+`[rs + j, rs + n)`, which keeps the parts apart.
+-/
+@[inline, expose] public def foldUInPlaceThen2Lib {β₁ β₂ γ : Type} (n : USize)
+    (f : (j : USize) → j < n → UInt32 → β₁ → β₂ → UInt32 × β₁ × β₂) (arr : UInt32Array) (rs : USize)
+    (hr : LoopBound arr rs n) (j : USize) (b₁ : β₁) (b₂ : β₂)
+    (g : (arr' : UInt32Array) → arr'.size = arr.size → β₁ → β₂ → γ) : γ :=
+  if h : j < n then
+    arr.foldlInPlaceRangeWith2AccThen (rs + j) (n - j) (by
+        have h₀ := USize.lt_iff_toNat_lt.1 h
+        rw [hr.toNat_add h, USize.toNat_sub_of_le _ _ (USize.le_of_lt h)]; lia) b₁ b₂
+      (fun k hk x c₁ c₂ => f (j + k) (toNat_shift h hk).2 x c₁ c₂) g
+  else g arr rfl b₁ b₂
+
+public theorem foldUInPlaceThen2Lib_eq {β₁ β₂ γ : Type} (n : USize)
+    (f : (j : USize) → j < n → UInt32 → β₁ → β₂ → UInt32 × β₁ × β₂) (arr : UInt32Array) (rs : USize)
+    (hr : LoopBound arr rs n) (j : USize) (b₁ : β₁) (b₂ : β₂)
+    (g : (arr' : UInt32Array) → arr'.size = arr.size → β₁ → β₂ → γ) :
+    foldUInPlaceThen2Lib n f arr rs hr j b₁ b₂ g =
+      foldUInPlaceThenLib n (fun j h z c => f j h z c.1 c.2) arr rs hr j (b₁, b₂)
+        (fun arr' h c => g arr' h c.1 c.2) := by
+  unfold foldUInPlaceThen2Lib foldUInPlaceThenLib
+  split
+  · rw [foldlInPlaceRangeWith2AccThen_eq]
+  · rfl
+
 /-- A continuation applied to equal pairs, with the size proof carried along. -/
 private theorem g_congr {β γ : Type} {arr : UInt32Array}
     (g : (arr' : UInt32Array) → arr'.size = arr.size → β → γ) {p q : UInt32Array × β}
@@ -648,6 +675,41 @@ limbs of any width. Its in-place loop reading other windows of the array it writ
 
 /-- `log2` of a word is `Nat.log2` of its value. -/
 public theorem _root_.UInt32.toNat_log2' (x : UInt32) : x.log2.toNat = x.toNat.log2 := by rfl
+
+/--
+One limb of a multiply-subtract pass by two limbs: `z - y (x₀ + β x₁) - (c₀ + β c₁)` and the two
+limbs of the borrow out, in 64-bit words: `y x₀ + c₀` and `y x₁ + c₁` plus the high half of the
+first and the borrow fit in them.
+-/
+@[inline, expose] public def subMul2W (z y x₀ x₁ c₀ c₁ : UInt32) : UInt32 × UInt32 × UInt32 :=
+  let a₀ := y.toUInt64 * x₀.toUInt64 + c₀.toUInt64
+  let lo := a₀.toUInt32
+  let a₁ := y.toUInt64 * x₁.toUInt64 + c₁.toUInt64 + (a₀ >>> 32) + (decide (z < lo)).toUInt64
+  (z - lo, a₁.toUInt32, (a₁ >>> 32).toUInt32)
+
+public theorem val_subMul2W (z y x₀ x₁ c₀ c₁ : UInt32) :
+    (subMul2W z y x₀ x₁ c₀ c₁).1.toNat + y.toNat * (x₀.toNat + 2 ^ 32 * x₁.toNat) +
+        (c₀.toNat + 2 ^ 32 * c₁.toNat) =
+      z.toNat + 2 ^ 32 * ((subMul2W z y x₀ x₁ c₀ c₁).2.1.toNat +
+        2 ^ 32 * (subMul2W z y x₀ x₁ c₀ c₁).2.2.toNat) := by
+  have hz := z.toNat_lt; have hy := y.toNat_lt; have hx₀ := x₀.toNat_lt; have hx₁ := x₁.toNat_lt
+  have hc₀ := c₀.toNat_lt; have hc₁ := c₁.toNat_lt
+  have hp₀ : y.toNat * x₀.toNat ≤ (2 ^ 32 - 1) * (2 ^ 32 - 1) := Nat.mul_le_mul (by lia) (by lia)
+  have hp₁ : y.toNat * x₁.toNat ≤ (2 ^ 32 - 1) * (2 ^ 32 - 1) := Nat.mul_le_mul (by lia) (by lia)
+  have e : y.toNat * (x₀.toNat + 2 ^ 32 * x₁.toNat) =
+      y.toNat * x₀.toNat + 2 ^ 32 * (y.toNat * x₁.toNat) := by
+    rw [Nat.mul_add, Nat.mul_left_comm]
+  rw [e]
+  simp only [subMul2W, UInt64.toNat_add, UInt64.toNat_mul, UInt32.toNat_toUInt64,
+    UInt64.toNat_toUInt32, UInt32.toNat_sub, UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow,
+    Bool.toUInt64, UInt32.lt_iff_toNat_lt, apply_ite UInt64.toNat, UInt64.toNat_one,
+    UInt64.toNat_zero, decide_eq_true_eq, UInt64.reduceToNat]
+  generalize y.toNat * x₀.toNat = p₀ at *
+  generalize y.toNat * x₁.toNat = p₁ at *
+  generalize z.toNat = Z at *
+  generalize c₀.toNat = C₀ at *
+  generalize c₁.toNat = C₁ at *
+  split <;> lia
 
 /-- The reads, writes and word operations of `UInt32Array`, for the loops of `main`. -/
 public instance wordArray32 : MPN.WordArray UInt32Array UInt32 where
@@ -704,6 +766,7 @@ public instance wordArray32 : MPN.WordArray UInt32Array UInt32 where
   subC x y c :=
     let t := x.toUInt64 - y.toUInt64 - c.toUInt64
     (t.toUInt32, (0 : UInt32) - (t >>> 32).toUInt32)
+  subMul2B := subMul2W
   isZero x := x == 0
   ofUSize i := i.toUInt32
   wU := 32
@@ -757,6 +820,7 @@ public instance wordArray32 : MPN.WordArray UInt32Array UInt32 where
       UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow, UInt64.toNat_ofNat, UInt32.toNat_zero,
       Nat.reduceMod, Nat.reducePow, UInt64.toNat_toUInt32]
     lia
+  val_subMul2B := val_subMul2W
   ltB_iff x y := by
     show decide (x < y) = true ↔ x.toNat < y.toNat
     rw [decide_eq_true_iff, UInt32.lt_iff_toNat_lt]
@@ -879,6 +943,13 @@ public instance wordFolds32 : MPN.WordFolds UInt32Array UInt32 where
     intro β γ n f arr rs hr j b g
     rw [← foldUInPlaceThen_eq_lib, foldUInPlaceThen, MPN.WordArray.foldUInPlaceThen]
     exact g_congr g (foldUInPlace_main n f arr rs hr j b).symm _
+  foldThen2 := foldUInPlaceThen2Lib
+  foldThen2_eq := by
+    intro β₁ β₂ γ n f arr rs hr j b₁ b₂ g
+    rw [foldUInPlaceThen2Lib_eq, ← foldUInPlaceThen_eq_lib, foldUInPlaceThen,
+      MPN.WordArray.foldUInPlaceThen]
+    exact g_congr (fun arr' h c => g arr' h c.1 c.2)
+      (foldUInPlace_main _ (fun j h z c => f j h z c.1 c.2) arr rs hr j (b₁, b₂)).symm _
 
 /-- A sub-slice of a whole array, `toUSlice`. -/
 public theorem toUSlice_slice (a : UInt32Array) {i j : USize} (hij : i.toNat ≤ j.toNat)

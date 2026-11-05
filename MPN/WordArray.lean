@@ -146,6 +146,11 @@ public class WordArray (A : Type) (L : outParam Type) [LA : LimbArray A L] where
   addC : L → L → L → L × L
   /-- `x - y - c` modulo `2ʷ`, and the borrow out: one limb of a subtraction. -/
   subC : L → L → L → L × L
+  /--
+  One limb of a multiply-subtract pass by two limbs: `z - y (x₀ + 2ʷ x₁) - (c₀ + 2ʷ c₁)` modulo
+  `2ʷ`, and the two limbs of the borrow out, like a limb of GMP's `mpn_submul_2`.
+  -/
+  subMul2B : L → L → L → L → L → L → L × L × L
   /-- Whether a limb is zero. -/
   isZero : L → Bool
   /-- A `USize` as a limb, modulo `2ʷ`. -/
@@ -179,6 +184,10 @@ public class WordArray (A : Type) (L : outParam Type) [LA : LimbArray A L] where
     LA.val x + LA.val y + LA.val c
   val_subC : ∀ x y c, LA.val (subC x y c).1 + LA.val y + LA.val c =
     LA.val x + 2 ^ LA.w * LA.val (subC x y c).2
+  val_subMul2B : ∀ z y x₀ x₁ c₀ c₁, LA.val (subMul2B z y x₀ x₁ c₀ c₁).1 +
+      LA.val y * (LA.val x₀ + 2 ^ LA.w * LA.val x₁) + (LA.val c₀ + 2 ^ LA.w * LA.val c₁) =
+    LA.val z + 2 ^ LA.w * (LA.val (subMul2B z y x₀ x₁ c₀ c₁).2.1 +
+      2 ^ LA.w * LA.val (subMul2B z y x₀ x₁ c₀ c₁).2.2)
   eqB_iff : ∀ x y, eqB x y = true ↔ LA.val x = LA.val y
   isZero_iff : ∀ x, isZero x = true ↔ LA.val x = 0
   val_ofUSize : ∀ i, LA.val (ofUSize i) = i.toNat % 2 ^ LA.w
@@ -530,7 +539,7 @@ open WordArray in
 /--
 The in-place folds of lean4-scalar-arrays on arrays of words, over one window and over one window
 while reading two others of the same array, which run in place of `foldUInPlaceThen` and
-`foldUInPlace2Then`.
+`foldUInPlace2Then`, and over one window with an accumulator of two parts kept apart.
 -/
 public class WordFolds (A : Type) (L : outParam Type) [LA : LimbArray A L] [WordArray A L] where
   /-- `foldUInPlace2Then`, compiled. -/
@@ -546,6 +555,18 @@ public class WordFolds (A : Type) (L : outParam Type) [LA : LimbArray A L] [Word
     ((arr' : A) → LA.size arr' = LA.size arr → β → γ) → γ
   foldThen_eq : ∀ {β γ : Type} n f arr rs hr j b g,
     @foldThen β γ n f arr rs hr j b g = foldUInPlaceThen n f arr rs hr j b g
+  /--
+  `foldUInPlaceThen` with an accumulator of two parts, compiled so that the parts stay apart, and
+  unboxed when they are words.
+  -/
+  foldThen2 : {β₁ β₂ γ : Type} → (n : USize) →
+    ((j : USize) → j < n → L → β₁ → β₂ → L × β₁ × β₂) → (arr : A) → (rs : USize) →
+    LoopBound arr rs n → USize → β₁ → β₂ →
+    ((arr' : A) → LA.size arr' = LA.size arr → β₁ → β₂ → γ) → γ
+  foldThen2_eq : ∀ {β₁ β₂ γ : Type} n f arr rs hr j b₁ b₂ g,
+    @foldThen2 β₁ β₂ γ n f arr rs hr j b₁ b₂ g =
+      foldUInPlaceThen n (fun j h z c => f j h z c.1 c.2) arr rs hr j (b₁, b₂)
+        (fun arr' h c => g arr' h c.1 c.2)
 
 namespace WordArray
 
@@ -576,6 +597,18 @@ public theorem foldThen_cases {β γ : Type} {n : USize} {f : (j : USize) → j 
       foldUInPlace n f arr rs hr j b = (a, c) ∧ g a ha c = G := by
   rw [F.foldThen_eq, foldUInPlaceThen] at h
   exact ⟨_, _, _, rfl, h⟩
+
+/-- `foldThen2` as an intermediate result, like `foldThen_cases`. -/
+public theorem foldThen2_cases {β₁ β₂ γ : Type} {n : USize}
+    {f : (j : USize) → j < n → L → β₁ → β₂ → L × β₁ × β₂} {arr : A} {rs : USize}
+    {hr : LoopBound arr rs n} {j : USize} {b₁ : β₁} {b₂ : β₂}
+    {g : (arr' : A) → LA.size arr' = LA.size arr → β₁ → β₂ → γ} {G : γ}
+    (h : F.foldThen2 n f arr rs hr j b₁ b₂ g = G) :
+    ∃ a, ∃ ha : LA.size a = LA.size arr, ∃ c₁ c₂,
+      foldUInPlace n (fun j h z c => f j h z c.1 c.2) arr rs hr j (b₁, b₂) = (a, c₁, c₂) ∧
+        g a ha c₁ c₂ = G := by
+  rw [F.foldThen2_eq, foldUInPlaceThen] at h
+  exact ⟨_, _, _, _, rfl, h⟩
 
 public theorem foldThen_eq' {β γ : Type} (n : USize) (f : (j : USize) → j < n → L → β → L × β)
     (arr : A) (rs : USize) (hr : LoopBound arr rs n) (j : USize) (b : β)

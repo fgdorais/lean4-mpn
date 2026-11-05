@@ -13,8 +13,9 @@ import all Init.Data.Fin.Log2
 # Schoolbook division
 
 `divRem` divides by a divisor `v` of `n ≥ 2` limbs by Knuth's Algorithm D, like GMP's schoolbook
-division, through `main`'s `MPN.Div.Schoolbook` on `UInt64Array` (`divLoopIn`): one quotient limb
-per step from the top down, in one array, the multiply-subtract pass by the in-place fold. From
+division, through `main`'s `MPN.Div.Schoolbook` on `UInt64Array` (`divLoop2In`): from the top
+down, in one array, one quotient limb per step, or two by one pass of two rows from
+`config.div2Rows` limbs in the divisor, the multiply-subtract passes by the in-place folds. From
 `config.div32Recip` limbs in the divisor, the estimates are GMP's 3-by-2 step with the precomputed
 reciprocal `recip32`, checked exactly. `divRem` normalizes the divisor, which keeps the corrections
 of the estimates rare, and shifts the remainder back.
@@ -41,6 +42,9 @@ reciprocal nor the error bound of the step needs a proof.
 
 /-- `config.div32Recip` as a `USize`, at most `2³² - 1`. -/
 public def div32RecipU : USize := (min config.div32Recip 4294967295).toUSize
+
+/-- `config.div2Rows` as a `USize`, at most `2³² - 1`. -/
+public def div2RowsU : USize := (min config.div2Rows 4294967295).toUSize
 
 /--
 The reciprocal of the top limbs `v₁ v₂` of a divisor of `n` limbs for `divRemWith t`, from `t`
@@ -71,7 +75,10 @@ limbs `n` to `n + i - 1` and the remainder in limbs `0` to `n - 1`.
 -/
 public def divLoopIn (w : UInt64Array) (v : USlice) (v₁ v₂ dv : UInt64) (n i : USize) :
     UInt64Array :=
-  if h : n ≤ v.size then Schoolbook.divLoopIn w v.array v.start n (v.loopBound h) v₁ v₂ dv i else w
+  if h : n ≤ v.size then
+    Schoolbook.divLoop2In w v.array v.start n (v.loopBound h) v₁ v₂
+      (if 3 ≤ n.toNat then v.array[v.start.toNat + n.toNat - 3]! else 0) dv div2RowsU i
+  else w
 
 private theorem divLoopIn_spec (w : UInt64Array) (v : USlice) (v₁ v₂ dv : UInt64) (n i : USize)
     (hn : v.size = n) (hn₂ : 2 ≤ n.toNat) (hk : i.toNat + n.toNat ≤ w.size)
@@ -88,8 +95,9 @@ private theorem divLoopIn_spec (w : UInt64Array) (v : USlice) (v₁ v₂ dv : UI
   have hvv : v.toNat = v.array.valAt v.start.toNat n.toNat := by rw [USlice.toNat_eq_valAt, hn]
   rw [divLoopIn, dite_eq_left_of_eq_true (eq_true hnv), hvv]
   rw [hvv] at hv₀ hR
-  exact Schoolbook.divLoopIn_spec w v.array v.start n (v.loopBound hnv) v₁ v₂ dv i hn₂ hk hU hv₀
-    hv₁ hv₂ hR
+  exact Schoolbook.divLoop2In_spec w v.array v.start n (v.loopBound hnv) v₁ v₂ _ dv div2RowsU i hn₂
+    hk hU hv₀
+    hv₁ hv₂ (fun h3 => by rw [ite_eq_left h3]; rfl) hR
 
 /-! ## Division -/
 

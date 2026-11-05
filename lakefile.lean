@@ -31,12 +31,13 @@ changing the options, build once with `-R` to reconfigure.
   On 32-bit limbs: `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`, `mulToom43`, `mulToom4`,
   `mulToom6`, `mulFFT`, `mulUnbalanced`, `mulRows`, `mulCombaW`, `sqrBasecase`, `sqrRows`,
   `sqrKaratsuba`, `sqrToom3`, `sqrToom4`, `sqrToom6`, `sqrFFT`, `divDC`, `divMu`, `divQMu`,
-  `div1Recip`, `div1Unnorm`, `div32Recip`, `sqrtZimmermann`, `sqrtBase`, `gcdHalf`, `strDC`,
-  `parseDC`.
+  `div1Recip`, `div1Unnorm`, `div32Recip`, `div2Rows`, `sqrtZimmermann`, `sqrtBase`, `gcdHalf`,
+  `strDC`, `parseDC`.
   On 64-bit limbs: `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`, `mulToom43`, `mulToom4`,
   `mulToom6`, `mulFFT`, `mulFFTUnbal`, `mulFFTMin`, `mulUnbalanced`, `mulChunkMax`, `sqrKaratsuba`,
   `sqrToom3`, `sqrToom4`, `sqrToom6`, `sqrFFT`, `divDC`, `divMu`, `divQMu`, `div1Recip`,
-  `div1Unnorm`, `div32Recip`, `sqrtZimmermann`, `sqrtBase`, `gcdHalf`, `strDC`, `parseDC`.
+  `div1Unnorm`, `div32Recip`, `div2Rows`, `sqrtZimmermann`, `sqrtBase`, `gcdHalf`, `strDC`,
+  `parseDC`.
 -/
 
 /--
@@ -74,6 +75,7 @@ def thresholdOptions32 : Array LeanOption :=
     opt `divQMu (get_config? w32_divQMu) ++
     opt `div1Recip (get_config? w32_div1Recip) ++
     opt `div32Recip (get_config? w32_div32Recip) ++
+    opt `div2Rows (get_config? w32_div2Rows) ++
     opt `div1Unnorm (get_config? w32_div1Unnorm) ++
     opt `sqrtZimmermann (get_config? w32_sqrtZimmermann) ++
     opt `sqrtBase (get_config? w32_sqrtBase) ++
@@ -115,6 +117,7 @@ def thresholdOptions64 : Array LeanOption :=
     opt `div1Recip (get_config? w64_div1Recip) ++
     opt `div1Unnorm (get_config? w64_div1Unnorm) ++
     opt `div32Recip (get_config? w64_div32Recip) ++
+    opt `div2Rows (get_config? w64_div2Rows) ++
     opt `sqrtZimmermann (get_config? w64_sqrtZimmermann) ++
     opt `sqrtBase (get_config? w64_sqrtBase) ++
     opt `gcdHalf (get_config? w64_gcdHalf) ++

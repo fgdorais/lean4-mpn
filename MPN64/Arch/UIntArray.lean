@@ -538,6 +538,33 @@ private theorem rangeLoop_eq {β : Type} (n : USize)
       (fun k hk x b => f (j + k) (toNat_shift h hk).2 x b) g
   else g arr rfl b
 
+/--
+`foldUInPlaceThen` with an accumulator of two parts by `foldlInPlaceRangeWith2AccThen` on
+`[rs + j, rs + n)`, which keeps the parts apart.
+-/
+@[inline, expose] public def foldUInPlaceThen2Lib {β₁ β₂ γ : Type} (n : USize)
+    (f : (j : USize) → j < n → UInt64 → β₁ → β₂ → UInt64 × β₁ × β₂) (arr : UInt64Array) (rs : USize)
+    (hr : LoopBound arr rs n) (j : USize) (b₁ : β₁) (b₂ : β₂)
+    (g : (arr' : UInt64Array) → arr'.size = arr.size → β₁ → β₂ → γ) : γ :=
+  if h : j < n then
+    arr.foldlInPlaceRangeWith2AccThen (rs + j) (n - j) (by
+        have h₀ := USize.lt_iff_toNat_lt.1 h
+        rw [hr.toNat_add h, USize.toNat_sub_of_le _ _ (USize.le_of_lt h)]; lia) b₁ b₂
+      (fun k hk x c₁ c₂ => f (j + k) (toNat_shift h hk).2 x c₁ c₂) g
+  else g arr rfl b₁ b₂
+
+public theorem foldUInPlaceThen2Lib_eq {β₁ β₂ γ : Type} (n : USize)
+    (f : (j : USize) → j < n → UInt64 → β₁ → β₂ → UInt64 × β₁ × β₂) (arr : UInt64Array) (rs : USize)
+    (hr : LoopBound arr rs n) (j : USize) (b₁ : β₁) (b₂ : β₂)
+    (g : (arr' : UInt64Array) → arr'.size = arr.size → β₁ → β₂ → γ) :
+    foldUInPlaceThen2Lib n f arr rs hr j b₁ b₂ g =
+      foldUInPlaceThenLib n (fun j h z c => f j h z c.1 c.2) arr rs hr j (b₁, b₂)
+        (fun arr' h c => g arr' h c.1 c.2) := by
+  unfold foldUInPlaceThen2Lib foldUInPlaceThenLib
+  split
+  · rw [foldlInPlaceRangeWith2AccThen_eq]
+  · rfl
+
 /-- A continuation applied to equal pairs, with the size proof carried along. -/
 private theorem g_congr {β γ : Type} {arr : UInt64Array}
     (g : (arr' : UInt64Array) → arr'.size = arr.size → β → γ) {p q : UInt64Array × β}
@@ -578,6 +605,127 @@ limbs of any width. Its in-place loop reading other windows of the array it writ
 
 /-- `log2` of a word is `Nat.log2` of its value. -/
 public theorem _root_.UInt64.toNat_log2' (x : UInt64) : x.log2.toNat = x.toNat.log2 := by rfl
+
+/--
+One limb of a multiply-subtract pass by two limbs: `z - y (x₀ + β x₁) - (c₀ + β c₁)` and the two
+limbs of the borrow out. The products and the comparisons with them come first, so that the chain
+from one limb to the next is a subtraction and two additions.
+-/
+@[inline, expose] public def subMul2W (z y x₀ x₁ c₀ c₁ : UInt64) : UInt64 × UInt64 × UInt64 :=
+  let lo₀ := y * x₀
+  let lo₁ := y * x₁
+  let d := z - lo₀
+  let e := y.mulh x₀ + (decide (z < lo₀)).toUInt64
+  let f := e + lo₁
+  let b₂ := (decide (d < c₀)).toUInt64
+  let g := f + c₁
+  let h := g + b₂
+  (d - c₀, h, y.mulh x₁ + (decide (f < lo₁)).toUInt64 + (decide (g < c₁)).toUInt64 +
+    (decide (h < b₂)).toUInt64)
+
+private theorem toNat_sub_carry (a b : UInt64) :
+    (a - b).toNat + b.toNat = a.toNat + 2 ^ 64 * (decide (a < b)).toUInt64.toNat := by
+  have := a.toNat_lt; have := b.toNat_lt
+  rw [UInt64.toNat_sub]
+  by_cases h : a < b
+  · rw [decide_eq_true h]; rw [UInt64.lt_iff_toNat_lt] at h; simp only [Bool.toUInt64]; lia
+  · rw [decide_eq_false h]; rw [UInt64.lt_iff_toNat_lt] at h; simp only [Bool.toUInt64]; lia
+
+private theorem toNat_add_carry (a b : UInt64) :
+    (a + b).toNat + 2 ^ 64 * (decide (a + b < b)).toUInt64.toNat = a.toNat + b.toNat := by
+  have := a.toNat_lt; have := b.toNat_lt
+  have e := UInt64.toNat_add a b
+  by_cases h : a + b < b
+  · rw [decide_eq_true h]; rw [UInt64.lt_iff_toNat_lt, e] at h; simp only [Bool.toUInt64]
+    rw [e]; lia
+  · rw [decide_eq_false h]; rw [UInt64.lt_iff_toNat_lt, e] at h; simp only [Bool.toUInt64]
+    rw [e]; lia
+
+public theorem val_subMul2W (z y x₀ x₁ c₀ c₁ : UInt64) :
+    (subMul2W z y x₀ x₁ c₀ c₁).1.toNat + y.toNat * (x₀.toNat + 2 ^ 64 * x₁.toNat) +
+        (c₀.toNat + 2 ^ 64 * c₁.toNat) =
+      z.toNat + 2 ^ 64 * ((subMul2W z y x₀ x₁ c₀ c₁).2.1.toNat +
+        2 ^ 64 * (subMul2W z y x₀ x₁ c₀ c₁).2.2.toNat) := by
+  have hy := y.toNat_lt; have hx₀ := x₀.toNat_lt; have hx₁ := x₁.toNat_lt
+  -- The products, as two limbs each.
+  have m₀ : (y * x₀).toNat + 2 ^ 64 * (y.mulh x₀).toNat = y.toNat * x₀.toNat := by
+    rw [UInt64.toNat_mul, UInt64.toNat_mulh]; have := Nat.div_add_mod (y.toNat * x₀.toNat) (2 ^ 64)
+    lia
+  have m₁ : (y * x₁).toNat + 2 ^ 64 * (y.mulh x₁).toNat = y.toNat * x₁.toNat := by
+    rw [UInt64.toNat_mul, UInt64.toNat_mulh]; have := Nat.div_add_mod (y.toNat * x₁.toNat) (2 ^ 64)
+    lia
+  have hh₀ : (y.mulh x₀).toNat + 2 ≤ 2 ^ 64 := by
+    rw [UInt64.toNat_mulh]
+    have : y.toNat * x₀.toNat ≤ (2 ^ 64 - 1) * (2 ^ 64 - 1) := Nat.mul_le_mul (by lia) (by lia)
+    have := Nat.div_le_div_right (c := 2 ^ 64) this
+    have : (2 ^ 64 - 1) * (2 ^ 64 - 1) / 2 ^ 64 = 2 ^ 64 - 2 := by decide
+    lia
+  have e : y.toNat * (x₀.toNat + 2 ^ 64 * x₁.toNat) =
+      y.toNat * x₀.toNat + 2 ^ 64 * (y.toNat * x₁.toNat) := by
+    rw [Nat.mul_add, Nat.mul_left_comm]
+  rw [e, ← m₀, ← m₁]
+  simp only [subMul2W]
+  -- Each subtraction and addition, with its borrow or carry.
+  have s₁ := toNat_sub_carry z (y * x₀)
+  have b₁ : (decide (z < y * x₀)).toUInt64.toNat ≤ 1 := by simp only [Bool.toUInt64]; split <;> simp
+  have he : (y.mulh x₀ + (decide (z < y * x₀)).toUInt64).toNat =
+      (y.mulh x₀).toNat + (decide (z < y * x₀)).toUInt64.toNat := by
+    rw [UInt64.toNat_add, Nat.mod_eq_of_lt (by lia)]
+  have a₁ := toNat_add_carry (y.mulh x₀ + (decide (z < y * x₀)).toUInt64) (y * x₁)
+  have s₂ := toNat_sub_carry (z - y * x₀) c₀
+  have a₂ := toNat_add_carry (y.mulh x₀ + (decide (z < y * x₀)).toUInt64 + y * x₁) c₁
+  have a₃ := toNat_add_carry (y.mulh x₀ + (decide (z < y * x₀)).toUInt64 + y * x₁ + c₁)
+    (decide (z - y * x₀ < c₀)).toUInt64
+  rw [he] at a₁
+  have hk : ∀ b : Bool, b.toUInt64.toNat ≤ 1 := fun b => by cases b <;> decide
+  have t₁ := hk (decide (y.mulh x₀ + (decide (z < y * x₀)).toUInt64 + y * x₁ < y * x₁))
+  have t₂ := hk (decide (y.mulh x₀ + (decide (z < y * x₀)).toUInt64 + y * x₁ + c₁ < c₁))
+  have t₃ := hk (decide (y.mulh x₀ + (decide (z < y * x₀)).toUInt64 + y * x₁ + c₁ +
+    (decide (z - y * x₀ < c₀)).toUInt64 < (decide (z - y * x₀ < c₀)).toUInt64))
+  have t₄ := hk (decide (z - y * x₀ < c₀))
+  -- The top limb does not wrap: the whole is below `2¹⁹²`.
+  have hz := z.toNat_lt; have hc₀ := c₀.toNat_lt; have hc₁ := c₁.toNat_lt
+  have ho := (z - y * x₀ - c₀).toNat_lt
+  have hl₀ := (y * x₀).toNat_lt; have hl₁ := (y * x₁).toNat_lt
+  have hhh := (y.mulh x₁).toNat_lt
+  have hbig : y.toNat * x₁.toNat ≤ (2 ^ 64 - 1) * (2 ^ 64 - 1) := Nat.mul_le_mul (by lia) (by lia)
+  have hbig₀ : y.toNat * x₀.toNat ≤ (2 ^ 64 - 1) * (2 ^ 64 - 1) :=
+    Nat.mul_le_mul (by lia) (by lia)
+  rw [UInt64.toNat_add (y.mulh x₁ + _ + _), UInt64.toNat_add (y.mulh x₁ + _),
+    UInt64.toNat_add (y.mulh x₁)]
+  generalize (decide (y.mulh x₀ + (decide (z < y * x₀)).toUInt64 + y * x₁ < y * x₁)).toUInt64 = K₁
+    at *
+  generalize (decide (y.mulh x₀ + (decide (z < y * x₀)).toUInt64 + y * x₁ + c₁ < c₁)).toUInt64 = K₂
+    at *
+  generalize (decide (y.mulh x₀ + (decide (z < y * x₀)).toUInt64 + y * x₁ + c₁ +
+    (decide (z - y * x₀ < c₀)).toUInt64 < (decide (z - y * x₀ < c₀)).toUInt64)).toUInt64 = K₃ at *
+  generalize (decide (z - y * x₀ < c₀)).toUInt64 = B₂ at *
+  generalize (decide (z < y * x₀)).toUInt64 = B₁ at *
+  generalize (y.mulh x₀ + B₁ + y * x₁ + c₁ + B₂).toNat = H at *
+  generalize (y.mulh x₀ + B₁ + y * x₁ + c₁).toNat = G at *
+  generalize (y.mulh x₀ + B₁ + y * x₁).toNat = F at *
+  generalize (z - y * x₀ - c₀).toNat = O at *
+  generalize (z - y * x₀).toNat = D at *
+  generalize (y * x₀).toNat = L₀ at *
+  generalize (y * x₁).toNat = L₁ at *
+  generalize (y.mulh x₀).toNat = H₀ at *
+  generalize (y.mulh x₁).toNat = H₁ at *
+  generalize y.toNat * x₁.toNat = P₁ at *
+  generalize z.toNat = Z at *
+  generalize c₀.toNat = C₀ at *
+  generalize c₁.toNat = C₁ at *
+  generalize B₁.toNat = b₁ at *
+  generalize B₂.toNat = b₂ at *
+  generalize K₁.toNat = k₁ at *
+  generalize K₂.toNat = k₂ at *
+  generalize K₃.toNat = k₃ at *
+  generalize y.toNat * x₀.toNat = P₀ at *
+  have hid : O + (L₀ + 2 ^ 64 * H₀ + 2 ^ 64 * (L₁ + 2 ^ 64 * H₁)) + (C₀ + 2 ^ 64 * C₁) =
+      Z + 2 ^ 64 * (H + 2 ^ 64 * (H₁ + k₁ + k₂ + k₃)) := by lia
+  have htop : H₁ + k₁ + k₂ + k₃ < 2 ^ 64 := by lia
+  rw [Nat.mod_eq_of_lt (a := H₁ + k₁) (by lia), Nat.mod_eq_of_lt (a := H₁ + k₁ + k₂) (by lia),
+    Nat.mod_eq_of_lt htop]
+  exact hid
 
 /-- The reads, writes and word operations of `UInt64Array`, for the loops of `main`. -/
 public instance wordArray64 : MPN.WordArray UInt64Array UInt64 where
@@ -636,6 +784,7 @@ public instance wordArray64 : MPN.WordArray UInt64Array UInt64 where
   b0 := 0
   addC x y c := (x + y + c, UInt64.addh (UInt64.addh 0 x y) (x + y) c)
   subC x y c := (x - y - c, UInt64.subh (UInt64.subh 0 x y) (x - y) c)
+  subMul2B := subMul2W
   isZero x := x == 0
   ofUSize i := i.toUInt64
   wU := 64
@@ -703,6 +852,7 @@ public instance wordArray64 : MPN.WordArray UInt64Array UInt64 where
     generalize y.toNat = y at *
     generalize c.toNat = c at *
     split <;> split <;> lia
+  val_subMul2B := val_subMul2W
   eqB_iff x y := by
     show (x == y) = true ↔ x.toNat = y.toNat
     rw [beq_iff_eq, UInt64.toNat_inj]
@@ -823,6 +973,13 @@ public instance wordFolds64 : MPN.WordFolds UInt64Array UInt64 where
     intro β γ n f arr rs hr j b g
     rw [← foldUInPlaceThen_eq_lib, foldUInPlaceThen, MPN.WordArray.foldUInPlaceThen]
     exact g_congr g (foldUInPlace_main n f arr rs hr j b).symm _
+  foldThen2 := foldUInPlaceThen2Lib
+  foldThen2_eq := by
+    intro β₁ β₂ γ n f arr rs hr j b₁ b₂ g
+    rw [foldUInPlaceThen2Lib_eq, ← foldUInPlaceThen_eq_lib, foldUInPlaceThen,
+      MPN.WordArray.foldUInPlaceThen]
+    exact g_congr (fun arr' h c => g arr' h c.1 c.2)
+      (foldUInPlace_main _ (fun j h z c => f j h z c.1 c.2) arr rs hr j (b₁, b₂)).symm _
 
 /-- A sub-slice of a whole array, `toUSlice`. -/
 public theorem toUSlice_slice (a : UInt64Array) {i j : USize} (hij : i.toNat ≤ j.toNat)

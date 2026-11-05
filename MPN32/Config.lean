@@ -91,6 +91,9 @@ public structure Config extends Dispatch.MulConfig, Dispatch.DivConfig, Dispatch
   by GMP's 3-by-2 steps with a precomputed reciprocal instead of the hardware divider: always, like
   GMP's `mpn_sbpi1_div_qr`. -/
   div32Recip : Nat := 0
+  /-- The size of the divisor from which schoolbook division takes two quotient limbs per pass, by
+  one multiply-subtract pass with two rows (`Schoolbook.divLoop2In`): always, as measured on Zen 3. -/
+  div2Rows : Nat := 3
   /-- The size from which division by an unnormalized limb takes the steps with a precomputed
   reciprocal of the divisor normalized by a shift, with the dividend shifted, instead of the
   hardware divider: always, like GMP's `mpn_divrem_1`. -/

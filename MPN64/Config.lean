@@ -84,6 +84,12 @@ public structure Config extends Dispatch.MulConfig, Dispatch.DivConfig, Dispatch
   `mpn_sbpi1_div_qr`.
   -/
   div32Recip : Nat := 0
+  /--
+  The size of the divisor from which schoolbook division takes two quotient limbs per pass, by one
+  multiply-subtract pass with two rows (`Schoolbook.divLoop2In`), as measured on Zen 3: below it,
+  the fixed cost of the two-limb estimate outweighs the pass it saves.
+  -/
+  div2Rows : Nat := 16
   sqrtZimmermann := 1
   sqrtBase := 1
   /-- The size of the smaller number from which the greatest common divisor uses half-gcd. -/
