@@ -26,9 +26,12 @@ two widths moved into one package is in the history of `MPN32/TODO.md`.
   FFT parameters and numbers of FFT products, wrapped products, pointwise products and butterflies
   (counted with breakpoints), and glibc's allocation settings don't move it, so it is a memory or
   cache effect in the FFT, not the division.
-- [ ] **The fixed cost of small divisions**: `2 n / n` from 8 limbs goes through Algorithm D,
-  whose fixed cost is the normalization of both operands and their arrays (on 32-bit limbs 245 ns
-  for 8 by 4 limbs and 555 ns for 32 by 16, against 95 and 154 ns for `Nat`).
+- [ ] **The cost of small divisions**: since `adfb500` both widths normalize by shifts in `main`'s
+  `Schoolbook.divRemN`, without copying a normalized divisor, which took 25–50% off `2 n / n` from
+  2 to 8 limbs. On 64-bit limbs `/` is now 1.3–1.8 times `Nat` from 2 to 8 limbs and 2.2–2.3
+  times at 16 and 32, where the loop, not its fixed cost, is the gap; what is left of the fixed
+  cost is three or four new arrays per division, and on 64-bit limbs the slice structures of
+  `Num.divModBase`.
 - [ ] **Toom-3's evaluations and interpolation in fused passes**, as Toom-4's already are
   (`MPN.Toom.Kernels`): each operand takes ten passes for its three values and the interpolation
   fourteen, each with its own array. A one-pass prototype of the evaluations was 2.7× faster than
@@ -65,8 +68,9 @@ two widths moved into one package is in the history of `MPN32/TODO.md`.
   `MPN32.Basic`. They move to `valAt` when they are changed for another reason; then
   `MPN32.Limbs` and the list model go.
 - [ ] **What each width keeps**: its `Arch/` kernels, its `Nat` instance (`natLimbs32`,
-  `natLimbs64`) and gcd instance, its decimal chunks, and the normalization of a division (bit
-  shifts, which `NatOps` does not have).
+  `natLimbs64`) and gcd instance, its decimal chunks, and the normalization before a division by
+  blocks (bit shifts, which `NatOps` does not have; schoolbook division shares it since
+  `adfb500`).
 
 ## Tuning
 
