@@ -177,7 +177,7 @@ private theorem divMod_dc (a b : UInt64Array) (hb : 0 < b.toNat)
     obtain ⟨t₁, t₂⟩ := fitTo_spec (shr (fitTo r.2 nb) c) (max a.size b.size) (by rw [hsh]; exact hrb)
     exact ⟨by rw [q₁, r₃], by rw [t₁, hsh], q₂, t₂⟩
   · obtain ⟨d₁, d₂⟩ := toNat_divModBase a b hb hU
-    obtain ⟨e₁, e₂⟩ := size_divModBase a b (by lia)
+    obtain ⟨e₁, e₂⟩ := size_divModBase a b hb hU
     exact ⟨d₁, d₂, e₁, e₂⟩
 
 public theorem toNat_divMod (a b : UInt64Array) (hb : 0 < b.toNat)

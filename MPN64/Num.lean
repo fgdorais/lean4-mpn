@@ -280,34 +280,14 @@ public theorem lt_iff (a b : UInt64Array) (_hU : a.size + b.size < USize.size) :
 public def divModBase (a b : UInt64Array) : UInt64Array × UInt64Array :=
   let nb := MPN.W64.log2 b.toUSlice / 64 + 1
   if a.size < nb then (UInt64Array.replicate 0 0, a)
-  else
-    divRem (UInt64Array.replicate (a.size - nb + 1) 0).toUSlice
-      (UInt64Array.replicate nb 0).toUSlice a.toUSlice (b.toUSlice.slice 0 nb.toUSize)
+  else divRem a.toUSlice (b.toUSlice.slice 0 nb.toUSize)
 
-public theorem size_divModBase (a b : UInt64Array) (hb : b.size < USize.size) :
-    (divModBase a b).1.size ≤ a.size + 1 ∧ (divModBase a b).2.size ≤ max a.size b.size := by
-  unfold divModBase
-  dsimp only
-  split
-  · simp; lia
-  · simp only [size_divRem_fst, size_divRem_snd, array_toUSlice, UInt64Array.size_replicate]
-    -- The divisor has at most `b.size` nonzero limbs.
-    have h₁ := toUSlice_spec b hb
-    rw [log2_eq, h₁.2.2]
-    have hB : b.toNat < 2 ^ (64 * b.size) := by rw [toNat_eq_valAt]; exact valAt_lt ..
-    by_cases h0 : b.toNat = 0
-    · rw [h0]; simp; lia
-    · have := Nat.log2_self_le h0
-      have : _root_.Nat.log2 b.toNat < 64 * b.size := by
-        refine Nat.lt_of_not_le fun h => ?_
-        have := Nat.pow_le_pow_right (show 0 < 2 by decide) h
-        lia
-      lia
-
-public theorem toNat_divModBase (a b : UInt64Array) (hb : 0 < b.toNat)
+/-- `divModBase` divides, in at most `a.size + 1` and `max a.size b.size` limbs. -/
+public theorem divModBase_spec (a b : UInt64Array) (hb : 0 < b.toNat)
     (hU : a.size + b.size + 1 < USize.size) :
     (divModBase a b).1.toNat = a.toNat / b.toNat ∧
-      (divModBase a b).2.toNat = a.toNat % b.toNat := by
+      (divModBase a b).2.toNat = a.toNat % b.toNat ∧
+      (divModBase a b).1.size ≤ a.size + 1 ∧ (divModBase a b).2.size ≤ max a.size b.size := by
   obtain ⟨b₁, b₂, b₃⟩ := toUSlice_spec b (by lia)
   obtain ⟨a₁, a₂, a₃⟩ := toUSlice_spec a (by lia)
   have hL : MPN.W64.log2 b.toUSlice = _root_.Nat.log2 b.toNat := by rw [log2_eq, b₃]
@@ -333,7 +313,7 @@ public theorem toNat_divModBase (a b : UInt64Array) (hb : 0 < b.toNat)
     have hlt : a.toNat < b.toNat :=
       Nat.lt_of_lt_of_le hA (Nat.le_trans (Nat.pow_le_pow_right (by decide) (by lia)) hlow)
     rw [Nat.div_eq_of_lt hlt, Nat.mod_eq_of_lt hlt, toNat_eq_valAt]
-    simp
+    simp; lia
   · rename_i h
     -- The divisor without its zero limbs on top.
     have hq : (L / 64 + 1).toUSize.toNat = L / 64 + 1 := USize.toNat_ofNat_of_lt' (by lia)
@@ -356,27 +336,26 @@ public theorem toNat_divModBase (a b : UInt64Array) (hb : 0 < b.toNat)
       have := valAt_lt b 0 (L / 64)
       simp at e
       lia
-    obtain ⟨q₁, q₂, -⟩ := zeros_spec (a.size - (L / 64 + 1) + 1) (by lia)
-    obtain ⟨r₁, r₂, -⟩ := zeros_spec (L / 64 + 1) (by lia)
     have hpos : 0 < (b.toUSlice.slice 0 (L / 64 + 1).toUSize).size.toNat := by rw [hs]; lia
     have hab : (b.toUSlice.slice 0 (L / 64 + 1).toUSize).size ≤ a.toUSlice.size :=
       USize.le_iff_toNat_le.2 (by rw [hs, a₂]; lia)
-    have hq' : a.toUSlice.size.toNat - (b.toUSlice.slice 0 (L / 64 + 1).toUSize).size.toNat + 1 ≤
-        (UInt64Array.replicate (a.size - (L / 64 + 1) + 1) 0).toUSlice.size.toNat := by
-      rw [a₂, hs, q₂]; exact Nat.le_refl _
-    have hr' : (b.toUSlice.slice 0 (L / 64 + 1).toUSize).size ≤
-        (UInt64Array.replicate (L / 64 + 1) 0).toUSlice.size :=
-      USize.le_iff_toNat_le.2 (by rw [hs, r₂]; exact Nat.le_refl _)
     have hU' : a.toUSlice.size.toNat + 1 < USize.size := by rw [a₂]; lia
-    have e₁ := valAt_divRem_fst _ _ _ _ hpos hab ht hq' hr' hU'
-    have e₂ := valAt_divRem_snd _ _ _ _ hpos hab ht hq' hr' hU'
-    rw [q₁, a₂, hs, a₃, hv] at e₁
-    rw [r₁, hs, a₃, hv] at e₂
-    refine ⟨?_, ?_⟩
-    · rw [toNat_eq_valAt, size_divRem_fst]
-      simpa using e₁
-    · rw [toNat_eq_valAt, size_divRem_snd]
-      simpa using e₂
+    obtain ⟨e₁, e₂, e₃, e₄⟩ := divRem_spec _ _ hpos hab ht hU'
+    rw [a₂, hs] at e₁
+    rw [hs] at e₃
+    rw [a₃, hv] at e₂ e₄
+    exact ⟨e₂, e₄, by rw [e₁]; lia, by rw [e₃]; lia⟩
+
+public theorem size_divModBase (a b : UInt64Array) (hb : 0 < b.toNat)
+    (hU : a.size + b.size + 1 < USize.size) :
+    (divModBase a b).1.size ≤ a.size + 1 ∧ (divModBase a b).2.size ≤ max a.size b.size :=
+  ⟨(divModBase_spec a b hb hU).2.2.1, (divModBase_spec a b hb hU).2.2.2⟩
+
+public theorem toNat_divModBase (a b : UInt64Array) (hb : 0 < b.toNat)
+    (hU : a.size + b.size + 1 < USize.size) :
+    (divModBase a b).1.toNat = a.toNat / b.toNat ∧
+      (divModBase a b).2.toNat = a.toNat % b.toNat :=
+  ⟨(divModBase_spec a b hb hU).1, (divModBase_spec a b hb hU).2.1⟩
 
 /-! ## Truncation -/
 

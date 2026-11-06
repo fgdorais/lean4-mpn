@@ -51,8 +51,7 @@ not win up to 512 limbs.
 -/
 def tuneDiv32Recip (log : Bool) : IO Nat := medianOf 3 do
   let div (t : USize) (a b : UInt64Array) : UInt64Array :=
-    (divRemWith t (UInt64Array.replicate (a.size - b.size + 1) 0).toUSlice
-      (UInt64Array.replicate b.size 0).toUSlice a.toUSlice b.toUSlice).1
+    (divRemWith t a.toUSlice b.toUSlice).1
   match ← crossoverOn (div 4294967295) (fun n => div n.toUSize) checkArr divOperands
       [4, 6, 8, 12, 16, 24, 32, 40, 48, 56, 64, 80, 96, 128, 192, 256, 384, 512] 3 log with
   | some n =>

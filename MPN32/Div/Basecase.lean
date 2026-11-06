@@ -6,7 +6,7 @@ module
 
 public import MPN32.Mul.Limb
 public import MPN32.Basic
-public import MPN.Div.Schoolbook
+public import MPN.Div.Basecase
 public import MPN.Div.ByLimb
 public import MPN32.Settings
 
@@ -14,13 +14,11 @@ public import MPN32.Settings
 # Schoolbook division
 
 `divRemBasecase t u v` divides `u` by a divisor `v` of at least two limbs with a nonzero top limb,
-by Knuth's Algorithm D, like GMP's schoolbook division, through `main`'s `MPN.Div.Schoolbook` on
-`UInt32Array` (`divLoop2In`): two quotient limbs per step from the top down, by one pass of two
-rows, from `config.div2Rows` limbs in the divisor, in one array, the remainder in the limbs below
-`n` and the quotient from limb `n` on. Its multiply-subtract pass
-carries the biased borrow of `subMulBiased`. `Div` normalizes the divisor and the dividend, and
-divides the latter in place with `divRemBasecaseTop` when its top limb is below the divisor's, as
-it is after normalization.
+by Knuth's Algorithm D, like GMP's schoolbook division, through `main`'s `MPN.Div.Basecase` on
+`UInt32Array` (`Schoolbook.divRemN`): `u` and `v` normalized by a shift, then two quotient limbs
+per step from the top down, by one pass of two rows, from `config.div2Rows` limbs in the divisor,
+in one array, and the remainder shifted back. Its multiply-subtract pass carries the biased borrow
+of `subMulBiased`.
 
 The estimate of a quotient limb from the top three limbs of the window and the top two of the
 divisor (`qEstimate3`) is the one of `Div.Two`'s division by two limbs.
@@ -179,15 +177,14 @@ public theorem qEstimate3_ge (q wt wn wl vt vs : UInt32) (qt : Nat)
   rw [heq]
   exact this
 
-/-! ## The loop in one array -/
+/-! ## Schoolbook division -/
 
 private theorem toNat_toUSize' {a : Nat} (h : a < USize.size) : a.toUSize.toNat = a := by
   rw [USize.toNat_ofNat', Nat.mod_eq_of_lt h]
 
-/-- The limbs of `v`, which indices of `USize` reach when the array is within them. -/
-private theorem slice_bound (v : UInt32Array.Slice) (h : v.array.usize.toNat = v.array.size) :
+/-- The limbs of a slice whose end `USize` indices reach, as a loop bound. -/
+private theorem slice_bound (v : UInt32Array.Slice) (h : v.start + v.size < USize.size) :
     MPN.WordArray.LoopBound v.array v.start.toUSize v.size.toUSize := by
-  have := v.array.usize.toNat_lt_size
   have := v.stop_le_array_size
   have := v.start_le_stop
   have hs := v.size_eq
@@ -202,35 +199,30 @@ private theorem slice_bound (v : UInt32Array.Slice) (h : v.array.usize.toNat = v
 public def div2RowsU : USize := (min config.div2Rows 4294967295).toUSize
 
 /--
-The quotient limbs below `k`, from the top down, in one array, by `main`'s
-`Schoolbook.divLoopIn`: the remainder stays in the limbs below `k + n` and each quotient limb goes
-into the limb its step frees, so that at the end the limbs below `n` are the remainder and the
-limbs from `n` on are the quotient. From `t` limbs in a normalized divisor, the estimates are GMP's
-3-by-2 steps with the reciprocal `WordArray.recip32`, checked. Its indices are `USize`s; were an
-array too large for them, which none is, the limbs would be written from the values instead
-(`LimbArray.writeNat`).
+`u / v` and `u % v` by Knuth's Algorithm D, for a divisor of at least two limbs, untrimmed, by
+`main`'s `Schoolbook.divRemN`: `u` and `v` normalized by a shift, the quotient limbs from the top
+down in one array, from `t` limbs in the divisor by GMP's 3-by-2 steps with the reciprocal
+`WordArray.recip32`, checked, and the remainder shifted back. It is exact when the top limb of `v`
+is not zero. A dividend of fewer limbs than `v` is its own remainder; were the slices too large for
+`USize` indices, which none is, the results would come from the values instead.
 -/
-def divLoopIn (t : USize) (v : UInt32Array.Slice) (hn : 2 ≤ v.size) (k : Nat) (r : UInt32Array)
-    (_hr : k + v.size ≤ r.size) : UInt32Array :=
-  if h : r.usize.toNat = r.size ∧ v.array.usize.toNat = v.array.size then
-    Schoolbook.divLoop2In r v.array v.start.toUSize v.size.toUSize (slice_bound v h.2)
-      (v[v.size - 1]'(by lia)) (v[v.size - 2]'(by lia))
-      (if h3 : 3 ≤ v.size then v[v.size - 3]'(by lia) else 0)
-      (WordArray.divRecip32 UInt32Array t v.size.toUSize (v[v.size - 1]'(by lia))
-        (v[v.size - 2]'(by lia))) div2RowsU k.toUSize
-  else
-    LimbArray.writeNat (LimbArray.writeNat r 0 v.size (r.valAt 0 (k + v.size) % toNat v)) v.size k
-      (r.valAt 0 (k + v.size) / toNat v)
+public def divRemBasecase (t : USize) (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) :
+    UInt32Array × UInt32Array :=
+  if h : v.size ≤ u.size ∧ u.start + u.size + 1 < USize.size ∧ v.start + v.size < USize.size then
+    Schoolbook.divRemN t div2RowsU u.array u.start.toUSize u.size.toUSize v.array v.start.toUSize
+      v.size.toUSize (slice_bound u (by lia)) (slice_bound v h.2.2)
+      (by rw [toNat_toUSize' (by lia)]; exact hn)
+      (by rw [toNat_toUSize' (by lia), toNat_toUSize' (by lia)]; exact h.1)
+      (by rw [toNat_toUSize' (by lia)]; lia)
+  else if u.size < v.size then (.empty, u.copy)
+  else (ofNat (toNat u / toNat v), ofNat (toNat u % toNat v))
 
-private theorem divLoopIn_spec (t : USize) (v : UInt32Array.Slice) (hn : 2 ≤ v.size)
-    (hvt : v[v.size - 1]'(by lia) ≠ 0) (k : Nat) (r : UInt32Array) (hr : r.size = k + v.size)
-    (hbound : r.valAt 0 r.size < toNat v * 2 ^ (32 * k)) :
-    (divLoopIn t v hn k r (by lia)).size = r.size ∧
-      (divLoopIn t v hn k r (by lia)).valAt 0 v.size < toNat v ∧
-      (divLoopIn t v hn k r (by lia)).valAt 0 v.size +
-          toNat v * (divLoopIn t v hn k r (by lia)).valAt v.size (r.size - v.size) =
-        r.valAt 0 r.size := by
-  have hvt' : 1 ≤ (v[v.size - 1]'(by lia)).toNat := by
+/-- `divRemBasecase` divides: `u = q v + r` with `r < v`. -/
+public theorem divRemBasecase_spec (t : USize) (u v : UInt32Array.Slice) (hn : 2 ≤ v.size)
+    (hvt : v[v.size - 1]'(by lia) ≠ 0) :
+    toNat (divRemBasecase t u v hn).1 * toNat v + toNat (divRemBasecase t u v hn).2 = toNat u ∧
+      toNat (divRemBasecase t u v hn).2 < toNat v := by
+  have hvt' : 0 < (v[v.size - 1]'(by lia)).toNat := by
     rcases Nat.eq_zero_or_pos (v[v.size - 1]'(by lia)).toNat with h | h
     · exact absurd (UInt32.toNat_inj.1 (by simpa using h)) hvt
     · exact h
@@ -239,202 +231,44 @@ private theorem divLoopIn_spec (t : USize) (v : UInt32Array.Slice) (hn : 2 ≤ v
     have := Nat.two_pow_pos (32 * (v.size - 1))
     have := Nat.mul_le_mul_right (2 ^ (32 * (v.size - 1))) hvt'
     lia
-  have hR : r.valAt 0 r.size = r.valAt 0 (k + v.size) := by rw [hr]
-  rw [hR, show r.size - v.size = k by lia]
-  rw [hR] at hbound
-  unfold divLoopIn
-  split
-  · rename_i h
-    have hrs := r.usize.toNat_lt_size
-    have has := v.array.usize.toNat_lt_size
-    have := v.stop_le_array_size
-    have := v.start_le_stop
-    have hsz := v.size_eq
-    have hn' : v.size.toUSize.toNat = v.size := toNat_toUSize' (by lia)
-    have hs' : v.start.toUSize.toNat = v.start := toNat_toUSize' (by lia)
-    have hk' : k.toUSize.toNat = k := toNat_toUSize' (by lia)
-    have hV : toNat v = LimbArray.valAt v.array v.start v.size := toNat_eq_valAt v
-    have hb' : LimbArray.valAt r 0 (k + v.size) < toNat v * 2 ^ (32 * k) := hbound
-    obtain ⟨s₁, -, s₃, s₄⟩ := Schoolbook.divLoop2In_spec r v.array v.start.toUSize v.size.toUSize
-      (slice_bound v h.2) (v[v.size - 1]'(by lia)) (v[v.size - 2]'(by lia))
-      (if h3 : 3 ≤ v.size then v[v.size - 3]'(by lia) else 0)
-      (WordArray.divRecip32 UInt32Array t v.size.toUSize (v[v.size - 1]'(by lia))
-        (v[v.size - 2]'(by lia))) div2RowsU k.toUSize
-      (by rw [hn']; exact hn) (by rw [hn', hk']; change k + v.size ≤ r.size; lia)
-      (by change r.size < USize.size; lia) (by rw [hs', hn', ← hV]; exact hv₀)
-      (by rw [hs', hn', UInt32Array.Slice.getElem_eq_getElem!]; congr 1; lia)
-      (by rw [hs', hn', UInt32Array.Slice.getElem_eq_getElem!]; congr 1; lia)
-      (fun h3 => by
-        rw [hn'] at h3
-        simp only [h3, ↓reduceDIte]
-        rw [hs', hn', UInt32Array.Slice.getElem_eq_getElem!]
-        congr 1; lia)
-      (by rw [hs', hn', hk', ← hV]; exact hb')
-    simp only [hs', hn', hk', ← hV] at s₃ s₄
-    exact ⟨s₁, s₄, by rw [Nat.add_comm]; exact s₃⟩
-  · have hm := Nat.mod_lt (r.valAt 0 (k + v.size)) hv₀
-    have hvlt : toNat v < 2 ^ (32 * v.size) := by
-      rw [toNat_eq_valAt]; exact LimbArray.valAt_lt ..
-    have hq : r.valAt 0 (k + v.size) / toNat v < 2 ^ (32 * k) :=
-      (Nat.div_lt_iff_lt_mul hv₀).2 (by rw [Nat.mul_comm]; exact hbound)
-    have hsz₁ := LimbArray.size_writeNat r 0 v.size (r.valAt 0 (k + v.size) % toNat v)
-    have hsz₂ := LimbArray.size_writeNat (LimbArray.writeNat r 0 v.size
-      (r.valAt 0 (k + v.size) % toNat v)) v.size k (r.valAt 0 (k + v.size) / toNat v)
-    have e₁ : LimbArray.valAt (LimbArray.writeNat (LimbArray.writeNat r 0 v.size
-        (r.valAt 0 (k + v.size) % toNat v)) v.size k (r.valAt 0 (k + v.size) / toNat v)) 0 v.size =
-        LimbArray.valAt (LimbArray.writeNat r 0 v.size (r.valAt 0 (k + v.size) % toNat v)) 0
-          v.size :=
-      LimbArray.valAt_congr _ fun i _ hi => LimbArray.get_writeNat _ _ _ _ _ (.inl (by lia))
-    have e₂ := LimbArray.valAt_writeNat r 0 v.size (r.valAt 0 (k + v.size) % toNat v)
-      (by change 0 + v.size ≤ r.size; lia)
-    have e₃ := LimbArray.valAt_writeNat (LimbArray.writeNat r 0 v.size
-      (r.valAt 0 (k + v.size) % toNat v)) v.size k (r.valAt 0 (k + v.size) / toNat v)
-      (by rw [hsz₁]; change v.size + k ≤ r.size; lia)
-    have hlo : (LimbArray.writeNat (LimbArray.writeNat r 0 v.size
-        (r.valAt 0 (k + v.size) % toNat v)) v.size k
-        (r.valAt 0 (k + v.size) / toNat v)).valAt 0 v.size =
-          r.valAt 0 (k + v.size) % toNat v := by
-      have := Nat.mod_eq_of_lt (Nat.lt_trans hm hvlt)
-      exact e₁.trans (e₂.trans this)
-    have hhi : (LimbArray.writeNat (LimbArray.writeNat r 0 v.size
-        (r.valAt 0 (k + v.size) % toNat v)) v.size k
-        (r.valAt 0 (k + v.size) / toNat v)).valAt v.size k =
-          r.valAt 0 (k + v.size) / toNat v :=
-      e₃.trans (Nat.mod_eq_of_lt hq)
-    have hs : (LimbArray.writeNat (LimbArray.writeNat r 0 v.size
-        (r.valAt 0 (k + v.size) % toNat v)) v.size k
-        (r.valAt 0 (k + v.size) / toNat v)).size = r.size := hsz₂.trans hsz₁
-    refine ⟨hs, ?_, ?_⟩
-    · rw [hlo]; exact hm
-    · rw [hlo, hhi, Nat.add_comm]
-      exact Nat.div_add_mod ..
-
-/-! ## Schoolbook division -/
-
-/--
-`u / v` and `u % v` by Knuth's Algorithm D, for a divisor of at least two limbs, as a quotient of
-`max (u.size + 1) v.size - v.size` limbs and a remainder of `v.size` limbs, untrimmed: `u` is
-copied with a zero limb on top, and `divLoopIn` divides the copy in place. It is exact when the top
-limb of `v` is not zero.
--/
-public def divRemBasecase (t : USize) (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) :
-    UInt32Array × UInt32Array :=
-  let a := divLoopIn t v hn (max (u.size + 1) v.size - v.size)
-    (copyPadded u (max (u.size + 1) v.size)) (by rw [size_copyPadded _ _ (by lia)]; lia)
-  (a.extract v.size a.size, a.extract 0 v.size)
-
-/-- `divRemBasecase` divides: `u = q v + r` with `r < v`. -/
-public theorem divRemBasecase_spec (t : USize) (u v : UInt32Array.Slice) (hn : 2 ≤ v.size)
-    (hvt : v[v.size - 1]'(by lia) ≠ 0) :
-    toNat (divRemBasecase t u v hn).1 * toNat v + toNat (divRemBasecase t u v hn).2 = toNat u ∧
-      toNat (divRemBasecase t u v hn).2 < toNat v := by
-  have hvt' : 1 ≤ (v[v.size - 1]'(by lia)).toNat := by
-    rcases Nat.eq_zero_or_pos (v[v.size - 1]'(by lia)).toNat with h | h
-    · exact absurd (UInt32.toNat_inj.1 (by simpa using h)) hvt
-    · exact h
-  have htop := top_limb_le v (by lia)
-  have hU := toNat_lt u
-  -- `u < β^u.size ≤ β^(N - 1) = β^(n - 1) β^(N - n) ≤ v β^(N - n)`.
-  have hbound : toNat u < toNat v * 2 ^ (32 * (max (u.size + 1) v.size - v.size)) := by
-    have h₁ : 2 ^ (32 * u.size) ≤
-        2 ^ (32 * (v.size - 1)) * 2 ^ (32 * (max (u.size + 1) v.size - v.size)) := by
-      rw [← Nat.pow_add]
-      exact Nat.pow_le_pow_right (by decide) (by lia)
-    have h₂ : 2 ^ (32 * (v.size - 1)) ≤ toNat v := by
-      have := Nat.mul_le_mul_right (2 ^ (32 * (v.size - 1))) hvt'
-      lia
-    have := Nat.mul_le_mul_right (2 ^ (32 * (max (u.size + 1) v.size - v.size))) h₂
-    lia
-  have hcs : (copyPadded u (max (u.size + 1) v.size)).size =
-      max (u.size + 1) v.size - v.size + v.size := by
-    rw [size_copyPadded _ _ (by lia)]; lia
-  have hcv : (copyPadded u (max (u.size + 1) v.size)).valAt 0
-      (copyPadded u (max (u.size + 1) v.size)).size = toNat u := by
-    rw [← toNat_array_eq_valAt, toNat_copyPadded]
-  have hspec := divLoopIn_spec t v hn hvt (max (u.size + 1) v.size - v.size)
-    (copyPadded u (max (u.size + 1) v.size)) hcs (by rw [hcv]; exact hbound)
-  rw [hcv] at hspec
-  obtain ⟨h₁, h₂, h₃⟩ := hspec
-  simp only [divRemBasecase, toNat_extract, Nat.sub_zero]
-  simp only [h₁]
-  refine ⟨?_, h₂⟩
-  rw [Nat.mul_comm]
-  lia
-
-/--
-`divRemBasecase` on an array `r` that already has room for the first step. When the top limb of
-`r` is below the top limb of `v`, `r < v βᵏ` with `k = r.size - v.size`, and `divLoopIn` runs on
-`r` itself, without the copy and the extra top limb that `divRemBasecase` adds, whose quotient limb
-would be zero, and with the quotient limbs in `r`: the result is cut into the quotient, from limb
-`n` on, and the remainder, below. A dividend normalized with the divisor's shift has this form:
-its top limb is below the factor `2ˢ ≤ 2³¹`, and the divisor's is at least `2³¹`.
--/
-public def divRemBasecaseTop (t : USize) (r : UInt32Array) (v : UInt32Array.Slice)
-    (hn : 2 ≤ v.size) :
-    UInt32Array × UInt32Array :=
-  if h : v.size ≤ r.size then
-    if r[r.size - 1]'(by lia) < v[v.size - 1]'(by lia) then
-      let a := divLoopIn t v hn (r.size - v.size) r (by lia)
-      (a.extract v.size a.size, a.extract 0 v.size)
-    else
-      divRemBasecase t r.toSlice v hn
-  else
-    divRemBasecase t r.toSlice v hn
-
-public theorem divRemBasecaseTop_spec (t : USize) (r : UInt32Array) (v : UInt32Array.Slice)
-    (hn : 2 ≤ v.size) (hvt : v[v.size - 1]'(by lia) ≠ 0) :
-    toNat (divRemBasecaseTop t r v hn).1 * toNat v + toNat (divRemBasecaseTop t r v hn).2 =
-        toNat r ∧
-      toNat (divRemBasecaseTop t r v hn).2 < toNat v := by
-  by_cases hs : v.size ≤ r.size
-  · by_cases htop : r[r.size - 1]'(by lia) < v[v.size - 1]'(by lia)
-    · have e : divRemBasecaseTop t r v hn =
-          ((divLoopIn t v hn (r.size - v.size) r (by lia)).extract v.size
-            (divLoopIn t v hn (r.size - v.size) r (by lia)).size,
-          (divLoopIn t v hn (r.size - v.size) r (by lia)).extract 0 v.size) := by
-        unfold divRemBasecaseTop
-        rw [dite_eq_left hs, ite_eq_left htop]
-      rw [e]
-      -- `r < βʳ⁻¹ (r_top + 1) ≤ βʳ⁻¹ v_top ≤ v βᵏ`.
-      have hbound : toNat r < toNat v * 2 ^ (32 * (r.size - v.size)) := by
-        have hsplit := UInt32Array.valAt_add r 0 (r.size - 1) 1
-        rw [show r.size - 1 + 1 = r.size by lia, UInt32Array.valAt_one, Nat.zero_add,
-          UInt32Array.getElem!_eq_getElem r (r.size - 1) (by lia)] at hsplit
-        have hlow := UInt32Array.valAt_lt r 0 (r.size - 1)
-        have hlt : (r[r.size - 1]'(by lia)).toNat + 1 ≤ (v[v.size - 1]'(by lia)).toNat := by
-          rw [UInt32.lt_iff_toNat_lt] at htop
-          lia
-        have hv := top_limb_le v (by lia)
-        have hpow : 2 ^ (32 * (r.size - 1)) =
-            2 ^ (32 * (v.size - 1)) * 2 ^ (32 * (r.size - v.size)) := by
-          rw [← Nat.pow_add]; congr 1; lia
-        have hv' : (v[v.size - 1]'(by lia)).toNat * 2 ^ (32 * (r.size - 1)) ≤
-            toNat v * 2 ^ (32 * (r.size - v.size)) := by
-          rw [hpow, ← Nat.mul_assoc]
-          exact Nat.mul_le_mul_right _ hv
-        have h₁ := Nat.mul_le_mul_left (2 ^ (32 * (r.size - 1))) hlt
-        rw [Nat.mul_add, Nat.mul_one, Nat.mul_comm (2 ^ (32 * (r.size - 1)))
-          (v[v.size - 1]'(by lia)).toNat] at h₁
-        rw [toNat_array_eq_valAt]
+  suffices hqr : toNat (divRemBasecase t u v hn).1 = toNat u / toNat v ∧
+      toNat (divRemBasecase t u v hn).2 = toNat u % toNat v by
+    rw [hqr.1, hqr.2, Nat.mul_comm]
+    exact ⟨Nat.div_add_mod .., Nat.mod_lt _ hv₀⟩
+  by_cases h : v.size ≤ u.size ∧ u.start + u.size + 1 < USize.size ∧
+      v.start + v.size < USize.size
+  · rw [divRemBasecase, dite_eq_left h]
+    have hus := toNat_toUSize' (a := u.start) (by lia)
+    have hum := toNat_toUSize' (a := u.size) (by lia)
+    have hvs := toNat_toUSize' (a := v.start) (by lia)
+    have hvm := toNat_toUSize' (a := v.size) (by lia)
+    obtain ⟨d₁, d₂, d₃, d₄⟩ := Schoolbook.divRemN_spec t div2RowsU u.array u.start.toUSize
+      u.size.toUSize v.array v.start.toUSize v.size.toUSize (slice_bound u (by lia))
+      (slice_bound v h.2.2) (by rw [hvm]; exact hn) (by rw [hum, hvm]; exact h.1)
+      (by rw [hum]; lia) (by
+        rw [hvs, hvm]
+        intro e
+        apply hvt
+        rw [UInt32Array.Slice.getElem_eq_getElem!,
+          show v.start + (v.size - 1) = v.start + v.size - 1 by lia]
+        exact UInt32.toNat_inj.1 e)
+    simp only [hus, hum, hvs, hvm] at d₁ d₂ d₃ d₄
+    rw [toNat_toSlice, toNat_toSlice, Nat.sub_zero, Nat.sub_zero]
+    exact ⟨(congrArg (fun k => LimbArray.valAt _ 0 k) d₁).trans d₂,
+      (congrArg (fun k => LimbArray.valAt _ 0 k) d₃).trans d₄⟩
+  · rw [divRemBasecase, dite_eq_right h]
+    by_cases hlt : u.size < v.size
+    · rw [ite_eq_left hlt]
+      have hu : toNat u < toNat v := by
+        have := toNat_lt u
+        have := top_limb_le v (by lia)
+        have := Nat.mul_le_mul_right (2 ^ (32 * (v.size - 1))) hvt'
+        have := Nat.pow_le_pow_right (show 0 < 2 by decide) (show 32 * u.size ≤ 32 * (v.size - 1)
+          by lia)
         lia
-      have hspec := divLoopIn_spec t v hn hvt (r.size - v.size) r (by lia)
-        (by rw [toNat_array_eq_valAt] at hbound; exact hbound)
-      obtain ⟨h₁, h₂, h₃⟩ := hspec
-      simp only [toNat_extract, Nat.sub_zero]
-      rw [toNat_array_eq_valAt]
-      simp only [h₁]
-      refine ⟨?_, h₂⟩
-      rw [Nat.mul_comm]
-      lia
-    · have e : divRemBasecaseTop t r v hn = divRemBasecase t r.toSlice v hn := by
-        unfold divRemBasecaseTop
-        rw [dite_eq_left hs, ite_eq_right htop]
-      rw [e]
-      exact divRemBasecase_spec t r.toSlice v hn hvt
-  · have e : divRemBasecaseTop t r v hn = divRemBasecase t r.toSlice v hn := by
-      unfold divRemBasecaseTop
-      rw [dite_eq_right hs]
-    rw [e]
-    exact divRemBasecase_spec t r.toSlice v hn hvt
+      rw [Nat.div_eq_of_lt hu, Nat.mod_eq_of_lt hu]
+      exact ⟨toNat_empty, toNat_copy u⟩
+    · rw [ite_eq_right hlt]
+      exact ⟨toNat_ofNat _, toNat_ofNat _⟩
 
 end MPN.W32

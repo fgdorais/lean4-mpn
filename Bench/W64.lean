@@ -157,8 +157,7 @@ def run (noNat : Bool) (op : String) (n : Nat) : IO Bool := do
     let a2 := sample (2 * n) 4
     row noNat op n
       (time (fun (x y : UInt64Array) =>
-        MPN.W64.divRem (zr (x.size - y.size + 1))
-          (zr y.size) x.toUSlice y.toUSlice)
+        MPN.W64.divRem x.toUSlice y.toUSlice)
         (fun p => checkArr p.1 + checkArr p.2) a2 b)
       (time (· / ·) checkNat (toNat a2) nb)
   | "gcd" =>

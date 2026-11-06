@@ -1251,7 +1251,7 @@ private theorem ite_pos {α : Type} {c : Prop} [Decidable c] (h : c) {a b : α} 
     (if c then a else b) = a := by
   simp [h]
 
-private theorem toNat_two : (2 : USize).toNat = 2 := by
+public theorem toNat_two : (2 : USize).toNat = 2 := by
   rw [USize.toNat_ofNat, Nat.mod_eq_of_lt (by cases USize.size_eq <;> simp_all [USize.size])]
 
 /-- The indices of the top three limbs of a window of `n + 1 ≥ 3` limbs. -/

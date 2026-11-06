@@ -184,22 +184,19 @@ def checkBits (n : Nat) : Bool :=
 
 
 /--
-Checks `divRemWith t` on an `m`-limb `a` and an `n`-limb `b`, written at offset 1 of padded
-buffers: the quotient and the remainder, and the padding unchanged.
+Checks `divRemWith t` on an `m`-limb `a` and an `n`-limb `b`, read at offset 1 of padded buffers:
+the quotient in `m - n + 1` limbs and the remainder in `n` limbs.
 -/
 def checkDiv (t : USize) (m n : Nat) : Bool :=
   let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
   let as := [randomLimbs m 11, 2 ^ (64 * m) - 1, 2 ^ (64 * (m - 1)), 2 ^ (64 * m - 1) + 12345]
   let bs := [randomLimbs n 12, 2 ^ (64 * n) - 1, 2 ^ (64 * (n - 1)), 2 ^ (64 * (n - 1)) + 1,
     2 ^ (64 * n - 1), 3 * 2 ^ (64 * (n - 1)) + 5]
+  let padded (k x : Nat) : UInt64Array := .ofFn fun (i : Fin (k + 2)) =>
+    if i.1 = 0 ∨ i.1 = k + 1 then pad else (x / 2 ^ (64 * (i.1 - 1))).toUInt64
   as.all fun x => bs.all fun y =>
-    let k := m - n + 1
-    let q := UInt64Array.replicate (k + 2) pad
-    let r := UInt64Array.replicate (n + 2) pad
-    let (q', r') := MPN.W64.divRemWith t (inner q k) (inner r n) (limbs m x).toUSlice
-      (limbs n y).toUSlice
-    window q' 1 k == x / y && window r' 1 n == x % y && q'[0]! == pad && q'[k + 1]! == pad &&
-      r'[0]! == pad && r'[n + 1]! == pad
+    let (q, r) := MPN.W64.divRemWith t (inner (padded m x) m) (inner (padded n y) n)
+    q.size == m - n + 1 && r.size == n && q.toNat == x / y && r.toNat == x % y
 
 #guard [(1, 1), (5, 1), (2, 2), (3, 2), (10, 3), (10, 10), (40, 17), (100, 50), (300, 2)].all
   fun (m, n) => checkDiv 0 m n && checkDiv 4294967295 m n
@@ -212,8 +209,7 @@ def checkDiv (t : USize) (m n : Nat) : Bool :=
   [2 ^ (64 * n), 2 ^ (64 * n) + 5, 2 ^ (64 * (n + 3)) + 2 ^ (64 * 3) - 1].all fun x =>
     let m := (Nat.log2 x) / 64 + 1
     let k := m - n + 1
-    let (q', r') := MPN.W64.divRem (UInt64Array.replicate k 0).toUSlice
-      (UInt64Array.replicate n 0).toUSlice (limbs m x).toUSlice (limbs n y).toUSlice
+    let (q', r') := MPN.W64.divRem (limbs m x).toUSlice (limbs n y).toUSlice
     window q' 0 k == x / y && window r' 0 n == x % y
 
 /-- Checks `Num.divMod` on an `m`-limb `x` and an `n`-limb `y`, against `Nat`. -/

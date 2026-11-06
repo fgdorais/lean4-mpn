@@ -92,6 +92,10 @@ public class WordArray (A : Type) (L : outParam Type) [LA : LimbArray A L] where
   pop : A → A
   size_pop : ∀ a, LA.size (pop a) = LA.size a - 1
   get_pop : ∀ a i, i < LA.size a - 1 → LA.get (pop a) i = LA.get a i
+  /-- Limbs `i` to `j - 1` of `a`, up to its end, copied into a new array. -/
+  extract : A → Nat → Nat → A
+  size_extract : ∀ a i j, LA.size (extract a i j) = min j (LA.size a) - i
+  get_extract : ∀ a i j k, k < LA.size (extract a i j) → LA.get (extract a i j) k = LA.get a (i + k)
   /-- The limb `0`. -/
   zero : L
   /-- The limb `1`. -/

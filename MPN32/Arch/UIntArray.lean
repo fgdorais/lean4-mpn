@@ -737,6 +737,13 @@ public instance wordArray32 : MPN.WordArray UInt32Array UInt32 where
     show a.pop[i]! = a[i]!
     rw [getElem!_eq_getElem _ _ (by rw [UInt32Array.size_pop]; lia),
       getElem!_eq_getElem _ _ (by lia), UInt32Array.getElem_pop]
+  extract a i j := a.extract i j
+  size_extract a i j := UInt32Array.size_extract a i j
+  get_extract a i j k h := by
+    replace h : k < (a.extract i j).size := h
+    show (a.extract i j)[k]! = a[i + k]!
+    rw [getElem!_eq_getElem _ _ h, getElem!_eq_getElem _ _ (by simp at h; lia),
+      UInt32Array.getElem_extract]
   zero := 0
   one := 1
   add x y := x + y
