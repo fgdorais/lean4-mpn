@@ -45,6 +45,73 @@ public theorem toNat_add_sub {arr : A} {vs n j : USize} (hv : LoopBound arr vs n
   rw [USize.toNat_add_of_lt (by rw [hs]; have := hv.2; lia), hs]
   lia
 
+/-! ## Normalization
+
+`shlTop` and `shlFit` shift a dividend and a divisor left by the `s < w` bits that set the top bit
+of the divisor, into new arrays, the dividend with one more limb for the bits out of its top;
+`shrNew` shifts a remainder back. A shift by `0` is a copy. They serve this division and the
+widths' divisions by blocks.
+-/
+
+/-- The `m` limbs of `a` from `ao` times `2ˢ`, for `s < w`, in `m + 1` new limbs. -/
+@[inline, expose] public def shlTop (a : A) (ao m : USize) (ha : LoopBound a ao m)
+    (hU : m.toNat + 1 < USize.size) (s : Nat) : A :=
+  if s = 0 then copyW (R.zeros (m.toNat + 1)) 0 a ao m (zeros_bound (by lia)) ha
+  else
+    let p := lshiftW (R.zeros (m.toNat + 1)) 0 a ao m (R.ofUSize s.toUSize) (zeros_bound (by lia))
+      ha
+    R.uset p.1 m p.2 (by rw [size_lshiftW, R.size_zeros]; lia)
+
+/-- The `n` limbs of `b` from `bo` times `2ˢ`, for `s < w`, in `n` new limbs, when it fits. -/
+@[inline, expose] public def shlFit (b : A) (bo n : USize) (hb : LoopBound b bo n) (s : Nat) : A :=
+  if s = 0 then R.extract b bo.toNat (bo.toNat + n.toNat)
+  else (lshiftW (R.zeros n.toNat) 0 b bo n (R.ofUSize s.toUSize)
+    (zeros_bound ⟨Nat.le_refl _, n.toNat_lt_size⟩) hb).1
+
+/-- `⌊r / 2ˢ⌋` of the `n` limbs of `r` from `ro`, for `s < w`, in `n` new limbs. -/
+@[inline, expose] public def shrNew (r : A) (ro n : USize) (hr : LoopBound r ro n) (s : Nat) : A :=
+  if h : s = 0 ∨ n = 0 then R.extract r ro.toNat (ro.toNat + n.toNat)
+  else (rshiftW (R.zeros n.toNat) 0 r ro n (R.ofUSize s.toUSize)
+    (zeros_bound ⟨Nat.le_refl _, n.toNat_lt_size⟩) hr
+    (USize.lt_iff_toNat_lt.2 (by
+      have : n.toNat ≠ 0 := fun e => h (.inr (USize.toNat_inj.1 (by simpa using e)))
+      simp; lia))).1
+
+@[simp] public theorem size_shlFit (b : A) (bo n : USize) (hb : LoopBound b bo n) (s : Nat) :
+    LA.size (shlFit b bo n hb s) = n.toNat := by
+  rw [shlFit]
+  split
+  · rw [R.size_extract]; have := hb.1; lia
+  · rw [size_lshiftW, R.size_zeros]
+
+omit R F in
+/-- The first `n` limbs of an array that `USize` indices reach, as a loop bound. -/
+public theorem arr_bound (a : A) {n : Nat} (hn : n ≤ LA.size a) (hU : LA.size a < USize.size) :
+    LoopBound a 0 n.toUSize := by
+  have : n.toUSize.toNat = n := by rw [Nat.toUSize_eq, USize.toNat_ofNat_of_lt' (by lia)]
+  exact ⟨by rw [this]; simp; lia, by rw [this]; simp; lia⟩
+
+omit R F in
+public theorem toNat_toUSize_of_lt {n : Nat} (h : n < USize.size) : n.toUSize.toNat = n := by
+  rw [Nat.toUSize_eq, USize.toNat_ofNat_of_lt' h]
+
+/-- `shlTop` on a whole array: `a 2ˢ` in `size a + 1` limbs. -/
+@[inline, expose] public def shlArr (a : A) (s : Nat) : A :=
+  if h : LA.size a + 1 < USize.size then
+    shlTop a 0 (LA.size a).toUSize (arr_bound a (Nat.le_refl _) (by lia))
+      (by rw [toNat_toUSize_of_lt (by lia)]; exact h) s
+  else a
+
+/-- `shlFit` on the first `n` limbs of an array: `b 2ˢ` in `n` limbs, when it fits. -/
+@[inline, expose] public def shlFitArr (b : A) (n s : Nat) : A :=
+  if h : n ≤ LA.size b ∧ LA.size b < USize.size then shlFit b 0 n.toUSize (arr_bound b h.1 h.2) s
+  else b
+
+/-- `shrNew` on a whole array: `⌊r / 2ˢ⌋` in `size r` limbs. -/
+@[inline, expose] public def shrArr (r : A) (s : Nat) : A :=
+  if h : LA.size r < USize.size then shrNew r 0 (LA.size r).toUSize (arr_bound r (Nat.le_refl _) h) s
+  else r
+
 variable (A) in
 /--
 The division of the `i + n` limbs of `w` by the `n ≥ 2` limbs of `v` from `vs`, normalized, in
@@ -66,34 +133,22 @@ per pass from `t₂` limbs.
 @[inline, expose] public def quotN (w : A) (n k : USize) : A :=
   R.extract w n.toNat (n.toNat + k.toNat)
 
-/-- The remainder of the division in `w`, limbs `0` to `n - 1`, shifted right by `s` bits. -/
-@[inline, expose] public def remN (w : A) (n : USize) (s : L) (h : LoopBound w 0 n) (hn : 0 < n) :
-    A :=
-  if R.isZero s then R.extract w 0 n.toNat
-  else (rshiftW (R.zeros n.toNat) 0 w 0 n s (zeros_bound (by have := h.2; simp at this; lia)) h hn).1
-
-/-- The quotient and the remainder of the division in `w`. -/
-@[inline, expose] public def resultsN (w : A) (n k : USize) (s : L) (hn : 0 < n) : A × A :=
-  if h : LoopBound w 0 n then (quotN w n k, remN w n s h hn) else (w, w)
+/-- The quotient and the remainder of the division in `w`, shifted back by `s` bits. -/
+@[inline, expose] public def resultsN (w : A) (n k : USize) (s : Nat) : A × A :=
+  if h : LoopBound w 0 n then (quotN w n k, shrNew w 0 n h s) else (w, w)
 
 /--
 `divRemN` with the shift `s` that sets the top bit of `b`: `a` copied if `s = 0`, else `a` and `b`
 shifted left by `s` bits.
 -/
 @[inline, expose] public def divRemS (t t₂ : USize) (a : A) (ao m : USize) (b : A) (bo n : USize)
-    (ha : LoopBound a ao m) (hb : LoopBound b bo n) (hn : 2 ≤ n.toNat) (hnm : n.toNat ≤ m.toNat)
+    (ha : LoopBound a ao m) (hb : LoopBound b bo n) (hn : 2 ≤ n.toNat) (_hnm : n.toNat ≤ m.toNat)
     (hU : m.toNat + 1 < USize.size) (s : Nat) : A × A :=
   let k := m + 1 - n
-  let s' := R.ofUSize s.toUSize
-  have hn₀ : 0 < n := USize.lt_iff_toNat_lt.2 (by simp; lia)
-  if s = 0 then
-    resultsN (loopN A t t₂ (copyW (R.zeros (m.toNat + 1)) 0 a ao m (zeros_bound (by lia)) ha) b bo
-      n hb hn k) n k s' hn₀
+  if s = 0 then resultsN (loopN A t t₂ (shlTop a ao m ha hU s) b bo n hb hn k) n k s
   else
-    let p := lshiftW (R.zeros (m.toNat + 1)) 0 a ao m s' (zeros_bound (by lia)) ha
-    let v := (lshiftW (R.zeros n.toNat) 0 b bo n s' (zeros_bound (by lia)) hb).1
-    resultsN (loopN A t t₂ (R.uset p.1 m p.2 (by rw [size_lshiftW, R.size_zeros]; lia)) v 0 n
-      ⟨by rw [size_lshiftW, R.size_zeros]; simp, by simp; lia⟩ hn k) n k s' hn₀
+    resultsN (loopN A t t₂ (shlTop a ao m ha hU s) (shlFit b bo n hb s) 0 n
+      ⟨by rw [size_shlFit]; simp, by simp [n.toNat_lt_size]⟩ hn k) n k s
 
 /--
 `a / b` and `a % b`, for `a` of `m` limbs from `ao` and `b` of `2 ≤ n ≤ m` limbs from `bo` with a
@@ -133,41 +188,141 @@ public theorem quotN_spec (w : A) (n k : USize) (hs : LA.size w = n.toNat + k.to
       LimbArray.valAt (quotN w n k) 0 k.toNat = LimbArray.valAt w n.toNat k.toNat :=
   extract_spec w n.toNat k.toNat (by lia)
 
-/-- `remN` takes limbs `0` to `n - 1` of `w` shifted right by `s` bits. -/
-public theorem remN_spec (w : A) (n : USize) (s : L) (h : LoopBound w 0 n) (hn : 0 < n)
-    (hs : LA.val s < LA.w) :
-    LA.size (remN w n s h hn) = n.toNat ∧
-      LimbArray.valAt (remN w n s h hn) 0 n.toNat =
-        LimbArray.valAt w 0 n.toNat / 2 ^ LA.val s := by
-  have hn' : n.toNat ≤ n.toNat ∧ n.toNat < USize.size := ⟨Nat.le_refl _, n.toNat_lt_size⟩
-  rw [remN]
+omit F in
+/-- `s < w` as a limb. -/
+public theorem val_shift {s : Nat} (hs : s < LA.w) : LA.val (R.ofUSize s.toUSize) = s := by
+  have hwU : LA.w < USize.size := by rw [← R.toNat_wU]; exact R.wU.toNat_lt_size
+  have hwB : LA.w < 2 ^ LA.w := Nat.lt_two_pow_self
+  rw [R.val_ofUSize, Nat.toUSize_eq, USize.toNat_ofNat_of_lt' (by lia), Nat.mod_eq_of_lt (by lia)]
+
+/-- `shlTop` holds `a 2ˢ` in `m + 1` limbs. -/
+public theorem shlTop_spec (a : A) (ao m : USize) (ha : LoopBound a ao m)
+    (hU : m.toNat + 1 < USize.size) (s : Nat) (hs : s < LA.w) :
+    LA.size (shlTop a ao m ha hU s) = m.toNat + 1 ∧
+      LimbArray.valAt (shlTop a ao m ha hU s) 0 (m.toNat + 1) =
+        LimbArray.valAt a ao.toNat m.toNat * 2 ^ s := by
+  rw [shlTop]
   split
-  · rename_i hz
-    have := extract_spec w 0 n.toNat (by have := h.1; simp at this; lia)
-    rw [Nat.zero_add] at this
-    rw [(R.isZero_iff s).1 hz, Nat.pow_zero, Nat.div_one]
-    exact this
-  · rename_i hz
-    have hs₀ : 0 < LA.val s := Nat.pos_of_ne_zero fun e => hz ((R.isZero_iff s).2 e)
-    obtain ⟨r₁, -, r₃, r₄⟩ :=
-      rshiftW_spec (R.zeros n.toNat) 0 w 0 n s (zeros_bound hn') h hn hs₀ hs
+  · rename_i hS
+    obtain ⟨c₁, c₂, c₃⟩ := copyW_spec (R.zeros (m.toNat + 1)) 0 a ao m (zeros_bound (by lia)) ha
+    rw [R.size_zeros] at c₁
+    simp only [USize.toNat_zero] at c₂ c₃
+    refine ⟨c₁, ?_⟩
+    rw [hS, Nat.pow_zero, Nat.mul_one, LimbArray.valAt_add, LimbArray.valAt_one, Nat.zero_add,
+      c₂ _ (.inr (by lia)), R.val_get_zeros, Nat.mul_zero, Nat.add_zero, c₃]
+  · rename_i hS
+    have hsv := val_shift (R := R) hs
+    obtain ⟨p₁, p₂, p₃⟩ := lshiftW_spec (R.zeros (m.toNat + 1)) 0 a ao m (R.ofUSize s.toUSize)
+      (zeros_bound (by lia)) ha (by rw [hsv]; lia) (by rw [hsv]; exact hs)
+    rw [R.size_zeros] at p₁
+    simp only [USize.toNat_zero] at p₂ p₃
+    rw [hsv] at p₃
+    refine ⟨by rw [R.size_uset, p₁], ?_⟩
+    rw [LimbArray.valAt_add, LimbArray.valAt_one, Nat.zero_add, R.get_uset,
+      valAt_uset_of _ _ _ _ _ _ (.inr (by lia))]
+    simp only [↓reduceIte]
+    rw [← p₃]
+
+/-- `shlFit` holds `b 2ˢ` in `n` limbs when it is below `βⁿ`. -/
+public theorem shlFit_spec (b : A) (bo n : USize) (hb : LoopBound b bo n) (s : Nat)
+    (hs : s < LA.w) (hfit : LimbArray.valAt b bo.toNat n.toNat * 2 ^ s < 2 ^ (LA.w * n.toNat)) :
+    LimbArray.valAt (shlFit b bo n hb s) 0 n.toNat = LimbArray.valAt b bo.toNat n.toNat * 2 ^ s := by
+  rw [shlFit]
+  split
+  · rename_i hS
+    rw [hS, Nat.pow_zero, Nat.mul_one]
+    exact (extract_spec b bo.toNat n.toNat hb.1).2
+  · rename_i hS
+    have hsv := val_shift (R := R) hs
+    obtain ⟨v₁, -, v₃⟩ := lshiftW_spec (R.zeros n.toNat) 0 b bo n (R.ofUSize s.toUSize)
+      (zeros_bound ⟨Nat.le_refl _, n.toNat_lt_size⟩) hb (by rw [hsv]; lia) (by rw [hsv]; exact hs)
+    simp only [USize.toNat_zero] at v₃
+    rw [hsv] at v₃
+    generalize lshiftW (R.zeros n.toNat) 0 b bo n (R.ofUSize s.toUSize) _ hb = p at v₃ ⊢
+    rcases Nat.eq_zero_or_pos (LA.val p.2) with h | h
+    · rw [h, Nat.mul_zero, Nat.add_zero] at v₃; exact v₃
+    · have := Nat.mul_le_mul_left (2 ^ (LA.w * n.toNat)) h; lia
+
+/-- `shrNew` holds `⌊r / 2ˢ⌋` in `n` limbs. -/
+public theorem shrNew_spec (r : A) (ro n : USize) (hr : LoopBound r ro n) (s : Nat)
+    (hs : s < LA.w) :
+    LA.size (shrNew r ro n hr s) = n.toNat ∧
+      LimbArray.valAt (shrNew r ro n hr s) 0 n.toNat =
+        LimbArray.valAt r ro.toNat n.toNat / 2 ^ s := by
+  rw [shrNew]
+  split
+  · rename_i h
+    obtain ⟨e₁, e₂⟩ := extract_spec r ro.toNat n.toNat hr.1
+    refine ⟨e₁, ?_⟩
+    rcases h with h | h
+    · rw [h, Nat.pow_zero, Nat.div_one]; exact e₂
+    · subst h; simp
+  · rename_i h
+    have hsv := val_shift (R := R) hs
+    have hs₀ : 0 < s := Nat.pos_of_ne_zero fun e => h (.inl e)
+    obtain ⟨r₁, -, r₃, r₄⟩ := rshiftW_spec (R.zeros n.toNat) 0 r ro n (R.ofUSize s.toUSize)
+      (zeros_bound ⟨Nat.le_refl _, n.toNat_lt_size⟩) hr _ (by rw [hsv]; exact hs₀)
+      (by rw [hsv]; exact hs)
     rw [R.size_zeros] at r₁
     simp only [USize.toNat_zero] at r₃
+    rw [hsv] at r₃ r₄
     refine ⟨r₁, ?_⟩
     rw [← r₃, Nat.mul_add_div (Nat.two_pow_pos _), Nat.div_eq_of_lt r₄, Nat.add_zero]
 
+/-- `shlArr` holds `a 2ˢ` in `size a + 1` limbs. -/
+public theorem shlArr_spec (a : A) (s : Nat) (hs : s < LA.w) (hU : LA.size a + 1 < USize.size) :
+    LA.size (shlArr a s) = LA.size a + 1 ∧
+      LimbArray.valAt (shlArr a s) 0 (LA.size (shlArr a s)) =
+        LimbArray.valAt a 0 (LA.size a) * 2 ^ s := by
+  rw [shlArr, dite_eq_left hU]
+  obtain ⟨h₁, h₂⟩ := shlTop_spec a 0 (LA.size a).toUSize (arr_bound a (Nat.le_refl _) (by lia))
+    (by rw [toNat_toUSize_of_lt (by lia)]; exact hU) s hs
+  simp only [toNat_toUSize_of_lt (show LA.size a < USize.size by lia), USize.toNat_zero] at h₁ h₂
+  exact ⟨h₁, by rw [h₁]; exact h₂⟩
+
+/-- `shlFitArr` holds `b 2ˢ` in `n` limbs when it is below `βⁿ`. -/
+public theorem shlFitArr_spec (b : A) (n s : Nat) (hs : s < LA.w) (hn : n ≤ LA.size b)
+    (hU : LA.size b < USize.size)
+    (hfit : LimbArray.valAt b 0 (LA.size b) * 2 ^ s < 2 ^ (LA.w * n)) :
+    LA.size (shlFitArr b n s) = n ∧
+      LimbArray.valAt (shlFitArr b n s) 0 (LA.size (shlFitArr b n s)) =
+        LimbArray.valAt b 0 (LA.size b) * 2 ^ s := by
+  rw [shlFitArr, dite_eq_left ⟨hn, hU⟩]
+  have hn' := toNat_toUSize_of_lt (show n < USize.size by lia)
+  have hB : LimbArray.valAt b 0 (LA.size b) < 2 ^ (LA.w * n) :=
+    Nat.lt_of_le_of_lt (Nat.le_mul_of_pos_right _ (Nat.two_pow_pos _)) hfit
+  have hv : LimbArray.valAt b 0 n = LimbArray.valAt b 0 (LA.size b) := by
+    rw [LimbArray.valAt_mod _ _ hn, Nat.mod_eq_of_lt hB]
+  have h₁ := size_shlFit b 0 n.toUSize (arr_bound b hn hU) s
+  have h₂ := shlFit_spec b 0 n.toUSize (arr_bound b hn hU) s hs
+    (by rw [USize.toNat_zero, hn', hv]; exact hfit)
+  rw [hn'] at h₁
+  rw [USize.toNat_zero, hn', hv] at h₂
+  exact ⟨h₁, by rw [h₁]; exact h₂⟩
+
+/-- `shrArr` holds `⌊r / 2ˢ⌋` in `size r` limbs. -/
+public theorem shrArr_spec (r : A) (s : Nat) (hs : s < LA.w) (hU : LA.size r < USize.size) :
+    LA.size (shrArr r s) = LA.size r ∧
+      LimbArray.valAt (shrArr r s) 0 (LA.size (shrArr r s)) =
+        LimbArray.valAt r 0 (LA.size r) / 2 ^ s := by
+  rw [shrArr, dite_eq_left hU]
+  obtain ⟨h₁, h₂⟩ := shrNew_spec r 0 (LA.size r).toUSize (arr_bound r (Nat.le_refl _) hU) s hs
+  simp only [toNat_toUSize_of_lt hU, USize.toNat_zero] at h₁ h₂
+  exact ⟨h₁, by rw [h₁]; exact h₂⟩
+
 /-- `resultsN` takes the quotient and the remainder of the division in `w`. -/
-public theorem resultsN_spec (w : A) (n k : USize) (s : L) (hn : 0 < n) (hs : LA.val s < LA.w)
+public theorem resultsN_spec (w : A) (n k : USize) (s : Nat) (hs : s < LA.w)
     (hsz : LA.size w = n.toNat + k.toNat) :
-    LA.size (resultsN w n k s hn).1 = k.toNat ∧
-      LimbArray.valAt (resultsN w n k s hn).1 0 k.toNat = LimbArray.valAt w n.toNat k.toNat ∧
-      LA.size (resultsN w n k s hn).2 = n.toNat ∧
-      LimbArray.valAt (resultsN w n k s hn).2 0 n.toNat =
-        LimbArray.valAt w 0 n.toNat / 2 ^ LA.val s := by
-  have h : LoopBound w 0 n := ⟨by simp; lia, by simp; lia⟩
+    LA.size (resultsN w n k s).1 = k.toNat ∧
+      LimbArray.valAt (resultsN w n k s).1 0 k.toNat = LimbArray.valAt w n.toNat k.toNat ∧
+      LA.size (resultsN w n k s).2 = n.toNat ∧
+      LimbArray.valAt (resultsN w n k s).2 0 n.toNat =
+        LimbArray.valAt w 0 n.toNat / 2 ^ s := by
+  have h : LoopBound w 0 n := ⟨by simp; lia, by simp [n.toNat_lt_size]⟩
   rw [resultsN, dite_eq_left h]
   obtain ⟨q₁, q₂⟩ := quotN_spec w n k hsz
-  obtain ⟨r₁, r₂⟩ := remN_spec w n s h hn hs
+  obtain ⟨r₁, r₂⟩ := shrNew_spec w 0 n h s hs
+  simp only [USize.toNat_zero] at r₂
   exact ⟨q₁, q₂, r₁, r₂⟩
 
 /-- `loopN` divides like `divLoop2In`. -/
@@ -206,28 +361,28 @@ The division after the normalization: if `w` holds `X 2ˢ` in `k + n` limbs and 
 in `n` limbs, with `X < Y βᵏ`, then the quotient is `X / Y` and the remainder `X % Y`.
 -/
 public theorem coreN_spec (t t₂ : USize) (w v : A) (vs n k : USize) (hv : LoopBound v vs n)
-    (hn : 2 ≤ n.toNat) (hn₀ : 0 < n) (s : L) (hs : LA.val s < LA.w) (X Y : Nat)
+    (hn : 2 ≤ n.toNat) (s : Nat) (hs : s < LA.w) (X Y : Nat)
     (hsz : LA.size w = k.toNat + n.toNat) (hU : LA.size w < USize.size)
-    (hV : LimbArray.valAt v vs.toNat n.toNat = Y * 2 ^ LA.val s) (hY : 0 < Y)
-    (hW : LimbArray.valAt w 0 (k.toNat + n.toNat) = X * 2 ^ LA.val s)
+    (hV : LimbArray.valAt v vs.toNat n.toNat = Y * 2 ^ s) (hY : 0 < Y)
+    (hW : LimbArray.valAt w 0 (k.toNat + n.toNat) = X * 2 ^ s)
     (hX : X < Y * 2 ^ (LA.w * k.toNat)) :
-    LA.size (resultsN (loopN A t t₂ w v vs n hv hn k) n k s hn₀).1 = k.toNat ∧
-      LimbArray.valAt (resultsN (loopN A t t₂ w v vs n hv hn k) n k s hn₀).1 0 k.toNat = X / Y ∧
-      LA.size (resultsN (loopN A t t₂ w v vs n hv hn k) n k s hn₀).2 = n.toNat ∧
-      LimbArray.valAt (resultsN (loopN A t t₂ w v vs n hv hn k) n k s hn₀).2 0 n.toNat =
+    LA.size (resultsN (loopN A t t₂ w v vs n hv hn k) n k s).1 = k.toNat ∧
+      LimbArray.valAt (resultsN (loopN A t t₂ w v vs n hv hn k) n k s).1 0 k.toNat = X / Y ∧
+      LA.size (resultsN (loopN A t t₂ w v vs n hv hn k) n k s).2 = n.toNat ∧
+      LimbArray.valAt (resultsN (loopN A t t₂ w v vs n hv hn k) n k s).2 0 n.toNat =
         X % Y := by
-  have hS := Nat.two_pow_pos (LA.val s)
-  have hVpos : 0 < Y * 2 ^ LA.val s := Nat.mul_pos hY hS
+  have hS := Nat.two_pow_pos s
+  have hVpos : 0 < Y * 2 ^ s := Nat.mul_pos hY hS
   obtain ⟨l₁, l₂, l₃⟩ := loopN_spec t t₂ w v vs n hv hn k (by lia) hU (by rw [hV]; exact hVpos)
     (by
       rw [hW, hV, Nat.mul_right_comm]
       exact Nat.mul_lt_mul_of_pos_right hX hS)
   rw [hV, hW] at l₂
   rw [hV] at l₃
-  obtain ⟨r₁, r₂, r₃, r₄⟩ := resultsN_spec (loopN A t t₂ w v vs n hv hn k) n k s hn₀ hs
+  obtain ⟨r₁, r₂, r₃, r₄⟩ := resultsN_spec (loopN A t t₂ w v vs n hv hn k) n k s hs
     (by rw [l₁, hsz, Nat.add_comm])
   have hQ := Nat.mul_div_mul_right X Y hS
-  have hR := Nat.mul_mod_mul_right (2 ^ LA.val s) X Y
+  have hR := Nat.mul_mod_mul_right (2 ^ s) X Y
   rw [← l₂, Nat.mul_add_div hVpos, Nat.div_eq_of_lt l₃, Nat.add_zero] at hQ
   rw [← l₂, Nat.mul_add_mod, Nat.mod_eq_of_lt l₃] at hR
   refine ⟨r₁, by rw [r₂, hQ], r₃, ?_⟩
@@ -253,13 +408,6 @@ private theorem top_bounds (b : A) (bo n : Nat) (hn : 1 ≤ n)
   have h₂ := Nat.mul_le_mul_left P (show T + 1 ≤ 2 ^ (T.log2 + 1) from hlog)
   rw [Nat.mul_add, Nat.mul_one] at h₂
   constructor <;> lia
-
-omit R F in
-/-- New zero limbs with the `m` limbs of `X` written below the top one, which stays `0`. -/
-private theorem valAt_top_zero (w : A) (m : Nat)
-    (hz : LA.val (LA.get w m) = 0) :
-    LimbArray.valAt w 0 (m + 1) = LimbArray.valAt w 0 m := by
-  rw [LimbArray.valAt_add, LimbArray.valAt_one, Nat.zero_add, hz, Nat.mul_zero, Nat.add_zero]
 
 /-- `divRemN` divides: the quotient in `m + 1 - n` limbs and the remainder in `n` limbs. -/
 public theorem divRemN_spec (t t₂ : USize) (a : A) (ao m : USize) (b : A) (bo n : USize)
@@ -305,71 +453,29 @@ public theorem divRemN_spec (t t₂ : USize) (a : A) (ao m : USize) (b : A) (bo 
       rw [← Nat.mul_add]; congr 1; lia
     rw [e] at hA
     exact Nat.lt_of_lt_of_le hA (Nat.mul_le_mul_right _ hb₁)
-  have hsv : LA.val (R.ofUSize (LA.w - 1 - L).toUSize) = LA.w - 1 - L := by
-    rw [R.val_ofUSize, Nat.toUSize_eq, USize.toNat_ofNat_of_lt' (by lia), Nat.mod_eq_of_lt (by lia)]
-  have hsz₀ : ∀ k, LA.size (R.zeros k) = k := R.size_zeros
+  have hs : LA.w - 1 - L < LA.w := by have := LA.w_pos; lia
   unfold divRemN
   rw [R.uget_eq, htopI, R.log2_eq, hLd]
   unfold divRemS
   dsimp only
+  obtain ⟨w₁, w₂⟩ := shlTop_spec a ao m ha hU _ hs
+  have hW : LimbArray.valAt (shlTop a ao m ha hU (LA.w - 1 - L)) 0 ((m + 1 - n).toNat + n.toNat) =
+      LimbArray.valAt a ao.toNat m.toNat * 2 ^ (LA.w - 1 - L) := by
+    rw [hk, show m.toNat + 1 - n.toNat + n.toNat = m.toNat + 1 by lia, w₂]
   split
-  · -- `b` is normalized: `a` is copied.
+  · -- `b` is normalized: only `a` is copied.
     rename_i hS
-    have hs₀ : LA.val (R.ofUSize (LA.w - 1 - L).toUSize) = 0 := by rw [hsv, hS]
-    obtain ⟨c₁, c₂, c₃⟩ := copyW_spec (R.zeros (m.toNat + 1)) 0 a ao m (zeros_bound (by lia)) ha
-    rw [hsz₀] at c₁
-    simp only [USize.toNat_zero] at c₂ c₃
-    have hW : LimbArray.valAt (copyW (R.zeros (m.toNat + 1)) 0 a ao m (zeros_bound (by lia)) ha) 0
-        ((m + 1 - n).toNat + n.toNat) =
-        LimbArray.valAt a ao.toNat m.toNat * 2 ^ LA.val (R.ofUSize (LA.w - 1 - L).toUSize) := by
-      rw [hs₀, Nat.pow_zero, Nat.mul_one, hk, show m.toNat + 1 - n.toNat + n.toNat =
-        m.toNat + 1 by lia, valAt_top_zero _ _ (by rw [c₂ _ (.inr (by lia)), R.val_get_zeros]),
-        c₃]
-    obtain ⟨r₁, r₂, r₃, r₄⟩ := coreN_spec t t₂ _ b bo n (m + 1 - n) hb hn _ _
-      (by rw [hs₀]; exact LA.w_pos)
+    obtain ⟨r₁, r₂, r₃, r₄⟩ := coreN_spec t t₂ _ b bo n (m + 1 - n) hb hn _ hs
       (LimbArray.valAt a ao.toNat m.toNat) (LimbArray.valAt b bo.toNat n.toNat)
-      (by rw [c₁, hk]; lia) (by rw [c₁]; exact hU)
-      (by rw [hs₀, Nat.pow_zero, Nat.mul_one]) hBpos hW hX
+      (by rw [w₁, hk]; lia) (by rw [w₁]; exact hU)
+      (by rw [hS, Nat.pow_zero, Nat.mul_one]) hBpos hW hX
     rw [hk] at r₁ r₂
     exact ⟨r₁, r₂, r₃, r₄⟩
   · -- `a` and `b` shifted left by `S` bits.
-    rename_i hS
-    have hs₀ : 0 < LA.val (R.ofUSize (LA.w - 1 - L).toUSize) := by rw [hsv]; lia
-    have hs : LA.val (R.ofUSize (LA.w - 1 - L).toUSize) < LA.w := by rw [hsv]; lia
-    obtain ⟨v₁, -, v₃⟩ := lshiftW_spec (R.zeros n.toNat) 0 b bo n
-      (R.ofUSize (LA.w - 1 - L).toUSize) (zeros_bound (by lia)) hb hs₀ hs
-    obtain ⟨p₁, p₂, p₃⟩ := lshiftW_spec (R.zeros (m.toNat + 1)) 0 a ao m
-      (R.ofUSize (LA.w - 1 - L).toUSize) (zeros_bound (by lia)) ha hs₀ hs
-    rw [hsz₀] at v₁ p₁
-    simp only [USize.toNat_zero] at v₃ p₂ p₃
-    rw [hsv] at v₃ p₃
-    -- No bits out of the top of `b 2ˢ`.
-    have hV : LimbArray.valAt (lshiftW (R.zeros n.toNat) 0 b bo n
-        (R.ofUSize (LA.w - 1 - L).toUSize) (zeros_bound (by lia)) hb).1 0 n.toNat =
-        LimbArray.valAt b bo.toNat n.toNat * 2 ^ LA.val (R.ofUSize (LA.w - 1 - L).toUSize) := by
-      rw [hsv]
-      have hc : LA.val (lshiftW (R.zeros n.toNat) 0 b bo n (R.ofUSize (LA.w - 1 - L).toUSize)
-          (zeros_bound (by lia)) hb).2 = 0 := by
-        rcases Nat.eq_zero_or_pos (LA.val (lshiftW (R.zeros n.toNat) 0 b bo n
-          (R.ofUSize (LA.w - 1 - L).toUSize) (zeros_bound (by lia)) hb).2) with h | h
-        · exact h
-        · have := Nat.mul_le_mul_left (2 ^ (LA.w * n.toNat)) h; lia
-      rw [hc, Nat.mul_zero, Nat.add_zero] at v₃
-      exact v₃
-    have hW : LimbArray.valAt (R.uset (lshiftW (R.zeros (m.toNat + 1)) 0 a ao m
-        (R.ofUSize (LA.w - 1 - L).toUSize) (zeros_bound (by lia)) ha).1 m
-        (lshiftW (R.zeros (m.toNat + 1)) 0 a ao m (R.ofUSize (LA.w - 1 - L).toUSize)
-          (zeros_bound (by lia)) ha).2 (by rw [p₁]; lia)) 0 ((m + 1 - n).toNat + n.toNat) =
-        LimbArray.valAt a ao.toNat m.toNat * 2 ^ LA.val (R.ofUSize (LA.w - 1 - L).toUSize) := by
-      rw [hsv, hk, show m.toNat + 1 - n.toNat + n.toNat = m.toNat + 1 by lia,
-        LimbArray.valAt_add, LimbArray.valAt_one, Nat.zero_add, R.get_uset,
-        valAt_uset_of _ _ _ _ _ _ (.inr (by lia))]
-      simp only [↓reduceIte]
-      rw [← p₃]
-    obtain ⟨r₁, r₂, r₃, r₄⟩ := coreN_spec t t₂ _ _ 0 n (m + 1 - n) _ hn _ _ hs
+    obtain ⟨r₁, r₂, r₃, r₄⟩ := coreN_spec t t₂ _ _ 0 n (m + 1 - n) _ hn _ hs
       (LimbArray.valAt a ao.toNat m.toNat) (LimbArray.valAt b bo.toNat n.toNat)
-      (by rw [R.size_uset, p₁, hk]; lia) (by rw [R.size_uset, p₁]; exact hU)
-      (by simpa using hV) hBpos hW hX
+      (by rw [w₁, hk]; lia) (by rw [w₁]; exact hU)
+      (by simpa using shlFit_spec b bo n hb _ hs hbS) hBpos hW hX
     rw [hk] at r₁ r₂
     exact ⟨r₁, r₂, r₃, r₄⟩
 

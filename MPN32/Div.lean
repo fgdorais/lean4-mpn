@@ -412,17 +412,39 @@ private theorem toNat_dcGenQ (c : Dispatch.DivConfig) (r : UInt32Array) (v : UIn
 /-- The shift that brings the top bit of `vt ≠ 0` to the top of the limb. -/
 @[expose] public def normShift (vt : UInt32) : Nat := (31 - vt.log2).toNat % 32
 
-/-- `2 ^ normShift vt`, the factor of the normalization. -/
-@[expose] public def normFactor (vt : UInt32) : UInt32 := (1 : UInt32) <<< (normShift vt).toUInt32
+/-- `x 2ˢ`, for `s < 32`, in `x.size + 1` limbs, by `main`'s `Schoolbook.shlTop`. -/
+public def shlNorm (x : UInt32Array.Slice) (s : Nat) : UInt32Array :=
+  if h : x.start + x.size + 1 < USize.size then
+    Schoolbook.shlTop x.array x.start.toUSize x.size.toUSize (window_bound x (by lia))
+      (by rw [toNat_toUSize (by lia)]; lia) s
+  else ofNat (toNat x * 2 ^ s)
 
-public theorem toNat_normFactor (vt : UInt32) : (normFactor vt).toNat = 2 ^ normShift vt :=
-  toNat_pow_limb _ (Nat.mod_lt _ (by decide))
+/-- `⌊r / 2ˢ⌋`, for `s < 32`, in `r.size` limbs, by `main`'s `Schoolbook.shrArr`. -/
+public def shrNorm (r : UInt32Array) (s : Nat) : UInt32Array :=
+  if r.size < USize.size then Schoolbook.shrArr r s else ofNat (toNat r / 2 ^ s)
 
-public theorem normFactor_ne_zero (vt : UInt32) : normFactor vt ≠ 0 := by
-  intro h
-  have := toNat_normFactor vt
-  rw [h, UInt32.toNat_zero] at this
-  exact absurd this.symm (Nat.ne_of_gt (Nat.two_pow_pos _))
+public theorem toNat_shlNorm (x : UInt32Array.Slice) (s : Nat) (hs : s < 32) :
+    toNat (shlNorm x s) = toNat x * 2 ^ s := by
+  by_cases h : x.start + x.size + 1 < USize.size
+  · rw [shlNorm, dite_eq_left h]
+    obtain ⟨h₁, h₂⟩ := Schoolbook.shlTop_spec (A := UInt32Array) x.array x.start.toUSize
+      x.size.toUSize (window_bound x (by lia)) (by rw [toNat_toUSize (by lia)]; lia) s hs
+    simp only [toNat_toUSize (show x.start < USize.size by lia),
+      toNat_toUSize (show x.size < USize.size by lia)] at h₁ h₂
+    rw [toNat_toSlice, Nat.sub_zero, toNat_eq_valAt]
+    exact (congrArg (fun k => LimbArray.valAt _ 0 k) h₁).trans h₂
+  · rw [shlNorm, dite_eq_right h]
+    exact toNat_ofNat _
+
+public theorem toNat_shrNorm (r : UInt32Array) (s : Nat) (hs : s < 32) :
+    toNat (shrNorm r s) = toNat r / 2 ^ s := by
+  by_cases h : r.size < USize.size
+  · rw [shrNorm, ite_eq_left h]
+    have := Schoolbook.shrArr_spec r s hs h
+    rw [toNat_toSlice, toNat_toSlice, Nat.sub_zero, Nat.sub_zero]
+    exact this.2
+  · rw [shrNorm, ite_eq_right h]
+    exact toNat_ofNat _
 
 /--
 The division of the normalized dividend, an array of its own: below `c.divDC` limbs in the
@@ -490,24 +512,22 @@ private theorem divRemNorm_spec (r : UInt32Array) (v : UInt32Array.Slice) (hn : 
 shifted back.
 -/
 def divModLimbsDC (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) : UInt32Array × UInt32Array :=
-  let vt := v[v.size - 1]'(by lia)
-  let f := normFactor vt
-  let vf := mulRow v f
+  let s := normShift (v[v.size - 1]'(by lia))
+  let vf := shlNorm v s
   let v' := vf.toSlice.slice 0 (topSize vf)
   if h : 2 ≤ v'.size then
-    let p := divRemNorm (mulRow u f) v' h
-    (p.1, shiftRight p.2 (normShift vt))
+    let p := divRemNorm (shlNorm u s) v' h
+    (p.1, shrNorm p.2 s)
   else
     divRemBasecase div32RecipU u v hn
 
 /-- The quotient of `divModLimbsDC`, without shifting the remainder back. -/
 def divLimbsQDC (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) : UInt32Array :=
-  let vt := v[v.size - 1]'(by lia)
-  let f := normFactor vt
-  let vf := mulRow v f
+  let s := normShift (v[v.size - 1]'(by lia))
+  let vf := shlNorm v s
   let v' := vf.toSlice.slice 0 (topSize vf)
   if h : 2 ≤ v'.size then
-    divQNormWith config.toDivConfig (mulRow u f) v' h
+    divQNormWith config.toDivConfig (shlNorm u s) v' h
   else
     (divRemBasecase div32RecipU u v hn).1
 
@@ -517,7 +537,7 @@ private theorem toNat_divLimbsQDC (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) 
   simp only [toNat_toSlice]
   split
   · rename_i h
-    have hpos : 0 < topSize (mulRow v (normFactor (v[v.size - 1]'(by lia)))) := by
+    have hpos : 0 < topSize (shlNorm v (normShift (v[v.size - 1]'(by lia)))) := by
       simp only [UInt32Array.Slice.size_slice] at h
       lia
     rw [← toNat_toSlice, ← toNat_toSlice]
@@ -543,34 +563,31 @@ private theorem divModLimbsDC_spec (u v : UInt32Array.Slice) (hn : 2 ≤ v.size)
         (Nat.one_le_two_pow (n := 32 * (v.size - 1)))
       lia
     lia
-  rw [toNat_toSlice, toNat_toSlice]
+  have hs : normShift (v[v.size - 1]'(by lia)) < 32 := Nat.mod_lt _ (by decide)
   simp only [divModLimbsDC]
   split
   · rename_i h
-    -- Normalized: `u f = q (v f) + r'` with `r' < v f`, and `r' = r f + rem` with `rem < f`.
-    have hF : 0 < (normFactor (v[v.size - 1]'(by lia))).toNat := by
-      rw [toNat_normFactor]; exact Nat.two_pow_pos _
-    simp only
-    rw [← toNat_toSlice (shiftRight _ _), toNat_shiftRight, ← toNat_normFactor]
-    generalize normFactor (v[v.size - 1]'(by lia)) = f at *
-    have hv' : toNat ((mulRow v f).toSlice.slice 0 (topSize (mulRow v f))) = toNat v * f.toNat := by
-      rw [toNat_slice_topSize, toNat_mulRow]
-    have hpos : 0 < topSize (mulRow v f) := by
+    -- Normalized: `u 2ˢ = q (v 2ˢ) + r'` with `r' < v 2ˢ`, and `r' = r 2ˢ`.
+    generalize normShift (v[v.size - 1]'(by lia)) = s at *
+    have hF : 0 < 2 ^ s := Nat.two_pow_pos _
+    have hv' : toNat ((shlNorm v s).toSlice.slice 0 (topSize (shlNorm v s))) = toNat v * 2 ^ s := by
+      rw [toNat_slice_topSize, toNat_shlNorm _ _ hs]
+    have hpos : 0 < topSize (shlNorm v s) := by
       simp only [UInt32Array.Slice.size_slice] at h
       lia
-    obtain ⟨h₁, h₂⟩ := divRemNorm_spec (mulRow u f) _ h (top_slice_topSize_ne_zero _ hpos)
-    rw [hv', toNat_mulRow] at h₁
+    obtain ⟨h₁, h₂⟩ := divRemNorm_spec (shlNorm u s) _ h (top_slice_topSize_ne_zero _ hpos)
+    rw [hv', toNat_shlNorm _ _ hs] at h₁
     rw [hv'] at h₂
-    simp only [toNat_toSlice] at h₁ h₂ ⊢
     obtain ⟨hq, hr⟩ := div_mod_eq (Nat.mul_pos hVpos hF) h₁ h₂
     rw [Nat.mul_div_mul_right _ _ hF] at hq
     rw [Nat.mul_mod_mul_right] at hr
-    -- The remainder is `(u % v) f`, and the shift divides it by `f`.
+    rw [dite_eq_left h]
     refine ⟨hq, ?_⟩
-    rw [hr, Nat.mul_div_cancel _ hF]
+    rw [toNat_shrNorm _ _ hs, hr, Nat.mul_div_cancel _ hF]
   · -- The fallback, without normalization.
+    rename_i h
+    rw [dite_eq_right h]
     obtain ⟨h₁, h₂⟩ := divRemBasecase_spec div32RecipU u v hn hvt
-    simp only [toNat_toSlice] at h₁ h₂
     obtain ⟨hq, hr⟩ := div_mod_eq hVpos h₁ h₂
     exact ⟨hq, hr⟩
 
