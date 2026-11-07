@@ -68,9 +68,10 @@ two widths moved into one package is in the history of `MPN32/TODO.md`.
   `MPN32.Basic`. They move to `valAt` when they are changed for another reason; then
   `MPN32.Limbs` and the list model go.
 - [ ] **What each width keeps**: its `Arch/` kernels, its `Nat` instance (`natLimbs32`,
-  `natLimbs64`) and gcd instance, and its decimal chunks. The normalization of a division is
-  shared since `c30bc5e` (`MPN.Div.Basecase`); each width keeps a few lines of glue for it, on its
-  own representation (`Num` arrays on 64-bit limbs, slices on 32-bit limbs).
+  `natLimbs64`) and gcd instance, and its decimal chunks. The division by several limbs,
+  normalization and dispatch included, is shared since `985e2ce` (`MPN.Div.Driver`); each width
+  keeps its divisions by one limb (and two on 32-bit limbs), its `NatOps` instance (on `Num` arrays
+  on 64-bit limbs, on slices on 32-bit limbs) and the glue to them.
 
 ## Tuning
 
