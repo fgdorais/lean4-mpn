@@ -208,9 +208,12 @@ is not zero. A dividend of fewer limbs than `v` is its own remainder; were the s
 -/
 public def divRemBasecase (t : USize) (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) :
     UInt32Array × UInt32Array :=
-  if h : v.size ≤ u.size ∧ u.start + u.size + 1 < USize.size ∧ v.start + v.size < USize.size then
+  if h : v.size ≤ u.size ∧ WordArray.fitsU (u.start + u.size + 1) ∧
+      WordArray.fitsU (v.start + v.size) then
+    have h₁ := WordArray.lt_of_fitsU h.2.1
+    have h₂ := WordArray.lt_of_fitsU h.2.2
     Schoolbook.divRemN t div2RowsU u.array u.start.toUSize u.size.toUSize v.array v.start.toUSize
-      v.size.toUSize (slice_bound u (by lia)) (slice_bound v h.2.2)
+      v.size.toUSize (slice_bound u (by lia)) (slice_bound v h₂)
       (by rw [toNat_toUSize' (by lia)]; exact hn)
       (by rw [toNat_toUSize' (by lia), toNat_toUSize' (by lia)]; exact h.1)
       (by rw [toNat_toUSize' (by lia)]; lia)
@@ -235,9 +238,12 @@ public theorem divRemBasecase_spec (t : USize) (u v : UInt32Array.Slice) (hn : 2
       toNat (divRemBasecase t u v hn).2 = toNat u % toNat v by
     rw [hqr.1, hqr.2, Nat.mul_comm]
     exact ⟨Nat.div_add_mod .., Nat.mod_lt _ hv₀⟩
-  by_cases h : v.size ≤ u.size ∧ u.start + u.size + 1 < USize.size ∧
-      v.start + v.size < USize.size
+  by_cases h : v.size ≤ u.size ∧ WordArray.fitsU (u.start + u.size + 1) ∧
+      WordArray.fitsU (v.start + v.size)
   · rw [divRemBasecase, dite_eq_left h]
+    replace h : v.size ≤ u.size ∧ u.start + u.size + 1 < USize.size ∧
+        v.start + v.size < USize.size :=
+      ⟨h.1, WordArray.lt_of_fitsU h.2.1, WordArray.lt_of_fitsU h.2.2⟩
     have hus := toNat_toUSize' (a := u.start) (by lia)
     have hum := toNat_toUSize' (a := u.size) (by lia)
     have hvs := toNat_toUSize' (a := v.start) (by lia)

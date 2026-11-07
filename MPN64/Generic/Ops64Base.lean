@@ -27,16 +27,10 @@ namespace MPN.W64
 
 /-! ## Sizes -/
 
-/-- Whether `n` is below `USize.size`, decided on constants that are machine words. -/
-@[inline] public def fits (n : Nat) : Bool :=
-  n < 2147483648 || (System.Platform.numBits == 64 && n < 4611686018427387904)
+/-- Whether `n` is below `USize.size`: `main`'s `WordArray.fitsU`. -/
+@[inline] public def fits (n : Nat) : Bool := WordArray.fitsU n
 
-public theorem lt_of_fits {n : Nat} (h : fits n = true) : n < USize.size := by
-  simp only [fits, Bool.or_eq_true, decide_eq_true_eq, Bool.and_eq_true, beq_iff_eq] at h
-  have := USize.size_eq
-  rcases h with h | ⟨h₁, h₂⟩
-  · rcases this with e | e <;> rw [e] <;> lia
-  · rw [USize.size, h₁]; lia
+public theorem lt_of_fits {n : Nat} (h : fits n = true) : n < USize.size := WordArray.lt_of_fitsU h
 
 /-! ## The fallback -/
 

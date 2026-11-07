@@ -414,19 +414,20 @@ private theorem toNat_dcGenQ (c : Dispatch.DivConfig) (r : UInt32Array) (v : UIn
 
 /-- `x 2ˢ`, for `s < 32`, in `x.size + 1` limbs, by `main`'s `Schoolbook.shlTop`. -/
 public def shlNorm (x : UInt32Array.Slice) (s : Nat) : UInt32Array :=
-  if h : x.start + x.size + 1 < USize.size then
-    Schoolbook.shlTop x.array x.start.toUSize x.size.toUSize (window_bound x (by lia))
-      (by rw [toNat_toUSize (by lia)]; lia) s
+  if h : WordArray.fitsU (x.start + x.size + 1) then
+    Schoolbook.shlTop x.array x.start.toUSize x.size.toUSize
+      (window_bound x (by have := WordArray.lt_of_fitsU h; lia))
+      (by have := WordArray.lt_of_fitsU h; rw [toNat_toUSize (by lia)]; lia) s
   else ofNat (toNat x * 2 ^ s)
 
 /-- `⌊r / 2ˢ⌋`, for `s < 32`, in `r.size` limbs, by `main`'s `Schoolbook.shrArr`. -/
-public def shrNorm (r : UInt32Array) (s : Nat) : UInt32Array :=
-  if r.size < USize.size then Schoolbook.shrArr r s else ofNat (toNat r / 2 ^ s)
+public def shrNorm (r : UInt32Array) (s : Nat) : UInt32Array := Schoolbook.shrArr r s
 
 public theorem toNat_shlNorm (x : UInt32Array.Slice) (s : Nat) (hs : s < 32) :
     toNat (shlNorm x s) = toNat x * 2 ^ s := by
-  by_cases h : x.start + x.size + 1 < USize.size
+  by_cases h : WordArray.fitsU (x.start + x.size + 1)
   · rw [shlNorm, dite_eq_left h]
+    have h' := WordArray.lt_of_fitsU h
     obtain ⟨h₁, h₂⟩ := Schoolbook.shlTop_spec (A := UInt32Array) x.array x.start.toUSize
       x.size.toUSize (window_bound x (by lia)) (by rw [toNat_toUSize (by lia)]; lia) s hs
     simp only [toNat_toUSize (show x.start < USize.size by lia),
@@ -438,13 +439,9 @@ public theorem toNat_shlNorm (x : UInt32Array.Slice) (s : Nat) (hs : s < 32) :
 
 public theorem toNat_shrNorm (r : UInt32Array) (s : Nat) (hs : s < 32) :
     toNat (shrNorm r s) = toNat r / 2 ^ s := by
-  by_cases h : r.size < USize.size
-  · rw [shrNorm, ite_eq_left h]
-    have := Schoolbook.shrArr_spec r s hs h
-    rw [toNat_toSlice, toNat_toSlice, Nat.sub_zero, Nat.sub_zero]
-    exact this.2
-  · rw [shrNorm, ite_eq_right h]
-    exact toNat_ofNat _
+  have := Schoolbook.shrArr_spec r s hs
+  rw [shrNorm, toNat_toSlice, toNat_toSlice, Nat.sub_zero, Nat.sub_zero]
+  exact this.2
 
 /--
 The division of the normalized dividend, an array of its own: below `c.divDC` limbs in the

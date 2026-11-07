@@ -500,6 +500,14 @@ section Bits
 
 variable [F : WordFolds A L]
 
+omit R F in
+/-- The limbs of an array that `USize` indices reach, as a loop bound. -/
+public theorem full_bound (a : A) (h : LA.size a < USize.size) :
+    LoopBound a 0 (LA.size a).toUSize := by
+  have e : (LA.size a).toUSize.toNat = LA.size a := by
+    rw [Nat.toUSize_eq, USize.toNat_ofNat_of_lt' h]
+  exact ⟨by rw [e]; simp, by rw [e]; simp; exact h⟩
+
 omit F in
 /-- New zero limbs, `n` of them, as a loop bound. -/
 public theorem zeros_bound' {n : Nat} (h : n < USize.size) : LoopBound (R.zeros n) 0 n.toUSize := by
@@ -513,7 +521,7 @@ the bitwise `op`, by `bitW` into at least `k` new limbs; from the values were th
 -/
 @[inline, expose] public def bitA (k : Nat) (f : L → L → L) (op : Nat → Nat → Nat) (a b : A) : A :=
   let n := max (max (LA.size a) (LA.size b)) k
-  if h : n < USize.size then trimTo k (bitW f a b (R.zeros n) n.toUSize (zeros_bound' h))
+  if h : fitsU n then trimTo k (bitW f a b (R.zeros n) n.toUSize (zeros_bound' (lt_of_fitsU h)))
   else trimTo k (ofNatW (R := R) (op (valAt a 0 (LA.size a)) (valAt b 0 (LA.size b))))
 
 public theorem isTrimmedTo_bitA (k : Nat) (f : L → L → L) (op : Nat → Nat → Nat) (a b : A) :
@@ -531,6 +539,7 @@ public theorem valAt_bitA (k : Nat) (f : L → L → L) (op : Nat → Nat → Na
   dsimp only
   split
   · rename_i h
+    replace h := lt_of_fitsU h
     have e : (max (max (LA.size a) (LA.size b)) k).toUSize.toNat =
         max (max (LA.size a) (LA.size b)) k := by
       rw [Nat.toUSize_eq, USize.toNat_ofNat_of_lt' h]
@@ -547,6 +556,7 @@ public theorem size_bitA_ge (k : Nat) (f : L → L → L) (op : Nat → Nat → 
   dsimp only
   split
   · rename_i h
+    replace h := lt_of_fitsU h
     have := (trimTo_spec k (bitW f a b (R.zeros (max (max (LA.size a) (LA.size b)) k))
       (max (max (LA.size a) (LA.size b)) k).toUSize (zeros_bound' h))).2.2.1
     rw [size_bitW, R.size_zeros] at this
@@ -628,14 +638,16 @@ public theorem extract_spec (w : A) (i k : Nat) (h : i + k ≤ LA.size w) :
 /-- `a 2ⁿ` for the `m` limbs of `a` from `ao`, untrimmed, in `n / w + m + 1` new limbs. -/
 @[inline, expose] public def shlBits (a : A) (ao m n : Nat) : A :=
   let q := n / LA.w
-  if h : ao + m ≤ LA.size a ∧ ao + m < USize.size ∧ q + m + 1 < USize.size then
+  if h : ao + m ≤ LA.size a ∧ fitsU (ao + m) ∧ fitsU (q + m + 1) then
+    have h₁ := lt_of_fitsU h.2.1
+    have h₂ := lt_of_fitsU h.2.2
     have hr : LoopBound (R.zeros (q + m + 1)) q.toUSize m.toUSize :=
       win_bound _ (by rw [R.size_zeros]; lia) (by lia)
     if n % LA.w = 0 then copyW (R.zeros (q + m + 1)) q.toUSize a ao.toUSize m.toUSize hr
-      (win_bound a h.1 h.2.1)
+      (win_bound a h.1 h₁)
     else
       let p := lshiftW (R.zeros (q + m + 1)) q.toUSize a ao.toUSize m.toUSize
-        (R.ofUSize (n % LA.w).toUSize) hr (win_bound a h.1 h.2.1)
+        (R.ofUSize (n % LA.w).toUSize) hr (win_bound a h.1 h₁)
       R.uset p.1 (q + m).toUSize p.2
         (by rw [size_lshiftW, R.size_zeros, toNat_toUSize_of_lt (by lia)]; lia)
   else ofNatLen (R := R) (valAt a ao m * 2 ^ n) (q + m + 1)
@@ -644,7 +656,8 @@ public theorem extract_spec (w : A) (i k : Nat) (h : i + k ≤ LA.size w) :
 @[inline, expose] public def shrBits (a : A) (ao m n : Nat) : A :=
   let q := n / LA.w
   if hq : q < m then
-    if h : ao + m ≤ LA.size a ∧ ao + m < USize.size then
+    if h : ao + m ≤ LA.size a ∧ fitsU (ao + m) then
+      have h₁ := lt_of_fitsU h.2
       if n % LA.w = 0 then R.extract a (ao + q) (ao + m)
       else
         (rshiftW (R.zeros (m - q)) 0 a (ao + q).toUSize (m - q).toUSize
@@ -683,6 +696,10 @@ public theorem valAt_shlBits (a : A) (ao m n : Nat) :
   dsimp only
   split
   · rename_i h
+    have h₁ := lt_of_fitsU h.2.1
+    have h₂ := lt_of_fitsU h.2.2
+    replace h : ao + m ≤ LA.size a ∧ ao + m < USize.size ∧ n / LA.w + m + 1 < USize.size :=
+      ⟨h.1, h₁, h₂⟩
     have hq := toNat_toUSize_of_lt (show n / LA.w < USize.size by lia)
     have hm := toNat_toUSize_of_lt (show m < USize.size by lia)
     have ho := toNat_toUSize_of_lt (show ao < USize.size by lia)
@@ -749,6 +766,7 @@ public theorem valAt_shrBits (a : A) (ao m n : Nat) :
     rw [hn, ← Nat.div_div_eq_div_mul, hsplit]
     split
     · rename_i h
+      replace h : ao + m ≤ LA.size a ∧ ao + m < USize.size := ⟨h.1, lt_of_fitsU h.2⟩
       split
       · rename_i hs
         rw [hs, Nat.pow_zero, Nat.div_one]
@@ -771,6 +789,24 @@ public theorem valAt_shrBits (a : A) (ao m n : Nat) :
       _ ≤ 2 ^ n := Nat.pow_le_pow_right (by decide) (by
           have := Nat.div_mul_le_self n LA.w; rw [Nat.mul_comm] at this
           exact Nat.le_trans (Nat.mul_le_mul_left _ (by lia : m ≤ n / LA.w)) this)
+
+/-! ## Base-two logarithm of arrays -/
+
+omit F in
+/-- `⌊log₂ a⌋` of an array, by `log2W` from the top limb; from the value were the size not a
+`USize`, which never happens. -/
+@[inline, expose] public def log2A (a : A) : Nat :=
+  if h : fitsU (LA.size a) then log2W a 0 (LA.size a).toUSize (full_bound a (lt_of_fitsU h))
+  else (valAt a 0 (LA.size a)).log2
+
+omit F in
+public theorem log2A_eq (a : A) : log2A a = (valAt a 0 (LA.size a)).log2 := by
+  unfold log2A
+  split
+  · rename_i h
+    replace h := lt_of_fitsU h
+    rw [log2W_eq, USize.toNat_zero, toNat_toUSize_of_lt h]
+  · rfl
 
 end Bits
 

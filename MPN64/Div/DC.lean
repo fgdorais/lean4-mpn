@@ -72,21 +72,20 @@ public theorem fitTo_spec (x : UInt64Array) (m : Nat) (hv : x.toNat < 2 ^ (64 * 
 By `main`'s `Schoolbook.shlArr`, `shlFitArr` and `shrArr`, here as values.
 -/
 
-public theorem shlArr_toNat (a : UInt64Array) (c : Nat) (hc : c < 64)
-    (hU : a.size + 1 < USize.size) :
+public theorem shlArr_toNat (a : UInt64Array) (c : Nat) (hc : c < 64) :
     (Schoolbook.shlArr a c).toNat = a.toNat * 2 ^ c ∧ (Schoolbook.shlArr a c).size = a.size + 1 :=
-  have h := Schoolbook.shlArr_spec a c hc hU
+  have h := Schoolbook.shlArr_spec a c hc
   ⟨by rw [toNat_eq_valAt, toNat_eq_valAt]; exact h.2, h.1⟩
 
 public theorem shlFitArr_toNat (b : UInt64Array) (n c : Nat) (hc : c < 64) (hn : n ≤ b.size)
-    (hU : b.size < USize.size) (hfit : b.toNat * 2 ^ c < 2 ^ (64 * n)) :
+    (hfit : b.toNat * 2 ^ c < 2 ^ (64 * n)) :
     (Schoolbook.shlFitArr b n c).toNat = b.toNat * 2 ^ c ∧ (Schoolbook.shlFitArr b n c).size = n :=
-  have h := Schoolbook.shlFitArr_spec b n c hc hn hU (by rw [toNat_eq_valAt] at hfit; exact hfit)
+  have h := Schoolbook.shlFitArr_spec b n c hc hn (by rw [toNat_eq_valAt] at hfit; exact hfit)
   ⟨by rw [toNat_eq_valAt, toNat_eq_valAt]; exact h.2, h.1⟩
 
-public theorem shrArr_toNat (r : UInt64Array) (c : Nat) (hc : c < 64) (hU : r.size < USize.size) :
+public theorem shrArr_toNat (r : UInt64Array) (c : Nat) (hc : c < 64) :
     (Schoolbook.shrArr r c).toNat = r.toNat / 2 ^ c ∧ (Schoolbook.shrArr r c).size = r.size :=
-  have h := Schoolbook.shrArr_spec r c hc hU
+  have h := Schoolbook.shrArr_spec r c hc
   ⟨by rw [toNat_eq_valAt, toNat_eq_valAt]; exact h.2, h.1⟩
 
 /-! ## Division -/
@@ -100,7 +99,7 @@ reciprocal), and the remainder is shifted back; otherwise `divModBase`.
 public def divMod (a b : UInt64Array) : UInt64Array × UInt64Array :=
   let L := MPN.W64.log2 b.toUSlice
   let nb := L / 64 + 1
-  if config.divDC ≤ nb ∧ nb ≤ a.size ∧ 8 * a.size + 48 < USize.size then
+  if config.divDC ≤ nb ∧ nb ≤ a.size ∧ fits (8 * a.size + 48) then
     let c := 63 - L % 64
     let r := Dispatch.divN ops64B config.toDivConfig divBase64 (Schoolbook.shlArr a c) (Schoolbook.shlFitArr b nb c) nb
       (a.size + 1 - nb)
@@ -112,8 +111,7 @@ The normalized operands of `divMod` and `div`: `b 2ᶜ` has `nb` limbs, and `a 2
 `b 2ᶜ βᵏ` for `k = a.size + 1 - nb`.
 -/
 private theorem normed (a b : UInt64Array) (hb : 0 < b.toNat)
-    (hU : a.size + b.size + 1 < USize.size)
-    (hna : _root_.Nat.log2 b.toNat / 64 + 1 ≤ a.size) (h : 8 * a.size + 48 < USize.size) :
+    (hna : _root_.Nat.log2 b.toNat / 64 + 1 ≤ a.size) :
     let L := _root_.Nat.log2 b.toNat
     let nb := L / 64 + 1
     let c := 63 - L % 64
@@ -139,9 +137,9 @@ private theorem normed (a b : UInt64Array) (hb : 0 < b.toNat)
           Nat.mul_lt_mul_of_pos_right hhi (Nat.two_pow_pos _)
       _ = 2 ^ (64 * nb) := by rw [← Nat.pow_add, ← hLc]; congr 1; lia
   have hVv : (Schoolbook.shlFitArr b nb c).toNat = b.toNat * 2 ^ c :=
-    (shlFitArr_toNat b nb c hc64 hnb (by lia) hVlt).1
+    (shlFitArr_toNat b nb c hc64 hnb hVlt).1
   -- The normalized dividend.
-  have hUv : (Schoolbook.shlArr a c).toNat = a.toNat * 2 ^ c := (shlArr_toNat a c hc64 (by lia)).1
+  have hUv : (Schoolbook.shlArr a c).toNat = a.toNat * 2 ^ c := (shlArr_toNat a c hc64).1
   refine ⟨hVv, hUv, hVlt, ?_, hc64, hnb⟩
   rw [hUv, hVv, Nat.mul_right_comm]
   apply Nat.mul_lt_mul_of_pos_right _ (Nat.two_pow_pos _)
@@ -163,7 +161,7 @@ private theorem divMod_dc (a b : UInt64Array) (hb : 0 < b.toNat)
   rw [hL]
   split
   · rename_i h
-    obtain ⟨hVv, hUv, hVlt, hUV, hc64, hnb⟩ := normed a b hb hU h.2.1 h.2.2
+    obtain ⟨hVv, hUv, hVlt, hUV, hc64, hnb⟩ := normed a b hb h.2.1
     have hB : b.toNat < 2 ^ (64 * b.size) := by rw [toNat_eq_valAt]; exact valAt_lt ..
     have hA : a.toNat < 2 ^ (64 * a.size) := by rw [toNat_eq_valAt]; exact valAt_lt ..
     generalize _root_.Nat.log2 b.toNat / 64 + 1 = nb at h hVv hUv hVlt hUV hnb ⊢
@@ -187,7 +185,7 @@ private theorem divMod_dc (a b : UInt64Array) (hb : 0 < b.toNat)
       Nat.lt_of_lt_of_le (Nat.mul_lt_mul_of_pos_right (Nat.mod_lt _ hb) (Nat.two_pow_pos _))
         (Nat.le_of_lt hVlt)
     obtain ⟨s₁, s₂⟩ := fitTo_spec r.2 nb (by rw [r₄]; exact hrm)
-    obtain ⟨u₁, u₂⟩ := shrArr_toNat (fitTo r.2 nb) c hc64 (by lia)
+    obtain ⟨u₁, u₂⟩ := shrArr_toNat (fitTo r.2 nb) c hc64
     rw [s₁, r₄, Nat.mul_div_cancel _ (Nat.two_pow_pos _)] at u₁
     exact ⟨by rw [q₁, r₃], u₁, q₂, by rw [u₂]; lia⟩
   · obtain ⟨d₁, d₂⟩ := toNat_divModBase a b hb hU
@@ -211,7 +209,7 @@ normalized `a` and `b` without the last remainder when the estimate decides (`Na
 public def div (a b : UInt64Array) : UInt64Array :=
   let L := MPN.W64.log2 b.toUSlice
   let nb := L / 64 + 1
-  if config.divDC ≤ nb ∧ nb ≤ a.size ∧ 8 * a.size + 48 < USize.size then
+  if config.divDC ≤ nb ∧ nb ≤ a.size ∧ fits (8 * a.size + 48) then
     let c := 63 - L % 64
     fitTo (Dispatch.divQN ops64B config.toDivConfig divBase64 (Schoolbook.shlArr a c) (Schoolbook.shlFitArr b nb c) nb
       (a.size + 1 - nb)) (a.size + 1)
@@ -226,7 +224,7 @@ public theorem toNat_div (a b : UInt64Array) (hb : 0 < b.toNat)
   rw [hL]
   split
   · rename_i h
-    obtain ⟨hVv, hUv, hVlt, hUV, -, -⟩ := normed a b hb hU h.2.1 h.2.2
+    obtain ⟨hVv, hUv, hVlt, hUV, -, -⟩ := normed a b hb h.2.1
     have hA : a.toNat < 2 ^ (64 * a.size) := by rw [toNat_eq_valAt]; exact valAt_lt ..
     generalize _root_.Nat.log2 b.toNat / 64 + 1 = nb at h hVv hUv hVlt hUV ⊢
     generalize 63 - _root_.Nat.log2 b.toNat % 64 = c at hVv hUv hVlt hUV ⊢

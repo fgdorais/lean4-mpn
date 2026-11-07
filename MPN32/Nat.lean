@@ -486,20 +486,11 @@ public def modW (a : UInt32Array) (b : UInt64) : UInt64 :=
   if a.size ≤ 4 ∧ 4294967296 ≤ b then (divRem128 a b).2.2 else (divRemWord a b).2
 
 /-- `⌊log₂ a⌋`, from the top limb. -/
-public def log2A (a : UInt32Array) : Nat :=
-  if h : a.size < 4294967295 then
-    WordArray.log2W a 0 a.size.toUSize (by
-      have e := toNat_toUSize (lt_usizeSize h)
-      exact ⟨by simp [e]; exact Nat.le_refl _, by simp [e]; exact lt_usizeSize h⟩)
-  else (MPN.W32.toNat a).log2
+public def log2A (a : UInt32Array) : Nat := WordArray.log2A a
 
 public theorem log2A_eq (a : UInt32Array) (_ha : isTrimmed a = true) (_hb : 2 ^ 64 ≤ MPN.W32.toNat a) :
     log2A a = (MPN.W32.toNat a).log2 := by
-  by_cases h : a.size < 4294967295
-  · simp only [log2A, h, ↓reduceDIte]
-    rw [WordArray.log2W_eq, toNat_array_eq_valAt, toNat_toUSize (lt_usizeSize h)]
-    rfl
-  · simp only [log2A, h, ↓reduceDIte]
+  rw [log2A, WordArray.log2A_eq, toNat_array_eq_valAt]; rfl
 
 end Nat
 

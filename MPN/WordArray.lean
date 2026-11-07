@@ -42,6 +42,20 @@ public theorem _root_.USize.toNat_add_one_of_lt {j n : USize} (h : j < n) :
 
 namespace WordArray
 
+/--
+Whether `n` is below `USize.size`, decided on constants that are machine words: a comparison with
+`USize.size` itself is one with a big number, a call into the runtime.
+-/
+@[inline] public def fitsU (n : Nat) : Bool :=
+  n < 2147483648 || (System.Platform.numBits == 64 && n < 4611686018427387904)
+
+public theorem lt_of_fitsU {n : Nat} (h : fitsU n = true) : n < USize.size := by
+  simp only [fitsU, Bool.or_eq_true, decide_eq_true_eq, Bool.and_eq_true, beq_iff_eq] at h
+  have := USize.size_eq
+  rcases h with h | ⟨h₁, h₂⟩
+  · rcases this with e | e <;> rw [e] <;> lia
+  · rw [USize.size, h₁]; lia
+
 variable {A L : Type} [LA : LimbArray A L]
 
 /--

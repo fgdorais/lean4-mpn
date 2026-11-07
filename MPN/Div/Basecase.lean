@@ -93,20 +93,22 @@ public theorem arr_bound (a : A) {n : Nat} (hn : n ≤ LA.size a) (hU : LA.size 
 
 /-- `shlTop` on a whole array: `a 2ˢ` in `size a + 1` limbs. -/
 @[inline, expose] public def shlArr (a : A) (s : Nat) : A :=
-  if h : LA.size a + 1 < USize.size then
-    shlTop a 0 (LA.size a).toUSize (arr_bound a (Nat.le_refl _) (by lia))
-      (by rw [toNat_toUSize_of_lt (by lia)]; exact h) s
-  else a
+  if h : fitsU (LA.size a + 1) then
+    shlTop a 0 (LA.size a).toUSize (arr_bound a (Nat.le_refl _) (by have := lt_of_fitsU h; lia))
+      (by rw [toNat_toUSize_of_lt (by have := lt_of_fitsU h; lia)]; exact lt_of_fitsU h) s
+  else ofNatLen (R := R) (LimbArray.valAt a 0 (LA.size a) * 2 ^ s) (LA.size a + 1)
 
 /-- `shlFit` on the first `n` limbs of an array: `b 2ˢ` in `n` limbs, when it fits. -/
 @[inline, expose] public def shlFitArr (b : A) (n s : Nat) : A :=
-  if h : n ≤ LA.size b ∧ LA.size b < USize.size then shlFit b 0 n.toUSize (arr_bound b h.1 h.2) s
-  else b
+  if h : n ≤ LA.size b ∧ fitsU (LA.size b) then
+    shlFit b 0 n.toUSize (arr_bound b h.1 (lt_of_fitsU h.2)) s
+  else ofNatLen (R := R) (LimbArray.valAt b 0 (LA.size b) * 2 ^ s) n
 
 /-- `shrNew` on a whole array: `⌊r / 2ˢ⌋` in `size r` limbs. -/
 @[inline, expose] public def shrArr (r : A) (s : Nat) : A :=
-  if h : LA.size r < USize.size then shrNew r 0 (LA.size r).toUSize (arr_bound r (Nat.le_refl _) h) s
-  else r
+  if h : fitsU (LA.size r) then
+    shrNew r 0 (LA.size r).toUSize (arr_bound r (Nat.le_refl _) (lt_of_fitsU h)) s
+  else ofNatLen (R := R) (LimbArray.valAt r 0 (LA.size r) / 2 ^ s) (LA.size r)
 
 variable (A) in
 /--
@@ -240,45 +242,63 @@ public theorem shrNew_spec (r : A) (ro n : USize) (hr : LoopBound r ro n) (s : N
     rw [← r₃, Nat.mul_add_div (Nat.two_pow_pos _), Nat.div_eq_of_lt r₄, Nat.add_zero]
 
 /-- `shlArr` holds `a 2ˢ` in `size a + 1` limbs. -/
-public theorem shlArr_spec (a : A) (s : Nat) (hs : s < LA.w) (hU : LA.size a + 1 < USize.size) :
+public theorem shlArr_spec (a : A) (s : Nat) (hs : s < LA.w) :
     LA.size (shlArr a s) = LA.size a + 1 ∧
       LimbArray.valAt (shlArr a s) 0 (LA.size (shlArr a s)) =
         LimbArray.valAt a 0 (LA.size a) * 2 ^ s := by
-  rw [shlArr, dite_eq_left hU]
-  obtain ⟨h₁, h₂⟩ := shlTop_spec a 0 (LA.size a).toUSize (arr_bound a (Nat.le_refl _) (by lia))
-    (by rw [toNat_toUSize_of_lt (by lia)]; exact hU) s hs
-  simp only [toNat_toUSize_of_lt (show LA.size a < USize.size by lia), USize.toNat_zero] at h₁ h₂
-  exact ⟨h₁, by rw [h₁]; exact h₂⟩
+  by_cases h : fitsU (LA.size a + 1)
+  · rw [shlArr, dite_eq_left h]
+    have hU := lt_of_fitsU h
+    obtain ⟨h₁, h₂⟩ := shlTop_spec a 0 (LA.size a).toUSize (arr_bound a (Nat.le_refl _) (by lia))
+      (by rw [toNat_toUSize_of_lt (by lia)]; exact hU) s hs
+    simp only [toNat_toUSize_of_lt (show LA.size a < USize.size by lia), USize.toNat_zero] at h₁ h₂
+    exact ⟨h₁, by rw [h₁]; exact h₂⟩
+  · rw [shlArr, dite_eq_right h, size_ofNatLen, valAt_ofNatLen, Nat.mod_eq_of_lt]
+    · exact ⟨rfl, rfl⟩
+    · calc LimbArray.valAt a 0 (LA.size a) * 2 ^ s
+          < 2 ^ (LA.w * LA.size a) * 2 ^ LA.w :=
+            Nat.mul_lt_mul_of_lt_of_le (LimbArray.valAt_lt ..)
+              (Nat.pow_le_pow_right (by decide) (by lia)) (Nat.two_pow_pos _)
+        _ = 2 ^ (LA.w * (LA.size a + 1)) := by rw [← Nat.pow_add, Nat.mul_succ]
 
 /-- `shlFitArr` holds `b 2ˢ` in `n` limbs when it is below `βⁿ`. -/
 public theorem shlFitArr_spec (b : A) (n s : Nat) (hs : s < LA.w) (hn : n ≤ LA.size b)
-    (hU : LA.size b < USize.size)
     (hfit : LimbArray.valAt b 0 (LA.size b) * 2 ^ s < 2 ^ (LA.w * n)) :
     LA.size (shlFitArr b n s) = n ∧
       LimbArray.valAt (shlFitArr b n s) 0 (LA.size (shlFitArr b n s)) =
         LimbArray.valAt b 0 (LA.size b) * 2 ^ s := by
-  rw [shlFitArr, dite_eq_left ⟨hn, hU⟩]
-  have hn' := toNat_toUSize_of_lt (show n < USize.size by lia)
-  have hB : LimbArray.valAt b 0 (LA.size b) < 2 ^ (LA.w * n) :=
-    Nat.lt_of_le_of_lt (Nat.le_mul_of_pos_right _ (Nat.two_pow_pos _)) hfit
-  have hv : LimbArray.valAt b 0 n = LimbArray.valAt b 0 (LA.size b) := by
-    rw [LimbArray.valAt_mod _ _ hn, Nat.mod_eq_of_lt hB]
-  have h₁ := size_shlFit b 0 n.toUSize (arr_bound b hn hU) s
-  have h₂ := shlFit_spec b 0 n.toUSize (arr_bound b hn hU) s hs
-    (by rw [USize.toNat_zero, hn', hv]; exact hfit)
-  rw [hn'] at h₁
-  rw [USize.toNat_zero, hn', hv] at h₂
-  exact ⟨h₁, by rw [h₁]; exact h₂⟩
+  by_cases h : fitsU (LA.size b)
+  · rw [shlFitArr, dite_eq_left ⟨hn, h⟩]
+    have hU := lt_of_fitsU h
+    have hn' := toNat_toUSize_of_lt (show n < USize.size by lia)
+    have hB : LimbArray.valAt b 0 (LA.size b) < 2 ^ (LA.w * n) :=
+      Nat.lt_of_le_of_lt (Nat.le_mul_of_pos_right _ (Nat.two_pow_pos _)) hfit
+    have hv : LimbArray.valAt b 0 n = LimbArray.valAt b 0 (LA.size b) := by
+      rw [LimbArray.valAt_mod _ _ hn, Nat.mod_eq_of_lt hB]
+    have h₁ := size_shlFit b 0 n.toUSize (arr_bound b hn hU) s
+    have h₂ := shlFit_spec b 0 n.toUSize (arr_bound b hn hU) s hs
+      (by rw [USize.toNat_zero, hn', hv]; exact hfit)
+    rw [hn'] at h₁
+    rw [USize.toNat_zero, hn', hv] at h₂
+    exact ⟨h₁, by rw [h₁]; exact h₂⟩
+  · rw [shlFitArr, dite_eq_right (fun h' => h h'.2), size_ofNatLen, valAt_ofNatLen,
+      Nat.mod_eq_of_lt hfit]
+    exact ⟨rfl, rfl⟩
 
 /-- `shrArr` holds `⌊r / 2ˢ⌋` in `size r` limbs. -/
-public theorem shrArr_spec (r : A) (s : Nat) (hs : s < LA.w) (hU : LA.size r < USize.size) :
+public theorem shrArr_spec (r : A) (s : Nat) (hs : s < LA.w) :
     LA.size (shrArr r s) = LA.size r ∧
       LimbArray.valAt (shrArr r s) 0 (LA.size (shrArr r s)) =
         LimbArray.valAt r 0 (LA.size r) / 2 ^ s := by
-  rw [shrArr, dite_eq_left hU]
-  obtain ⟨h₁, h₂⟩ := shrNew_spec r 0 (LA.size r).toUSize (arr_bound r (Nat.le_refl _) hU) s hs
-  simp only [toNat_toUSize_of_lt hU, USize.toNat_zero] at h₁ h₂
-  exact ⟨h₁, by rw [h₁]; exact h₂⟩
+  by_cases h : fitsU (LA.size r)
+  · rw [shrArr, dite_eq_left h]
+    have hU := lt_of_fitsU h
+    obtain ⟨h₁, h₂⟩ := shrNew_spec r 0 (LA.size r).toUSize (arr_bound r (Nat.le_refl _) hU) s hs
+    simp only [toNat_toUSize_of_lt hU, USize.toNat_zero] at h₁ h₂
+    exact ⟨h₁, by rw [h₁]; exact h₂⟩
+  · rw [shrArr, dite_eq_right h, size_ofNatLen, valAt_ofNatLen,
+      Nat.mod_eq_of_lt (Nat.lt_of_le_of_lt (Nat.div_le_self _ _) (LimbArray.valAt_lt ..))]
+    exact ⟨rfl, rfl⟩
 
 /-- `resultsN` takes the quotient and the remainder of the division in `w`. -/
 public theorem resultsN_spec (w : A) (n k : USize) (s : Nat) (hs : s < LA.w)

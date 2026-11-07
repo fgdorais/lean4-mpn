@@ -322,22 +322,11 @@ public theorem toNat_shr (a : UInt64Array) (n : Nat) : (shr a n).toNat = a.toNat
   · rename_i h; rw [toNat_norm, Num.toNat_shr _ _ (lt_of_fits h)]
   · rw [toNat_norm, toNat_ofNat]
 
-/-- `⌊log₂ a⌋`. -/
-public def log2 (a : UInt64Array) : Nat :=
-  if h : fits a.size then
-    WordArray.log2W a 0 a.size.toUSize (by
-      have e : a.size.toUSize.toNat = a.size := by
-        rw [USize.toNat_ofNat', Nat.mod_eq_of_lt (lt_of_fits h)]
-      exact ⟨by simp [e]; exact Nat.le_refl _, by simp [e]; exact lt_of_fits h⟩)
-  else a.toNat.log2
+/-- `⌊log₂ a⌋`, by `main`'s `WordArray.log2A`. -/
+public def log2 (a : UInt64Array) : Nat := WordArray.log2A a
 
 public theorem log2_eq' (a : UInt64Array) : log2 a = a.toNat.log2 := by
-  unfold log2
-  split
-  · rename_i h
-    rw [WordArray.log2W_eq, toNat_eq_valAt, USize.toNat_ofNat', Nat.mod_eq_of_lt (lt_of_fits h)]
-    rfl
-  · rfl
+  rw [log2, WordArray.log2A_eq, toNat_eq_valAt]; rfl
 
 /-- The limbs of a string of decimal digits, `[0]` for one that `String.isNat` rejects. -/
 public def ofDecimal (s : String) : UInt64Array := norm ((Num.ofDecimal? s).getD zero)
