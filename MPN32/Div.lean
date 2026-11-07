@@ -14,6 +14,7 @@ public import MPN.Generic.DC
 public import MPN32.Arch.DivTwo
 public import MPN32.Bits
 public import MPN.Generic.Barrett
+public import MPN.Div.Driver
 
 /-!
 # Division
@@ -331,310 +332,86 @@ public theorem toNat_join32 (k : Nat) (x y : UInt32Array.Slice) :
 
 @[simp] public theorem ops32B_B : ops32B.B = 2 ^ 32 := rfl
 
-/--
-`(r / v, r % v)` by `main`'s division of a normalized divisor on `ops32B` (`Dispatch.divN`), with
-`divBase32` below `c.divDC` limbs, as arrays.
--/
-public def dcGen (c : Dispatch.DivConfig) (r : UInt32Array) (v : UInt32Array.Slice) :
-    UInt32Array × UInt32Array :=
-  let p := Dispatch.divN ops32B c divBase32 r.toSlice v v.size (r.size + 1 - v.size)
-  (p.1.copy, p.2.copy)
-
-/-- `r / v` as in `dcGen`, without the remainder (`Dispatch.divQN`). -/
-public def dcGenQ (c : Dispatch.DivConfig) (r : UInt32Array) (v : UInt32Array.Slice) :
-    UInt32Array :=
-  (Dispatch.divQN ops32B c divBase32 r.toSlice v v.size (r.size + 1 - v.size)).copy
-
-/-- The bounds of `Dispatch.divN` on a divisor whose top limb is not zero. -/
-private theorem dc_bounds (r : UInt32Array) (v : UInt32Array.Slice) (hn : 2 ≤ v.size)
-    (hvt : v[v.size - 1]'(by lia) ≠ 0) :
-    0 < toNat v ∧ toNat r.toSlice < toNat v * (2 ^ 32) ^ (r.size + 1 - v.size) := by
-  -- `v ≥ β^(v.size - 1)`, so `r < v β^(r.size + 1 - v.size)`.
-  have htop : 2 ^ (32 * (v.size - 1)) ≤ toNat v := by
-    have h := toNat_slice_add_toNat_slice v (v.size - 1) (by lia)
-    have e : toNat (v.slice (v.size - 1) v.size) = (v[v.size - 1]'(by lia)).toNat := by
-      rw [toNat_of_size_eq_one (by simp; lia)]
-      simp
-    have : 1 ≤ (v[v.size - 1]'(by lia)).toNat := by
-      rcases Nat.eq_zero_or_pos (v[v.size - 1]'(by lia)).toNat with h' | h'
-      · exact absurd (UInt32.toNat_inj.1 (by simpa using h')) hvt
-      · exact h'
-    have := Nat.mul_le_mul_left (2 ^ (32 * (v.size - 1))) this
-    rw [e] at h
-    lia
-  have hr : toNat r.toSlice < 2 ^ (32 * r.size) := by
-    have := toNat_lt r.toSlice; simpa using this
-  refine ⟨Nat.lt_of_lt_of_le (Nat.two_pow_pos _) htop, ?_⟩
-  rw [← Nat.pow_mul]
-  calc toNat r.toSlice < 2 ^ (32 * r.size) := hr
-    _ ≤ 2 ^ (32 * (v.size - 1)) * 2 ^ (32 * (r.size + 1 - v.size)) := by
-        rw [← Nat.pow_add]; exact Nat.pow_le_pow_right (by decide) (by lia)
-    _ ≤ toNat v * 2 ^ (32 * (r.size + 1 - v.size)) := Nat.mul_le_mul_right _ htop
+/-! ## Division of several limbs -/
 
 private theorem hbase32 : ∀ U V, 0 < ops32B.val V →
     ops32B.val (divBase32 U V).1 = ops32B.val U / ops32B.val V ∧
       ops32B.val (divBase32 U V).2 = ops32B.val U % ops32B.val V :=
   fun U V h => val_divBase32 U V (by simp only [ops32B_val] at h; lia)
 
-private theorem dcGen_spec (c : Dispatch.DivConfig) (r : UInt32Array) (v : UInt32Array.Slice)
-    (hn : 2 ≤ v.size) (hvt : v[v.size - 1]'(by lia) ≠ 0) :
-    toNat (dcGen c r v).1 * toNat v + toNat (dcGen c r v).2 = toNat r ∧
-      toNat (dcGen c r v).2 < toNat v := by
-  obtain ⟨hV, hrv⟩ := dc_bounds r v hn hvt
-  obtain ⟨h₁, h₂⟩ := Dispatch.divN_spec c hbase32 (U := r.toSlice) (V := v)
-    (n := v.size) (k := r.size + 1 - v.size)
-    (by simp only [ops32B_val]; exact hV)
-    (by simp only [ops32B_val, ops32B_B]; rw [← Nat.pow_mul]; exact toNat_lt v)
-    (by simp only [ops32B_val, ops32B_B]; exact hrv)
-  simp only [ops32B_val] at h₁ h₂
-  simp only [dcGen, toNat_copy]
-  rw [h₁, h₂]
-  refine ⟨?_, Nat.mod_lt _ hV⟩
-  have := Nat.div_add_mod (toNat r.toSlice) (toNat v)
-  rw [Nat.mul_comm] at this
-  exact this
-
-private theorem toNat_dcGenQ (c : Dispatch.DivConfig) (r : UInt32Array) (v : UInt32Array.Slice)
-    (hn : 2 ≤ v.size) (hvt : v[v.size - 1]'(by lia) ≠ 0) :
-    toNat (dcGenQ c r v) = toNat r / toNat v := by
-  obtain ⟨hV, hrv⟩ := dc_bounds r v hn hvt
-  have h := Dispatch.divQN_spec c hbase32 (U := r.toSlice) (V := v)
-    (n := v.size) (k := r.size + 1 - v.size)
-    (by simp only [ops32B_val]; exact hV)
-    (by simp only [ops32B_val, ops32B_B]; rw [← Nat.pow_mul]; exact toNat_lt v)
-    (by simp only [ops32B_val, ops32B_B]; exact hrv)
-  simp only [ops32B_val] at h
-  simp only [dcGenQ, toNat_copy]
-  rw [h, toNat_toSlice]
-
-/-! ## Normalized division -/
-
-/-- The shift that brings the top bit of `vt ≠ 0` to the top of the limb. -/
-@[expose] public def normShift (vt : UInt32) : Nat := (31 - vt.log2).toNat % 32
-
-/-- `x 2ˢ`, for `s < 32`, in `x.size + 1` limbs, by `main`'s `Schoolbook.shlTop`. -/
-public def shlNorm (x : UInt32Array.Slice) (s : Nat) : UInt32Array :=
-  if h : WordArray.fitsU (x.start + x.size + 1) then
-    Schoolbook.shlTop x.array x.start.toUSize x.size.toUSize
-      (window_bound x (by have := WordArray.lt_of_fitsU h; lia))
-      (by have := WordArray.lt_of_fitsU h; rw [toNat_toUSize (by lia)]; lia) s
-  else ofNat (toNat x * 2 ^ s)
-
-/-- `⌊r / 2ˢ⌋`, for `s < 32`, in `r.size` limbs, by `main`'s `Schoolbook.shrArr`. -/
-public def shrNorm (r : UInt32Array) (s : Nat) : UInt32Array := Schoolbook.shrArr r s
-
-public theorem toNat_shlNorm (x : UInt32Array.Slice) (s : Nat) (hs : s < 32) :
-    toNat (shlNorm x s) = toNat x * 2 ^ s := by
-  by_cases h : WordArray.fitsU (x.start + x.size + 1)
-  · rw [shlNorm, dite_eq_left h]
-    have h' := WordArray.lt_of_fitsU h
-    obtain ⟨h₁, h₂⟩ := Schoolbook.shlTop_spec (A := UInt32Array) x.array x.start.toUSize
-      x.size.toUSize (window_bound x (by lia)) (by rw [toNat_toUSize (by lia)]; lia) s hs
-    simp only [toNat_toUSize (show x.start < USize.size by lia),
-      toNat_toUSize (show x.size < USize.size by lia)] at h₁ h₂
-    rw [toNat_toSlice, Nat.sub_zero, toNat_eq_valAt]
-    exact (congrArg (fun k => LimbArray.valAt _ 0 k) h₁).trans h₂
-  · rw [shlNorm, dite_eq_right h]
-    exact toNat_ofNat _
-
-public theorem toNat_shrNorm (r : UInt32Array) (s : Nat) (hs : s < 32) :
-    toNat (shrNorm r s) = toNat r / 2 ^ s := by
-  have := Schoolbook.shrArr_spec r s hs
-  rw [shrNorm, toNat_toSlice, toNat_toSlice, Nat.sub_zero, Nat.sub_zero]
-  exact this.2
+/-- `main`'s `Div.divRemG` on `ops32B`: slices of the arrays, and copies back. -/
+private theorem driverOK :
+    MPN.Div.DriverOK ops32B divBase32 (fun a : UInt32Array => a.toSlice) UInt32Array.Slice.copy where
+  B_eq := rfl
+  val_toα x := by rw [ops32B_val, toNat_array_eq_valAt]; rfl
+  val_ofα x := by rw [ops32B_val, ← toNat_copy x, toNat_array_eq_valAt]; rfl
+  base_ok := hbase32
 
 /--
-The division of the normalized dividend, an array of its own: below `c.divDC` limbs in the
-divisor by `divRemBasecase`, and from `c.divDC` on by `main`'s division by blocks or by a
-reciprocal (`dcGen`).
+`u / v` and `u % v` for a divisor of at least two limbs with a nonzero top limb, untrimmed, by
+`main`'s `Div.divRemG` with the thresholds of `c`: Algorithm D below `c.divDC` limbs in the
+divisor, and from there the normalized operands divided by blocks or by Barrett's method on
+`ops32B`.
 -/
-public def divRemNormWith (c : Dispatch.DivConfig) (r : UInt32Array) (v : UInt32Array.Slice)
-    (hn : 2 ≤ v.size) : UInt32Array × UInt32Array :=
-  if v.size < c.divDC then divRemBasecase div32RecipU r.toSlice v hn else dcGen c r v
-
-/-- The quotient of `divRemNormWith`, from `c.divDC` limbs without the remainder (`dcGenQ`). -/
-public def divQNormWith (c : Dispatch.DivConfig) (r : UInt32Array) (v : UInt32Array.Slice)
-    (hn : 2 ≤ v.size) : UInt32Array :=
-  if v.size < c.divDC then (divRemBasecase div32RecipU r.toSlice v hn).1 else dcGenQ c r v
-
-public theorem divRemNormWith_spec (c : Dispatch.DivConfig) (r : UInt32Array)
-    (v : UInt32Array.Slice) (hn : 2 ≤ v.size) (hvt : v[v.size - 1]'(by lia) ≠ 0) :
-    toNat (divRemNormWith c r v hn).1 * toNat v + toNat (divRemNormWith c r v hn).2 = toNat r ∧
-      toNat (divRemNormWith c r v hn).2 < toNat v := by
-  by_cases h : v.size < c.divDC
-  · have e : divRemNormWith c r v hn = divRemBasecase div32RecipU r.toSlice v hn := by
-      unfold divRemNormWith
-      rw [ite_eq_left h]
-    rw [e]
-    exact divRemBasecase_spec div32RecipU r.toSlice v hn hvt
-  · have e : divRemNormWith c r v hn = dcGen c r v := by
-      unfold divRemNormWith
-      rw [ite_eq_right h]
-    rw [e]
-    exact dcGen_spec c r v hn hvt
-
-/-- `divQNormWith` has the quotient of `divRemNormWith`. -/
-private theorem toNat_divQNormWith (c : Dispatch.DivConfig) (r : UInt32Array)
-    (v : UInt32Array.Slice) (hn : 2 ≤ v.size) (hvt : v[v.size - 1]'(by lia) ≠ 0) :
-    toNat (divQNormWith c r v hn) = toNat (divRemNormWith c r v hn).1 := by
-  obtain ⟨hV, -⟩ := dc_bounds r v hn hvt
-  obtain ⟨h₁, h₂⟩ := divRemNormWith_spec c r v hn hvt
-  by_cases h : v.size < c.divDC
-  · have e : divQNormWith c r v hn = (divRemBasecase div32RecipU r.toSlice v hn).1 := by
-      unfold divQNormWith
-      rw [ite_eq_left h]
-    have e' : divRemNormWith c r v hn = divRemBasecase div32RecipU r.toSlice v hn := by
-      unfold divRemNormWith
-      rw [ite_eq_left h]
-    rw [e, e']
-  · have e : divQNormWith c r v hn = dcGenQ c r v := by
-      unfold divQNormWith
-      rw [ite_eq_right h]
-    rw [e, toNat_dcGenQ c r v hn hvt, (div_mod_eq hV h₁ h₂).1]
-
-/-- `divRemNormWith` with the thresholds of `config`. -/
-def divRemNorm (r : UInt32Array) (v : UInt32Array.Slice) (hn : 2 ≤ v.size) :
+public def divModLimbsWith (c : Dispatch.DivConfig) (u v : UInt32Array.Slice) :
     UInt32Array × UInt32Array :=
-  divRemNormWith config.toDivConfig r v hn
+  MPN.Div.divRemG ops32B divBase32 (fun a : UInt32Array => a.toSlice) UInt32Array.Slice.copy c
+    div32RecipU div2RowsU u.array u.start u.size v.array v.start v.size
 
-private theorem divRemNorm_spec (r : UInt32Array) (v : UInt32Array.Slice) (hn : 2 ≤ v.size)
+/-- The quotient of `divModLimbsWith`, without the last remainder (`main`'s `Div.divQG`). -/
+public def divQLimbsWith (c : Dispatch.DivConfig) (u v : UInt32Array.Slice) : UInt32Array :=
+  MPN.Div.divQG ops32B divBase32 (fun a : UInt32Array => a.toSlice) UInt32Array.Slice.copy c
+    div32RecipU div2RowsU u.array u.start u.size v.array v.start v.size
+
+/-- The top limb of a slice, as a limb of its array. -/
+private theorem top_get (v : UInt32Array.Slice) (hn : 2 ≤ v.size)
     (hvt : v[v.size - 1]'(by lia) ≠ 0) :
-    toNat (divRemNorm r v hn).1 * toNat v + toNat (divRemNorm r v hn).2 = toNat r ∧
-      toNat (divRemNorm r v hn).2 < toNat v :=
-  divRemNormWith_spec config.toDivConfig r v hn hvt
+    LimbArray.val UInt32Array (LimbArray.get v.array (v.start + v.size - 1)) ≠ 0 := by
+  intro e
+  apply hvt
+  rw [UInt32Array.Slice.getElem_eq_getElem!,
+    show v.start + (v.size - 1) = v.start + v.size - 1 by lia]
+  exact UInt32.toNat_inj.1 e
 
-/--
-`u / v` and `u % v` for a divisor of at least two limbs with a nonzero top limb, untrimmed, from
-`config.divDC` limbs: `u` and `v` are normalized, divided with `divRemNorm`, and the remainder
-shifted back.
--/
-def divModLimbsDC (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) : UInt32Array × UInt32Array :=
-  let s := normShift (v[v.size - 1]'(by lia))
-  let vf := shlNorm v s
-  let v' := vf.toSlice.slice 0 (topSize vf)
-  if h : 2 ≤ v'.size then
-    let p := divRemNorm (shlNorm u s) v' h
-    (p.1, shrNorm p.2 s)
-  else
-    divRemBasecase div32RecipU u v hn
+public theorem divModLimbsWith_spec (c : Dispatch.DivConfig) (u v : UInt32Array.Slice)
+    (hn : 2 ≤ v.size) (hvt : v[v.size - 1]'(by lia) ≠ 0) :
+    toNat (divModLimbsWith c u v).1 = toNat u / toNat v ∧
+      toNat (divModLimbsWith c u v).2 = toNat u % toNat v := by
+  have h := MPN.Div.divRemG_spec driverOK c div32RecipU div2RowsU u.array u.start u.size v.array
+    v.start v.size hn (top_get v hn hvt)
+  rw [toNat_array_eq_valAt, toNat_array_eq_valAt]
+  exact h
 
-/-- The quotient of `divModLimbsDC`, without shifting the remainder back. -/
-def divLimbsQDC (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) : UInt32Array :=
-  let s := normShift (v[v.size - 1]'(by lia))
-  let vf := shlNorm v s
-  let v' := vf.toSlice.slice 0 (topSize vf)
-  if h : 2 ≤ v'.size then
-    divQNormWith config.toDivConfig (shlNorm u s) v' h
-  else
-    (divRemBasecase div32RecipU u v hn).1
+public theorem toNat_divQLimbsWith (c : Dispatch.DivConfig) (u v : UInt32Array.Slice)
+    (hn : 2 ≤ v.size) (hvt : v[v.size - 1]'(by lia) ≠ 0) :
+    toNat (divQLimbsWith c u v) = toNat u / toNat v := by
+  have h := MPN.Div.divQG_spec driverOK c div32RecipU div2RowsU u.array u.start u.size v.array
+    v.start v.size hn (top_get v hn hvt)
+  rw [toNat_array_eq_valAt]
+  exact h
 
-private theorem toNat_divLimbsQDC (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) :
-    toNat (divLimbsQDC u v hn) = toNat (divModLimbsDC u v hn).1 := by
-  unfold divLimbsQDC divModLimbsDC
-  simp only [toNat_toSlice]
-  split
-  · rename_i h
-    have hpos : 0 < topSize (shlNorm v (normShift (v[v.size - 1]'(by lia)))) := by
-      simp only [UInt32Array.Slice.size_slice] at h
-      lia
-    rw [← toNat_toSlice, ← toNat_toSlice]
-    exact toNat_divQNormWith _ _ _ h (top_slice_topSize_ne_zero _ hpos)
-  · rfl
+/-- `divModLimbsWith` with the thresholds of `config`. -/
+def divModLimbs (u v : UInt32Array.Slice) : UInt32Array × UInt32Array :=
+  divModLimbsWith config.toDivConfig u v
 
-private theorem divModLimbsDC_spec (u v : UInt32Array.Slice) (hn : 2 ≤ v.size)
-    (hvt : v[v.size - 1]'(by lia) ≠ 0) :
-    toNat (divModLimbsDC u v hn).1 = toNat u / toNat v ∧
-      toNat (divModLimbsDC u v hn).2 = toNat u % toNat v := by
-  have hvt' : 0 < (v[v.size - 1]'(by lia)).toNat := by
-    rcases Nat.eq_zero_or_pos (v[v.size - 1]'(by lia)).toNat with h | h
-    · exact absurd (UInt32.toNat_inj.1 (by simpa using h)) hvt
-    · exact h
-  have hVpos : 0 < toNat v := by
-    have := toNat_lt_topSize v
-    have htop : (v[v.size - 1]'(by lia)).toNat ≤ toNat v := by
-      have h := toNat_slice_add_toNat_slice v (v.size - 1) (by lia)
-      have : toNat (v.slice (v.size - 1) v.size) = (v[v.size - 1]'(by lia)).toNat := by
-        rw [toNat_of_size_eq_one (by simp; lia)]
-        simp
-      have := Nat.mul_le_mul_right (toNat (v.slice (v.size - 1) v.size))
-        (Nat.one_le_two_pow (n := 32 * (v.size - 1)))
-      lia
-    lia
-  have hs : normShift (v[v.size - 1]'(by lia)) < 32 := Nat.mod_lt _ (by decide)
-  simp only [divModLimbsDC]
-  split
-  · rename_i h
-    -- Normalized: `u 2ˢ = q (v 2ˢ) + r'` with `r' < v 2ˢ`, and `r' = r 2ˢ`.
-    generalize normShift (v[v.size - 1]'(by lia)) = s at *
-    have hF : 0 < 2 ^ s := Nat.two_pow_pos _
-    have hv' : toNat ((shlNorm v s).toSlice.slice 0 (topSize (shlNorm v s))) = toNat v * 2 ^ s := by
-      rw [toNat_slice_topSize, toNat_shlNorm _ _ hs]
-    have hpos : 0 < topSize (shlNorm v s) := by
-      simp only [UInt32Array.Slice.size_slice] at h
-      lia
-    obtain ⟨h₁, h₂⟩ := divRemNorm_spec (shlNorm u s) _ h (top_slice_topSize_ne_zero _ hpos)
-    rw [hv', toNat_shlNorm _ _ hs] at h₁
-    rw [hv'] at h₂
-    obtain ⟨hq, hr⟩ := div_mod_eq (Nat.mul_pos hVpos hF) h₁ h₂
-    rw [Nat.mul_div_mul_right _ _ hF] at hq
-    rw [Nat.mul_mod_mul_right] at hr
-    rw [dite_eq_left h]
-    refine ⟨hq, ?_⟩
-    rw [toNat_shrNorm _ _ hs, hr, Nat.mul_div_cancel _ hF]
-  · -- The fallback, without normalization.
-    rename_i h
-    rw [dite_eq_right h]
-    obtain ⟨h₁, h₂⟩ := divRemBasecase_spec div32RecipU u v hn hvt
-    obtain ⟨hq, hr⟩ := div_mod_eq hVpos h₁ h₂
-    exact ⟨hq, hr⟩
-
-/--
-`u / v` and `u % v` for a divisor of at least two limbs with a nonzero top limb, untrimmed: by
-`divRemBasecase` below `config.divDC` limbs in the divisor, which normalizes by shifts, and by
-`divModLimbsDC` from there.
--/
-def divModLimbs (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) : UInt32Array × UInt32Array :=
-  if v.size < config.divDC then divRemBasecase div32RecipU u v hn else divModLimbsDC u v hn
-
-/-- The quotient of `divModLimbs`. -/
-def divLimbsQ (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) : UInt32Array :=
-  if v.size < config.divDC then (divRemBasecase div32RecipU u v hn).1 else divLimbsQDC u v hn
-
-private theorem toNat_divLimbsQ (u v : UInt32Array.Slice) (hn : 2 ≤ v.size) :
-    toNat (divLimbsQ u v hn) = toNat (divModLimbs u v hn).1 := by
-  unfold divLimbsQ divModLimbs
-  by_cases h : v.size < config.divDC
-  · rw [ite_eq_left h, ite_eq_left h]
-  · rw [ite_eq_right h, ite_eq_right h]
-    exact toNat_divLimbsQDC u v hn
-
-private theorem divModLimbs_spec (u v : UInt32Array.Slice) (hn : 2 ≤ v.size)
-    (hvt : v[v.size - 1]'(by lia) ≠ 0) :
-    toNat (divModLimbs u v hn).1 = toNat u / toNat v ∧
-      toNat (divModLimbs u v hn).2 = toNat u % toNat v := by
-  unfold divModLimbs
-  by_cases h : v.size < config.divDC
-  · rw [ite_eq_left h]
-    obtain ⟨h₁, h₂⟩ := divRemBasecase_spec div32RecipU u v hn hvt
-    exact div_mod_eq (Nat.lt_of_le_of_lt (Nat.zero_le _) h₂) h₁ h₂
-  · rw [ite_eq_right h]
-    exact divModLimbsDC_spec u v hn hvt
+/-- `divQLimbsWith` with the thresholds of `config`. -/
+def divLimbsQ (u v : UInt32Array.Slice) : UInt32Array := divQLimbsWith config.toDivConfig u v
 
 /-! ## Division -/
 
 /-- `(a / b, a % b)`, trimmed, by Algorithm D and division by blocks. -/
 public def divModSlow (a b : UInt32Array.Slice) : UInt32Array × UInt32Array :=
   let n := topSize b
-  if h₀ : n = 0 then
+  if n = 0 then
     (.empty, trim a.copy)
-  else if h : n = 1 then
+  else if n = 1 then
     let p := divRem1 a (b.getD 0 0)
     (trim p.1, trim (UInt32Array.mk #[p.2]))
   else if n = 2 then
     let p := divRem2 a (b.getD 1 0) (b.getD 0 0)
     (trim p.1, ofWord64 p.2)
   else
-    let p := divModLimbs a (b.slice 0 n) (by simp; have := topSize_le b; lia)
+    let p := divModLimbs a (b.slice 0 n)
     (trim p.1, trim p.2)
 
 /-- `divModSlow` without the remainder. -/
@@ -646,8 +423,8 @@ public def divSlow (a b : UInt32Array.Slice) : UInt32Array :=
     trim (divRem1 a (b.getD 0 0)).1
   else if n = 2 then
     trim (div2 a (b.getD 1 0) (b.getD 0 0))
-  else if h : 2 ≤ n then
-    trim (divLimbsQ a (b.slice 0 n) (by simp; have := topSize_le b; lia))
+  else if 2 ≤ n then
+    trim (divLimbsQ a (b.slice 0 n))
   else
     .empty
 
@@ -679,9 +456,8 @@ private theorem divModSlow_of_topSize_eq_two (a b : UInt32Array.Slice) (h : topS
   simp [divModSlow, h]
 
 private theorem divModSlow_of_two_le_topSize (a b : UInt32Array.Slice) (h : 3 ≤ topSize b) :
-    divModSlow a b = (trim (divModLimbs a (b.slice 0 (topSize b))
-        (by simp; have := topSize_le b; lia)).1,
-      trim (divModLimbs a (b.slice 0 (topSize b)) (by simp; have := topSize_le b; lia)).2) := by
+    divModSlow a b = (trim (divModLimbs a (b.slice 0 (topSize b))).1,
+      trim (divModLimbs a (b.slice 0 (topSize b))).2) := by
   simp [divModSlow, show topSize b ≠ 0 by lia, show topSize b ≠ 1 by lia,
     show topSize b ≠ 2 by lia]
 
@@ -735,7 +511,7 @@ public theorem toNat_divModSlow (a b : UInt32Array.Slice) :
       rw [divModSlow_of_topSize_eq_two a b h₂, toNat_trim, toNat_ofWord64, ← hq, ← hr]
       exact ⟨rfl, rfl⟩
     -- A divisor of at least three limbs.
-    have hs := divModLimbs_spec a (b.slice 0 (topSize b))
+    have hs := divModLimbsWith_spec config.toDivConfig a (b.slice 0 (topSize b))
       (by simp; lia) (top_slice_topSize_ne_zero b (by lia))
     rw [hb] at hs
     rw [divModSlow_of_two_le_topSize a b h₃, toNat_trim, toNat_trim]
@@ -795,10 +571,12 @@ private theorem toNat_divSlow (a b : UInt32Array.Slice) :
   · have e : divSlow a b = trim (divRem2 a (b.getD 1 0) (b.getD 0 0)).1 := by
       simp [divSlow, h₂, div2_eq]
     rw [e, divModSlow_of_topSize_eq_two a b h₂]
-  have e : divSlow a b =
-      trim (divLimbsQ a (b.slice 0 (topSize b)) (by simp; have := topSize_le b; lia)) := by
+  have e : divSlow a b = trim (divLimbsQ a (b.slice 0 (topSize b))) := by
     simp [divSlow, h₀, h₁, h₂, show 2 ≤ topSize b by lia]
-  rw [e, divModSlow_of_two_le_topSize a b (by lia), toNat_trim, toNat_trim, toNat_divLimbsQ]
+  have hn : 2 ≤ (b.slice 0 (topSize b)).size := by simp; have := topSize_le b; lia
+  have ht := top_slice_topSize_ne_zero b (show 0 < topSize b by lia)
+  rw [e, divModSlow_of_two_le_topSize a b (by lia), toNat_trim, toNat_trim]
+  exact (toNat_divQLimbsWith _ _ _ hn ht).trans (divModLimbsWith_spec _ _ _ hn ht).1.symm
 
 /-! ## Division -/
 

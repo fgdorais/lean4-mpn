@@ -758,7 +758,8 @@ public theorem valAt_shrBits (a : A) (ao m n : Nat) :
   split
   · rename_i hq
     -- The limbs from `q` on are `⌊a / βq⌋`.
-    have hsplit : valAt a ao m / 2 ^ (LA.w * (n / LA.w)) = valAt a (ao + n / LA.w) (m - n / LA.w) := by
+    have hsplit : valAt a ao m / 2 ^ (LA.w * (n / LA.w)) =
+        valAt a (ao + n / LA.w) (m - n / LA.w) := by
       have e := valAt_add a ao (n / LA.w) (m - n / LA.w)
       rw [show n / LA.w + (m - n / LA.w) = m by lia] at e
       rw [e, Nat.add_mul_div_left _ _ (Nat.two_pow_pos _),

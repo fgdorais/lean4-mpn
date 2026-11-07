@@ -488,7 +488,8 @@ public def modW (a : UInt32Array) (b : UInt64) : UInt64 :=
 /-- `⌊log₂ a⌋`, from the top limb. -/
 public def log2A (a : UInt32Array) : Nat := WordArray.log2A a
 
-public theorem log2A_eq (a : UInt32Array) (_ha : isTrimmed a = true) (_hb : 2 ^ 64 ≤ MPN.W32.toNat a) :
+public theorem log2A_eq (a : UInt32Array) (_ha : isTrimmed a = true)
+    (_hb : 2 ^ 64 ≤ MPN.W32.toNat a) :
     log2A a = (MPN.W32.toNat a).log2 := by
   rw [log2A, WordArray.log2A_eq, toNat_array_eq_valAt]; rfl
 

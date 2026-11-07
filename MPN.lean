@@ -17,6 +17,7 @@ public import MPN.WordArray
 public import MPN.FFT.Windows
 public import MPN.FFT.Fermat
 public import MPN.Div.Basecase
+public import MPN.Div.Driver
 public import MPN.Div.ByLimb
 public import MPN.WordSqrt
 public import MPN.Join

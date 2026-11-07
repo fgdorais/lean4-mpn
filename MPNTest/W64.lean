@@ -136,8 +136,8 @@ def checkSqrKaratsuba (n : Nat) : Bool :=
 /-! Shifts and bits -/
 
 /--
-Checks the shifts and `log2` on an `n`-limb value: those by less than a limb written at offset 1 of a
-padded buffer, with the padding unchanged, and those of arrays by any number of bits.
+Checks the shifts and `log2` on an `n`-limb value: those by less than a limb written at offset 1
+of a padded buffer, with the padding unchanged, and those of arrays by any number of bits.
 -/
 def checkBits (n : Nat) : Bool :=
   let pad : UInt64 := 0xAAAAAAAAAAAAAAAA

@@ -20,8 +20,9 @@ import Std.Data.String.ToNat
 `2⁶⁴` and as trimmed limbs above, with every operation proved correct against `Nat`. The instance
 `natLimbs64` of `NatLimbs` gives it the operations of `MPN.Num`, whose results it trims (`norm`),
 and limb-wise bitwise operations (`main`'s `WordArray.landA`, `lorA`, `xorA`). Since `MPN.Num`
-leaves at least one limb, the trimmed form here is one limb or a nonzero top limb (`isTrim`). The operations guard the bounds that the
-specifications of `MPN.Num` need, and otherwise compute on `Nat`, which never happens.
+leaves at least one limb, the trimmed form here is one limb or a nonzero top limb (`isTrim`). The
+operations guard the bounds that the specifications of `MPN.Num` need, and otherwise compute on
+`Nat`, which never happens.
 
 The square root above `2⁶⁴` is Zimmermann's recursion over the bridge `bridge64` to `ops64`
 (`Bridge.sqrtZ`), and `sqrtRem` is it on arrays. The greatest common divisor is `main`'s `GNat.gcd`

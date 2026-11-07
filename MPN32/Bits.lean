@@ -95,7 +95,8 @@ public def shiftLeft (a : UInt32Array.Slice) (n : Nat) : UInt32Array :=
 @[simp] public theorem toNat_shiftLeft (a : UInt32Array.Slice) (n : Nat) :
     toNat (shiftLeft a n) = toNat a * 2 ^ n := by
   rw [shiftLeft, toNat_trim, toNat_array_eq_valAt,
-    show (WordArray.shlBits a.array a.start a.size n).size = _ from WordArray.size_shlBits a.array a.start a.size n]
+    show (WordArray.shlBits a.array a.start a.size n).size = _ from
+      WordArray.size_shlBits a.array a.start a.size n]
   exact WordArray.valAt_shlBits a.array a.start a.size n
 
 public theorem isTrimmed_shiftLeft (a : UInt32Array.Slice) (n : Nat) :
@@ -108,7 +109,8 @@ public def shiftRight (a : UInt32Array.Slice) (n : Nat) : UInt32Array :=
 @[simp] public theorem toNat_shiftRight (a : UInt32Array.Slice) (n : Nat) :
     toNat (shiftRight a n) = toNat a / 2 ^ n := by
   rw [shiftRight, toNat_trim, toNat_array_eq_valAt,
-    show (WordArray.shrBits a.array a.start a.size n).size = _ from WordArray.size_shrBits a.array a.start a.size n]
+    show (WordArray.shrBits a.array a.start a.size n).size = _ from
+      WordArray.size_shrBits a.array a.start a.size n]
   exact WordArray.valAt_shrBits a.array a.start a.size n
 
 public theorem isTrimmed_shiftRight (a : UInt32Array.Slice) (n : Nat) :

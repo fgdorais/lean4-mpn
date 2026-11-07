@@ -373,17 +373,17 @@ def sqrFFTConfig : Config := { sqrBasecase := 2, sqrKaratsuba := 4, sqrToom3 := 
   let r := add (add z₀ (shiftLimbs mid k)) (shiftLimbs z₂ (2 * k))
   r == mul a b && toNat r == m * n
 
--- Division by blocks (`main`'s `NatOps.divNorm`) from 4 limbs, over Algorithm D, and Barrett's
+-- `main`'s `Div.divRemG`: division by blocks (`NatOps.divNorm`) from 4 limbs, over Algorithm D, and Barrett's
 -- division with Newton's reciprocal from 4 limbs, with and without the remainder, against `Nat`:
 -- random operands, all-ones operands, and shapes from one block up.
 def dcCheck (x y : Nat) : Bool :=
   let v : UInt32Array.Slice := ofNat y
-  if h : 2 ≤ v.size then
-    let u := (ofNat x : UInt32Array.Slice).copy
+  if 2 ≤ v.size then
+    let u : UInt32Array.Slice := ofNat x
     [({ divDC := 4, divMu := 1000000, divQMu := 1000000 } : Dispatch.DivConfig),
         { divDC := 4, divMu := 4, divQMu := 4 }].all fun c =>
-      let p := divRemNormWith c u v h
-      toNat p.1 == x / y && toNat p.2 == x % y && toNat (divQNormWith c u v h) == x / y
+      let p := divModLimbsWith c u v
+      toNat p.1 == x / y && toNat p.2 == x % y && toNat (divQLimbsWith c u v) == x / y
   else true
 
 #guard [4, 5, 6, 7, 8, 9, 13, 16, 17, 31, 32, 33, 64].all fun n =>
