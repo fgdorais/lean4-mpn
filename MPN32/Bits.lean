@@ -476,111 +476,44 @@ public theorem isTrimmed_shiftRight (a : UInt32Array.Slice) (n : Nat) :
     · simp only [shiftRight, hq, h', ↓reduceDIte]; exact isTrimmed_trim _
   · simp only [shiftRight, hq, ↓reduceDIte]; exact isTrimmed_empty
 
-/-! ## Bitwise operations
+/-! ## Bitwise operations and comparison
 
-`main`'s `WordArray.bitW` into fresh zeros, by the instance's `land`, `lor` and `xor`.
+`main`'s `WordArray.landA`, `lorA`, `xorA` (by `bitW` into new limbs) and `ltA`.
 -/
 
-private theorem hz32 : ∀ (a : UInt32Array) (i : Nat), LimbArray.size a ≤ i →
-    LimbArray.val UInt32Array (LimbArray.get a i) = 0 := fun a i h => by
-  show a[i]!.toNat = 0
-  rw [getElem!_neg a i (Nat.not_lt.2 h)]; rfl
-
-/-- The value of an array over `n ≥ a.size` limbs. -/
-private theorem valAt_ge (a : UInt32Array) (n : Nat) (h : a.size ≤ n) :
-    LimbArray.valAt a 0 n = toNat a := by
-  rw [toNat_array_eq_valAt, show n = a.size + (n - a.size) by lia]
-  show _ = LimbArray.valAt a 0 a.size
-  rw [LimbArray.valAt_add, LimbArray.valAt_eq_zero (n - a.size) (fun i h₁ _ => hz32 a i (by
-    show a.size ≤ i; lia)), Nat.mul_zero, Nat.add_zero]
-
-/--
-Limb-wise `f` of `a` and `b`, zero past their ends, trimmed, for an `f` whose value is the
-bitwise `op`; on `Nat` were the sizes not `USize`s, which never happens.
--/
-@[inline] def bitA (f : UInt32 → UInt32 → UInt32) (op : Nat → Nat → Nat) (a b : UInt32Array) :
-    UInt32Array :=
-  let n := max a.size b.size
-  if h : n < 4294967295 then
-    trim (WordArray.bitW f a b (UInt32Array.replicate n 0) n.toUSize (by
-      have e := toNat_toUSize (lt_usizeSize h)
-      exact ⟨by show _ ≤ (UInt32Array.replicate n 0).size; simp [e],
-        by simp [e]; exact lt_usizeSize h⟩))
-  else trim (ofNat (op (toNat a) (toNat b)))
-
-private theorem toNat_bitA (f : UInt32 → UInt32 → UInt32) (op : Nat → Nat → Nat)
-    (hw : ∀ (a b r : UInt32Array) (n : USize) (hr : WordArray.LoopBound r 0 n),
-      LimbArray.size a < USize.size → LimbArray.size b < USize.size →
-      LimbArray.valAt (WordArray.bitW f a b r n hr) 0 n.toNat =
-        op (LimbArray.valAt a 0 n.toNat) (LimbArray.valAt b 0 n.toNat))
-    (a b : UInt32Array) : toNat (bitA f op a b) = op (toNat a) (toNat b) := by
-  by_cases h : max a.size b.size < 4294967295
-  · have e := toNat_toUSize (lt_usizeSize h)
-    have hr : WordArray.LoopBound (UInt32Array.replicate (max a.size b.size) 0) 0
-        (max a.size b.size).toUSize :=
-      ⟨by show _ ≤ (UInt32Array.replicate _ 0).size; simp [e], by simp [e]; exact lt_usizeSize h⟩
-    have eq : bitA f op a b = trim (WordArray.bitW f a b
-        (UInt32Array.replicate (max a.size b.size) 0) (max a.size b.size).toUSize hr) := by
-      simp only [bitA, h, ↓reduceDIte]
-    have h' := hw a b _ _ hr (by show a.size < _; have := lt_usizeSize h; lia)
-      (by show b.size < _; have := lt_usizeSize h; lia)
-    have hs := WordArray.size_bitW f a b _ _ hr
-    rw [e] at h'
-    rw [eq]
-    generalize WordArray.bitW f a b (UInt32Array.replicate (max a.size b.size) 0)
-      (max a.size b.size).toUSize hr = c at h' hs ⊢
-    rw [toNat_trim, toNat_array_eq_valAt, show c.size = LimbArray.size c from rfl, hs,
-      show LimbArray.size (UInt32Array.replicate (max a.size b.size) 0) = max a.size b.size by
-        show (UInt32Array.replicate _ 0).size = _; simp]
-    show LimbArray.valAt c 0 _ = _
-    rw [h', valAt_ge a _ (by lia), valAt_ge b _ (by lia)]
-  · have eq : bitA f op a b = trim (ofNat (op (toNat a) (toNat b))) := by
-      simp only [bitA, h, ↓reduceDIte]
-    rw [eq, toNat_trim, toNat_ofNat]
-
-private theorem isTrimmed_bitA (f : UInt32 → UInt32 → UInt32) (op : Nat → Nat → Nat)
-    (a b : UInt32Array) : isTrimmed (bitA f op a b) = true := by
-  unfold bitA; dsimp only; split <;> exact isTrimmed_trim _
-
-/-- Whether `a < b`, by `main`'s `WordArray.ltW` from the top limb down; on `Nat` were the sizes not
-`USize`s, which never happens. -/
-public def ltA (a b : UInt32Array) : Bool :=
-  if max a.size b.size < 4294967295 then WordArray.ltW a b (max a.size b.size).toUSize
-  else decide (toNat a < toNat b)
+/-- Whether `a < b`, by `main`'s `WordArray.ltAFast`. -/
+public def ltA (a b : UInt32Array) : Bool := WordArray.ltAFast a b
 
 public theorem ltA_iff (a b : UInt32Array) : ltA a b = true ↔ toNat a < toNat b := by
-  unfold ltA
-  split
-  · rename_i h
-    have e := toNat_toUSize (lt_usizeSize h)
-    rw [WordArray.ltW_iff hz32 a b _ (by show a.size < _; have := lt_usizeSize h; lia)
-      (by show b.size < _; have := lt_usizeSize h; lia), e, valAt_ge a _ (by lia),
-      valAt_ge b _ (by lia)]
-  · exact decide_eq_true_iff
+  rw [ltA, ← WordArray.ltA_eq_ltAFast, WordArray.ltA_iff, toNat_array_eq_valAt,
+    toNat_array_eq_valAt]; rfl
 
 /-- `a &&& b`, trimmed. -/
-public def land (a b : UInt32Array) : UInt32Array := bitA (· &&& ·) (· &&& ·) a b
+public def land (a b : UInt32Array) : UInt32Array := WordArray.landA 0 a b
 
 /-- `a ||| b`, trimmed. -/
-public def lor (a b : UInt32Array) : UInt32Array := bitA (· ||| ·) (· ||| ·) a b
+public def lor (a b : UInt32Array) : UInt32Array := WordArray.lorA 0 a b
 
 /-- `a ^^^ b`, trimmed. -/
-public def xor (a b : UInt32Array) : UInt32Array := bitA (· ^^^ ·) (· ^^^ ·) a b
+public def xor (a b : UInt32Array) : UInt32Array := WordArray.xorA 0 a b
 
-@[simp] public theorem toNat_land (a b : UInt32Array) : toNat (land a b) = toNat a &&& toNat b :=
-  toNat_bitA _ _ (fun a b r n hr ha hb => WordArray.valAt_bitW_land hz32 a b r n hr ha hb) a b
+@[simp] public theorem toNat_land (a b : UInt32Array) : toNat (land a b) = toNat a &&& toNat b := by
+  rw [toNat_array_eq_valAt, toNat_array_eq_valAt, toNat_array_eq_valAt]
+  exact WordArray.valAt_landA 0 a b
 
-@[simp] public theorem toNat_lor (a b : UInt32Array) : toNat (lor a b) = toNat a ||| toNat b :=
-  toNat_bitA _ _ (fun a b r n hr ha hb => WordArray.valAt_bitW_lor hz32 a b r n hr ha hb) a b
+@[simp] public theorem toNat_lor (a b : UInt32Array) : toNat (lor a b) = toNat a ||| toNat b := by
+  rw [toNat_array_eq_valAt, toNat_array_eq_valAt, toNat_array_eq_valAt]
+  exact WordArray.valAt_lorA 0 a b
 
-@[simp] public theorem toNat_xor (a b : UInt32Array) : toNat (xor a b) = toNat a ^^^ toNat b :=
-  toNat_bitA _ _ (fun a b r n hr ha hb => WordArray.valAt_bitW_xor hz32 a b r n hr ha hb) a b
+@[simp] public theorem toNat_xor (a b : UInt32Array) : toNat (xor a b) = toNat a ^^^ toNat b := by
+  rw [toNat_array_eq_valAt, toNat_array_eq_valAt, toNat_array_eq_valAt]
+  exact WordArray.valAt_xorA 0 a b
 
 public theorem isTrimmed_land (a b : UInt32Array) : isTrimmed (land a b) = true :=
-  isTrimmed_bitA _ _ a b
+  isTrimmed_of_isTrimmedTo (WordArray.isTrimmedTo_bitA ..)
 public theorem isTrimmed_lor (a b : UInt32Array) : isTrimmed (lor a b) = true :=
-  isTrimmed_bitA _ _ a b
+  isTrimmed_of_isTrimmedTo (WordArray.isTrimmedTo_bitA ..)
 public theorem isTrimmed_xor (a b : UInt32Array) : isTrimmed (xor a b) = true :=
-  isTrimmed_bitA _ _ a b
+  isTrimmed_of_isTrimmedTo (WordArray.isTrimmedTo_bitA ..)
 
 end MPN.W32

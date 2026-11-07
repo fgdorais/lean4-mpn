@@ -494,6 +494,94 @@ public theorem valAt_of_size_le (a : A) {m : Nat} (h : LA.size a ≤ m) :
       valAt_of_size_le b (m := max (LA.size a) (LA.size b)) (by lia)]
   · rfl
 
+/-! ## Bitwise operations on arrays -/
+
+section Bits
+
+variable [F : WordFolds A L]
+
+omit F in
+/-- New zero limbs, `n` of them, as a loop bound. -/
+public theorem zeros_bound' {n : Nat} (h : n < USize.size) : LoopBound (R.zeros n) 0 n.toUSize := by
+  have e : n.toUSize.toNat = n := by rw [Nat.toUSize_eq, USize.toNat_ofNat_of_lt' h]
+  exact ⟨by rw [R.size_zeros, e]; simp, by rw [e]; simp; exact h⟩
+
+/--
+Limb-wise `f` of `a` and `b`, zero past their ends, trimmed to `k` limbs, for an `f` whose value is
+the bitwise `op`, by `bitW` into at least `k` new limbs; from the values were the sizes not
+`USize`s, which never happens.
+-/
+@[inline, expose] public def bitA (k : Nat) (f : L → L → L) (op : Nat → Nat → Nat) (a b : A) : A :=
+  let n := max (max (LA.size a) (LA.size b)) k
+  if h : n < USize.size then trimTo k (bitW f a b (R.zeros n) n.toUSize (zeros_bound' h))
+  else trimTo k (ofNatW (R := R) (op (valAt a 0 (LA.size a)) (valAt b 0 (LA.size b))))
+
+public theorem isTrimmedTo_bitA (k : Nat) (f : L → L → L) (op : Nat → Nat → Nat) (a b : A) :
+    isTrimmedTo k (bitA k f op a b) = true := by
+  unfold bitA; dsimp only; split <;> exact isTrimmedTo_trimTo ..
+
+public theorem valAt_bitA (k : Nat) (f : L → L → L) (op : Nat → Nat → Nat)
+    (hw : ∀ (a b r : A) (n : USize) (hr : LoopBound r 0 n),
+      LA.size a < USize.size → LA.size b < USize.size →
+      valAt (bitW f a b r n hr) 0 n.toNat = op (valAt a 0 n.toNat) (valAt b 0 n.toNat))
+    (a b : A) :
+    valAt (bitA k f op a b) 0 (LA.size (bitA k f op a b)) =
+      op (valAt a 0 (LA.size a)) (valAt b 0 (LA.size b)) := by
+  unfold bitA
+  dsimp only
+  split
+  · rename_i h
+    have e : (max (max (LA.size a) (LA.size b)) k).toUSize.toNat =
+        max (max (LA.size a) (LA.size b)) k := by
+      rw [Nat.toUSize_eq, USize.toNat_ofNat_of_lt' h]
+    rw [valAt_trimTo, size_bitW, R.size_zeros]
+    have h' := hw a b _ _ (zeros_bound' h) (by lia) (by lia)
+    rw [e] at h'
+    rw [h', valAt_of_size_le a (by lia), valAt_of_size_le b (by lia)]
+  · rw [valAt_trimTo, valAt_ofNatW]
+
+/-- `bitA k` keeps at least `min k 1` limbs. -/
+public theorem size_bitA_ge (k : Nat) (f : L → L → L) (op : Nat → Nat → Nat) (a b : A) :
+    min k 1 ≤ LA.size (bitA k f op a b) := by
+  unfold bitA
+  dsimp only
+  split
+  · rename_i h
+    have := (trimTo_spec k (bitW f a b (R.zeros (max (max (LA.size a) (LA.size b)) k))
+      (max (max (LA.size a) (LA.size b)) k).toUSize (zeros_bound' h))).2.2.1
+    rw [size_bitW, R.size_zeros] at this
+    lia
+  · have := (trimTo_spec k (ofNatW (R := R) (op (valAt a 0 (LA.size a))
+      (valAt b 0 (LA.size b))))).2.2.1
+    rw [size_ofNatW] at this
+    lia
+
+/-- `a &&& b`, trimmed to `k` limbs. -/
+@[inline, expose] public def landA (k : Nat) (a b : A) : A := bitA k R.land (· &&& ·) a b
+
+/-- `a ||| b`, trimmed to `k` limbs. -/
+@[inline, expose] public def lorA (k : Nat) (a b : A) : A := bitA k R.lor (· ||| ·) a b
+
+/-- `a ^^^ b`, trimmed to `k` limbs. -/
+@[inline, expose] public def xorA (k : Nat) (a b : A) : A := bitA k R.xor (· ^^^ ·) a b
+
+public theorem valAt_landA (k : Nat) (a b : A) :
+    valAt (landA k a b) 0 (LA.size (landA k a b)) =
+      valAt a 0 (LA.size a) &&& valAt b 0 (LA.size b) :=
+  valAt_bitA k _ _ (fun a b r n hr ha hb => valAt_bitW_land R.val_get_ge a b r n hr ha hb) a b
+
+public theorem valAt_lorA (k : Nat) (a b : A) :
+    valAt (lorA k a b) 0 (LA.size (lorA k a b)) =
+      valAt a 0 (LA.size a) ||| valAt b 0 (LA.size b) :=
+  valAt_bitA k _ _ (fun a b r n hr ha hb => valAt_bitW_lor R.val_get_ge a b r n hr ha hb) a b
+
+public theorem valAt_xorA (k : Nat) (a b : A) :
+    valAt (xorA k a b) 0 (LA.size (xorA k a b)) =
+      valAt a 0 (LA.size a) ^^^ valAt b 0 (LA.size b) :=
+  valAt_bitA k _ _ (fun a b r n hr ha hb => valAt_bitW_xor R.val_get_ge a b r n hr ha hb) a b
+
+end Bits
+
 end WordArray
 
 end MPN

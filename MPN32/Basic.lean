@@ -266,6 +266,21 @@ public theorem toList_trim (a : UInt32Array) : (trim a).toList = trimLimbs a.toL
 public theorem size_trim_le (a : UInt32Array) : (trim a).size ≤ a.size :=
   WordArray.size_trimTo_le 0 a
 
+/-- `main`'s `WordArray.isTrimmedTo 0` is `isTrimmed`. -/
+public theorem isTrimmed_of_isTrimmedTo {a : UInt32Array} (h : WordArray.isTrimmedTo 0 a = true) :
+    isTrimmed a = true := by
+  rw [WordArray.isTrimmedTo_iff] at h
+  unfold isTrimmed
+  split
+  · rename_i hp
+    rcases h with h | h
+    · exact absurd h (by show ¬a.size ≤ 0; lia)
+    · have h' : (a[a.size - 1]!).toNat ≠ 0 := h
+      rw [getElem!_pos a (a.size - 1) (by lia)] at h'
+      simp only [bne_iff_ne, ne_eq]
+      exact fun e => h' (by rw [e]; rfl)
+  · rfl
+
 public theorem isTrimmed_trim (a : UInt32Array) : isTrimmed (trim a) = true := by
   simp [isTrimmed_iff, toList_trim, isTrimmed_trimLimbs]
 
