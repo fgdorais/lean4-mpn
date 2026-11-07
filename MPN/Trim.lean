@@ -580,6 +580,198 @@ public theorem valAt_xorA (k : Nat) (a b : A) :
       valAt a 0 (LA.size a) ^^^ valAt b 0 (LA.size b) :=
   valAt_bitA k _ _ (fun a b r n hr ha hb => valAt_bitW_xor R.val_get_ge a b r n hr ha hb) a b
 
+/-! ## Shifts by any number of bits
+
+`shlBits a ao m n` is `a 2ⁿ` for the `m` limbs of `a` from `ao`, in `n / w + m + 1` new limbs, and
+`shrBits a ao m n` is `⌊a / 2ⁿ⌋` in `m - n / w` new limbs, both untrimmed: whole limbs move by the
+offsets of `lshiftW` and `rshiftW` (or `copyW` and `extract` when `w` divides `n`), which read `a`
+where it is.
+-/
+
+omit R F in
+public theorem toNat_toUSize_of_lt {n : Nat} (h : n < USize.size) : n.toUSize.toNat = n := by
+  rw [Nat.toUSize_eq, USize.toNat_ofNat_of_lt' h]
+
+omit R F in
+/-- `n` limbs of `a` from `o`, within it, as a loop bound. -/
+public theorem win_bound (a : A) {o n : Nat} (h : o + n ≤ LA.size a) (hU : o + n < USize.size) :
+    LoopBound a o.toUSize n.toUSize := by
+  rw [LoopBound, toNat_toUSize_of_lt (show o < USize.size by lia),
+    toNat_toUSize_of_lt (show n < USize.size by lia)]
+  exact ⟨h, hU⟩
+
+omit F in
+/-- `s < w` as a limb. -/
+public theorem val_ofUSize_lt {s : Nat} (hs : s < LA.w) : LA.val (R.ofUSize s.toUSize) = s := by
+  have hwU : LA.w < USize.size := by rw [← R.toNat_wU]; exact R.wU.toNat_lt_size
+  have hwB : LA.w < 2 ^ LA.w := Nat.lt_two_pow_self
+  rw [R.val_ofUSize, toNat_toUSize_of_lt (by lia), Nat.mod_eq_of_lt (by lia)]
+
+omit F in
+/-- `extract` copies the `k` limbs of `w` from `i`. -/
+public theorem extract_spec (w : A) (i k : Nat) (h : i + k ≤ LA.size w) :
+    LA.size (R.extract w i (i + k)) = k ∧
+      valAt (R.extract w i (i + k)) 0 k = valAt w i k := by
+  have hs : LA.size (R.extract w i (i + k)) = k := by rw [R.size_extract]; lia
+  refine ⟨hs, ?_⟩
+  have key : ∀ c j, j + c ≤ k → valAt (R.extract w i (i + k)) j c = valAt w (i + j) c := by
+    intro c
+    induction c with
+    | zero => intro j _; simp
+    | succ c ih =>
+      intro j hj
+      rw [valAt_succ, valAt_succ, R.get_extract _ _ _ _ (by rw [hs]; lia), ih (j + 1) (by lia),
+        Nat.add_assoc]
+  have := key k 0 (by lia)
+  rwa [Nat.add_zero] at this
+
+/-- `a 2ⁿ` for the `m` limbs of `a` from `ao`, untrimmed, in `n / w + m + 1` new limbs. -/
+@[inline, expose] public def shlBits (a : A) (ao m n : Nat) : A :=
+  let q := n / LA.w
+  if h : ao + m ≤ LA.size a ∧ ao + m < USize.size ∧ q + m + 1 < USize.size then
+    have hr : LoopBound (R.zeros (q + m + 1)) q.toUSize m.toUSize :=
+      win_bound _ (by rw [R.size_zeros]; lia) (by lia)
+    if n % LA.w = 0 then copyW (R.zeros (q + m + 1)) q.toUSize a ao.toUSize m.toUSize hr
+      (win_bound a h.1 h.2.1)
+    else
+      let p := lshiftW (R.zeros (q + m + 1)) q.toUSize a ao.toUSize m.toUSize
+        (R.ofUSize (n % LA.w).toUSize) hr (win_bound a h.1 h.2.1)
+      R.uset p.1 (q + m).toUSize p.2
+        (by rw [size_lshiftW, R.size_zeros, toNat_toUSize_of_lt (by lia)]; lia)
+  else ofNatLen (R := R) (valAt a ao m * 2 ^ n) (q + m + 1)
+
+/-- `⌊a / 2ⁿ⌋` for the `m` limbs of `a` from `ao`, untrimmed, in `m - n / w` new limbs. -/
+@[inline, expose] public def shrBits (a : A) (ao m n : Nat) : A :=
+  let q := n / LA.w
+  if hq : q < m then
+    if h : ao + m ≤ LA.size a ∧ ao + m < USize.size then
+      if n % LA.w = 0 then R.extract a (ao + q) (ao + m)
+      else
+        (rshiftW (R.zeros (m - q)) 0 a (ao + q).toUSize (m - q).toUSize
+          (R.ofUSize (n % LA.w).toUSize)
+          (zeros_bound' (by lia))
+          (win_bound a (by lia) (by lia))
+          (USize.lt_iff_toNat_lt.2 (by rw [toNat_toUSize_of_lt (by lia)]; simp; lia))).1
+    else ofNatLen (R := R) (valAt a ao m / 2 ^ n) (m - q)
+  else R.zeros 0
+
+public theorem size_shlBits (a : A) (ao m n : Nat) :
+    LA.size (shlBits a ao m n) = n / LA.w + m + 1 := by
+  unfold shlBits
+  dsimp only
+  split
+  · split
+    · rw [size_copyW, R.size_zeros]
+    · rw [R.size_uset, size_lshiftW, R.size_zeros]
+  · exact size_ofNatLen ..
+
+omit R F in
+/-- The value of `q + m + 1` limbs, by the limbs below `q`, the `m` from `q`, and the top one. -/
+private theorem valAt_split (x : A) (q m : Nat) :
+    valAt x 0 (q + m + 1) =
+      valAt x 0 q + 2 ^ (LA.w * q) * valAt x q m +
+        2 ^ (LA.w * q) * 2 ^ (LA.w * m) * LA.val (LA.get x (q + m)) := by
+  rw [valAt_add, valAt_add x 0 q m, Nat.zero_add, valAt_one, Nat.zero_add, Nat.mul_add,
+    Nat.pow_add]
+
+public theorem valAt_shlBits (a : A) (ao m n : Nat) :
+    valAt (shlBits a ao m n) 0 (n / LA.w + m + 1) = valAt a ao m * 2 ^ n := by
+  have hw := LA.w_pos
+  have hn : 2 ^ n = 2 ^ (LA.w * (n / LA.w)) * 2 ^ (n % LA.w) := by
+    rw [← Nat.pow_add]; congr 1; exact (Nat.div_add_mod n LA.w).symm
+  unfold shlBits
+  dsimp only
+  split
+  · rename_i h
+    have hq := toNat_toUSize_of_lt (show n / LA.w < USize.size by lia)
+    have hm := toNat_toUSize_of_lt (show m < USize.size by lia)
+    have ho := toNat_toUSize_of_lt (show ao < USize.size by lia)
+    split
+    · rename_i hs
+      obtain ⟨c₁, c₂, c₃⟩ := copyW_spec (R.zeros (n / LA.w + m + 1)) (n / LA.w).toUSize a
+        ao.toUSize m.toUSize (win_bound _ (by rw [R.size_zeros]; lia) (by lia))
+        (win_bound a h.1 h.2.1)
+      simp only [hq, hm, ho] at c₂ c₃
+      rw [valAt_split, c₃, valAt_eq_zero (n / LA.w) fun i _ hi => by
+          rw [c₂ i (.inl (by lia)), R.val_get_zeros],
+        c₂ _ (.inr (by lia)), R.val_get_zeros, hn, hs, Nat.pow_zero, Nat.mul_one]
+      lia
+    · rename_i hs
+      have hsv := val_ofUSize_lt (R := R) (Nat.mod_lt n hw)
+      obtain ⟨p₁, p₂, p₃⟩ := lshiftW_spec (R.zeros (n / LA.w + m + 1)) (n / LA.w).toUSize a
+        ao.toUSize m.toUSize (R.ofUSize (n % LA.w).toUSize)
+        (win_bound _ (by rw [R.size_zeros]; lia) (by lia)) (win_bound a h.1 h.2.1)
+        (by rw [hsv]; lia) (by rw [hsv]; exact Nat.mod_lt n hw)
+      simp only [hq, hm, ho, hsv] at p₃
+      simp only [hq, hm] at p₂
+      rw [valAt_split, R.get_uset, toNat_toUSize_of_lt (by lia)]
+      simp only [↓reduceIte]
+      rw [valAt_uset_of _ _ _ _ _ _ (.inr (by rw [toNat_toUSize_of_lt (by lia)]; lia)),
+        valAt_uset_of _ _ _ _ _ _ (.inr (by rw [toNat_toUSize_of_lt (by lia)]; lia)),
+        valAt_eq_zero (n / LA.w) fun i _ hi => by rw [p₂ i (.inl (by lia)), R.val_get_zeros], hn,
+        Nat.zero_add, Nat.mul_assoc (2 ^ _) (2 ^ _), ← Nat.mul_add, p₃, Nat.mul_left_comm]
+  · rw [valAt_ofNatLen, Nat.mod_eq_of_lt]
+    have hA := valAt_lt a ao m
+    have : 2 ^ n < 2 ^ (LA.w * (n / LA.w + 1)) :=
+      Nat.pow_lt_pow_right (by decide) (by have := Nat.lt_div_mul_add (a := n) hw; lia)
+    calc valAt a ao m * 2 ^ n < 2 ^ (LA.w * m) * 2 ^ (LA.w * (n / LA.w + 1)) :=
+          Nat.mul_lt_mul'' hA this
+      _ = 2 ^ (LA.w * (n / LA.w + m + 1)) := by rw [← Nat.pow_add]; congr 1; lia
+
+public theorem size_shrBits (a : A) (ao m n : Nat) :
+    LA.size (shrBits a ao m n) = m - n / LA.w := by
+  unfold shrBits
+  dsimp only
+  split
+  · split
+    · rename_i hq h
+      split
+      · rw [R.size_extract]; lia
+      · rw [size_rshiftW, R.size_zeros]
+    · exact size_ofNatLen ..
+  · rw [R.size_zeros]; lia
+
+public theorem valAt_shrBits (a : A) (ao m n : Nat) :
+    valAt (shrBits a ao m n) 0 (m - n / LA.w) = valAt a ao m / 2 ^ n := by
+  have hw := LA.w_pos
+  have hn : 2 ^ n = 2 ^ (LA.w * (n / LA.w)) * 2 ^ (n % LA.w) := by
+    rw [← Nat.pow_add]; congr 1; exact (Nat.div_add_mod n LA.w).symm
+  unfold shrBits
+  dsimp only
+  split
+  · rename_i hq
+    -- The limbs from `q` on are `⌊a / βq⌋`.
+    have hsplit : valAt a ao m / 2 ^ (LA.w * (n / LA.w)) = valAt a (ao + n / LA.w) (m - n / LA.w) := by
+      have e := valAt_add a ao (n / LA.w) (m - n / LA.w)
+      rw [show n / LA.w + (m - n / LA.w) = m by lia] at e
+      rw [e, Nat.add_mul_div_left _ _ (Nat.two_pow_pos _),
+        Nat.div_eq_of_lt (valAt_lt a ao _), Nat.zero_add]
+    rw [hn, ← Nat.div_div_eq_div_mul, hsplit]
+    split
+    · rename_i h
+      split
+      · rename_i hs
+        rw [hs, Nat.pow_zero, Nat.div_one]
+        have := (extract_spec a (ao + n / LA.w) (m - n / LA.w) (by lia)).2
+        rwa [show ao + n / LA.w + (m - n / LA.w) = ao + m by lia] at this
+      · rename_i hs
+        have hsv := val_ofUSize_lt (R := R) (Nat.mod_lt n hw)
+        obtain ⟨-, -, r₃, r₄⟩ := rshiftW_spec (R.zeros (m - n / LA.w)) 0 a
+          (ao + n / LA.w).toUSize (m - n / LA.w).toUSize (R.ofUSize (n % LA.w).toUSize) _ _ _
+          (by rw [hsv]; lia) (by rw [hsv]; exact Nat.mod_lt n hw)
+        rw [hsv, toNat_toUSize_of_lt (by lia), toNat_toUSize_of_lt (by lia)] at r₃
+        rw [hsv] at r₄
+        simp only [USize.toNat_zero] at r₃
+        rw [← r₃, Nat.mul_add_div (Nat.two_pow_pos _), Nat.div_eq_of_lt r₄, Nat.add_zero]
+    · rw [valAt_ofNatLen, Nat.mod_eq_of_lt]
+      exact Nat.lt_of_le_of_lt (Nat.div_le_self _ _) (valAt_lt ..)
+  · rename_i hq
+    rw [show m - n / LA.w = 0 by lia, valAt_zero, Nat.div_eq_of_lt]
+    calc valAt a ao m < 2 ^ (LA.w * m) := valAt_lt ..
+      _ ≤ 2 ^ n := Nat.pow_le_pow_right (by decide) (by
+          have := Nat.div_mul_le_self n LA.w; rw [Nat.mul_comm] at this
+          exact Nat.le_trans (Nat.mul_le_mul_left _ (by lia : m ≤ n / LA.w)) this)
+
 end Bits
 
 end WordArray

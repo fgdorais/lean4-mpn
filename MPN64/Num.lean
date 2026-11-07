@@ -209,40 +209,27 @@ public theorem size_sqr_le (a : UInt64Array) : (sqr a).size ≤ 2 * a.size := by
 
 /-! ## Shifts -/
 
-/-- `a 2ᵏ`, in `k / 64 + a.size + 1` limbs. -/
-public def shl (a : UInt64Array) (k : Nat) : UInt64Array :=
-  let p := shiftLeft (UInt64Array.replicate (k / 64 + a.size + 1) 0).toUSlice a.toUSlice k
-  p.1.set! (k / 64 + a.size) p.2
+/-- `a 2ᵏ`, in `k / 64 + a.size + 1` limbs, by `main`'s `WordArray.shlBits`. -/
+public def shl (a : UInt64Array) (k : Nat) : UInt64Array := WordArray.shlBits a 0 a.size k
 
-public theorem size_shl (a : UInt64Array) (k : Nat) : (shl a k).size = k / 64 + a.size + 1 := by
-  simp [shl]
+public theorem size_shl (a : UInt64Array) (k : Nat) : (shl a k).size = k / 64 + a.size + 1 :=
+  WordArray.size_shlBits a 0 a.size k
 
-public theorem toNat_shl (a : UInt64Array) (k : Nat) (hU : k / 64 + a.size + 1 < USize.size) :
+public theorem toNat_shl (a : UInt64Array) (k : Nat) (_hU : k / 64 + a.size + 1 < USize.size) :
     (shl a k).toNat = a.toNat * 2 ^ k := by
-  obtain ⟨z₁, z₂, -⟩ := zeros_spec (k / 64 + a.size + 1) hU
-  obtain ⟨a₁, a₂, a₃⟩ := toUSlice_spec a (by lia)
-  have h := valAt_shiftLeft (UInt64Array.replicate (k / 64 + a.size + 1) 0).toUSlice a.toUSlice k
-    (by rw [a₂, z₂]; lia)
-  rw [z₁, a₂, a₃] at h
-  rw [shl, toNat_set_top _ _ _ (by simp) (by simp)]
-  exact h
+  rw [toNat_eq_valAt, toNat_eq_valAt, size_shl]
+  exact WordArray.valAt_shlBits a 0 a.size k
 
-/-- `a / 2ᵏ`, in `a.size - k / 64` limbs. -/
-public def shr (a : UInt64Array) (k : Nat) : UInt64Array :=
-  shiftRight (UInt64Array.replicate (a.size - k / 64) 0).toUSlice a.toUSlice k
+/-- `a / 2ᵏ`, in `a.size - k / 64` limbs, by `main`'s `WordArray.shrBits`. -/
+public def shr (a : UInt64Array) (k : Nat) : UInt64Array := WordArray.shrBits a 0 a.size k
 
-public theorem size_shr (a : UInt64Array) (k : Nat) : (shr a k).size = a.size - k / 64 := by
-  simp [shr]
+public theorem size_shr (a : UInt64Array) (k : Nat) : (shr a k).size = a.size - k / 64 :=
+  WordArray.size_shrBits a 0 a.size k
 
-public theorem toNat_shr (a : UInt64Array) (k : Nat) (hU : a.size < USize.size) :
+public theorem toNat_shr (a : UInt64Array) (k : Nat) (_hU : a.size < USize.size) :
     (shr a k).toNat = a.toNat / 2 ^ k := by
-  obtain ⟨z₁, z₂, -⟩ := zeros_spec (a.size - k / 64) (by lia)
-  obtain ⟨a₁, a₂, a₃⟩ := toUSlice_spec a hU
-  have h := valAt_shiftRight (UInt64Array.replicate (a.size - k / 64) 0).toUSlice a.toUSlice k
-    (by rw [a₂, z₂]; exact Nat.le_refl _)
-  rw [z₁, a₂, a₃] at h
-  rw [toNat_eq_valAt, size_shr]
-  exact h
+  rw [toNat_eq_valAt, toNat_eq_valAt, size_shr]
+  exact WordArray.valAt_shrBits a 0 a.size k
 
 /-! ## Comparison -/
 

@@ -6,7 +6,7 @@ module
 
 public import MPN.Div.Schoolbook
 public import MPN.Div.ByLimb
-public import MPN.Shift
+public import MPN.Trim
 
 /-!
 # Schoolbook division with normalization, for limbs of any width
@@ -91,10 +91,6 @@ public theorem arr_bound (a : A) {n : Nat} (hn : n ≤ LA.size a) (hU : LA.size 
   have : n.toUSize.toNat = n := by rw [Nat.toUSize_eq, USize.toNat_ofNat_of_lt' (by lia)]
   exact ⟨by rw [this]; simp; lia, by rw [this]; simp; lia⟩
 
-omit R F in
-public theorem toNat_toUSize_of_lt {n : Nat} (h : n < USize.size) : n.toUSize.toNat = n := by
-  rw [Nat.toUSize_eq, USize.toNat_ofNat_of_lt' h]
-
 /-- `shlTop` on a whole array: `a 2ˢ` in `size a + 1` limbs. -/
 @[inline, expose] public def shlArr (a : A) (s : Nat) : A :=
   if h : LA.size a + 1 < USize.size then
@@ -163,37 +159,11 @@ nonzero top limb: the quotient in `m + 1 - n` limbs and the remainder in `n` lim
 /-! ## Proofs -/
 
 omit F in
-/-- `extract` copies the `k` limbs of `w` from `i`. -/
-public theorem extract_spec (w : A) (i k : Nat) (h : i + k ≤ LA.size w) :
-    LA.size (R.extract w i (i + k)) = k ∧
-      LimbArray.valAt (R.extract w i (i + k)) 0 k = LimbArray.valAt w i k := by
-  have hs : LA.size (R.extract w i (i + k)) = k := by rw [R.size_extract]; lia
-  refine ⟨hs, ?_⟩
-  have key : ∀ c j, j + c ≤ k → LimbArray.valAt (R.extract w i (i + k)) j c =
-      LimbArray.valAt w (i + j) c := by
-    intro c
-    induction c with
-    | zero => intro j _; simp
-    | succ c ih =>
-      intro j hj
-      rw [LimbArray.valAt_succ, LimbArray.valAt_succ, R.get_extract _ _ _ _ (by rw [hs]; lia),
-        ih (j + 1) (by lia), Nat.add_assoc]
-  have := key k 0 (by lia)
-  rwa [Nat.add_zero] at this
-
-omit F in
 /-- `quotN` takes limbs `n` to `n + k - 1` of `w`, its top limbs. -/
 public theorem quotN_spec (w : A) (n k : USize) (hs : LA.size w = n.toNat + k.toNat) :
     LA.size (quotN w n k) = k.toNat ∧
       LimbArray.valAt (quotN w n k) 0 k.toNat = LimbArray.valAt w n.toNat k.toNat :=
   extract_spec w n.toNat k.toNat (by lia)
-
-omit F in
-/-- `s < w` as a limb. -/
-public theorem val_shift {s : Nat} (hs : s < LA.w) : LA.val (R.ofUSize s.toUSize) = s := by
-  have hwU : LA.w < USize.size := by rw [← R.toNat_wU]; exact R.wU.toNat_lt_size
-  have hwB : LA.w < 2 ^ LA.w := Nat.lt_two_pow_self
-  rw [R.val_ofUSize, Nat.toUSize_eq, USize.toNat_ofNat_of_lt' (by lia), Nat.mod_eq_of_lt (by lia)]
 
 /-- `shlTop` holds `a 2ˢ` in `m + 1` limbs. -/
 public theorem shlTop_spec (a : A) (ao m : USize) (ha : LoopBound a ao m)
@@ -211,7 +181,7 @@ public theorem shlTop_spec (a : A) (ao m : USize) (ha : LoopBound a ao m)
     rw [hS, Nat.pow_zero, Nat.mul_one, LimbArray.valAt_add, LimbArray.valAt_one, Nat.zero_add,
       c₂ _ (.inr (by lia)), R.val_get_zeros, Nat.mul_zero, Nat.add_zero, c₃]
   · rename_i hS
-    have hsv := val_shift (R := R) hs
+    have hsv := val_ofUSize_lt (R := R) hs
     obtain ⟨p₁, p₂, p₃⟩ := lshiftW_spec (R.zeros (m.toNat + 1)) 0 a ao m (R.ofUSize s.toUSize)
       (zeros_bound (by lia)) ha (by rw [hsv]; lia) (by rw [hsv]; exact hs)
     rw [R.size_zeros] at p₁
@@ -233,7 +203,7 @@ public theorem shlFit_spec (b : A) (bo n : USize) (hb : LoopBound b bo n) (s : N
     rw [hS, Nat.pow_zero, Nat.mul_one]
     exact (extract_spec b bo.toNat n.toNat hb.1).2
   · rename_i hS
-    have hsv := val_shift (R := R) hs
+    have hsv := val_ofUSize_lt (R := R) hs
     obtain ⟨v₁, -, v₃⟩ := lshiftW_spec (R.zeros n.toNat) 0 b bo n (R.ofUSize s.toUSize)
       (zeros_bound ⟨Nat.le_refl _, n.toNat_lt_size⟩) hb (by rw [hsv]; lia) (by rw [hsv]; exact hs)
     simp only [USize.toNat_zero] at v₃
@@ -258,7 +228,7 @@ public theorem shrNew_spec (r : A) (ro n : USize) (hr : LoopBound r ro n) (s : N
     · rw [h, Nat.pow_zero, Nat.div_one]; exact e₂
     · subst h; simp
   · rename_i h
-    have hsv := val_shift (R := R) hs
+    have hsv := val_ofUSize_lt (R := R) hs
     have hs₀ : 0 < s := Nat.pos_of_ne_zero fun e => h (.inl e)
     obtain ⟨r₁, -, r₃, r₄⟩ := rshiftW_spec (R.zeros n.toNat) 0 r ro n (R.ofUSize s.toUSize)
       (zeros_bound ⟨Nat.le_refl _, n.toNat_lt_size⟩) hr _ (by rw [hsv]; exact hs₀)
