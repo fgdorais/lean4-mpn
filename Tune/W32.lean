@@ -256,7 +256,7 @@ public def main (args : List String) : IO UInt32 := do
   IO.println "sqrBasecase: the schoolbook square against multiplying"
   let sqrBasecase ← tuneSqrBasecase log
   let m ← tuneSqr (A := UInt32Array) m log
-  let dv ← tuneDiv (A := UInt32Array) ops32B divBase32 (·.toSlice)
+  let dv ← tuneDiv (A := UInt32Array) ops32B divBase32 id
     (fun s => s.size.toUInt64 + (s.getD 0 0).toUInt64) log
   IO.println "div1Recip: division by a limb with a reciprocal against the hardware divider"
   let div1Recip ← tuneDiv1Recip log

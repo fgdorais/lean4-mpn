@@ -434,8 +434,8 @@ public theorem divWord_eq (a : UInt32Array) (b : UInt64) : divWord a b = (divRem
 
 /-! ## Decimal strings
 
-`main`'s `DecChunks.toDecimalWith` and `DecChunks.ofDecimalWith` on `ops32`, which converts this
-library's slices to arrays by copying them.
+`main`'s `DecChunks.toDecimalWith` and `DecChunks.ofDecimalWith` on `ops32`, whose numbers are the
+arrays themselves.
 -/
 
 /-- The size below which divide and conquer writes digits by chunks. -/
@@ -444,18 +444,18 @@ public def decBaseSize : Nat := 32
 /-- The size, in digits, below which divide and conquer reads digits by chunks. -/
 public def parseBaseSize : Nat := 300
 
-private theorem hto (x : UInt32Array.Slice) : DecChunks.vA x.copy = ops32.val x := by
-  rw [decVA_eq, ops32_val, toNat_copy]
+private theorem hto (x : UInt32Array) : DecChunks.vA (id x) = ops32.val x := by
+  rw [id, decVA_eq, ops32_val]
 
-private theorem hof (a : UInt32Array) : ops32.val a.toSlice = DecChunks.vA a := by
-  rw [ops32_val, decVA_eq]
+private theorem hof (a : UInt32Array) : ops32.val (id a) = DecChunks.vA a := by
+  rw [id, ops32_val, decVA_eq]
 
 /--
 The decimal digits of limbs: by chunks of nine digits below `strDC` limbs, and by divide and
 conquer from `strDC` limbs (`NatOps.toDec`), down to `decBaseSize` limbs.
 -/
 public def toDecimalWith (strDC : Nat) (a : UInt32Array) (_h : isTrimmed a = true) : String :=
-  DecChunks.toDecimalWith ops32 (·.copy) (·.toSlice) strDC decBaseSize a
+  DecChunks.toDecimalWith ops32 id id strDC decBaseSize a
 
 public theorem toDecimalWith_eq (strDC : Nat) (a : UInt32Array) (h : isTrimmed a = true) :
     toDecimalWith strDC a h = _root_.Nat.repr (MPN.W32.toNat a) := by
@@ -466,7 +466,7 @@ The limbs of a string of decimal digits that `String.isNat` accepts, trimmed: fr
 digits by divide and conquer (`NatOps.fromDec`), and below by chunks of nine digits.
 -/
 public def ofDecimalWith (parseDC : Nat) (s : String) : UInt32Array :=
-  trim (DecChunks.ofDecimalWith ops32 (·.copy) (·.toSlice) parseDC parseBaseSize s)
+  trim (DecChunks.ofDecimalWith ops32 id id parseDC parseBaseSize s)
 
 public theorem ofDecimalWith_spec (parseDC : Nat) (s : String) (h : s.isNat = true) :
     isTrimmed (ofDecimalWith parseDC s) = true ∧
@@ -660,49 +660,47 @@ public theorem ofStringWith_eq (parseDC : _root_.Nat) (s : String) :
 /-! ## The bridge to `ops32` and square roots by Zimmermann's recursion -/
 
 /--
-The bridge from `MPN.W32.Nat` to `ops32`: the slice of the limbs, and back from a copy, trimmed.
+The bridge from `MPN.W32.Nat` to `ops32`: the limbs themselves, and back trimmed.
 -/
-@[expose] public def bridge32 : Bridge UInt32Array UInt32Array.Slice where
+@[expose] public def bridge32 : Bridge UInt32Array UInt32Array where
   o := ops32
   w := 32
   B_eq := rfl
   one_le_w := by decide
-  toO a := a.toSlice
-  val_toO _ := rfl
-  ofO S := ofLimbs (trim S.copy) (isTrimmed_trim _)
-  toNat_ofO S := by rw [toNat_ofLimbs, toNat_trim, toNat_copy, ops32_val]
+  toO a := a
+  val_toO a := ops32_val a
+  ofO S := ofLimbs (trim S) (isTrimmed_trim _)
+  toNat_ofO S := by rw [toNat_ofLimbs, toNat_trim, ops32_val]
 
 @[simp] public theorem bridge32_o : bridge32.o = ops32 := rfl
 
 /-- `(⌊√N⌋, N - ⌊√N⌋²)` for `N` of at most two limbs, on words by `WordArray.sqrt2W`. -/
-public def sqrtTwo (N : UInt32Array.Slice) : UInt32Array.Slice × UInt32Array.Slice :=
-  let c := N.copy
-  let s := WordArray.sqrt2W UInt32Array (c.getD 1 0) (c.getD 0 0)
-  let n : UInt64 := (c.getD 1 0).toUInt64 * 4294967296 + (c.getD 0 0).toUInt64
-  ((limbsOfWord s.toUInt64).toSlice, (limbsOfWord (n - s.toUInt64 * s.toUInt64)).toSlice)
+public def sqrtTwo (N : UInt32Array) : UInt32Array × UInt32Array :=
+  let s := WordArray.sqrt2W UInt32Array (N.getD 1 0) (N.getD 0 0)
+  let n : UInt64 := (N.getD 1 0).toUInt64 * 4294967296 + (N.getD 0 0).toUInt64
+  (limbsOfWord s.toUInt64, limbsOfWord (n - s.toUInt64 * s.toUInt64))
 
-/-- The value of a slice of at most two limbs. -/
-private theorem toNat_le_two (N : UInt32Array.Slice) (h : N.size ≤ 2) :
-    MPN.W32.toNat N = (N.copy.getD 1 0).toNat * 2 ^ 32 + (N.copy.getD 0 0).toNat := by
-  have hc : N.copy.size ≤ 4 := by simp; lia
-  have hv := toNat_four N.copy hc
-  have h2 : N.copy.getD 2 0 = 0 := by
-    rw [UInt32Array.getD_eq_getD_getElem?, getElem?_neg _ _ (by simp; lia)]; rfl
-  have h3 : N.copy.getD 3 0 = 0 := by
-    rw [UInt32Array.getD_eq_getD_getElem?, getElem?_neg _ _ (by simp; lia)]; rfl
-  rw [toNat_copy, h2, h3] at hv
+/-- The value of an array of at most two limbs. -/
+private theorem toNat_le_two (N : UInt32Array) (h : N.size ≤ 2) :
+    MPN.W32.toNat N = (N.getD 1 0).toNat * 2 ^ 32 + (N.getD 0 0).toNat := by
+  have hv := toNat_four N (by lia)
+  have h2 : N.getD 2 0 = 0 := by
+    rw [UInt32Array.getD_eq_getD_getElem?, getElem?_neg _ _ (by lia)]; rfl
+  have h3 : N.getD 3 0 = 0 := by
+    rw [UInt32Array.getD_eq_getD_getElem?, getElem?_neg _ _ (by lia)]; rfl
+  rw [h2, h3] at hv
   simp only [UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero] at hv
   lia
 
-private theorem sqrtTwo_spec (N : UInt32Array.Slice) (h2 : N.size ≤ 2) :
+private theorem sqrtTwo_spec (N : UInt32Array) (h2 : N.size ≤ 2) :
     MPN.W32.toNat (sqrtTwo N).1 = _root_.Nat.sqrt (MPN.W32.toNat N) ∧
       MPN.W32.toNat (sqrtTwo N).2 = MPN.W32.toNat N -
         _root_.Nat.sqrt (MPN.W32.toNat N) * _root_.Nat.sqrt (MPN.W32.toNat N) := by
   unfold sqrtTwo
   rw [toNat_le_two N h2]
   dsimp only
-  generalize N.copy.getD 1 0 = hi
-  generalize N.copy.getD 0 0 = lo
+  generalize N.getD 1 0 = hi
+  generalize N.getD 0 0 = lo
   have hs : (WordArray.sqrt2W UInt32Array hi lo).toNat =
       _root_.Nat.sqrt (hi.toNat * 2 ^ 32 + lo.toNat) :=
     WordArray.val_sqrt2W (A := UInt32Array) hi lo
@@ -726,10 +724,10 @@ private theorem sqrtTwo_spec (N : UInt32Array.Slice) (h2 : N.size ≤ 2) :
 `(⌊√N⌋, N - ⌊√N⌋²)`, the base of Zimmermann's step: by `sqrtTwo` for two limbs, and by Newton's
 iteration (`Bridge.newtonBase`) above.
 -/
-public def sqrtBase (N : UInt32Array.Slice) : UInt32Array.Slice × UInt32Array.Slice :=
+public def sqrtBase (N : UInt32Array) : UInt32Array × UInt32Array :=
   bridge32.newtonBase sqrtTwo (fun N => N.size ≤ 2) N
 
-private theorem sqrtBase_spec (N : UInt32Array.Slice) :
+private theorem sqrtBase_spec (N : UInt32Array) :
     MPN.W32.toNat (sqrtBase N).1 = _root_.Nat.sqrt (MPN.W32.toNat N) ∧
       MPN.W32.toNat (sqrtBase N).2 =
         MPN.W32.toNat N - _root_.Nat.sqrt (MPN.W32.toNat N) * _root_.Nat.sqrt (MPN.W32.toNat N) := by
@@ -982,12 +980,12 @@ public instance lehmer32 : LehmerOps UInt32Array UInt32 where
 
 /--
 Half-gcd's base case of word matrices, for `NatOps.smallBase`: `main`'s `LehmerStep.smallSteps` on
-copies of the slices.
+the arrays themselves.
 -/
 public def steps32 : ops32.SmallSteps :=
-  LehmerStep.smallSteps ops32 (fun s => s.copy) (fun a => a.toSlice)
-    (fun s => by rw [vA_eq, ops32_val, toNat_copy]) (fun a => by rw [ops32_val, vA_eq])
-    (fun b s => decide (s < topSize b))
+  LehmerStep.smallSteps ops32 id id
+    (fun s => by rw [id, vA_eq, ops32_val]) (fun a => by rw [id, ops32_val, vA_eq])
+    (fun b s => decide (s < topSize b.toSlice))
 
 /-- The size below which half-gcd computes its matrices by Lehmer's steps alone. -/
 public def hgcdBase : Nat := 128

@@ -447,20 +447,6 @@ public def shiftLimbs (a : UInt32Array) (k : Nat) : UInt32Array :=
       ofLimbs_append, UInt32Array.toList_replicate, ofLimbs_replicate_zero, List.length_replicate,
       Nat.zero_add, Nat.mul_comm]
 
-/-- `k` zero limbs below `a`. -/
-public theorem toNat_replicate_append (k : Nat) (a : UInt32Array) :
-    toNat (UInt32Array.replicate k 0 ++ a) = toNat a * 2 ^ (32 * k) := by
-  rw [toNat_toSlice_ofLimbs, toNat_toSlice_ofLimbs, UInt32Array.toList_append,
-    UInt32Array.toList_replicate, ofLimbs_append, ofLimbs_replicate_zero, List.length_replicate,
-    Nat.zero_add, Nat.mul_comm]
-
-/-- A one above `k` zero limbs. -/
-public theorem toNat_replicate_push (k : Nat) :
-    toNat ((UInt32Array.replicate k 0).push 1) = 2 ^ (32 * k) := by
-  rw [toNat_toSlice_ofLimbs, UInt32Array.toList_push, UInt32Array.toList_replicate,
-    ofLimbs_concat, ofLimbs_replicate_zero, List.length_replicate]
-  simp
-
 @[simp] public theorem toNat_empty : toNat UInt32Array.empty = 0 := rfl
 
 public theorem isTrimmed_empty : isTrimmed UInt32Array.empty = true := by

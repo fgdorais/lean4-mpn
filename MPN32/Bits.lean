@@ -30,16 +30,6 @@ namespace MPN.W32
 
 /-! ## Moving limbs -/
 
-/-- The limbs of `a` from `k` on hold `⌊a / βᵏ⌋`. -/
-public theorem toNat_slice_from (a : UInt32Array.Slice) (k : Nat) (hk : k ≤ a.size) :
-    toNat (a.slice k a.size) = toNat a / 2 ^ (32 * k) := by
-  have h := toNat_slice_add_toNat_slice a k hk
-  have hlt := toNat_lt (a.slice 0 k)
-  simp only [UInt32Array.Slice.size_slice] at hlt
-  rw [show min k a.size - 0 = k by lia] at hlt
-  rw [← h, Nat.mul_comm (2 ^ _), Nat.add_mul_div_right _ _ (Nat.two_pow_pos _),
-    Nat.div_eq_of_lt hlt, Nat.zero_add]
-
 /-! ## Shifts -/
 
 /--

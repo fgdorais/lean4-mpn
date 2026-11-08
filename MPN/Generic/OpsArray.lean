@@ -17,8 +17,9 @@ runs the base-generic algorithms on a width's own operations: `O` gives the prod
 the difference (`ArrayOps`, specified below the sizes of `fitsU`), and `div` the division; the rest
 is shared: `lo` and `hi` copy their limbs out (`extract`), `shl` is `shlBits`, `join` is `joinW`,
 `le` is `ltA`, and `mulMod` is the wrapped product `Dispatch.mulModW` with the thresholds `cfg`.
-The results of the width's operations are trimmed to `k` limbs, and past the sizes of `fitsU`
-every operation computes from the values, which never happens.
+The results of the products, the sum, the difference, `shl` and `mulMod` are trimmed to `k` limbs,
+so that the next products see no zero limbs on top, and past the sizes of `fitsU` every operation
+computes from the values, which never happens.
 -/
 
 namespace MPN.WordArray
@@ -164,21 +165,21 @@ division `div`, with the rest shared.
   hi := hiA
   val_hi k x := by rw [vA_hiA, ← Nat.pow_mul]
   size_hi := size_hiA
-  shl k x := shlBits x 0 (LA.size x) (LA.w * k)
-  val_shl k x := by
-    rw [vA, size_shlBits, valAt_shlBits, ← Nat.pow_mul]
+  shl k' x := trimTo k (shlBits x 0 (LA.size x) (LA.w * k'))
+  val_shl k' x := by
+    rw [vA, valAt_trimTo, size_shlBits, valAt_shlBits, ← Nat.pow_mul]
   join := joinA
   val_join k x y := by rw [vA_joinA, ← Nat.pow_mul]
-  pow k := shlBits (ofNatW (R := R) 1) 0 (LA.size (ofNatW (R := R) 1)) (LA.w * k)
-  val_pow k := by
-    rw [vA, size_shlBits, valAt_shlBits, valAt_ofNatW, Nat.one_mul, ← Nat.pow_mul]
+  pow k' := trimTo k (shlBits (ofNatW (R := R) 1) 0 (LA.size (ofNatW (R := R) 1)) (LA.w * k'))
+  val_pow k' := by
+    rw [vA, valAt_trimTo, size_shlBits, valAt_shlBits, valAt_ofNatW, Nat.one_mul, ← Nat.pow_mul]
   one := ofNatW (R := R) 1
   val_one := valAt_ofNatW ..
   mulModSize n := Dispatch.modSize cfg.fftKFactor n
   le_mulModSize n := Dispatch.le_modSize ..
-  mulMod n x y := Dispatch.mulModW cfg n x 0 (LA.size x) y 0 (LA.size y)
+  mulMod n x y := trimTo k (Dispatch.mulModW cfg n x 0 (LA.size x) y 0 (LA.size y))
   val_mulMod n x y := by
-    rw [← Nat.pow_mul]
+    rw [← Nat.pow_mul, vA, valAt_trimTo]
     exact Dispatch.mulModW_spec cfg n x 0 (LA.size x) y 0 (LA.size y)
   divRem := div
   val_divRem := hdiv
