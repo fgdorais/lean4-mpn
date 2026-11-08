@@ -305,6 +305,30 @@ public theorem uset_eq_set (a : UInt32Array) (i : USize) (k : Nat) (hk : i.toNat
   subst hk
   rfl
 
+/-- Folds over equal arrays from equal accumulators, for any proofs of their bounds. -/
+public theorem foldUInPlace_congr {β : Type} {n : USize}
+    {f : (j : USize) → j < n → UInt32 → β → UInt32 × β} {A B : UInt32Array} {rs j : USize}
+    {c c' : β} (e : A = B) (ec : c = c') (p : UInt32Array.LoopBound A rs n)
+    (q : UInt32Array.LoopBound B rs n) :
+    UInt32Array.foldUInPlace n f A rs p j c = UInt32Array.foldUInPlace n f B rs q j c' := by
+  subst e ec; rfl
+
+/--
+One step of a fold over limbs from `0`, with `set` and `getElem` at the `Nat` index, for any proof
+of the bounds of the next array.
+-/
+public theorem foldUInPlace_lt0 {β : Type} (n : USize)
+    (f : (j : USize) → j < n → UInt32 → β → UInt32 × β) (arr : UInt32Array)
+    (hr : UInt32Array.LoopBound arr 0 n) (j : USize) (b : β) (h : j < n) (hj : j.toNat < arr.size)
+    (hr' : UInt32Array.LoopBound (arr.set j.toNat (f j h arr[j.toNat] b).1 hj) 0 n) :
+    UInt32Array.foldUInPlace n f arr 0 hr j b =
+      UInt32Array.foldUInPlace n f (arr.set j.toNat (f j h arr[j.toNat] b).1 hj) 0 hr' (j + 1)
+        (f j h arr[j.toNat] b).2 := by
+  rw [UInt32Array.foldUInPlace_lt _ _ _ _ _ _ _ h]
+  have e0 : (0 + j).toNat = j.toNat := by simp
+  have hg : arr.uget (0 + j) (hr.uset_bound h) = arr[j.toNat] := uget_eq_getElem _ _ _ e0 _
+  exact foldUInPlace_congr (by rw [hg]; exact uset_eq_set _ _ _ e0 _ _) (by rw [hg]) _ _
+
 /--
 Limb `k` of the `len` limbs of `arr` from `st` on, read with `USize` indices, as the folds of the
 compiled loops do. They bind `arr` and `st` before the fold so that its loop reads neither from the

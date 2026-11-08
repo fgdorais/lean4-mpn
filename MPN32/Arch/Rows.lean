@@ -394,8 +394,8 @@ private theorem rowsLoop_spec (a b : UInt32Array.Slice) (ha : a.array.size < USi
 
 /-- The step of the carries at limb `k`: accumulator `k` plus the carry `c`. -/
 @[inline] def carryStep (acc : UInt64Array) (n : USize) (hn : n.toNat ≤ acc.size) (k : USize)
-    (hk : k.toNat < n.toNat) (_ : UInt32) (c : UInt64) : UInt32 × UInt64 :=
-  let v := acc.uget k (by lia) + c
+    (hk : k < n) (_ : UInt32) (c : UInt64) : UInt32 × UInt64 :=
+  let v := acc.uget k (by have := USize.lt_iff_toNat_lt.1 hk; lia) + c
   (v.toUInt32, v >>> 32)
 
 private theorem carry_arith (S R Q A c v T : Nat) (hv : v = A + c)
@@ -411,60 +411,66 @@ private theorem carry_arith (S R Q A c v T : Nat) (hv : v = A + c)
 
 private theorem carryLoop_spec (acc : UInt64Array) (N : Nat) (hN : N = acc.size)
     (hNU : N < USize.size) (E : Nat) (hE : E + 2 ^ 33 < 2 ^ 64)
-    (hall : ∀ k (hk : k < acc.size), acc[k].toNat ≤ E) (s len : Nat) (hs : s = 0)
-    (hl : N = len) :
-    ∀ d j (r : UInt32Array) (c : UInt64), N - j = d → ∀ (h : s + len ≤ r.size)
-      (hlen : len ≤ N.toUSize.toNat), j ≤ N → c.toNat ≤ 2 ^ 33 →
-      (∀ k (hk : k < r.size), j ≤ k → r[k] = 0) →
-      let res := UInt32Array.foldInPlace.loop N.toUSize
-        (carryStep acc N.toUSize (by rw [toNat_toUSize hNU]; lia)) s len r h hlen j c
+    (hall : ∀ k (hk : k < acc.size), acc[k].toNat ≤ E) :
+    ∀ d (j : USize) (r : UInt32Array) (c : UInt64) (hr : UInt32Array.LoopBound r 0 N.toUSize),
+      N - j.toNat = d → j.toNat ≤ N → c.toNat ≤ 2 ^ 33 →
+      (∀ k (hk : k < r.size), j.toNat ≤ k → r[k] = 0) →
+      let res := UInt32Array.foldUInPlace N.toUSize
+        (carryStep acc N.toUSize (by rw [toNat_toUSize hNU]; lia)) r 0 hr j c
       res.1.size = r.size ∧
         res.1.valAt 0 r.size + 2 ^ (32 * N) * res.2.toNat =
-          r.valAt 0 r.size + 2 ^ (32 * j) * (c.toNat + accVal acc j (N - j)) := by
-  subst hs hl
+          r.valAt 0 r.size + 2 ^ (32 * j.toNat) * (c.toNat + accVal acc j.toNat (N - j.toNat)) := by
+  have hNu : N.toUSize.toNat = N := toNat_toUSize hNU
   intro d
   induction d with
   | zero =>
-    intro j r c hd h hlen hj hc hz
-    have hjN : j = N := by lia
-    subst hjN
-    rw [UInt32Array.foldInPlace.loop, dite_eq_right (by lia)]
-    simp only [Nat.sub_self, accVal, Nat.add_zero]
+    intro j r c hr hd hj hc hz
+    have hjN : j.toNat = N := by lia
+    rw [UInt32Array.foldUInPlace_ge _ _ _ _ _ _ _ (fun h => by
+      have := USize.lt_iff_toNat_lt.1 h; lia)]
+    simp only [hjN, Nat.sub_self, accVal, Nat.add_zero]
     exact ⟨trivial, trivial⟩
   | succ d ih =>
-    intro j r c hd h hlen hj hc hz
-    have hjN : j < N := by clear ih; lia
-    rw [UInt32Array.foldInPlace.loop, dite_eq_left hjN]
-    dsimp only
-    simp only [Nat.zero_add, carryStep, UInt64Array.uget_eq_getElem,
-      toNat_toUSize (show j < USize.size by
-      clear ih; lia)]
-    have hjacc : j < acc.size := by clear ih; lia
-    have hA := hall j hjacc
-    have hv : (acc[j] + c).toNat = acc[j].toNat + c.toNat := by
+    intro j r c hr hd hj hc hz
+    have hjN : j.toNat < N := by clear ih; lia
+    have hlt : j < N.toUSize := USize.lt_iff_toNat_lt.2 (by rw [hNu]; exact hjN)
+    have hjr : j.toNat < r.size := by have := hr.1; clear ih; simp at this; lia
+    have hj1 : (j + 1).toNat = j.toNat + 1 := USize.toNat_add_one_of_lt hlt
+    have hjacc : j.toNat < acc.size := by clear ih; lia
+    have hstep : carryStep acc N.toUSize (by rw [hNu]; lia) j hlt r[j.toNat] c =
+        ((acc[j.toNat] + c).toUInt32, (acc[j.toNat] + c) >>> 32) := by
+      simp only [carryStep, UInt64Array.uget_eq_getElem]
+    have hr' : UInt32Array.LoopBound (r.set j.toNat (carryStep acc N.toUSize (by rw [hNu]; lia) j
+        hlt r[j.toNat] c).1 hjr) 0 N.toUSize := by
+      simp only [UInt32Array.LoopBound, UInt32Array.size_set]; exact hr
+    rw [foldUInPlace_lt0 _ _ _ _ _ _ hlt hjr hr']
+    have hA := hall _ hjacc
+    have hv : (acc[j.toNat] + c).toNat = acc[j.toNat].toNat + c.toNat := by
       rw [UInt64.toNat_add]; exact Nat.mod_eq_of_lt (by clear ih; lia)
-    have hc' : ((acc[j] + c) >>> 32).toNat ≤ 2 ^ 33 := by
+    have hc' : ((acc[j.toNat] + c) >>> 32).toNat ≤ 2 ^ 33 := by
       rw [UInt64.toNat_shiftRight, hv]
       simp only [UInt64.reduceToNat, Nat.reduceMod, Nat.shiftRight_eq_div_pow]
       exact Nat.le_of_lt (Nat.div_lt_of_lt_mul (by clear ih; lia))
-    have hjr : j < r.size := by clear ih; lia
-    obtain ⟨ih₁, ih₂⟩ := ih (j + 1) (r.set j (acc[j] + c).toUInt32 hjr)
-      ((acc[j] + c) >>> 32) (by clear ih; lia) (by simpa using h) hlen (by clear ih; lia) hc'
+    obtain ⟨ih₁, ih₂⟩ := ih (j + 1) _
+      (carryStep acc N.toUSize (by rw [hNu]; lia) j hlt r[j.toNat] c).2 hr'
+      (by rw [hj1]; clear ih; lia) (by rw [hj1]; lia)
+      (by rw [hstep]; exact hc')
       (fun k hk hjk => by
-        rw [UInt32Array.getElem_set, ite_eq_right (by clear ih; lia)]
-        exact hz k (by simpa using hk) (by clear ih; lia))
-    refine ⟨by rw [ih₁]; simp, ?_⟩
-    simp only [UInt32Array.size_set] at ih₂
-    rw [ih₂]
-    have hset := UInt32Array.valAt_set r j (acc[j] + c).toUInt32 hjr 0 r.size (Nat.zero_le _)
-      (by lia)
-    have hr0 : r[j] = 0 := hz j hjr (Nat.le_refl _)
+        rw [UInt32Array.getElem_set, ite_eq_right (by rw [hj1] at hjk; clear ih; lia)]
+        exact hz k (by simpa using hk) (by rw [hj1] at hjk; clear ih; lia))
+    simp only [hstep, UInt32Array.size_set] at ih₁ ih₂ ⊢
+    refine ⟨ih₁, ?_⟩
+    rw [ih₂, hj1]
+    have hset := UInt32Array.valAt_set r j.toNat (acc[j.toNat] + c).toUInt32 hjr 0 r.size
+      (Nat.zero_le _) (by lia)
+    have hr0 : r[j.toNat] = 0 := hz _ hjr (Nat.le_refl _)
     rw [hr0, UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero, UInt64.toNat_toUInt32, hv,
       Nat.sub_zero] at hset
-    rw [show N - j = (N - (j + 1)) + 1 by clear ih; lia, accVal_succ, getElem!_pos acc j hjacc,
-      UInt64.toNat_shiftRight, hv]
+    rw [show N - j.toNat = (N - (j.toNat + 1)) + 1 by clear ih; lia, accVal_succ,
+      getElem!_pos acc j.toNat hjacc, UInt64.toNat_shiftRight, hv]
     simp only [UInt64.reduceToNat, Nat.reduceMod, Nat.shiftRight_eq_div_pow]
-    have hpow : 2 ^ (32 * (j + 1)) = 2 ^ (32 * j) * 2 ^ 32 := by rw [Nat.mul_succ, Nat.pow_add]
+    have hpow : 2 ^ (32 * (j.toNat + 1)) = 2 ^ (32 * j.toNat) * 2 ^ 32 := by
+      rw [Nat.mul_succ, Nat.pow_add]
     rw [hpow]
     exact carry_arith _ _ _ _ _ _ _ rfl hset
 
@@ -502,15 +508,16 @@ public def rowsMul (a b : UInt32Array.Slice) (h : RowsOK a b) : UInt32Array :=
   have ha := lt_usizeSize h.2.2.1
   have hb := lt_usizeSize h.2.2.2
   have hab : a.size + b.size < USize.size := lt_usizeSize (by have := h.2.1; lia)
-  (UInt32Array.replicate (a.size + b.size) 0).foldInPlaceThen 0 (a.size + b.size).toUSize 0
+  UInt32Array.foldUInPlaceThen (a.size + b.size).toUSize
     (carryStep (rowsLoop a b ha hb hab a.start.toUSize a.size.toUSize b.start.toUSize
         b.size.toUSize rfl rfl rfl rfl (UInt64Array.replicate (a.size + b.size) 0) (by simp) 0)
       (a.size + b.size).toUSize
       (by rw [toNat_toUSize hab, size_rowsLoop a b ha hb hab _ _ _ _ _ _ _ _ _ 0 _ _ rfl]
           exact Nat.le_refl _))
-    (fun r _ => r) (by
-      simp only [UInt32Array.size_replicate, USize.toNat_zero, Nat.zero_add, toNat_toUSize hab]
-      exact Nat.le_refl _)
+    (UInt32Array.replicate (a.size + b.size) 0) 0
+    (by simp only [UInt32Array.LoopBound, UInt32Array.size_replicate, USize.toNat_zero,
+      Nat.zero_add, toNat_toUSize hab]; exact ⟨Nat.le_refl _, hab⟩)
+    0 0 (fun r _ _ => r)
 
 public theorem rowsMul_spec (a b : UInt32Array.Slice) (h : RowsOK a b) :
     (rowsMul a b h).size = a.size + b.size ∧ toNat (rowsMul a b h) = toNat a * toNat b := by
@@ -522,7 +529,7 @@ public theorem rowsMul_spec (a b : UInt32Array.Slice) (h : RowsOK a b) :
     (UInt64Array.replicate (a.size + b.size) 0) (by simp) (by simp) (Nat.zero_le _)
     (fun k hk => by simp)
     (by rw [accVal_replicate_zero]; simp [toNat_eq_valAt, Nat.mul_comm])
-  simp only [rowsMul, UInt32Array.foldInPlaceThen_eq, UInt32Array.foldInPlace]
+  simp only [rowsMul, UInt32Array.foldUInPlaceThen]
   have hE : 2 ^ 33 * a.size + 2 ^ 33 < 2 ^ 64 := by
     have h1 : a.size + 1 < 2 ^ 31 := by have := h.2.1; have := h.1; lia
     have := Nat.mul_lt_mul_of_pos_left h1 (show 0 < 2 ^ 33 by decide)
@@ -533,22 +540,18 @@ public theorem rowsMul_spec (a b : UInt32Array.Slice) (h : RowsOK a b) :
       rfl rfl (UInt64Array.replicate (a.size + b.size) 0) (by simp) 0)
     (a.size + b.size) hs.symm hab (2 ^ 33 * a.size) hE
     (fun k hk => hbd k hk)
-    (USize.toNat 0) ((a.size + b.size).toUSize.toNat) rfl (toNat_toUSize hab).symm
-    (a.size + b.size) 0 (UInt32Array.replicate (a.size + b.size) 0) 0 (Nat.sub_zero _)
-    (by
-      simp only [USize.toNat_zero, Nat.zero_add, toNat_toUSize hab, UInt32Array.size_replicate]
-      exact Nat.le_refl _)
-    (Nat.le_refl _) (Nat.zero_le _) (by simp) (fun k hk _ => by simp)
+    (a.size + b.size) 0 (UInt32Array.replicate (a.size + b.size) 0) 0 _ (by simp)
+    (by simp) (by simp) (fun k hk _ => by simp)
   rw [hs] at hv
   simp only [UInt32Array.valAt_replicate_zero, Nat.mul_zero, Nat.zero_add, Nat.sub_zero,
-    UInt64.toNat_zero, Nat.pow_zero, Nat.one_mul, UInt32Array.size_replicate, hv] at h₂
+    UInt64.toNat_zero, Nat.pow_zero, Nat.one_mul, UInt32Array.size_replicate, hv,
+    USize.toNat_zero] at h₂
   revert h₁ h₂
-  generalize UInt32Array.foldInPlace.loop (a.size + b.size).toUSize
+  generalize UInt32Array.foldUInPlace (a.size + b.size).toUSize
     (carryStep (rowsLoop a b ha hb hab a.start.toUSize a.size.toUSize b.start.toUSize
       b.size.toUSize rfl rfl
       rfl rfl (UInt64Array.replicate (a.size + b.size) 0) (by simp) 0)
-      (a.size + b.size).toUSize _) (USize.toNat 0) ((a.size + b.size).toUSize.toNat)
-    (UInt32Array.replicate (a.size + b.size) 0) _ _ 0 0 = R
+      (a.size + b.size).toUSize _) (UInt32Array.replicate (a.size + b.size) 0) 0 _ 0 0 = R
   intro h₁ h₂
   have hlt : toNat a * toNat b < 2 ^ (32 * (a.size + b.size)) := by
     rw [Nat.mul_add, Nat.pow_add]
