@@ -4,7 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN64.FFT.Transform
+public import MPN.FFT.Windows
+public import MPN64.Arch.UIntArray
 public import MPN.FFT.Product
 public import MPN.Dispatch
 public import MPN64.Mul.Toom

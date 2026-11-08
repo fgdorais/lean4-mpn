@@ -18,7 +18,6 @@ public import MPN64.Mul.Karatsuba
 public import MPN64.Mul.Toom
 public import MPN64.Arch.SqrBasecase
 public import MPN64.Sqr.Karatsuba
-public import MPN64.FFT.Transform
 public import MPN64.FFT.Mul
 public import MPN64.Num
 public import MPN64.Div.DC
