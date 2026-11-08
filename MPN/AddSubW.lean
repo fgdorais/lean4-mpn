@@ -16,6 +16,9 @@ one pass over the low `bl` limbs reading both windows (`addNStep`, `subNStep`), 
 the rest of `A` with the carry or the borrow (`add1Step`, `sub1Step`), and for `addW` the carry
 out into the top limb. Each checks its bounds; otherwise it writes the value of its specification
 with `writeNat`, which never happens.
+
+`addN` and `subN` are the sum and the difference of two windows in new limbs, for any sizes:
+`addN` puts the longer window first.
 -/
 
 namespace MPN.WordArray
@@ -373,5 +376,48 @@ public theorem subW_spec (z : A) (zo : Nat) (a : A) (ao al : Nat) (b : A) (bo bl
     unfold subTail
     rw [F.foldThen_eq, foldUInPlaceThen, size_foldUInPlace, size_foldUInPlace]
   · exact size_writeNat ..
+
+/-! ## In new limbs -/
+
+/-- `A + B` in `max al bl + 1` new limbs. -/
+public def addN (a : A) (ao al : Nat) (b : A) (bo bl : Nat) : A :=
+  if bl ≤ al then addW (R.zeros (al + 1)) 0 a ao al b bo bl
+  else addW (R.zeros (bl + 1)) 0 b bo bl a ao al
+
+public theorem size_addN (a : A) (ao al : Nat) (b : A) (bo bl : Nat) :
+    LA.size (addN a ao al b bo bl) = max al bl + 1 := by
+  unfold addN
+  split <;> rw [size_addW, R.size_zeros] <;> lia
+
+public theorem valAt_addN (a : A) (ao al : Nat) (b : A) (bo bl : Nat) :
+    valAt (addN a ao al b bo bl) 0 (max al bl + 1) = valAt a ao al + valAt b bo bl := by
+  unfold addN
+  split
+  · rename_i h
+    rw [Nat.max_eq_left h]
+    exact (addW_spec _ 0 a ao al b bo bl (by rw [R.size_zeros]; lia) h).2
+  · rename_i h
+    rw [Nat.max_eq_right (by lia), Nat.add_comm (valAt a ao al)]
+    exact (addW_spec _ 0 b bo bl a ao al (by rw [R.size_zeros]; lia) (by lia)).2
+
+/-- `A - B` in `al` new limbs, for `B ≤ A`; the limbs of `B` from `al` on are zero then. -/
+public def subN (a : A) (ao al : Nat) (b : A) (bo bl : Nat) : A :=
+  subW (R.zeros al) 0 a ao al b bo (min bl al)
+
+public theorem size_subN (a : A) (ao al : Nat) (b : A) (bo bl : Nat) :
+    LA.size (subN a ao al b bo bl) = al := by
+  rw [subN, size_subW, R.size_zeros]
+
+public theorem valAt_subN (a : A) (ao al : Nat) (b : A) (bo bl : Nat)
+    (hle : valAt b bo bl ≤ valAt a ao al) :
+    valAt (subN a ao al b bo bl) 0 al = valAt a ao al - valAt b bo bl := by
+  have hb : valAt b bo (min bl al) = valAt b bo bl := by
+    rcases Nat.le_total bl al with h | h
+    · rw [Nat.min_eq_left h]
+    · rw [Nat.min_eq_right h, valAt_mod _ _ h, Nat.mod_eq_of_lt
+        (Nat.lt_of_le_of_lt hle (valAt_lt ..))]
+  rw [subN, ← hb]
+  exact (subW_spec _ 0 a ao al b bo (min bl al) (by rw [R.size_zeros]; lia) (Nat.min_le_right _ _)
+    (by rw [hb]; exact hle)).2
 
 end MPN.WordArray

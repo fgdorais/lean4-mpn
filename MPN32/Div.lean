@@ -120,14 +120,6 @@ private theorem toNat_slice_lo (s : UInt32Array.Slice) (k : Nat) :
   · rw [Nat.min_eq_right (by lia), Nat.mod_eq_of_lt (Nat.lt_of_lt_of_le
       (UInt32Array.valAt_lt ..) (Nat.pow_le_pow_right (by decide) (by lia)))]
 
-public theorem toNat_sub_slice (x y : UInt32Array.Slice) (h : toNat y ≤ toNat x) :
-    toNat (subLimbs x (y.slice 0 x.size)).toSlice = toNat x - toNat y := by
-  have hy : toNat (y.slice 0 x.size) = toNat y := by
-    rw [toNat_slice_lo, Nat.mod_eq_of_lt]
-    rw [← Nat.pow_mul]
-    exact Nat.lt_of_le_of_lt h (toNat_lt x)
-  rw [toNat_toSlice, ← toNat_toSlice, toNat_subLimbs _ _ (by simp; lia) (by rw [hy]; exact h), hy]
-
 /--
 `(u / v, u % v)` by the schoolbook method alone: the divisor is cut to its nonzero limbs, then
 `divRem1` for one limb and `divRemBasecase` for more. The base case of `ops32B.divNorm`.
@@ -191,10 +183,10 @@ public theorem vA_eq_toNat (x : UInt32Array) : WordArray.vA x = toNat x :=
   add x y := addLimbs x.toSlice y.toSlice
   val_add x y _ := by
     rw [vA_eq_toNat, vA_eq_toNat, vA_eq_toNat]; exact toNat_addLimbs x.toSlice y.toSlice
-  sub x y := subLimbs x.toSlice (y.toSlice.slice 0 x.toSlice.size)
+  sub x y := subVal x y
   val_sub x y _ hle := by
     rw [vA_eq_toNat, vA_eq_toNat] at hle
-    rw [vA_eq_toNat, vA_eq_toNat, vA_eq_toNat]; exact toNat_sub_slice x.toSlice y.toSlice hle
+    rw [vA_eq_toNat, vA_eq_toNat, vA_eq_toNat]; exact toNat_subVal x y hle
 
 /--
 The operations of `NatOps` on arrays of 32-bit limbs, with the division `div`: `main`'s

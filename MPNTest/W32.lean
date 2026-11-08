@@ -60,7 +60,7 @@ def values : List Nat := edges ++ samples 40 400
 #guard add (ofNat (2 ^ 128 - 1)) (ofNat 1) == ofNat (2 ^ 128)
 #guard add UInt32Array.empty UInt32Array.empty == .empty
 
-/-! Untrimmed addition, subtraction and adding at an offset -/
+/-! Untrimmed addition and subtraction -/
 
 #guard values.all fun m => values.all fun n =>
   let r := addLimbs (ofNat m) (ofNat n)
@@ -71,15 +71,6 @@ def values : List Nat := edges ++ samples 40 400
   let a := ofNat hi ++ .replicate 1 0
   let r := subLimbs a (ofNat lo)
   r.size == a.size && toNat r == hi - lo
-
-#guard (values.take 12).all fun m => (values.take 12).all fun n =>
-  let r := ofNat m ++ .replicate 3 0
-  let a : UInt32Array.Slice := ofNat n
-  (List.range (r.size + 1)).all fun off =>
-    if off + a.size ≤ r.size then
-      let (r', c) := addAt r off a
-      r'.size == r.size && toNat r' + 2 ^ (32 * r.size) * c.toNat == m + 2 ^ (32 * off) * n
-    else true
 
 /-! Multiplication by a limb -/
 

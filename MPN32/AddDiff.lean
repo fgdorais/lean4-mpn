@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN32.Add
+public import MPN32.Arch.UInt
 
 /-!
 # Adding a difference
@@ -21,6 +22,54 @@ At the end of `x` the true carry is `0` or `1`, and a carry of `1` is propagated
 open ScalarArray
 
 namespace MPN.W32
+
+/-! ## Propagating a carry -/
+
+/-- Adds one at limb `i` of `r` and propagates the carry to the end of `r`, dropping the last. -/
+public def incrFrom (r : UInt32Array) (i : Nat) : UInt32Array :=
+  if h : i < r.size then
+    if r[i] = 0xFFFFFFFF then incrFrom (r.set i 0 h) (i + 1) else r.set i (r[i] + 1) h
+  else
+    r
+termination_by r.size - i
+
+/-- `incrFrom r i` adds `2^(32 i)` to `r` when the sum fits. -/
+public theorem incrFrom_spec (r : UInt32Array) (i : Nat) (hi : i ≤ r.size)
+    (hlt : r.valAt 0 r.size + 2 ^ (32 * i) < 2 ^ (32 * r.size)) :
+    (incrFrom r i).size = r.size ∧
+      (incrFrom r i).valAt 0 r.size = r.valAt 0 r.size + 2 ^ (32 * i) := by
+  induction r, i using incrFrom.induct with
+  | case1 r i h hmax ih =>
+    rw [incrFrom]
+    simp only [h, hmax, ↓reduceDIte, ↓reduceIte]
+    have hset := UInt32Array.valAt_set r i 0 h 0 r.size (by lia) (by lia)
+    simp only [Nat.sub_zero, hmax, UInt32.toNat_zero, Nat.mul_zero, Nat.add_zero,
+      UInt32.reduceToNat] at hset
+    have hpow : 2 ^ (32 * (i + 1)) = 2 ^ (32 * i) * 4294967296 := by
+      rw [Nat.mul_add, Nat.mul_one, Nat.pow_add]
+    simp only [UInt32Array.size_set, hpow] at ih ⊢
+    generalize (r.set i 0 h).valAt 0 r.size = R' at *
+    generalize r.valAt 0 r.size = R at *
+    generalize 2 ^ (32 * i) = P at *
+    obtain ⟨ih₁, ih₂⟩ := ih (by lia) (by lia)
+    exact ⟨ih₁, by lia⟩
+  | case2 r i h hmax =>
+    rw [incrFrom]
+    simp only [h, hmax, ↓reduceDIte, ↓reduceIte, UInt32Array.size_set, true_and]
+    have hset := UInt32Array.valAt_set r i (r[i] + 1) h 0 r.size (by lia) (by lia)
+    rw [Nat.sub_zero] at hset
+    generalize r[i] = v at hmax hset
+    have hv : (v + 1).toNat = v.toNat + 1 := by
+      have : v.toNat ≠ 4294967295 := fun e => hmax (UInt32.toNat_inj.1 e)
+      have := v.toNat_lt
+      rw [UInt32.toNat_add, UInt32.toNat_one]
+      lia
+    rw [hv, Nat.mul_add, Nat.mul_one] at hset
+    lia
+  | case3 r i h =>
+    have : i = r.size := by lia
+    subst this
+    lia
 
 /-! ## The step -/
 

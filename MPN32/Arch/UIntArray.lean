@@ -767,12 +767,14 @@ public instance wordArray32 : MPN.WordArray UInt32Array UInt32 where
   subMulB z y x h := z.subMulBiased y x h
   unB h := ~~~h
   b0 := 0xFFFFFFFF
-  addC x y c :=
-    let t := x.toUInt64 + y.toUInt64 + c.toUInt64
-    (t.toUInt32, (t >>> 32).toUInt32)
+  addC x y c := x.addWithCarryWord y c
+  -- With `e = y + 2³² - 1 - x ≥ 0`, which does not depend on `c`, the borrow `⌈(y + c - x) / 2³²⌉`
+  -- is `(e + c) >>> 32` and the difference is the complement of `e + c`: the carried borrow goes
+  -- through one add and one shift per limb. The low word reads `e` again, so that LLVM computes
+  -- `e` once instead of adding `c` first.
   subC x y c :=
-    let t := x.toUInt64 - y.toUInt64 - c.toUInt64
-    (t.toUInt32, (0 : UInt32) - (t >>> 32).toUInt32)
+    let e := y.toUInt64 + 0xFFFFFFFF - x.toUInt64
+    (~~~(e.toUInt32 + c), ((e + c.toUInt64) >>> 32).toUInt32)
   subMul2B := subMul2W
   isZero x := x == 0
   ofUSize i := i.toUInt32
@@ -810,22 +812,22 @@ public instance wordArray32 : MPN.WordArray UInt32Array UInt32 where
     lia
   val_unB_b0 := by decide
   val_addC x y c := by
-    show (x.toUInt64 + y.toUInt64 + c.toUInt64).toUInt32.toNat +
-        2 ^ 32 * ((x.toUInt64 + y.toUInt64 + c.toUInt64) >>> 32).toUInt32.toNat =
+    show (x.addWithCarryWord y c).1.toNat + 2 ^ 32 * (x.addWithCarryWord y c).2.toNat =
       x.toNat + y.toNat + c.toNat
     have := x.toNat_lt; have := y.toNat_lt; have := c.toNat_lt
-    simp only [UInt64.toNat_add, UInt64.toNat_toUInt32, UInt32.toNat_toUInt64,
-      UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow, UInt64.toNat_ofNat, Nat.reduceMod,
-      Nat.reducePow]
+    simp only [UInt32.addWithCarryWord, UInt32.toNat_add, UInt64.toNat_add, UInt64.toNat_toUInt32,
+      UInt32.toNat_toUInt64, UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow,
+      UInt64.toNat_ofNat, Nat.reduceMod, Nat.reducePow]
     lia
   val_subC x y c := by
-    show (x.toUInt64 - y.toUInt64 - c.toUInt64).toUInt32.toNat + y.toNat + c.toNat =
+    show (~~~((y.toUInt64 + 0xFFFFFFFF - x.toUInt64).toUInt32 + c)).toNat + y.toNat + c.toNat =
       x.toNat + 2 ^ 32 *
-        ((0 : UInt32) - ((x.toUInt64 - y.toUInt64 - c.toUInt64) >>> 32).toUInt32).toNat
+        (((y.toUInt64 + 0xFFFFFFFF - x.toUInt64) + c.toUInt64) >>> 32).toUInt32.toNat
     have := x.toNat_lt; have := y.toNat_lt; have := c.toNat_lt
-    simp only [UInt64.toNat_sub, UInt32.toNat_sub, UInt64.toNat_toUInt32, UInt32.toNat_toUInt64,
-      UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow, UInt64.toNat_ofNat, UInt32.toNat_zero,
-      Nat.reduceMod, Nat.reducePow, UInt64.toNat_toUInt32]
+    simp only [UInt32.toNat_not, UInt32.toNat_add, UInt64.toNat_sub, UInt64.toNat_add,
+      UInt64.toNat_toUInt32,
+      UInt32.toNat_toUInt64, UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow,
+      UInt64.toNat_ofNat, Nat.reduceMod, Nat.reducePow]
     lia
   val_subMul2B := val_subMul2W
   ltB_iff x y := by
