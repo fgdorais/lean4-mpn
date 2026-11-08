@@ -68,11 +68,6 @@ two widths moved into one package is in the history of `MPN32/TODO.md`.
 
 ## Sharing
 
-- [ ] **The kernels of `MPN32/Arch/` on `valAt`**: `MPN32`'s specification is `valAt`, as in
-  `MPN`, but `Comba`, `SqrBasecase`, `Rows` and `DivTwo` are still proved on the list of limbs
-  (`MPN32.Limbs`), through `toNat_eq_ofLimbs` and the other lemmas of the list model in
-  `MPN32.Basic`. They move to `valAt` when they are changed for another reason; then
-  `MPN32.Limbs` and the list model go.
 - [ ] **What each width keeps**: its `Arch/` kernels, its `Nat` instance (`natLimbs32`,
   `natLimbs64`) and gcd instance, and its decimal chunks. The division by several limbs,
   normalization and dispatch included, is shared since `985e2ce` (`MPN.Div.Driver`); each width
