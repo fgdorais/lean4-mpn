@@ -97,7 +97,7 @@ two widths moved into one package is in the history of `MPN32/TODO.md`.
   shared `NatOps` instance and the rest of the sharing): CI builds only on `ubuntu-latest`, so the
   rule that `MPN32` and the shared `MPN` build wherever Lean does is checked by inspection
   (`scripts/check_portable.py`), not by building. Jobs on macOS (arm64), Windows and Linux arm64
-  would build `MPN32` and run its tests, and those platforms have no `__uint128_t` problem to hide.
+  would build `MPN32` and run its tests there.
 
 ## Proof engineering
 
