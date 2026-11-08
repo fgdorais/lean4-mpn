@@ -76,8 +76,10 @@ two widths moved into one package is in the history of `MPN32/TODO.md`.
 - [ ] **What each width keeps**: its `Arch/` kernels, its `Nat` instance (`natLimbs32`,
   `natLimbs64`) and gcd instance, and its decimal chunks. The division by several limbs,
   normalization and dispatch included, is shared since `985e2ce` (`MPN.Div.Driver`); each width
-  keeps its divisions by one limb (and two on 32-bit limbs), its `NatOps` instance (on `Num` arrays
-  on 64-bit limbs, on slices on 32-bit limbs) and the glue to them.
+  keeps its divisions by one limb (and two on 32-bit limbs) and the glue to them. `NatOps` on
+  arrays is shared since `a84e2ff` (`WordArray.opsA`) and 64-bit limbs use it; 32-bit limbs keep
+  their instance on slices (`ops32With`), whose `lo` and `hi` copy nothing: moving them to `opsA`
+  is the next step of sharing, measured for the copies of `lo` and `hi`.
 
 ## Tuning
 
