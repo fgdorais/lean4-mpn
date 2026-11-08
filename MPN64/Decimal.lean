@@ -7,18 +7,17 @@ module
 public import MPN.Generic.Radix
 public import MPN64.Generic.Ops64
 public import MPN.DecChunks
+public import MPN.DecWord
 import Std.Data.String.ToNat
 
 /-!
 # Decimal strings
 
 `main`'s decimal strings by chunks (`MPN.DecChunks`) with chunks of nineteen decimal digits, the
-largest power of ten below `β` (`dec64`): `toDecimal` divides by `10¹⁹` with `divRem1` until
-nothing is left, and `DecChunks.step` reads nineteen digits at a time and adds them to the limbs
-with `mul1` (`mulAddLimb`). Both take quadratic time; `Num.toDecimal` and `Num.ofDecimal?` switch
-to divide and conquer (`NatOps.toDec`, `NatOps.fromDec`) on long numbers. Like `ops64`, the limb
-operations check that their arrays are small enough (`fits`) and otherwise compute with `Nat`,
-which cannot happen.
+largest power of ten below `β` (`dec64`): `toDecimal` divides by `10¹⁹` until nothing is left,
+and `DecChunks.step` reads nineteen digits at a time and adds them to the limbs, by `main`'s
+`WordArray.divRem1A` and `mulAddA` (`MPN.DecWord`). Both take quadratic time; `Num.toDecimal` and
+`Num.ofDecimal?` switch to divide and conquer (`NatOps.toDec`, `NatOps.fromDec`) on long numbers.
 -/
 
 open ScalarArray UInt64Array
@@ -26,96 +25,6 @@ open ScalarArray UInt64Array
 namespace MPN.W64
 
 /-! ## Chunks of nineteen digits -/
-
-/-- Whether `a` is zero. -/
-public def isZero (a : UInt64Array) : Bool :=
-  if a.size == 0 then true
-  else if fits (a.size + 1) then MPN.W64.log2 a.toUSlice == 0 && a[0]! == 0 else a.toNat == 0
-
-public theorem isZero_iff (a : UInt64Array) : isZero a = true ↔ a.toNat = 0 := by
-  unfold isZero
-  split
-  · rename_i h0
-    simp only [beq_iff_eq] at h0
-    simp [toNat_eq_valAt, h0]
-  split
-  · rename_i h
-    have hS := lt_of_fits h
-    rw [Bool.and_eq_true, beq_iff_eq, beq_iff_eq, log2_eq, toUSlice_toNat a (by lia)]
-    have hv : a.toNat % 2 ^ 64 = a[0]!.toNat := by
-      rw [toNat_eq_valAt]
-      rcases Nat.eq_zero_or_pos a.size with h0 | h0
-      · rw [h0, valAt_zero, Nat.zero_mod, getElem!_neg a 0 (by lia)]; rfl
-      · rw [show a.size = (a.size - 1) + 1 by lia, valAt_succ, Nat.add_mul_mod_self_left,
-          Nat.mod_eq_of_lt (UInt64.toNat_lt _)]
-    constructor
-    · rintro ⟨h₁, h₂⟩
-      have : a.toNat < 2 := by
-        rcases Nat.eq_zero_or_pos a.toNat with e | e
-        · lia
-        · have := Nat.lt_log2_self (n := a.toNat); rw [h₁] at this; simpa using this
-      rw [h₂] at hv
-      simp at hv
-      lia
-    · intro h0
-      refine ⟨by rw [h0]; rfl, ?_⟩
-      rw [h0, Nat.zero_mod] at hv
-      exact UInt64.toNat_inj.1 (by rw [← hv]; rfl)
-  · simp
-
-/-- `(a / d, a mod d)` by `divRem1`. -/
-public def divRem1N (a : UInt64Array) (d : UInt64) : UInt64Array × UInt64 :=
-  if fits (a.size + 1) then MPN.W64.divRem1 (UInt64Array.replicate a.size 0).toUSlice a.toUSlice d
-  else (ofNat (a.toNat / d.toNat), (a.toNat % d.toNat).toUInt64)
-
-public theorem divRem1N_spec (a : UInt64Array) (d : UInt64) (hd : 0 < d.toNat) :
-    (divRem1N a d).1.toNat = a.toNat / d.toNat ∧ (divRem1N a d).2.toNat = a.toNat % d.toNat := by
-  unfold divRem1N
-  split
-  · rename_i h
-    have hS := lt_of_fits h
-    have hz : (UInt64Array.replicate a.size 0).toUSlice.size.toNat = a.size := by
-      rw [size_toUSlice _ (by simp; lia)]; simp
-    have ha : a.toUSlice.size.toNat = a.size := size_toUSlice _ (by lia)
-    have har : a.toUSlice.size ≤ (UInt64Array.replicate a.size 0).toUSlice.size :=
-      USize.le_iff_toNat_le.2 (by rw [hz, ha]; exact Nat.le_refl _)
-    have h₁ := valAt_divRem1 _ a.toUSlice d hd har
-    have h₂ := toNat_divRem1_snd _ a.toUSlice d hd har
-    rw [toUSlice_toNat a (by lia), ha, start_toUSlice, USize.toNat_zero] at h₁
-    rw [toUSlice_toNat a (by lia)] at h₂
-    refine ⟨?_, h₂⟩
-    rw [toNat_eq_valAt, size_divRem1]
-    simpa using h₁
-  · refine ⟨toNat_ofNat _, ?_⟩
-    rw [Nat.toUInt64_eq, UInt64.toNat_ofNat', Nat.mod_eq_of_lt
-      (Nat.lt_trans (Nat.mod_lt _ hd) d.toNat_lt)]
-
-/-- `a m + v`, by `mul1` with the carry in `v`. -/
-public def mulAddLimb (a : UInt64Array) (m v : UInt64) : UInt64Array :=
-  if fits (a.size + 2) then
-    let p := MPN.W64.mul1 (UInt64Array.replicate (a.size + 1) 0).toUSlice a.toUSlice m v
-    p.1.set! a.size p.2
-  else ofNat (a.toNat * m.toNat + v.toNat)
-
-public theorem toNat_mulAddLimb (a : UInt64Array) (m v : UInt64) :
-    (mulAddLimb a m v).toNat = a.toNat * m.toNat + v.toNat := by
-  unfold mulAddLimb
-  split
-  · rename_i h
-    have hS := lt_of_fits h
-    have hz : (UInt64Array.replicate (a.size + 1) 0).toUSlice.size.toNat = a.size + 1 := by
-      rw [size_toUSlice _ (by simp; lia)]; simp
-    have ha : a.toUSlice.size.toNat = a.size := size_toUSlice _ (by lia)
-    have h₁ := valAt_mul1 (UInt64Array.replicate (a.size + 1) 0).toUSlice a.toUSlice m v
-      (USize.le_iff_toNat_le.2 (by rw [hz, ha]; lia))
-    rw [ha, start_toUSlice, USize.toNat_zero, toUSlice_toNat a (by lia)] at h₁
-    dsimp only
-    rw [toNat_eq_valAt, size_set!, size_mul1, array_toUSlice, size_replicate,
-      UInt64Array.valAt_add, valAt_one, Nat.zero_add, getElem!_set!_self _ _ _ (by simp),
-      valAt_congr (b := (MPN.W64.mul1 (UInt64Array.replicate (a.size + 1) 0).toUSlice a.toUSlice m
-        v).1) _ fun i _ hi => getElem!_set!_of_ne _ _ (by lia)]
-    exact h₁
-  · exact toNat_ofNat _
 
 /-- The state of reading decimal digits, with unboxed fields, for `DecChunks`. -/
 public structure DecState where
@@ -142,14 +51,12 @@ public instance dec64 : DecOps UInt64Array UInt64 where
     rw [Nat.toUInt64_eq, UInt64.toNat_ofNat', Nat.mod_eq_of_lt (by lia)]
   empty := UInt64Array.replicate 0 0
   vA_empty := by rw [decVA_eq]; simp [toNat_eq_valAt]
-  isZero := isZero
-  isZero_iff a := by rw [decVA_eq]; exact isZero_iff a
-  divRem a := divRem1N a 10000000000000000000
-  divRem_spec a := by
-    rw [decVA_eq, decVA_eq]
-    exact divRem1N_spec a _ (by decide)
-  mulAdd := mulAddLimb
-  vA_mulAdd a m v _ := by rw [decVA_eq, decVA_eq]; exact toNat_mulAddLimb a m v
+  isZero := WordArray.isZeroA
+  isZero_iff := WordArray.isZeroA_iff
+  divRem a := WordArray.divRem1A 1 div1RecipU div1UnnormU a 10000000000000000000
+  divRem_spec a := WordArray.divRem1A_spec 1 div1RecipU div1UnnormU a _ (by decide)
+  mulAdd := WordArray.mulAddA 1
+  vA_mulAdd a m v _ := WordArray.mulAddA_spec 1 a m v
   chunk0 := 0
   val_chunk0 := rfl
   push c d := c * 10 + d.toUInt64
