@@ -9,7 +9,6 @@ public import MPN64.Arch
 public import MPN64.Arch.UInt
 public import MPN64.Config
 public import MPN64.Arch.UIntArray
-public import MPN64.AddSub
 public import MPN64.Bits
 public import MPN64.Div.Limb
 public import MPN64.Div.Basecase

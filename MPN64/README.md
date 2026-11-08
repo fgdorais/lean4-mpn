@@ -18,7 +18,7 @@ comes with Lean.
 |---|---|---|
 | `MPN64.Arch.UInt` | `addh`, `subh`, `mulh` on `UInt32` and `UInt64`: the high words | |
 | `MPN64.Config` | `Config`: the size thresholds of the algorithms; `config`, the library's, from its build options | GMP's `gmp-mparam.h` |
-| `MPN64.AddSub` | `add1`: the carry through a slice, or a copy; the other additions and subtractions are `MPN`'s `MPN.AddSubW` (`addW`, `subW`) and the Toom kernels | `mpn_add_1`, `mpn_add`, `mpn_sub` |
+| `MPN.AddSubW` (shared) | `addW`, `subW`, `addN`, `subN`: the additions and subtractions, with the Toom kernels | `mpn_add`, `mpn_sub` |
 | `MPN64.Arch.MulBasecase` | `mul1`, `addMul1`, `addMul2Loop` (two rows in one pass, its carries unboxed by lean4-scalar-arrays' `foldlInPlaceRangeWith2AccThen`), `mulBasecase` | `mpn_mul_1`, `mpn_addmul_1`, `mpn_addmul_2`, `mpn_mul_basecase` |
 | `MPN64.Mul.Karatsuba` | `mulKaratsuba`, from `mulKaratsuba = 56` limbs, by `MPN`'s `MPN.Toom.mulKaratsuba` on `MPN`'s instance `toomOpsW` of the in-place passes, from `toomBase64` (`MPN64.Mul.ToomOps`): the products below the thresholds; Karatsuba's middle term is `MPN`'s `MPN.Toom.Mid` (`midW`) | `mpn_kara_mul_n` |
 | `MPN64.Bits` | `lshift`, `rshift` (by `0 < s < 64`), `log2` | `mpn_lshift`, `mpn_rshift`, `mpn_sizeinbase` |

@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN64.AddSub
+public import MPN64.Arch.UIntArray
 public import MPN64.Arch.MulBasecase
 public import MPN.Shift
 public import MPN.Bitwise
