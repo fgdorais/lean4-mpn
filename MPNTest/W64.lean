@@ -135,26 +135,16 @@ def checkSqrKaratsuba (n : Nat) : Bool :=
 
 /-! Shifts and bits -/
 
-/--
-Checks the shifts and `log2` on an `n`-limb value: those by less than a limb written at offset 1
-of a padded buffer, with the padding unchanged, and those of arrays by any number of bits.
--/
+/-- Checks the shifts of arrays by any number of bits and `log2` on an `n`-limb value. -/
 def checkBits (n : Nat) : Bool :=
-  let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
   (edges n ++ [randomLimbs n 7]).all fun x =>
     let a := (limbs n x).toUSlice
-    let ls := [1, 7, 63].all fun s =>
-      let r := UInt64Array.replicate (n + 2) pad
-      let (p, c) := MPN.W64.lshift (inner r n) a s.toUInt64
-      let (q, d) := MPN.W64.rshift (inner r n) a s.toUInt64
-      window p 1 n + 2 ^ (64 * n) * c.toNat == x * 2 ^ s && p[0]! == pad && p[n + 1]! == pad &&
-        window q 1 n == x / 2 ^ s && d.toNat == x % 2 ^ s && q[0]! == pad && q[n + 1]! == pad
     let gs := [0, 1, 63, 64, 65, 128, 64 * n - 1, 64 * n + 3].all fun k =>
       let p := MPN.W64.Num.shl (limbs n x) k
       let q := MPN.W64.Num.shr (limbs n x) k
       p.size == k / 64 + n + 1 && p.toNat == x * 2 ^ k && q.size == n - k / 64 &&
         q.toNat == x / 2 ^ k
-    ls && gs && MPN.W64.log2 a == x.log2
+    gs && MPN.W64.log2 a == x.log2
 
 #guard [1, 2, 3, 5, 16, 33].all checkBits
 

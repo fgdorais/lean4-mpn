@@ -120,13 +120,11 @@ def run (noNat : Bool) (op : String) (n : Nat) : IO Bool := do
       (time (· - ·) checkNat ns nb)
   | "shl" =>
     row noNat op n
-      (time (fun (x _ : UInt64Array) =>
-        MPN.W64.lshift (zr x.size) x.toUSlice 13) checkPair a a)
+      (time (fun (x _ : UInt64Array) => MPN.W64.Num.shl x 13) checkArr a a)
       (time (fun x _ => x <<< 13) checkNat na na)
   | "shr" =>
     row noNat op n
-      (time (fun (x _ : UInt64Array) =>
-        MPN.W64.rshift (zr x.size) x.toUSlice 13) checkPair a a)
+      (time (fun (x _ : UInt64Array) => MPN.W64.Num.shr x 13) checkArr a a)
       (time (fun x _ => x >>> 13) checkNat na na)
   | "div1" =>
     row noNat op n
