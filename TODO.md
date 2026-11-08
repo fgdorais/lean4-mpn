@@ -51,10 +51,11 @@ two widths moved into one package is in the history of `MPN32/TODO.md`.
 - [ ] **Small sizes accepted for sharing**: `MPN.W64.sqrtRem` on arrays is 11.5% slower at 4
   limbs, from its conversions through `GNat` (`Bridge.sqrtRem`), and `MPN.W32.ofNat` 2–10% from the
   shared writer of a `Nat` (`WordArray.ofNatW`), against the old two limbs per word of 32-bit
-  limbs.
-- [ ] **Addition and subtraction on 32-bit limbs** keep their own loops (`MPN32.Add`, `Sub`,
-  `AddDiff`): the shared `addW` and `subW` were 4–11% slower for addition and up to 60% for
-  subtraction there.
+  limbs. 32-bit `add` is 6–10% slower at 4 to 32 limbs on the shared `addW` (`478b578`), about
+  3 ns: two folds and their setup, where the old loop copied `a` with a `memcpy` and added `b` in
+  place with one fold.
+- [ ] **`topSizeLoop`** (`MPN32.Div`) computes on boxed `Nat`s, and moving it by 32 bytes made
+  1-limb division 24% slower (`478b578`).
 
 ## Algorithms
 
