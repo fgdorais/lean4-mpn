@@ -2,7 +2,7 @@
 
 Pure Lean: no C of its own and nothing of `MPN64`, so that it builds on every platform Lean
 supports (the portability rule of the [README](../README.md), checked by
-`scripts/check_portable.py`).
+`scripts/check_portable.py` and by CI builds on Linux arm64, macOS arm64 and Windows).
 
 Verified arbitrary-precision natural numbers for Lean 4, stored as `UInt32` limbs in the unboxed
 arrays of [lean4-scalar-arrays](https://github.com/fgdorais/lean4-scalar-arrays). Each operation is

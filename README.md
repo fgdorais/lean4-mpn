@@ -17,8 +17,9 @@ One package, three libraries:
 and its runtime: no `@[extern]`, `extern c inline` or `implemented_by` of their own, no import of
 `MPN64`, and in their one dependency, lean4-scalar-arrays, only the runtime's functions of `lean.h`
 in standard C. This is the only reason for 32-bit limbs, so a change that breaks it does not
-belong in them; anything faster that needs C goes in `MPN64`. `scripts/check_portable.py` checks
-it in CI.
+belong in them; anything faster that needs C goes in `MPN64`. CI checks it twice: by inspection
+(`scripts/check_portable.py`), and by building `MPN32` and running its tests on Linux arm64, macOS
+arm64 and Windows.
 
 `MPN.Default` (the library `MPNDefault`) makes `MPN.Nat` the natural numbers on 64-bit limbs. Both
 widths build in one environment, and the tests (`lake test`) check both. The branches `main32` and
