@@ -8,6 +8,7 @@ public import MPN.MulLimbW
 public import MPN.Bitwise
 public import MPN.FFT.Fermat
 public import MPN.Toom.Ops
+public import MPN.Toom.Mid
 
 /-!
 # The kernels of the Toom methods, for limbs of any width

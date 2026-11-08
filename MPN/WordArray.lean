@@ -165,6 +165,13 @@ public class WordArray (A : Type) (L : outParam Type) [LA : LimbArray A L] where
   /-- `x - y - c` modulo `2ʷ`, and the borrow out: one limb of a subtraction. -/
   subC : L → L → L → L × L
   /--
+  One limb of Karatsuba's middle term, `v + x + (c - 2) - y - z` modulo `2ʷ`, and the carry out
+  plus `2`, for a carry `c` between `0` and `3` that is the carry in plus `2`.
+  -/
+  addDiffC : L → L → L → L → L → L × L
+  /-- `copyIn d o s so n`: `d` with its `n` limbs from `o` on replaced by those of `s` from `so`. -/
+  copyIn : A → Nat → A → Nat → Nat → A
+  /--
   One limb of a multiply-subtract pass by two limbs: `z - y (x₀ + 2ʷ x₁) - (c₀ + 2ʷ c₁)` modulo
   `2ʷ`, and the two limbs of the borrow out, like a limb of GMP's `mpn_submul_2`.
   -/
@@ -202,6 +209,14 @@ public class WordArray (A : Type) (L : outParam Type) [LA : LimbArray A L] where
     LA.val x + LA.val y + LA.val c
   val_subC : ∀ x y c, LA.val (subC x y c).1 + LA.val y + LA.val c =
     LA.val x + 2 ^ LA.w * LA.val (subC x y c).2
+  val_addDiffC : ∀ v x y z c, LA.val c ≤ 3 →
+    LA.val (addDiffC v x y z c).1 + 2 ^ LA.w * LA.val (addDiffC v x y z c).2 + LA.val y +
+        LA.val z + 2 = LA.val v + LA.val x + LA.val c + 2 * 2 ^ LA.w ∧
+      LA.val (addDiffC v x y z c).2 ≤ 3
+  size_copyIn : ∀ d o s so n, o + n ≤ LA.size d → LA.size (copyIn d o s so n) = LA.size d
+  get_copyIn : ∀ d o s so n i, o + n ≤ LA.size d → so + n ≤ LA.size s →
+    LA.get (copyIn d o s so n) i =
+      if o ≤ i ∧ i < o + n then LA.get s (so + (i - o)) else LA.get d i
   val_subMul2B : ∀ z y x₀ x₁ c₀ c₁, LA.val (subMul2B z y x₀ x₁ c₀ c₁).1 +
       LA.val y * (LA.val x₀ + 2 ^ LA.w * LA.val x₁) + (LA.val c₀ + 2 ^ LA.w * LA.val c₁) =
     LA.val z + 2 ^ LA.w * (LA.val (subMul2B z y x₀ x₁ c₀ c₁).2.1 +

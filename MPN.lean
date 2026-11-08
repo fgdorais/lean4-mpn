@@ -31,6 +31,7 @@ public import MPN.Dispatch
 public import MPN.Dispatch.Div
 public import MPN.Bridge
 public import MPN.Toom.Ops
+public import MPN.Toom.Mid
 public import MPN.Toom.Kernels
 public import MPN.AddSubW
 public import MPN.Toom.Karatsuba

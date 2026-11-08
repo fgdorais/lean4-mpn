@@ -5,7 +5,6 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import MPN64.Bits
-public import MPN64.Arch.KaratsubaMid
 public import MPN64.Arch.SqrBasecase
 public import MPN.Toom.Ops
 public import MPN.Toom.Kernels
@@ -14,10 +13,10 @@ public import MPN.Toom.Kernels
 # The operations of the Karatsuba and Toom methods
 
 The instance of `MPN.Toom.ToomOps` on `UInt64Array`: the linear operations are `main`'s generic
-kernels (`MPN.Toom.Kernels`); the middle term of Karatsuba's method and the base cases are the
-kernels of this library on `USlice`s. Each of these checks that the indices of its windows fit in
-a `USize` and that the kernel's conditions hold; otherwise it writes the value of its
-specification with `LimbArray.writeNat`, which never happens.
+kernels (`MPN.Toom.Kernels`), and so is the middle term of Karatsuba's method (`MPN.Toom.Mid`);
+the base cases are the kernels of this library on `USlice`s. Each of these checks that the indices
+of its windows fit in a `USize` and that the kernel's conditions hold; otherwise it writes the value
+of its specification with `LimbArray.writeNat`, which never happens.
 -/
 
 open ScalarArray UInt64Array MPN.Toom
@@ -70,17 +69,6 @@ private theorem writes_of {d' d : UInt64Array} {o len : Nat} (h₁ : d'.size = d
 
 /-! ## The operations -/
 
-/-- The middle term of Karatsuba's method. -/
-public def midT (d : UInt64Array) (o k n : Nat) (t : UInt64Array) : UInt64Array :=
-  if Fits d ∧ o + n ≤ d.size ∧ 3 * k ≤ n ∧ n ≤ 4 * k + 2 ∧ t.size = k + k + 2 ∧
-      2 ≤ k then
-    karatsubaMid d o.toUSize k.toUSize n.toUSize t
-  else
-    LimbArray.writeNat d o n (d.valAt o (k + k) +
-      2 ^ (64 * k) * (t.valAt 0 (k + k + 2) - d.valAt o (k + k) -
-        d.valAt (o + (k + k)) (n - (k + k))) +
-      2 ^ (64 * (k + k)) * d.valAt (o + (k + k)) (n - (k + k)))
-
 /-- `x y`. -/
 public def mulBaseT (d : UInt64Array) (o : Nat) (x : UInt64Array) (xo xl : Nat) (y : UInt64Array)
     (yo yl : Nat) : UInt64Array :=
@@ -103,33 +91,6 @@ private theorem toNat_toUInt64 {v : Nat} (h : v < 2 ^ 64) : v.toUInt64.toNat = v
 
 private theorem le_usize {a b : USlice} {x y : Nat} (ha : a.size.toNat = x) (hb : b.size.toNat = y)
     (h : y ≤ x) : b.size ≤ a.size := USize.le_iff_toNat_le.2 (by lia)
-
-public theorem midT_spec (d : UInt64Array) (o k n : Nat) (t : UInt64Array) (h : o + n ≤ d.size) :
-    Writes (midT d o k n t) d o n ∧
-      ∀ Z₁, t.valAt 0 (k + k + 2) = d.valAt o (k + k) + Z₁ + d.valAt (o + (k + k)) (n - (k + k)) →
-        d.valAt o (k + k) + 2 ^ (64 * k) * Z₁ +
-            2 ^ (64 * (k + k)) * d.valAt (o + (k + k)) (n - (k + k)) < 2 ^ (64 * n) →
-        (midT d o k n t).valAt o n = d.valAt o (k + k) + 2 ^ (64 * k) * Z₁ +
-          2 ^ (64 * (k + k)) * d.valAt (o + (k + k)) (n - (k + k)) := by
-  rw [midT]
-  split
-  · rename_i hg
-    obtain ⟨hS', -, h₃, h₄, ht, h₂⟩ := hg
-    have hS := hS'.lt
-    have ho := toNat_toUSize (a := o) (by lia)
-    have hk := toNat_toUSize (a := k) (by lia)
-    have hn := toNat_toUSize (a := n) (by lia)
-    have hOK : MidOK d o.toUSize k.toUSize n.toUSize t :=
-      ⟨⟨by rw [ho, hn]; exact h, by rw [ho, hn]; lia⟩, by rw [hk, hn]; lia, by rw [hk, hn]; lia,
-        by rw [hk]; exact ht, by rw [hk]; exact h₂⟩
-    obtain ⟨m₁, m₂, m₃⟩ := karatsubaMid_spec d o.toUSize k.toUSize n.toUSize t hOK
-    simp only [ho, hk, hn] at m₂ m₃
-    exact ⟨writes_of m₁ m₂, m₃⟩
-  · refine ⟨writes_writeNat .., fun Z₁ hT hlt => ?_⟩
-    rw [show (LimbArray.writeNat d o n _).valAt o n = _ from LimbArray.valAt_writeNat _ _ _ _ h, hT,
-      show d.valAt o (k + k) + Z₁ + d.valAt (o + (k + k)) (n - (k + k)) - d.valAt o (k + k) -
-        d.valAt (o + (k + k)) (n - (k + k)) = Z₁ by lia]
-    exact Nat.mod_eq_of_lt hlt
 
 private theorem lt_mul (x y : UInt64Array) (xo xl yo yl : Nat) :
     x.valAt xo xl * y.valAt yo yl < 2 ^ (64 * (xl + yl)) := by
@@ -177,8 +138,8 @@ the products below the thresholds. `MPN.Toom.toomOpsW` gives the rest.
 -/
 public instance toomBase64 : ToomBase UInt64Array UInt64 where
   w_ge := by show 32 ≤ 64; decide
-  mid := midT
-  mid_spec := midT_spec
+  mid := WordArray.midW
+  mid_spec := WordArray.midW_spec
   mulBase := mulBaseT
   mulBase_spec := mulBaseT_spec
   sqrBase := sqrBaseT

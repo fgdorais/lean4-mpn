@@ -775,6 +775,8 @@ public instance wordArray32 : MPN.WordArray UInt32Array UInt32 where
   subC x y c :=
     let e := y.toUInt64 + 0xFFFFFFFF - x.toUInt64
     (~~~(e.toUInt32 + c), ((e + c.toUInt64) >>> 32).toUInt32)
+  addDiffC := UInt32.addDiffStep
+  copyIn d o s so n := s.copySlice so d o n
   subMul2B := subMul2W
   isZero x := x == 0
   ofUSize i := i.toUInt32
@@ -829,6 +831,34 @@ public instance wordArray32 : MPN.WordArray UInt32Array UInt32 where
       UInt32.toNat_toUInt64, UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow,
       UInt64.toNat_ofNat, Nat.reduceMod, Nat.reducePow]
     lia
+  val_addDiffC v x y z c hc := by
+    have := UInt32.addDiffStep_spec v x y z c hc
+    show (UInt32.addDiffStep v x y z c).1.toNat + 2 ^ 32 * (UInt32.addDiffStep v x y z c).2.toNat +
+        y.toNat + z.toNat + 2 = v.toNat + x.toNat + c.toNat + 2 * 2 ^ 32 ∧
+      (UInt32.addDiffStep v x y z c).2.toNat ≤ 3
+    exact ⟨by lia, this.2⟩
+  size_copyIn d o s so n hd := by
+    replace hd : o + n ≤ d.size := hd
+    show (s.copySlice so d o n).size = d.size
+    rw [UInt32Array.size_copySlice]; lia
+  get_copyIn d o s so n i hd hs := by
+    replace hd : o + n ≤ d.size := hd
+    replace hs : so + n ≤ s.size := hs
+    show (s.copySlice so d o n)[i]! = if o ≤ i ∧ i < o + n then s[so + (i - o)]! else d[i]!
+    have hm₁ : min o d.size = o := Nat.min_eq_left (by lia)
+    have hm₂ : min n (s.size - so) = n := Nat.min_eq_left (by lia)
+    by_cases hi : i < d.size
+    · rw [getElem!_pos _ i (by rw [UInt32Array.size_copySlice]; lia), UInt32Array.getElem_copySlice]
+      simp only [hm₁, hm₂]
+      by_cases h₁ : o ≤ i ∧ i < o + n
+      · rw [dite_eq_right (by lia), dite_eq_left (by lia), ite_eq_left h₁,
+          getElem!_pos s _ (by lia)]
+      · rw [ite_eq_right h₁, getElem!_pos d i hi]
+        split
+        · rfl
+        · rw [dite_eq_right (by lia)]
+    · rw [getElem!_neg _ i (by rw [UInt32Array.size_copySlice]; lia), getElem!_neg d i hi,
+        ite_eq_right (by lia)]
   val_subMul2B := val_subMul2W
   ltB_iff x y := by
     show decide (x < y) = true ↔ x.toNat < y.toNat

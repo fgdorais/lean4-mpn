@@ -126,3 +126,61 @@ public theorem UInt64.toNat_div2_rem (hi lo d : UInt64) (h : hi.toNat < d.toNat)
   refine ⟨e', ?_⟩
   rw [e', hq]
   exact hdm
+
+/-! ## Karatsuba's middle term -/
+
+/--
+The high word of `v + x + c + 2⁶⁵ - 2 - y - z` in double width, which is between `0` and `3` when
+`c ≤ 3`: the carry out of `v + x + (c - 2) - y - z`, plus `2`.
+-/
+@[extern c inline "(uint64_t)(((__uint128_t)(#1) + (__uint128_t)(#2) + (__uint128_t)(#5) + \
+  ((((__uint128_t)1) << 65) - 2) - (__uint128_t)(#3) - (__uint128_t)(#4)) >> 64)"]
+public def UInt64.addDiffh (v x y z c : UInt64) : UInt64 :=
+  ((v.toNat + x.toNat + c.toNat + (2 ^ 65 - 2) - y.toNat - z.toNat) / 2 ^ 64).toUInt64
+
+private theorem UInt64.sub_word (u v : UInt64) :
+    ∃ k, k ≤ 1 ∧ (u - v).toNat + v.toNat = u.toNat + 2 ^ 64 * k := by
+  have := u.toNat_lt; have := v.toNat_lt
+  rw [UInt64.toNat_sub]
+  by_cases h : v.toNat ≤ u.toNat
+  · exact ⟨0, by lia, by
+      rw [show 2 ^ 64 - v.toNat + u.toNat = (u.toNat - v.toNat) + 2 ^ 64 by lia, Nat.add_mod_right,
+        Nat.mod_eq_of_lt (by lia)]; lia⟩
+  · exact ⟨1, by lia, by rw [Nat.mod_eq_of_lt (by lia)]; lia⟩
+
+private theorem UInt64.add_word (u v : UInt64) :
+    ∃ k, k ≤ 1 ∧ (u + v).toNat + 2 ^ 64 * k = u.toNat + v.toNat := by
+  have := u.toNat_lt; have := v.toNat_lt
+  rw [UInt64.toNat_add]
+  by_cases h : u.toNat + v.toNat < 2 ^ 64
+  · exact ⟨0, by lia, by rw [Nat.mod_eq_of_lt h]; try lia⟩
+  · exact ⟨1, by lia, by
+      rw [show u.toNat + v.toNat = (u.toNat + v.toNat - 2 ^ 64) + 2 ^ 64 by lia, Nat.add_mod_right,
+        Nat.mod_eq_of_lt (by lia)]; try lia⟩
+
+/-- The step of the loop: limb `v + x + (c - 2) - y - z` and the next carry plus `2`. -/
+public theorem UInt64.addDiff_step (v x y z c : UInt64) (hc : c.toNat ≤ 3) :
+    (v + x + c - 2 - y - z).toNat + 2 ^ 64 * (UInt64.addDiffh v x y z c).toNat + y.toNat +
+        z.toNat + 2 = v.toNat + x.toNat + c.toNat + 2 ^ 65 ∧
+      (UInt64.addDiffh v x y z c).toNat ≤ 3 := by
+  have := v.toNat_lt; have := x.toNat_lt; have := y.toNat_lt; have := z.toNat_lt
+  obtain ⟨k₁, hk₁, e₁⟩ := UInt64.add_word v x
+  obtain ⟨k₂, hk₂, e₂⟩ := UInt64.add_word (v + x) c
+  obtain ⟨k₃, hk₃, e₃⟩ := UInt64.sub_word (v + x + c) 2
+  obtain ⟨k₄, hk₄, e₄⟩ := UInt64.sub_word (v + x + c - 2) y
+  obtain ⟨k₅, hk₅, e₅⟩ := UInt64.sub_word (v + x + c - 2 - y) z
+  have h2 : (2 : UInt64).toNat = 2 := rfl
+  rw [h2] at e₃
+  have hN : (v.toNat + x.toNat + c.toNat + (2 ^ 65 - 2) - y.toNat - z.toNat) / 2 ^ 64 < 4 := by
+    lia
+  have hh : (UInt64.addDiffh v x y z c).toNat =
+      (v.toNat + x.toNat + c.toNat + (2 ^ 65 - 2) - y.toNat - z.toNat) / 2 ^ 64 := by
+    rw [UInt64.addDiffh, Nat.toUInt64_eq, UInt64.toNat_ofNat', Nat.mod_eq_of_lt (by lia)]
+  rw [hh]
+  have := (v + x + c - 2 - y - z).toNat_lt
+  generalize (v + x).toNat = s₁ at *
+  generalize (v + x + c).toNat = s₂ at *
+  generalize (v + x + c - 2).toNat = s₃ at *
+  generalize (v + x + c - 2 - y).toNat = s₄ at *
+  generalize (v + x + c - 2 - y - z).toNat = s₅ at *
+  constructor <;> lia

@@ -4,7 +4,6 @@ Released under Apache 2.0 license as described in the file LICENSE.
 -/
 module
 
-public import MPN32.AddDiff
 public import MPN32.Sub
 public import MPN32.Mul.Basecase
 public import MPN32.Arch.SqrBasecase
@@ -17,10 +16,10 @@ public import MPN32.Basic
 # The operations of the Karatsuba and Toom methods
 
 The instance of `MPN.Toom.ToomOps` on `UInt32Array`. The linear operations are `main`'s generic
-kernels (`MPN.Toom.Kernels`), in place on the windows. The middle term of Karatsuba's method and the
-base cases are the kernels of this library on its slices, which return new arrays: each copies the
-window it writes into a new array, applies its kernel, and copies the result back (`put`). Each
-checks the bounds its kernel needs; otherwise it writes the value of its specification with
+kernels (`MPN.Toom.Kernels`), in place on the windows, and so is the middle term of Karatsuba's
+method (`MPN.Toom.Mid`). The base cases are the kernels of this library on its slices, which return
+new arrays: each applies its kernel and copies the result into the window (`put`). Each checks the
+bounds its kernel needs; otherwise it writes the value of its specification with
 `LimbArray.writeNat`, which never happens.
 -/
 
@@ -40,15 +39,6 @@ private theorem winL_spec {a : UInt32Array} {o len : Nat} (h : o + len ≤ a.siz
   refine ⟨hs, ?_⟩
   rw [toNat_eq_valAt, hs, winL, UInt32Array.array_toSlice, UInt32Array.start_toSlice,
     show min o (min (o + len) a.size) = o by lia]
-
-/-- The window in a new array of `n ≥ len` limbs, the limbs above zero. -/
-@[inline] public def ext (a : UInt32Array) (o len n : Nat) : UInt32Array :=
-  copyPadded (winL a o len) n
-
-private theorem ext_spec {a : UInt32Array} {o len n : Nat} (h : o + len ≤ a.size) (hn : len ≤ n) :
-    (ext a o len n).size = n ∧ MPN.W32.toNat (ext a o len n) = a.valAt o len := by
-  obtain ⟨s₁, s₂⟩ := winL_spec h
-  exact ⟨size_copyPadded _ _ (by lia), by rw [ext, toNat_copyPadded, s₂]⟩
 
 /-- The value of an array of `n` limbs. -/
 private theorem toNat_arr {r : UInt32Array} {n : Nat} (h : r.size = n) :
@@ -108,22 +98,6 @@ private theorem fallback (d : UInt32Array) (o len v : Nat) (h : o + len ≤ d.si
 
 /-! ## The operations -/
 
-/--
-The middle term of Karatsuba's method, by `addDiffInto` on a copy of the window with two more
-limbs, which holds the sum.
--/
-public def midT (d : UInt32Array) (o k n : Nat) (t : UInt32Array) : UInt32Array :=
-  if o + n ≤ d.size ∧ t.size = k + k + 2 ∧ 3 * k ≤ n ∧ n ≤ 4 * k + 2 then
-    let r := addDiffInto (ext d o n (n + 2)) k t (ext d o (k + k) (k + k))
-      (ext d (o + (k + k)) (n - (k + k)) (n - (k + k)))
-    if r.size = n + 2 then put d o n r
-    else LimbArray.writeNat d o n (d.valAt o n)
-  else
-    LimbArray.writeNat d o n (d.valAt o (k + k) +
-      2 ^ (32 * k) * (t.valAt 0 (k + k + 2) - d.valAt o (k + k) -
-        d.valAt (o + (k + k)) (n - (k + k))) +
-      2 ^ (32 * (k + k)) * d.valAt (o + (k + k)) (n - (k + k)))
-
 /-- `x y`, with the rows over the shorter operand. -/
 public def mulBaseT (d : UInt32Array) (o : Nat) (x : UInt32Array) (xo xl : Nat) (y : UInt32Array)
     (yo yl : Nat) : UInt32Array :=
@@ -151,74 +125,6 @@ private theorem put_val {d r : UInt32Array} {o len V : Nat} (h : o + len ≤ d.s
     Writes (put d o len r) d o len ∧ (put d o len r).valAt o len = V := by
   obtain ⟨w, v⟩ := put_spec h (Nat.le_of_eq hr.symm)
   exact ⟨w, by rw [v, ← toNat_arr hr, hv]⟩
-
-public theorem midT_spec (d : UInt32Array) (o k n : Nat) (t : UInt32Array) (h : o + n ≤ d.size) :
-    Writes (midT d o k n t) d o n ∧
-      ∀ Z₁, t.valAt 0 (k + k + 2) = d.valAt o (k + k) + Z₁ + d.valAt (o + (k + k)) (n - (k + k)) →
-        d.valAt o (k + k) + 2 ^ (32 * k) * Z₁ +
-            2 ^ (32 * (k + k)) * d.valAt (o + (k + k)) (n - (k + k)) < 2 ^ (32 * n) →
-        (midT d o k n t).valAt o n = d.valAt o (k + k) + 2 ^ (32 * k) * Z₁ +
-          2 ^ (32 * (k + k)) * d.valAt (o + (k + k)) (n - (k + k)) := by
-  rw [midT]
-  split
-  · rename_i hg
-    obtain ⟨-, ht, h₃, h₄⟩ := hg
-    dsimp only
-    split
-    · rename_i hr
-      obtain ⟨w, v⟩ := put_spec (r := addDiffInto (ext d o n (n + 2)) k t (ext d o (k + k) (k + k))
-        (ext d (o + (k + k)) (n - (k + k)) (n - (k + k)))) h (by lia)
-      refine ⟨w, fun Z₁ hT hlt => ?_⟩
-      obtain ⟨r₁, r₂⟩ := ext_spec (n := n + 2) h (by lia)
-      obtain ⟨z₁, z₂⟩ := ext_spec (n := k + k) (o := o) (len := k + k) (a := d) (by lia) (Nat.le_refl _)
-      obtain ⟨y₁, y₂⟩ := ext_spec (n := n - (k + k)) (o := o + (k + k)) (len := n - (k + k)) (a := d)
-        (by lia) (Nat.le_refl _)
-      have hR : d.valAt o n = d.valAt o (k + k) +
-          2 ^ (32 * (k + k)) * d.valAt (o + (k + k)) (n - (k + k)) := by
-        rw [← valAt_add, show k + k + (n - (k + k)) = n by lia]
-      have hT' : MPN.W32.toNat t = t.valAt 0 (k + k + 2) := toNat_arr ht
-      obtain ⟨-, a₂⟩ := addDiffInto_spec (ext d o n (n + 2)) k t (ext d o (k + k) (k + k))
-        (ext d (o + (k + k)) (n - (k + k)) (n - (k + k))) (by rw [ht, r₁]; lia)
-        (by rw [z₁, ht]; lia) (by rw [y₁, ht]; lia) (by rw [z₂, y₂, hT', hT]; lia)
-        (by
-          rw [r₂, z₂, y₂, hT', hT, r₁, hR,
-            show d.valAt o (k + k) + Z₁ + d.valAt (o + (k + k)) (n - (k + k)) -
-              d.valAt o (k + k) - d.valAt (o + (k + k)) (n - (k + k)) = Z₁ by lia]
-          have : 2 ^ (32 * n) ≤ 2 ^ (32 * (n + 2)) := Nat.pow_le_pow_right (by decide) (by lia)
-          lia)
-      rw [r₂, z₂, y₂, hT', hT,
-        show d.valAt o (k + k) + Z₁ + d.valAt (o + (k + k)) (n - (k + k)) -
-          d.valAt o (k + k) - d.valAt (o + (k + k)) (n - (k + k)) = Z₁ by lia, hR] at a₂
-      rw [v, valAt_mod _ 0 (show n ≤ n + 2 by lia), ← toNat_arr hr, a₂,
-        Nat.mod_eq_of_lt (by lia)]
-      lia
-    · -- The size is always `n + 2`, so this does not happen.
-      refine ⟨writes_writeNat .., fun Z₁ hT hlt => ?_⟩
-      exfalso
-      obtain ⟨r₁, r₂⟩ := ext_spec (n := n + 2) h (by lia)
-      obtain ⟨z₁, z₂⟩ := ext_spec (n := k + k) (o := o) (len := k + k) (a := d) (by lia) (Nat.le_refl _)
-      obtain ⟨y₁, y₂⟩ := ext_spec (n := n - (k + k)) (o := o + (k + k)) (len := n - (k + k)) (a := d)
-        (by lia) (Nat.le_refl _)
-      have hR : d.valAt o n = d.valAt o (k + k) +
-          2 ^ (32 * (k + k)) * d.valAt (o + (k + k)) (n - (k + k)) := by
-        rw [← valAt_add, show k + k + (n - (k + k)) = n by lia]
-      have hT' : MPN.W32.toNat t = t.valAt 0 (k + k + 2) := toNat_arr ht
-      obtain ⟨a₁, -⟩ := addDiffInto_spec (ext d o n (n + 2)) k t (ext d o (k + k) (k + k))
-        (ext d (o + (k + k)) (n - (k + k)) (n - (k + k))) (by rw [ht, r₁]; lia)
-        (by rw [z₁, ht]; lia) (by rw [y₁, ht]; lia) (by rw [z₂, y₂, hT', hT]; lia)
-        (by
-          rw [r₂, z₂, y₂, hT', hT, r₁, hR,
-            show d.valAt o (k + k) + Z₁ + d.valAt (o + (k + k)) (n - (k + k)) -
-              d.valAt o (k + k) - d.valAt (o + (k + k)) (n - (k + k)) = Z₁ by lia]
-          have : 2 ^ (32 * n) ≤ 2 ^ (32 * (n + 2)) := Nat.pow_le_pow_right (by decide) (by lia)
-          lia)
-      rename_i hr
-      exact hr (a₁.trans r₁)
-  · refine ⟨writes_writeNat .., fun Z₁ hT hlt => ?_⟩
-    rw [show (LimbArray.writeNat d o n _).valAt o n = _ from LimbArray.valAt_writeNat _ _ _ _ h, hT,
-      show d.valAt o (k + k) + Z₁ + d.valAt (o + (k + k)) (n - (k + k)) - d.valAt o (k + k) -
-        d.valAt (o + (k + k)) (n - (k + k)) = Z₁ by lia]
-    exact Nat.mod_eq_of_lt hlt
 
 private theorem lt_mul (x y : UInt32Array) (xo xl yo yl : Nat) :
     x.valAt xo xl * y.valAt yo yl < 2 ^ (32 * (xl + yl)) := by
@@ -263,8 +169,8 @@ the products below the thresholds. `MPN.Toom.toomOpsW` gives the rest.
 -/
 public instance toomBase32 : ToomBase UInt32Array UInt32 where
   w_ge := by show 32 ≤ 32; decide
-  mid := midT
-  mid_spec := midT_spec
+  mid := WordArray.midW
+  mid_spec := WordArray.midW_spec
   mulBase := mulBaseT
   mulBase_spec := mulBaseT_spec
   sqrBase := sqrBaseT

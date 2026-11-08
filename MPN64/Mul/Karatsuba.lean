@@ -14,7 +14,7 @@ public import MPN64.Config
 `mulKaratsuba r a b` writes the `a.size + b.size` limbs of `a * b` into the slice `r`, like
 `mulBasecase`, by `main`'s `MPN.Toom.mulKaratsuba` on `toomOpsW`, from `toomBase64`: from
 `cfg.mulKaratsuba` limbs it splits both operands at `k = ⌈a.size / 2⌉`, computes the three
-products recursively, and adds the middle term in one pass (`karatsubaMid`). It requires
+products recursively, and adds the middle term in one pass (`MPN.WordArray.midW`). It requires
 `0 < b.size` and `a.size + b.size ≤ r.size`, and leaves `r` unchanged otherwise.
 -/
 

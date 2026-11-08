@@ -791,6 +791,8 @@ public instance wordArray64 : MPN.WordArray UInt64Array UInt64 where
   b0 := 0
   addC x y c := (x + y + c, UInt64.addh (UInt64.addh 0 x y) (x + y) c)
   subC x y c := (x - y - c, UInt64.subh (UInt64.subh 0 x y) (x - y) c)
+  addDiffC v x y z c := (v + x + c - 2 - y - z, UInt64.addDiffh v x y z c)
+  copyIn d o s so n := s.copySlice so d o n
   subMul2B := subMul2W
   isZero x := x == 0
   ofUSize i := i.toUInt64
@@ -859,6 +861,34 @@ public instance wordArray64 : MPN.WordArray UInt64Array UInt64 where
     generalize y.toNat = y at *
     generalize c.toNat = c at *
     split <;> split <;> lia
+  val_addDiffC v x y z c hc := by
+    have := UInt64.addDiff_step v x y z c hc
+    show (v + x + c - 2 - y - z).toNat + 2 ^ 64 * (UInt64.addDiffh v x y z c).toNat + y.toNat +
+        z.toNat + 2 = v.toNat + x.toNat + c.toNat + 2 * 2 ^ 64 ∧
+      (UInt64.addDiffh v x y z c).toNat ≤ 3
+    exact ⟨by lia, this.2⟩
+  size_copyIn d o s so n hd := by
+    replace hd : o + n ≤ d.size := hd
+    show (s.copySlice so d o n).size = d.size
+    rw [UInt64Array.size_copySlice]; lia
+  get_copyIn d o s so n i hd hs := by
+    replace hd : o + n ≤ d.size := hd
+    replace hs : so + n ≤ s.size := hs
+    show (s.copySlice so d o n)[i]! = if o ≤ i ∧ i < o + n then s[so + (i - o)]! else d[i]!
+    have hm₁ : min o d.size = o := Nat.min_eq_left (by lia)
+    have hm₂ : min n (s.size - so) = n := Nat.min_eq_left (by lia)
+    by_cases hi : i < d.size
+    · rw [getElem!_pos _ i (by rw [UInt64Array.size_copySlice]; lia), UInt64Array.getElem_copySlice]
+      simp only [hm₁, hm₂]
+      by_cases h₁ : o ≤ i ∧ i < o + n
+      · rw [dite_eq_right (by lia), dite_eq_left (by lia), ite_eq_left h₁,
+          getElem!_pos s _ (by lia)]
+      · rw [ite_eq_right h₁, getElem!_pos d i hi]
+        split
+        · rfl
+        · rw [dite_eq_right (by lia)]
+    · rw [getElem!_neg _ i (by rw [UInt64Array.size_copySlice]; lia), getElem!_neg d i hi,
+        ite_eq_right (by lia)]
   val_subMul2B := val_subMul2W
   eqB_iff x y := by
     show (x == y) = true ↔ x.toNat = y.toNat

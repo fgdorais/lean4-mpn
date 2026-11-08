@@ -407,3 +407,38 @@ public theorem UInt32.toNat_div2Rem (hi lo d : UInt32) (h : hi.toNat < d.toNat) 
   have := Nat.mod_lt (hi.toNat * 2 ^ 32 + lo.toNat) hd'
   have := d.toNat_lt
   lia
+
+/-! ## Karatsuba's middle term -/
+
+/--
+`v + x + (c - 2) - y - z` as its low word and its high word plus `2`, for a carry `c` between
+`0` and `3` that is the true carry plus `2`.
+-/
+@[inline, expose] public def UInt32.addDiffStep (v x y z c : UInt32) : UInt32 × UInt32 :=
+  let p := v.toUInt64 + x.toUInt64 + 0x1FFFFFFFE - y.toUInt64 - z.toUInt64
+  (p.toUInt32 + c, ((p + c.toUInt64) >>> 32).toUInt32)
+
+/-- `addDiffStep` with the carry in the sum, as its specification reads it. -/
+private theorem UInt32.addDiffStep_eq (v x y z c : UInt32) :
+    addDiffStep v x y z c =
+      ((v.toUInt64 + x.toUInt64 + c.toUInt64 + 0x1FFFFFFFE - y.toUInt64 - z.toUInt64).toUInt32,
+        ((v.toUInt64 + x.toUInt64 + c.toUInt64 + 0x1FFFFFFFE - y.toUInt64 - z.toUInt64) >>>
+          32).toUInt32) := by
+  have e : v.toUInt64 + x.toUInt64 + c.toUInt64 + 0x1FFFFFFFE - y.toUInt64 - z.toUInt64 =
+      v.toUInt64 + x.toUInt64 + 0x1FFFFFFFE - y.toUInt64 - z.toUInt64 + c.toUInt64 := by grind
+  rw [e]
+  simp only [UInt32.addDiffStep, UInt32.toUInt32_add]
+
+public theorem UInt32.addDiffStep_spec (v x y z c : UInt32) (hc : c.toNat ≤ 3) :
+    (addDiffStep v x y z c).1.toNat + 2 ^ 32 * (addDiffStep v x y z c).2.toNat + y.toNat +
+        z.toNat + 2 = v.toNat + x.toNat + c.toNat + 2 ^ 33 ∧
+      (addDiffStep v x y z c).2.toNat ≤ 3 := by
+  have := v.toNat_lt
+  have := x.toNat_lt
+  have := y.toNat_lt
+  have := z.toNat_lt
+  rw [UInt32.addDiffStep_eq]
+  simp only [UInt64.toNat_sub, UInt64.toNat_add, UInt64.toNat_toUInt32,
+    UInt32.toNat_toUInt64, UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow, UInt64.toNat_ofNat,
+    Nat.reduceMod, Nat.reducePow] at *
+  lia

@@ -10,7 +10,6 @@ public import MPN32.FoldInPlace
 public import MPN32.Arch.UInt
 public import MPN32.Basic
 public import MPN32.Add
-public import MPN32.AddDiff
 public import MPN32.Arch.LinComb
 public import MPN32.Sub
 public import MPN32.Cmp
