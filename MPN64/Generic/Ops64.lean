@@ -35,6 +35,6 @@ public def divRem64 (x y : UInt64Array) : UInt64Array × UInt64Array :=
       exact Num.toNat_divMod _ _ (by lia) (lt_of_fits h)
     · exact ⟨toNat_ofNat _, toNat_ofNat _⟩
 
-@[simp] public theorem ops64_val (x : UInt64Array) : ops64.val x = x.toNat := rfl
+@[simp] public theorem ops64_val (x : UInt64Array) : ops64.val x = x.toNat := vA_eq_toNat x
 
 end MPN.W64

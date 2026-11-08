@@ -73,9 +73,11 @@ public theorem fitTo_spec (x : UInt64Array) (m : Nat) (hv : x.toNat < 2 ^ (64 * 
 /-- `main`'s `Div.divRemG` on `ops64B`: the numbers are the arrays themselves. -/
 private theorem driverOK : MPN.Div.DriverOK ops64B divBase64 id id where
   B_eq := rfl
-  val_toα x := toNat_eq_valAt x
-  val_ofα x := (toNat_eq_valAt x).symm
-  base_ok U V h := val_divBase64 U V (by simp only [ops64B_val] at h; lia)
+  val_toα _ := rfl
+  val_ofα _ := rfl
+  base_ok U V h := by
+    simp only [ops64B_val] at h ⊢
+    exact val_divBase64 U V (by lia)
 
 /-- The top nonzero limb of `b > 0` is limb `⌊log₂ b⌋ / 64`. -/
 private theorem top_log2 (b : UInt64Array) (hb : 0 < b.toNat) :

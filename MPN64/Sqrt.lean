@@ -81,8 +81,8 @@ public theorem sqrtBase_spec (N : UInt64Array) (hN : N.toNat < (2 ^ 64) ^ (2 * 1
     have hsq := Num.toNat_sqr (word (sqrt2 (Num.limbAt N 1) (Num.limbAt N 0))) (by lia)
     have hsqs := Num.size_sqr_le (word (sqrt2 (Num.limbAt N 1) (Num.limbAt N 0)))
     rw [Num.toNat_sub _ _ (by rw [hsq, hS]; exact Nat.sqrt_le _) (by lia) (by lia), hsq, hS]
-  · show ops64.val (ops64.sub N (ops64.mul _ _)) = _
-    rw [ops64.val_sub _ _ (by rw [ops64.val_mul, ops64_val, hS]; exact Nat.sqrt_le _),
-      ops64.val_mul, ops64_val, ops64_val, hS]
+  · rw [← ops64_val, ops64.val_sub _ _ (by
+        simp only [ops64.val_mul, ops64_val, hS]; exact Nat.sqrt_le _)]
+    simp only [ops64.val_mul, ops64_val, hS]
 
 end MPN.W64

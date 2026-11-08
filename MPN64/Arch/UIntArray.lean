@@ -78,7 +78,7 @@ public theorem valAt_add (a : UInt64Array) (lo m k : Nat) :
   MPN.LimbArray.valAt_add a lo m k
 
 /-- The natural number whose little-endian base `2⁶⁴` limbs are the elements of `a`. -/
-public def toNat (a : UInt64Array) : Nat := a.valAt 0 a.size
+@[expose] public def toNat (a : UInt64Array) : Nat := a.valAt 0 a.size
 
 public theorem toNat_eq_valAt (a : UInt64Array) : a.toNat = a.valAt 0 a.size := by
   rw [toNat]

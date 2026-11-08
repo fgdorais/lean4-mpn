@@ -43,6 +43,7 @@ public import MPN.WordGcd
 public import MPN.NatGcd
 public import MPN.LehmerStep
 public import MPN.Generic.Ops
+public import MPN.Generic.OpsArray
 public import MPN.Generic.Barrett
 public import MPN.Generic.DC
 public import MPN.Generic.Sqrt
