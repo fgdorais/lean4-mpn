@@ -28,6 +28,11 @@ jobs:
           build-args: "--wfail"
           test: true
 
+      # `MPN32` and the shared `MPN` must build wherever Lean does: no C of their own, no `MPN64`,
+      # and only the Lean runtime's functions in the C of their dependency.
+      - name: portability of MPN32
+        run: python3 scripts/check_portable.py
+
       # `lake build` does not build the executables.
       - name: build tune and bench
         run: lake build --wfail tune32 bench32 tune64 bench64

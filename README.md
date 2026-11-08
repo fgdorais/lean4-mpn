@@ -13,6 +13,13 @@ One package, three libraries:
 | `MPN32` | `MPN32/` | `MPN.W32` | a GMP-free `Nat` on `UInt32` limbs, `MPN.W32.Nat`, in pure Lean with the full set of algorithms; see [MPN32/README.md](MPN32/README.md) |
 | `MPN64` | `MPN64/` | `MPN.W64` | `UInt64` limbs, `MPN.W64.Nat`, with the high words of sums and products in inline C (`__uint128_t`), within a few times GMP's speed; see [MPN64/README.md](MPN64/README.md) |
 
+**Portability rule.** `MPN32` and the shared `MPN` build wherever Lean does, with nothing but Lean
+and its runtime: no `@[extern]`, `extern c inline` or `implemented_by` of their own, no import of
+`MPN64`, and in their one dependency, lean4-scalar-arrays, only the runtime's functions of `lean.h`
+in standard C. This is the only reason for 32-bit limbs, so a change that breaks it does not
+belong in them; anything faster that needs C goes in `MPN64`. `scripts/check_portable.py` checks
+it in CI.
+
 `MPN.Default` (the library `MPNDefault`) makes `MPN.Nat` the natural numbers on 64-bit limbs. Both
 widths build in one environment, and the tests (`lake test`) check both. The branches `main32` and
 `main64`, which held the two widths before, are frozen.
