@@ -137,14 +137,18 @@ package «lean4-mpn» where
 require «lean4-scalar-arrays» from git
   "https://github.com/fgdorais/lean4-scalar-arrays" @ "main"
 
+-- Loops aligned to 32 bytes in the shared code and on 32-bit limbs: at 64, the loops unrolled
+-- twice of `sub` and `mul1` (about 72 bytes) put most of their instructions in one 64-byte window
+-- of Zen 3's op cache, 7–14% slower; at 32 they start at most half a window in. The 64-bit
+-- library keeps 64, for its square basecase.
 @[default_target]
 lean_lib MPN where
-  moreLeancArgs := marchArgs
+  moreLeancArgs := marchArgs ++ #["-falign-loops=32"]
 
 @[default_target]
 lean_lib MPN32 where
   leanOptions := thresholdOptions32
-  moreLeancArgs := marchArgs
+  moreLeancArgs := marchArgs ++ #["-falign-loops=32"]
 
 @[default_target]
 lean_lib MPN64 where
