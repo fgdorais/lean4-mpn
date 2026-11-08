@@ -42,12 +42,6 @@ two widths moved into one package is in the history of `MPN32/TODO.md`.
   `mpn_div_qr_1n_pi1`, which keeps a partly reduced two-limb remainder and takes the quotient off
   the chain): the loop is bound by the latency of one step, about 14–15 cycles on Zen 3, and a
   precomputed reciprocal alone does not shorten it (3% slower on Zen 3, whose divider is fast).
-- [ ] **`mul1` on 32-bit limbs without unrolling**: the C compiler unrolls its loop twice, and
-  the loop of `addMul1Fast` built with `-fno-unroll-loops` is 15–16% faster at 1024 and 4096 limbs
-  (and `sub` 3%), but the same flag on the whole library makes the Comba-based `mul`, `sqr` and
-  `div` 11–20% slower. The flag works per library, not per loop: the kernel would need a shape
-  that the C compiler does not unroll, or a library of its own. Its loop is also the one that
-  `-falign-loops=32` (`898656d`) leaves 4–6% slower.
 - [ ] **Small sizes accepted for sharing**: `MPN.W64.sqrtRem` on arrays is 11.5% slower at 4
   limbs, from its conversions through `GNat` (`Bridge.sqrtRem`), and `MPN.W32.ofNat` 2–10% from the
   shared writer of a `Nat` (`WordArray.ofNatW`), against the old two limbs per word of 32-bit
