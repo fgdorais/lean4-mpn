@@ -3,9 +3,9 @@
 Checks the portability rule of `MPN32` and of the shared `MPN`: they must build wherever Lean does,
 with nothing but Lean and its runtime, which is the only reason for 32-bit limbs.
 
-* No `@[extern]`, `extern c inline` or `implemented_by` in `MPN.lean`, `MPN32.lean`, `MPN/` or
-  `MPN32/` (the C of lean4-scalar-arrays below them is checked separately).
-* The imports of `MPN32` and `MPN`, transitively, reach no `MPN64` module (`MPN.Default`, the
+* No `@[extern]`, `extern c inline` or `implemented_by` in `MPN.lean`, `MPN32.lean`,
+  `MPN32Base.lean`, `MPN/` or `MPN32/` (the C of lean4-scalar-arrays below them is checked separately).
+* The imports of `MPN32`, `MPN32Base` and `MPN`, transitively, reach no `MPN64` module (`MPN.Default`, the
   library `MPNDefault`, is outside the rule).
 * Every runtime function that lean4-scalar-arrays names in an `extern` is declared in the
   toolchain's `lean.h`, and its inline C templates use no compiler extensions.
@@ -18,7 +18,7 @@ import os
 import re
 import sys
 
-ROOTS = ["MPN32", "MPN"]
+ROOTS = ["MPN32", "MPN32Base", "MPN"]
 EXEMPT = {"MPN.Default"}
 FORBIDDEN = re.compile(r"@\[[^\]]*\b(extern|implemented_by)\b|extern\s+c\s+inline")
 SA = ".lake/packages/lean4-scalar-arrays/ScalarArray"
@@ -40,7 +40,7 @@ def strip_comments(text):
 
 
 # No foreign code in the portable sources.
-for f in ["MPN.lean", "MPN32.lean", *lean_files("MPN"), *lean_files("MPN32")]:
+for f in ["MPN.lean", "MPN32.lean", "MPN32Base.lean", *lean_files("MPN"), *lean_files("MPN32")]:
     if f.replace(os.sep, "/").removesuffix(".lean").replace("/", ".") in EXEMPT:
         continue
     for i, line in enumerate(strip_comments(open(f, encoding="utf-8").read()).splitlines(), 1):

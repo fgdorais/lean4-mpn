@@ -150,6 +150,20 @@ lean_lib MPN32 where
   leanOptions := thresholdOptions32
   moreLeancArgs := marchArgs ++ #["-falign-loops=32"]
 
+-- The multiplications by a limb on 32-bit limbs and the modules below them, built without
+-- unrolling: unrolled twice, the loop of `addMul1` is slower on Zen 3, while the Comba basecases of
+-- the rest of `MPN32` are faster unrolled. The modules below hold no hot loops of their own (their
+-- folds are specialized where they are used); they are here because a library may not import the
+-- library that imports it. One root (`MPN32Base`, which imports them) makes its shared library
+-- a plugin for the precompiled tests. Declared after `MPN32`: Lake gives a module to the last
+-- library that contains it.
+lean_lib MPN32Base where
+  roots := #[`MPN32Base]
+  globs := #[.one `MPN32Base, .one `MPN32.Mul.Limb, .one `MPN32.Basic, .one `MPN32.Arch.UInt,
+    .one `MPN32.Arch.UIntArray, .one `MPN32.FoldInPlace]
+  leanOptions := thresholdOptions32
+  moreLeancArgs := marchArgs ++ #["-falign-loops=32", "-fno-unroll-loops"]
+
 @[default_target]
 lean_lib MPN64 where
   leanOptions := thresholdOptions64
