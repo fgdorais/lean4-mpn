@@ -28,15 +28,6 @@ open ScalarArray UInt32Array MPN.Toom
 
 namespace MPN.W32
 
-/-- `valAt` of windows whose limbs agree. -/
-private theorem valAt_shift (a b : UInt32Array) :
-    ∀ (n o p : Nat), (∀ i, i < n → a[o + i]! = b[p + i]!) → a.valAt o n = b.valAt p n
-  | 0, _, _, _ => by simp
-  | n + 1, o, p, h => by
-    rw [valAt_succ, valAt_succ, show a[o]! = b[p]! from h 0 (by lia),
-      valAt_shift a b n (o + 1) (p + 1) fun i hi => by
-        rw [Nat.add_right_comm, Nat.add_right_comm p]; exact h (i + 1) (by lia)]
-
 /-! ## Windows -/
 
 /-- The window of `len` limbs of `a` from `o` on, as a library slice. -/
@@ -95,7 +86,7 @@ private theorem put_spec {d r : UInt32Array} {o len : Nat} (h : o + len ≤ d.si
     fun i hi => ?_⟩, ?_⟩
   · show (put d o len r)[i]! = d[i]!
     rw [getElem!_put h hr]; simp only [show ¬(o ≤ i ∧ i < o + len) by lia, ↓reduceIte]
-  · exact valAt_shift _ _ len o 0 fun i hi => by
+  · exact valAt_shift (j := o) (i := 0) len fun i hi => by
       rw [getElem!_put h hr, ite_eq_left_iff.2 (fun h' => by exfalso; exact h' (by lia)),
         Nat.add_sub_cancel_left, Nat.zero_add]
 

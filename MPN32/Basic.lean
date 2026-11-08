@@ -5,7 +5,6 @@ Released under Apache 2.0 license as described in the file LICENSE.
 module
 
 public import ScalarArray.UInt32
-public import MPN32.Limbs
 public import MPN32.FoldInPlace
 public import MPN32.Arch.UIntArray
 public import MPN.Trim
@@ -19,8 +18,7 @@ the most significant limb is nonzero.
 
 The specification is `toNat`, the value of the limbs of a slice by `valAt`, as in `main`'s
 kernels. Trimmed arrays represent each natural number exactly once, and `ofNat` and `toNat` are
-inverse bijections between them and `Nat`. The kernels of `Arch/` are still proved on the list of
-limbs (`MPN32.Limbs`), which `toNat_eq_ofLimbs` relates to `toNat`.
+inverse bijections between them and `Nat`.
 -/
 
 open ScalarArray
@@ -99,42 +97,25 @@ public theorem valAt_from_of_le (s : UInt32Array.Slice) {j : Nat} (h : s.size �
     s.array.valAt (s.start + j) (s.size - j) = 0 := by
   rw [show s.size - j = 0 by lia, UInt32Array.valAt_zero]
 
-/-! ## The list model of `Arch/`
-
-The kernels of `Arch/` are proved on the list of limbs, by `ofLimbs` (`MPN32.Limbs`), which these
-lemmas relate to `valAt`.
--/
-
-/-- The limbs `lo` to `lo + n - 1` of `a`, read as a list, have the value `valAt`. -/
-public theorem ofLimbs_drop_take (a : UInt32Array) (lo n : Nat) :
-    ofLimbs ((a.toList.drop lo).take n) = a.valAt lo n := by
-  induction n generalizing lo with
-  | zero => simp
-  | succ n ih =>
-    rcases Nat.lt_or_ge lo a.size with h | h
-    · rw [UInt32Array.valAt_succ, List.drop_eq_getElem_cons (by simpa using h), List.take_succ_cons,
-        ofLimbs_cons, ih (lo + 1), UInt32Array.getElem!_eq_getElem _ _ h]
-      simp
-    · rw [List.drop_eq_nil_of_le (by simpa using h), UInt32Array.valAt_of_size_le _ _ h]
-      simp
-
-/-- The value of a slice is `ofLimbs` of its list of limbs. -/
-public theorem toNat_eq_ofLimbs (s : UInt32Array.Slice) : toNat s = ofLimbs s.copy.toList := by
-  rw [toNat_eq_valAt, ← ofLimbs_drop_take]
-  congr 1
-  rw [UInt32Array.Slice.copy, UInt32Array.toList_extract, List.extract_eq_take_drop,
-    UInt32Array.Slice.size_eq]
-
-/-- The value of an array is `ofLimbs` of its list of limbs. -/
-public theorem toNat_toSlice_ofLimbs (a : UInt32Array) : toNat a.toSlice = ofLimbs a.toList := by
-  rw [toNat_toSlice, ← ofLimbs_drop_take, List.drop_zero, Nat.sub_zero,
-    List.take_of_length_le (by simp)]
+/-- `valAt` only depends on the limbs it reads, wherever they sit. -/
+public theorem valAt_shift {a b : UInt32Array} {i j : Nat} :
+    ∀ n, (∀ k, k < n → b[j + k]! = a[i + k]!) → b.valAt j n = a.valAt i n
+  | 0, _ => rfl
+  | n + 1, h => by
+    rw [UInt32Array.valAt_succ, UInt32Array.valAt_succ, ← Nat.add_zero j, ← Nat.add_zero i,
+      h 0 (by lia), Nat.add_zero, Nat.add_zero,
+      valAt_shift (i := i + 1) (j := j + 1) n fun k hk => by
+        rw [Nat.add_right_comm, Nat.add_right_comm i, Nat.add_assoc, Nat.add_assoc]
+        exact h (k + 1) (by lia)]
 
 /-- The value of the limbs `i` to `j - 1` of an array, extracted. -/
 @[simp] public theorem toNat_extract (a : UInt32Array) (i j : Nat) :
     toNat (a.extract i j) = a.valAt i (j - i) := by
-  rw [toNat_toSlice_ofLimbs, UInt32Array.toList_extract, List.extract_eq_take_drop,
-    ofLimbs_drop_take]
+  rw [toNat_array_eq_valAt, UInt32Array.size_extract, ← UInt32Array.valAt_size_sub a i (j - i),
+    show min (j - i) (a.size - i) = min j a.size - i by lia]
+  exact valAt_shift _ fun k hk => by
+    rw [Nat.zero_add, getElem!_pos _ k (by simp; lia), getElem!_pos a (i + k) (by lia),
+      UInt32Array.getElem_extract]
 
 public theorem toNat_of_size_eq_zero {s : UInt32Array.Slice} (h : s.size = 0) : toNat s = 0 := by
   rw [toNat_eq_valAt, h, UInt32Array.valAt_zero]
@@ -143,14 +124,6 @@ public theorem toNat_of_size_eq_one {s : UInt32Array.Slice} (h : s.size = 1) :
     toNat s = (s[0]'(by lia)).toNat := by
   rw [toNat_eq_valAt, h, UInt32Array.valAt_one, UInt32Array.Slice.getElem_eq_getElem!,
     Nat.add_zero]
-
-/-- Reading a limb past the end of a slice gives `0`, as past the end of its list. -/
-public theorem getD_eq_getD_toList_copy (s : UInt32Array.Slice) (j : Nat) :
-    s.getD j 0 = s.copy.toList.getD j 0 := by
-  rw [UInt32Array.Slice.getD_eq]
-  by_cases h : j < s.size
-  · simp [h, List.getD_eq_getElem?_getD]
-  · simp [h, List.getD_eq_getElem?_getD]
 
 /-- Splitting a slice at `k` splits its value. -/
 public theorem toNat_slice_add_toNat_slice (s : UInt32Array.Slice) (k : Nat) (hk : k ≤ s.size) :
@@ -210,55 +183,6 @@ public theorem getElem_top_ne_zero {a : UInt32Array} (h : isTrimmed a = true) (h
     a[a.size - 1] ≠ 0 := by
   simpa [isTrimmed, hs] using h
 
-public theorem isTrimmed_iff (a : UInt32Array) : isTrimmed a = true ↔ IsTrimmed a.toList := by
-  rw [isTrimmed, IsTrimmed, List.getLast?_eq_getElem?, UInt32Array.getElem?_toList,
-    UInt32Array.length_toList]
-  by_cases h : 0 < a.size
-  · simp [h, getElem?_pos a (a.size - 1) (by lia)]
-  · simp [h, getElem?_neg a (a.size - 1) (by lia)]
-
-private theorem trimLimbs_of_getLast (l : List UInt32) (hne : l ≠ []) :
-    trimLimbs l = if l.getLast hne = 0 then trimLimbs l.dropLast else l := by
-  conv => lhs; rw [← List.dropLast_concat_getLast hne]
-  split
-  · rename_i h
-    rw [h]
-    simp [trimLimbs]
-  · rename_i h
-    conv => rhs; rw [← List.dropLast_concat_getLast hne]
-    simp [trimLimbs, h]
-
-public theorem toList_trim (a : UInt32Array) : (trim a).toList = trimLimbs a.toList := by
-  induction hn : a.size using Nat.strongRecOn generalizing a with
-  | ind n ih =>
-  rw [trim, WordArray.trimTo]
-  split
-  · rename_i h
-    change 0 < a.size at h
-    have hne : a.toList ≠ [] := by
-      intro h'; have := congrArg List.length h'; simp at this; lia
-    have hl : a.toList.getLast hne = a[a.size - 1] := by simp [List.getLast_eq_getElem]
-    rw [trimLimbs_of_getLast _ hne, hl]
-    split
-    · rename_i hz
-      have hz' : a[a.size - 1] = 0 := by
-        have := (WordArray.isZero_iff _).1 hz
-        change a[a.size - 1]!.toNat = 0 at this
-        rw [UInt32Array.getElem!_eq_getElem _ _ (by lia)] at this
-        exact UInt32.toNat_inj.1 this
-      rw [ite_eq_left hz', ← UInt32Array.toList_pop]
-      exact ih (n - 1) (by lia) a.pop (by rw [UInt32Array.size_pop, hn])
-    · rename_i hz
-      have hz' : ¬a[a.size - 1] = 0 := fun e => hz ((WordArray.isZero_iff _).2 (by
-        change a[a.size - 1]!.toNat = 0
-        rw [UInt32Array.getElem!_eq_getElem _ _ (by lia), e]; rfl))
-      rw [ite_eq_right hz']
-  · rename_i h
-    change ¬0 < a.size at h
-    have : a.toList = [] := List.eq_nil_of_length_eq_zero (by simp; lia)
-    rw [this]
-    rfl
-
 @[simp] public theorem toNat_trim (a : UInt32Array) : toNat (trim a) = toNat a := by
   rw [toNat_array_eq_valAt, toNat_array_eq_valAt]
   exact WordArray.valAt_trimTo 0 a
@@ -281,8 +205,8 @@ public theorem isTrimmed_of_isTrimmedTo {a : UInt32Array} (h : WordArray.isTrimm
       exact fun e => h' (by rw [e]; rfl)
   · rfl
 
-public theorem isTrimmed_trim (a : UInt32Array) : isTrimmed (trim a) = true := by
-  simp [isTrimmed_iff, toList_trim, isTrimmed_trimLimbs]
+public theorem isTrimmed_trim (a : UInt32Array) : isTrimmed (trim a) = true :=
+  isTrimmed_of_isTrimmedTo (WordArray.isTrimmedTo_trimTo 0 a)
 
 @[simp] public theorem toNat_ofNat (n : Nat) : toNat (ofNat n) = n := by
   by_cases hn : n = 0
@@ -311,16 +235,42 @@ public theorem isTrimmed_ofNat (n : Nat) : isTrimmed (ofNat n) = true := by
     rw [UInt32Array.getElem!_eq_getElem _ _ (by exact Nat.sub_lt hpos (by decide))]
     rw [h0]; rfl
 
+/-- A trimmed array is at least `β^(n - 1)`, for its `n` limbs. -/
+private theorem pow_le_toNat {b : UInt32Array} (hb : isTrimmed b = true) (hs : 0 < b.size) :
+    2 ^ (32 * (b.size - 1)) ≤ toNat b := by
+  have ht := getElem_top_ne_zero hb hs
+  have e := UInt32Array.valAt_add b 0 (b.size - 1) 1
+  rw [show b.size - 1 + 1 = b.size by lia, UInt32Array.valAt_one, Nat.zero_add,
+    UInt32Array.getElem!_eq_getElem _ _ (by lia)] at e
+  have hpos : 1 ≤ b[b.size - 1].toNat :=
+    Nat.pos_of_ne_zero fun h0 => ht (UInt32.toNat_inj.1 (by rw [h0]; rfl))
+  have := Nat.mul_le_mul_left (2 ^ (32 * (b.size - 1))) hpos
+  rw [toNat_array_eq_valAt, e]
+  lia
+
+/-- An array with fewer limbs than a trimmed array is below it. -/
+private theorem toNat_lt_of_size_lt {a b : UInt32Array} (hb : isTrimmed b = true)
+    (h : a.size < b.size) : toNat a < toNat b := by
+  have := UInt32Array.valAt_lt a 0 a.size
+  have := Nat.pow_le_pow_right (show 0 < 2 by decide) (show 32 * a.size ≤ 32 * (b.size - 1) by lia)
+  have := pow_le_toNat hb (by lia)
+  rw [toNat_array_eq_valAt] at this
+  rw [toNat_array_eq_valAt, toNat_array_eq_valAt]
+  lia
+
+/-- Trimmed arrays of the same value have the same size. -/
+public theorem size_eq_of_toNat_eq {a b : UInt32Array} (ha : isTrimmed a = true)
+    (hb : isTrimmed b = true) (h : toNat a = toNat b) : a.size = b.size := by
+  rcases Nat.lt_trichotomy a.size b.size with hl | he | hg
+  · exact absurd h (Nat.ne_of_lt (toNat_lt_of_size_lt hb hl))
+  · exact he
+  · exact absurd h (Nat.ne_of_gt (toNat_lt_of_size_lt ha hg))
+
 /-- A trimmed array is the limbs of the number it denotes. -/
 public theorem ofNat_toNat {a : UInt32Array} (h : isTrimmed a = true) : ofNat (toNat a) = a := by
-  apply UInt32Array.toList_inj.1
-  apply IsTrimmed.ofLimbs_inj ((isTrimmed_iff _).1 (isTrimmed_ofNat _)) ((isTrimmed_iff _).1 h)
-  rw [← toNat_toSlice_ofLimbs, ← toNat_toSlice_ofLimbs, toNat_ofNat]
-
-public theorem toList_copy_drop {a : UInt32Array.Slice} {j : Nat} (h : j < a.size) :
-    a.copy.toList.drop j = a[j] :: a.copy.toList.drop (j + 1) := by
-  rw [List.drop_eq_getElem_cons (by simpa using h)]
-  simp
+  have hv := toNat_ofNat (toNat a)
+  refine UInt32Array.eq_of_valAt_eq (size_eq_of_toNat_eq (isTrimmed_ofNat _) h hv) ?_
+  rw [← toNat_array_eq_valAt, ← toNat_array_eq_valAt, hv]
 
 /-! ## `USize` indices
 
@@ -391,6 +341,13 @@ public theorem limbU_eq (a : UInt32Array.Slice) (has : a.array.size < USize.size
   rw [limbU, uget_eq_getElem _ _ _ hidx]
   rfl
 
+/-- The value of the copy of a slice. -/
+@[simp] public theorem toNat_copy (a : UInt32Array.Slice) : toNat a.copy = toNat a := by
+  rw [toNat_array_eq_valAt, UInt32Array.Slice.size_copy, toNat_eq_valAt]
+  exact valAt_shift _ fun k hk => by
+    rw [Nat.zero_add, getElem!_pos _ k (by simp; lia), UInt32Array.Slice.getElem_copy,
+      UInt32Array.Slice.getElem_eq_getElem!]
+
 /-- `a` followed by `n` zero limbs, which has the same value. -/
 public def padZeros (a : UInt32Array) (n : Nat) : UInt32Array := a ++ .replicate n 0
 
@@ -400,8 +357,19 @@ public def padZeros (a : UInt32Array) (n : Nat) : UInt32Array := a ++ .replicate
 
 @[simp] public theorem toNat_padZeros (a : UInt32Array) (n : Nat) :
     toNat (padZeros a n) = toNat a := by
-  rw [toNat_toSlice_ofLimbs, toNat_toSlice_ofLimbs, padZeros, UInt32Array.toList_append,
-    UInt32Array.toList_replicate, ofLimbs_append_replicate_zero]
+  rw [toNat_array_eq_valAt, toNat_array_eq_valAt, size_padZeros, UInt32Array.valAt_add,
+    Nat.zero_add]
+  have hz : (padZeros a n).valAt a.size n = 0 :=
+    MPN.LimbArray.valAt_eq_zero _ fun i h₁ h₂ => by
+      change (padZeros a n)[i]!.toNat = 0
+      rw [getElem!_pos _ i (by simp; lia)]
+      simp only [padZeros, UInt32Array.getElem_append, dite_eq_right (show ¬i < a.size by lia),
+        UInt32Array.getElem_replicate]
+      rfl
+  rw [hz, Nat.mul_zero, Nat.add_zero]
+  exact valAt_shift _ fun k hk => by
+    rw [Nat.zero_add, getElem!_pos _ k (by simp; lia), getElem!_pos a k hk]
+    simp only [padZeros, UInt32Array.getElem_append, dite_eq_left hk]
 
 /-- The limbs of `a` in a new array of `n` limbs, padded with zeros, copied with one `memcpy`. -/
 public def copyPadded (a : UInt32Array.Slice) (n : Nat) : UInt32Array :=
@@ -429,8 +397,9 @@ public theorem toList_copyPadded (a : UInt32Array.Slice) (n : Nat) :
 
 public theorem toNat_copyPadded (a : UInt32Array.Slice) (n : Nat) :
     toNat (copyPadded a n) = toNat a := by
-  rw [toNat_toSlice_ofLimbs, toList_copyPadded a n, ofLimbs_append_replicate_zero,
-    toNat_eq_ofLimbs]
+  have e : copyPadded a n = padZeros a.copy (n - a.size) := UInt32Array.toList_inj.1 (by
+    rw [toList_copyPadded, padZeros, UInt32Array.toList_append, UInt32Array.toList_replicate])
+  rw [e, toNat_padZeros, toNat_copy]
 
 /-- Shifts a number left by `k` limbs. -/
 public def shiftLimbs (a : UInt32Array) (k : Nat) : UInt32Array :=
@@ -442,10 +411,21 @@ public def shiftLimbs (a : UInt32Array) (k : Nat) : UInt32Array :=
   · have hs : a.size = 0 := by simpa [UInt32Array.isEmpty] using h
     have h0 : toNat a = 0 := toNat_of_size_eq_zero (by simpa using hs)
     rw [shiftLimbs, ite_eq_left h, h0, Nat.zero_mul]
-  · rw [shiftLimbs, ite_eq_right h, toNat_toSlice_ofLimbs, toNat_toSlice_ofLimbs,
-      UInt32Array.toList_append,
-      ofLimbs_append, UInt32Array.toList_replicate, ofLimbs_replicate_zero, List.length_replicate,
-      Nat.zero_add, Nat.mul_comm]
+  · rw [shiftLimbs, ite_eq_right h, toNat_array_eq_valAt, toNat_array_eq_valAt,
+      UInt32Array.size_append, UInt32Array.size_replicate, UInt32Array.valAt_add, Nat.zero_add]
+    have hz : (UInt32Array.replicate k 0 ++ a).valAt 0 k = 0 :=
+      MPN.LimbArray.valAt_eq_zero _ fun i h₁ h₂ => by
+        change (UInt32Array.replicate k 0 ++ a)[i]!.toNat = 0
+        rw [getElem!_pos _ i (by simp; lia)]
+        simp only [UInt32Array.getElem_append, UInt32Array.size_replicate,
+          dite_eq_left (show i < k by lia), UInt32Array.getElem_replicate]
+        rfl
+    rw [hz, Nat.zero_add, Nat.mul_comm]
+    congr 1
+    exact valAt_shift _ fun j hj => by
+      rw [Nat.zero_add, getElem!_pos _ (k + j) (by simp; lia), getElem!_pos a j hj]
+      simp only [UInt32Array.getElem_append, UInt32Array.size_replicate,
+        dite_eq_right (show ¬k + j < k by lia), Nat.add_sub_cancel_left]
 
 @[simp] public theorem toNat_empty : toNat UInt32Array.empty = 0 := rfl
 
@@ -455,8 +435,13 @@ public theorem isTrimmed_empty : isTrimmed UInt32Array.empty = true := by
 /-- A limb pushed on top of `a`. -/
 @[simp] public theorem toNat_push (a : UInt32Array) (x : UInt32) :
     toNat (a.push x) = toNat a + 2 ^ (32 * a.size) * x.toNat := by
-  rw [toNat_toSlice_ofLimbs, toNat_toSlice_ofLimbs, UInt32Array.toList_push, ofLimbs_concat,
-    UInt32Array.length_toList]
+  rw [toNat_array_eq_valAt, toNat_array_eq_valAt, UInt32Array.size_push, UInt32Array.valAt_add,
+    UInt32Array.valAt_one, Nat.zero_add, getElem!_pos _ a.size (by simp)]
+  simp only [UInt32Array.getElem_push, dite_eq_right (Nat.lt_irrefl _)]
+  congr 1
+  exact valAt_shift _ fun k hk => by
+    rw [Nat.zero_add, getElem!_pos _ k (by simp; lia), getElem!_pos a k hk]
+    simp only [UInt32Array.getElem_push, dite_eq_left hk]
 
 /-- A nonzero limb pushed on top of an array makes it trimmed. -/
 public theorem isTrimmed_push (a : UInt32Array) {x : UInt32} (hx : x ≠ 0) :
@@ -470,17 +455,13 @@ public theorem size_limbArray (c : UInt32) : (limbArray c).toSlice.size = 1 := b
   simp [limbArray]
 
 public theorem toNat_limbArray (c : UInt32) : toNat (limbArray c) = c.toNat := by
-  rw [toNat_toSlice_ofLimbs]
-  simp [limbArray, UInt32Array.toList_replicate]
+  rw [toNat_array_eq_valAt, limbArray, UInt32Array.size_replicate, UInt32Array.valAt_one,
+    getElem!_pos _ 0 (by simp), UInt32Array.getElem_replicate]
 
 /-- An array of zeros is zero. -/
 public theorem toNat_zeros (n : Nat) : toNat (UInt32Array.replicate n 0) = 0 := by
-  rw [toNat_toSlice_ofLimbs]
-  simp [UInt32Array.toList_replicate]
-
-/-- The value of the copy of a slice. -/
-@[simp] public theorem toNat_copy (a : UInt32Array.Slice) : toNat a.copy = toNat a := by
-  rw [toNat_toSlice_ofLimbs, toNat_eq_ofLimbs]
+  rw [toNat_array_eq_valAt]
+  simp
 
 /-- The limbs `j` to `k` of `r` hold `⌊r / βʲ⌋` when `r < βᵏ`. -/
 public theorem toNat_window (r : UInt32Array) (j k : Nat) (hjk : j ≤ k)
@@ -503,7 +484,7 @@ public theorem toNat_window (r : UInt32Array) (j k : Nat) (hjk : j ≤ k)
 
 /-! ## Compiled conversions
 
-`toNat` and `ofNat` go one limb at a time, as `ofLimbs` does, multiplying or dividing a growing
+`toNat` and `ofNat` go one limb at a time, multiplying or dividing a growing
 `Nat` at each limb, which takes quadratic time. Their compiled twins split the limbs in halves
 and join or split the halves with shifts, which `Nat` does in linear time, so that the conversions
 take `O(n log n)`. `@[csimp]` makes the compiler use them.
@@ -520,7 +501,7 @@ def toNatRange (s : UInt32Array.Slice) (i n : Nat) : Nat :=
 termination_by n
 
 private theorem toNatRange_eq (s : UInt32Array.Slice) (i n : Nat) (h : i + n ≤ s.size) :
-    toNatRange s i n = ofLimbs ((s.copy.toList.drop i).take n) := by
+    toNatRange s i n = s.array.valAt (s.start + i) n := by
   induction n using Nat.strongRecOn generalizing i with
   | ind n ih =>
     rw [toNatRange]
@@ -530,34 +511,28 @@ private theorem toNatRange_eq (s : UInt32Array.Slice) (i n : Nat) (h : i + n ≤
     · subst n; simp
     · split
       · subst n
-        rw [toList_copy_drop (by lia), hg i (by lia)]
-        simp
+        rw [UInt32Array.valAt_one, hg i (by lia), UInt32Array.Slice.getElem_eq_getElem!]
       · split
         · subst n
-          rw [toList_copy_drop (by lia), toList_copy_drop (by lia), hg i (by lia),
-            hg (i + 1) (by lia)]
-          have := (s[i]'(by lia)).toNat_lt
-          have := (s[i + 1]'(by lia)).toNat_lt
-          simp only [List.take_succ_cons, List.take_zero, ofLimbs_cons, ofLimbs_nil]
+          rw [UInt32Array.valAt_succ, UInt32Array.valAt_one, hg i (by lia), hg (i + 1) (by lia),
+            UInt32Array.Slice.getElem_eq_getElem!, UInt32Array.Slice.getElem_eq_getElem!,
+            ← Nat.add_assoc]
+          have := (s.array[s.start + i]!).toNat_lt
+          have := (s.array[s.start + i + 1]!).toNat_lt
           simp only [UInt64.toNat_add, UInt64.toNat_mul, UInt32.toNat_toUInt64,
             UInt64.reduceToNat]
           lia
         · rename_i h0 h1 h2
-          rw [ih _ (by lia) i (by lia), ih _ (by lia) (i + n / 2) (by lia),
-            Nat.shiftLeft_eq]
-          have hlen : (s.copy.toList.drop i).length = s.size - i := by simp
-          have e : (s.copy.toList.drop i).take n = (s.copy.toList.drop i).take (n / 2) ++
-              (s.copy.toList.drop (i + n / 2)).take (n - n / 2) := by
-            conv => lhs; rw [show n = n / 2 + (n - n / 2) by lia]
-            rw [List.take_add, List.drop_drop]
-          rw [e, ofLimbs_append, List.length_take, hlen, Nat.min_eq_left (by lia), Nat.mul_comm]
+          rw [ih _ (by lia) i (by lia), ih _ (by lia) (i + n / 2) (by lia), Nat.shiftLeft_eq]
+          conv => rhs; rw [show n = n / 2 + (n - n / 2) by lia]
+          rw [UInt32Array.valAt_add, show s.start + i + n / 2 = s.start + (i + n / 2) by lia,
+            Nat.mul_comm (2 ^ (32 * (n / 2)))]
 
 /-- `toNat` by halves, which the compiler uses in its place. -/
 public def toNatFast (s : UInt32Array.Slice) : Nat := toNatRange s 0 s.size
 
 @[csimp] public theorem toNat_eq_toNatFast : @toNat = @toNatFast := by
   funext s
-  rw [toNatFast, toNatRange_eq s 0 s.size (by lia), List.drop_zero,
-    List.take_of_length_le (by simp), toNat_eq_ofLimbs]
+  rw [toNatFast, toNatRange_eq s 0 s.size (by lia), Nat.add_zero, toNat_eq_valAt]
 
 end MPN.W32

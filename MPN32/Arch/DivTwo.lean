@@ -492,7 +492,16 @@ private theorem shl_digit_succ (a s j : Nat) (hs : s < 32) :
 /-- Digit `j` of `toNat a` in base `β` is its limb `j`, or `0` past its end. -/
 private theorem toNat_getD_slice (a : UInt32Array.Slice) (j : Nat) :
     (a.getD j 0).toNat = toNat a / 2 ^ (32 * j) % 2 ^ 32 := by
-  rw [getD_eq_getD_toList_copy, toNat_getD_eq, toNat_eq_ofLimbs]
+  rcases Nat.lt_or_ge j a.size with h | h
+  · have e := UInt32Array.valAt_add a.array a.start j (a.size - j)
+    rw [show j + (a.size - j) = a.size by lia, valAt_from a j] at e
+    rw [toNat_eq_valAt, e, Nat.add_mul_div_left _ _ (Nat.two_pow_pos _),
+      Nat.div_eq_of_lt (UInt32Array.valAt_lt ..), Nat.zero_add, Nat.add_mul_mod_self_left,
+      Nat.mod_eq_of_lt (UInt32.toNat_lt _)]
+  · rw [UInt32Array.Slice.getD_eq, dite_eq_right (by lia),
+      Nat.div_eq_of_lt (Nat.lt_of_lt_of_le (toNat_lt a)
+        (Nat.pow_le_pow_right (by decide) (by lia)))]
+    rfl
 
 /--
 Limb `k` of `a 2ˢ`, for `s < 32`, read from limbs `k` and `k - 1` of the `n` limbs of `arr` from
@@ -606,51 +615,48 @@ slice at `k`: below index `k` the slice holds `Z`, untouched, above it the quoti
 private theorem div2_loop (V : Nat) (G : UInt64 → UInt32 → UInt32 × UInt64)
     (hG : ∀ r x, r.toNat < V → (G r x).1.toNat = (r.toNat * 2 ^ 32 + x.toNat) / V ∧
       (G r x).2.toNat = (r.toNat * 2 ^ 32 + x.toNat) % V)
-    (X n : Nat) (Z : List UInt32) (hZ : Z.length = n)
+    (X n : Nat) (Z : UInt32Array)
     (F : (k : USize) → k.toNat < n → UInt32 → UInt32)
-    (hF : ∀ (k : Nat) (hk : k < n) (hk' : k.toUSize.toNat < n),
-      (F k.toUSize hk' (Z[k]'(by lia))).toNat = X / 2 ^ (32 * k) % 2 ^ 32)
+    (hF : ∀ (k : Nat) (_ : k < n) (hk' : k.toUSize.toNat < n),
+      (F k.toUSize hk' Z[k]!).toNat = X / 2 ^ (32 * k) % 2 ^ 32)
     (s : UInt32Array.Slice) (hs : s.size = n) (k : Nat) (hk : k ≤ n)
-    (r : UInt64) (W : List UInt32) (h0 : s.start = 0) (hl : s.array.toList = Z.take k ++ W)
-    (hv : ofLimbs W * V + r.toNat = X / 2 ^ (32 * k)) (hr : r.toNat < V) :
+    (r : UInt64) (h0 : s.start = 0) (hsz : s.array.size = n) (hl : ∀ j, j < k → s.array[j]! = Z[j]!)
+    (hv : s.array.valAt k (n - k) * V + r.toNat = X / 2 ^ (32 * k)) (hr : r.toNat < V) :
     let p := UInt32Array.Slice.foldrInPlace.loop n (fun j hj x r => G r (F j hj x)) s hs k hk r
-    ofLimbs p.1.array.toList * V + p.2.toNat = X ∧ p.2.toNat < V := by
-  induction k generalizing s r W with
+    p.1.array.valAt 0 p.1.array.size * V + p.2.toNat = X ∧ p.2.toNat < V := by
+  induction k generalizing s r with
   | zero =>
     simp only [UInt32Array.Slice.foldrInPlace.loop]
-    rw [Nat.mul_zero, Nat.pow_zero, Nat.div_one] at hv
-    rw [hl, List.take_zero, List.nil_append]
+    rw [Nat.mul_zero, Nat.pow_zero, Nat.div_one, Nat.sub_zero] at hv
+    rw [hsz]
     exact ⟨hv, hr⟩
   | succ k ih =>
     rw [UInt32Array.Slice.foldrInPlace.loop]
-    have hkZ : k < Z.length := by lia
-    have hsa : k < s.array.size := by
-      have := s.stop_le_array_size; have := s.size_eq; have := s.start_le_stop; lia
-    have hsk : s[k]'(by lia) = Z[k] := by
-      have h := List.getElem_of_eq hl (i := k) (by simpa using hsa)
-      rw [List.getElem_append_left (by simp; lia), List.getElem_take,
-        UInt32Array.getElem_toList] at h
-      rw [UInt32Array.Slice.getElem_eq]
-      simpa [h0] using h
+    have hsk : s[k]'(by lia) = Z[k]! := by
+      rw [UInt32Array.Slice.getElem_eq_getElem!, h0, Nat.zero_add]; exact hl k (by lia)
     have hk' : k.toUSize.toNat < n := by
       rw [Nat.toUSize_eq, USize.toNat_ofNat']
       exact Nat.lt_of_le_of_lt (Nat.mod_le _ _) hk
     have hx : (F k.toUSize hk' (s[k]'(by lia))).toNat = X / 2 ^ (32 * k) % 2 ^ 32 := by
       rw [hsk]; exact hF k (by lia) hk'
     obtain ⟨h₁, h₂⟩ := hG r (F k.toUSize hk' (s[k]'(by lia))) hr
-    refine ih _ _ _ _ ((G r (F k.toUSize hk' (s[k]'(by lia)))).1 :: W) ?_ ?_ ?_ ?_
+    refine ih _ _ _ _ ?_ ?_ ?_ ?_ ?_
     · rw [UInt32Array.Slice.start_set, h0]
-    · rw [UInt32Array.Slice.array_set, UInt32Array.toList_set, hl, h0, Nat.zero_add,
-        List.take_succ_eq_append_getElem hkZ, List.append_assoc,
-        List.set_append_right _ _ (by simp; lia)]
-      simp [Nat.min_eq_left (Nat.le_of_lt hkZ)]
+    · rw [UInt32Array.Slice.array_set, UInt32Array.size_set, hsz]
+    · intro j hj
+      rw [UInt32Array.Slice.array_set, UInt32Array.getElem!_set, ite_eq_right (by lia)]
+      exact hl j (by lia)
     · -- `q V + β W V + r' = r β + x + β W V = x + β (W V + r)`, digit `k` and the digits above.
+      rw [UInt32Array.Slice.array_set, show n - k = (n - (k + 1)) + 1 by lia,
+        UInt32Array.valAt_succ, UInt32Array.getElem!_set, ite_eq_left (by lia),
+        UInt32Array.valAt_congr (b := s.array) _ fun i h₁ _ => by
+          rw [UInt32Array.getElem!_set, ite_eq_right (by lia)]]
       generalize F k.toUSize hk' (s[k]'(by lia)) = x at hx h₁ h₂ ⊢
       have hsplit : X / 2 ^ (32 * k) = x.toNat + 2 ^ 32 * (X / 2 ^ (32 * (k + 1))) := by
         rw [hx, show 32 * (k + 1) = 32 * k + 32 by lia, Nat.pow_add, ← Nat.div_div_eq_div_mul]
         have := Nat.div_add_mod (X / 2 ^ (32 * k)) (2 ^ 32)
         lia
-      rw [ofLimbs_cons, hsplit, ← hv, h₁, h₂]
+      rw [hsplit, ← hv, h₁, h₂]
       have := Nat.div_add_mod (r.toNat * 2 ^ 32 + x.toNat) V
       generalize (r.toNat * 2 ^ 32 + x.toNat) / V = q at *
       generalize (r.toNat * 2 ^ 32 + x.toNat) % V = m at *
@@ -678,32 +684,25 @@ private theorem div2_loop_sticky (V : Nat) (G : UInt64 → UInt32 → UInt32 × 
     (hG : ∀ r x, (G r x).2.toNat < V → r.toNat < V ∧
       (G r x).1.toNat = (r.toNat * 2 ^ 32 + x.toNat) / V ∧
       (G r x).2.toNat = (r.toNat * 2 ^ 32 + x.toNat) % V)
-    (X n : Nat) (Z : List UInt32) (hZ : Z.length = n)
+    (X n : Nat) (Z : UInt32Array)
     (F : (k : USize) → k.toNat < n → UInt32 → UInt32)
-    (hF : ∀ (k : Nat) (hk : k < n) (hk' : k.toUSize.toNat < n),
-      (F k.toUSize hk' (Z[k]'(by lia))).toNat = X / 2 ^ (32 * k) % 2 ^ 32)
+    (hF : ∀ (k : Nat) (_ : k < n) (hk' : k.toUSize.toNat < n),
+      (F k.toUSize hk' Z[k]!).toNat = X / 2 ^ (32 * k) % 2 ^ 32)
     (s : UInt32Array.Slice) (hs : s.size = n) (k : Nat) (hk : k ≤ n)
-    (r : UInt64) (W : List UInt32) (h0 : s.start = 0) (hl : s.array.toList = Z.take k ++ W)
-    (hv : ofLimbs W * V + r.toNat = X / 2 ^ (32 * k)) :
+    (r : UInt64) (h0 : s.start = 0) (hsz : s.array.size = n) (hl : ∀ j, j < k → s.array[j]! = Z[j]!)
+    (hv : s.array.valAt k (n - k) * V + r.toNat = X / 2 ^ (32 * k)) :
     let p := UInt32Array.Slice.foldrInPlace.loop n (fun j hj x r => G r (F j hj x)) s hs k hk r
-    p.2.toNat < V → ofLimbs p.1.array.toList * V + p.2.toNat = X := by
-  induction k generalizing s r W with
+    p.2.toNat < V → p.1.array.valAt 0 p.1.array.size * V + p.2.toNat = X := by
+  induction k generalizing s r with
   | zero =>
     simp only [UInt32Array.Slice.foldrInPlace.loop]
-    rw [Nat.mul_zero, Nat.pow_zero, Nat.div_one] at hv
-    rw [hl, List.take_zero, List.nil_append]
+    rw [Nat.mul_zero, Nat.pow_zero, Nat.div_one, Nat.sub_zero] at hv
+    rw [hsz]
     exact fun _ => hv
   | succ k ih =>
     rw [UInt32Array.Slice.foldrInPlace.loop]
-    have hkZ : k < Z.length := by lia
-    have hsa : k < s.array.size := by
-      have := s.stop_le_array_size; have := s.size_eq; have := s.start_le_stop; lia
-    have hsk : s[k]'(by lia) = Z[k] := by
-      have h := List.getElem_of_eq hl (i := k) (by simpa using hsa)
-      rw [List.getElem_append_left (by simp; lia), List.getElem_take,
-        UInt32Array.getElem_toList] at h
-      rw [UInt32Array.Slice.getElem_eq]
-      simpa [h0] using h
+    have hsk : s[k]'(by lia) = Z[k]! := by
+      rw [UInt32Array.Slice.getElem_eq_getElem!, h0, Nat.zero_add]; exact hl k (by lia)
     have hk' : k.toUSize.toNat < n := by
       rw [Nat.toUSize_eq, USize.toNat_ofNat']
       exact Nat.lt_of_le_of_lt (Nat.mod_le _ _) hk
@@ -711,18 +710,22 @@ private theorem div2_loop_sticky (V : Nat) (G : UInt64 → UInt32 → UInt32 × 
       rw [hsk]; exact hF k (by lia) hk'
     by_cases hout : (G r (F k.toUSize hk' (s[k]'(by lia)))).2.toNat < V
     · obtain ⟨-, h₁, h₂⟩ := hG _ _ hout
-      refine ih _ _ _ _ ((G r (F k.toUSize hk' (s[k]'(by lia)))).1 :: W) ?_ ?_ ?_
+      refine ih _ _ _ _ ?_ ?_ ?_ ?_
       · rw [UInt32Array.Slice.start_set, h0]
-      · rw [UInt32Array.Slice.array_set, UInt32Array.toList_set, hl, h0, Nat.zero_add,
-          List.take_succ_eq_append_getElem hkZ, List.append_assoc,
-          List.set_append_right _ _ (by simp; lia)]
-        simp [Nat.min_eq_left (Nat.le_of_lt hkZ)]
-      · generalize F k.toUSize hk' (s[k]'(by lia)) = x at hx h₁ h₂ ⊢
+      · rw [UInt32Array.Slice.array_set, UInt32Array.size_set, hsz]
+      · intro j hj
+        rw [UInt32Array.Slice.array_set, UInt32Array.getElem!_set, ite_eq_right (by lia)]
+        exact hl j (by lia)
+      · rw [UInt32Array.Slice.array_set, show n - k = (n - (k + 1)) + 1 by lia,
+          UInt32Array.valAt_succ, UInt32Array.getElem!_set, ite_eq_left (by lia),
+          UInt32Array.valAt_congr (b := s.array) _ fun i h₁ _ => by
+            rw [UInt32Array.getElem!_set, ite_eq_right (by lia)]]
+        generalize F k.toUSize hk' (s[k]'(by lia)) = x at hx h₁ h₂ ⊢
         have hsplit : X / 2 ^ (32 * k) = x.toNat + 2 ^ 32 * (X / 2 ^ (32 * (k + 1))) := by
           rw [hx, show 32 * (k + 1) = 32 * k + 32 by lia, Nat.pow_add, ← Nat.div_div_eq_div_mul]
           have := Nat.div_add_mod (X / 2 ^ (32 * k)) (2 ^ 32)
           lia
-        rw [ofLimbs_cons, hsplit, ← hv, h₁, h₂]
+        rw [hsplit, ← hv, h₁, h₂]
         have hV : 0 < V := by lia
         have := Nat.div_add_mod (r.toNat * 2 ^ 32 + x.toNat) V
         generalize (r.toNat * 2 ^ 32 + x.toNat) / V = q at *
@@ -852,12 +855,12 @@ public theorem divRem2_spec (a : UInt32Array.Slice) (d₁ d₀ : UInt32) (hd : d
     rw [UInt64.toNat_shiftRight, hs64, Nat.mod_eq_of_lt (show 31 - l < 64 by lia),
       Nat.shiftRight_eq_div_pow]
   have hcore (q : UInt32Array) (R : UInt64)
-      (h₁ : ofLimbs q.toList * (d * 2 ^ (31 - l)) + R.toNat = toNat a * 2 ^ (31 - l))
+      (h₁ : q.valAt 0 q.size * (d * 2 ^ (31 - l)) + R.toNat = toNat a * 2 ^ (31 - l))
       (h₂ : R.toNat < d * 2 ^ (31 - l)) :
-      ofLimbs q.toList * d + (R >>> (31 - l).toUInt64).toNat = toNat a ∧
+      q.valAt 0 q.size * d + (R >>> (31 - l).toUInt64).toNat = toNat a ∧
         (R >>> (31 - l).toUInt64).toNat < d := by
     rw [hR]
-    generalize ofLimbs q.toList = Q at h₁ ⊢
+    generalize q.valAt 0 q.size = Q at h₁ ⊢
     generalize R.toNat = R at h₁ h₂ ⊢
     have hQd : Q * d ≤ toNat a := by
       have : Q * d * 2 ^ (31 - l) ≤ toNat a * 2 ^ (31 - l) := by
@@ -873,37 +876,38 @@ public theorem divRem2_spec (a : UInt32Array.Slice) (d₁ d₀ : UInt32) (hd : d
     rw [Nat.mul_add, Nat.mul_one, Nat.pow_add]
     exact Nat.mul_lt_mul'' (toNat_lt a) (Nat.pow_lt_pow_right (by decide) (by lia))
   -- The shifted copy with `div2Step`, the fallback of both branches.
-  have hcopy : ofLimbs (divRem2Limbs (shiftLeft a (31 - l)) D (31 - l).toUInt64).1.toList * d +
+  have hcopy : (divRem2Limbs (shiftLeft a (31 - l)) D (31 - l).toUInt64).1.valAt 0
+        (divRem2Limbs (shiftLeft a (31 - l)) D (31 - l).toUInt64).1.size * d +
         (divRem2Limbs (shiftLeft a (31 - l)) D (31 - l).toUInt64).2.toNat = toNat a ∧
       (divRem2Limbs (shiftLeft a (31 - l)) D (31 - l).toUInt64).2.toNat < d := by
     simp only [divRem2Limbs, UInt32Array.Slice.foldrInPlaceThen_eq, UInt32Array.Slice.foldrInPlace]
     have hx := toNat_shiftLeft a (31 - l)
-    rw [toNat_toSlice_ofLimbs] at hx
+    rw [toNat_array_eq_valAt] at hx
     have h := div2_loop D.toNat (div2Step (D >>> 32).toUInt32 D.toUInt32)
       (fun r x hr => by
         have := div2Step_spec (D >>> 32).toUInt32 D.toUInt32 r x hvt0 (by rw [hV]; exact hr)
         rwa [hV] at this)
       (toNat a * 2 ^ (31 - l))
-      (shiftLeft a (31 - l)).toSlice.size (shiftLeft a (31 - l)).toList (by simp) (fun _ _ v => v)
+      (shiftLeft a (31 - l)).toSlice.size (shiftLeft a (31 - l)) (fun _ _ v => v)
       (fun k hk _ => by
-        rw [← hx, ← toNat_getD_eq, List.getD_eq_getElem?_getD,
-          List.getElem?_eq_getElem (by simp at hk; simpa using hk)]
-        rfl)
-      (shiftLeft a (31 - l)).toSlice rfl _ (Nat.le_refl _) 0 [] (by simp)
-      (by rw [List.take_of_length_le (by simp)]; simp)
+        simp only [UInt32Array.size_toSlice, Nat.sub_zero, Nat.min_self] at hk
+        rw [← hx, UInt32Array.getElem!_eq_getElem _ _ hk, UInt32Array.toNat_getElem_eq])
+      (shiftLeft a (31 - l)).toSlice rfl _ (Nat.le_refl _) 0 (by simp) (by simp)
+      (fun j hj => by simp)
       (by
-        rw [Nat.div_eq_of_lt (by rw [← hx]; simpa using ofLimbs_lt (shiftLeft a (31 - l)).toList)]
-        simp)
+        simp only [UInt32Array.size_toSlice, Nat.sub_zero, Nat.min_self, Nat.sub_self,
+          UInt32Array.valAt_zero, Nat.zero_mul, Nat.add_zero, UInt64.toNat_zero]
+        rw [Nat.div_eq_of_lt (by rw [← hx]; exact UInt32Array.valAt_lt ..)])
       (by simp; lia)
     simp only at h
     rw [hD] at h
     exact hcore _ _ h.1 h.2
-  rw [toNat_toSlice_ofLimbs]
+  rw [toNat_array_eq_valAt]
   by_cases has : a.array.size < 4294967295
   · -- Normalizing on the fly: the loop reads the limbs of `a 2ˢ` with `shlLimbU`.
     simp only [has, ↓reduceDIte]
     refine ite_of (fun z : UInt32Array × UInt64 =>
-      ofLimbs z.1.toList * d + z.2.toNat = toNat a ∧ z.2.toNat < d) ?_ (fun _ => hcopy)
+      z.1.valAt 0 z.1.size * d + z.2.toNat = toNat a ∧ z.2.toNat < d) ?_ (fun _ => hcopy)
     · -- The last remainder is below `D`, so every step was correct.
       intro hfin
       have hsz : a.size + 1 < USize.size := by
@@ -911,13 +915,13 @@ public theorem divRem2_spec (a : UInt32Array.Slice) (d₁ d₀ : UInt32) (hd : d
       have hn : (UInt32Array.replicate (a.size + 1) 0).toSlice.size = a.size + 1 := by simp
       have h := div2_loop_sticky D.toNat (div32Step (recip32 D) D)
         (fun r x h => div32Step_spec _ D r x h) (toNat a * 2 ^ (31 - l))
-        _ (List.replicate (a.size + 1) 0) (by rw [hn]; simp)
+        _ (UInt32Array.replicate (a.size + 1) 0)
         (fun k _ _ => shlLimbU a.array a.start.toUSize a.size.toUSize (lt_usizeSize has)
           (limbU_bound a (lt_usizeSize has)) (31 - l).toUInt64 k)
         (fun k hk _ => by
           rw [toNat_shlLimbU a _ (31 - l) (by lia) k.toUSize, toNat_toUSize (by lia)])
-        (UInt32Array.replicate (a.size + 1) 0).toSlice rfl _ (Nat.le_refl _) 0 [] (by simp)
-        (by rw [List.take_of_length_le (by rw [hn]; simp)]; simp)
+        (UInt32Array.replicate (a.size + 1) 0).toSlice rfl _ (Nat.le_refl _) 0 (by simp)
+        (by rw [hn]; simp) (fun j hj => by simp)
         (by rw [hn, Nat.div_eq_of_lt hXlt]; simp)
       simp only at h
       have hlt := UInt64.lt_iff_toNat_lt.1 hfin
@@ -930,9 +934,10 @@ public theorem divRem2_spec (a : UInt32Array.Slice) (d₁ d₀ : UInt32) (hd : d
 /-- A number of two limbs is `s₀ + β s₁`. -/
 public theorem toNat_of_size_eq_two {s : UInt32Array.Slice} (h : s.size = 2) :
     toNat s = (s.getD 0 0).toNat + 2 ^ 32 * (s.getD 1 0).toNat := by
-  rw [toNat_eq_ofLimbs, ← List.take_of_length_le (l := s.copy.toList) (i := 2) (by simp [h]),
-    ofLimbs_take_add_one_getD, ofLimbs_take_add_one_getD, getD_eq_getD_toList_copy,
-    getD_eq_getD_toList_copy]
+  have e₀ := valAt_from s 0
+  have e₁ := valAt_from s 1
+  rw [h] at e₀ e₁
+  rw [toNat_eq_valAt, h, ← Nat.add_zero s.start, e₀, e₁]
   simp
 
 /-- The limbs of a word, trimmed. -/
@@ -940,12 +945,11 @@ public def ofWord64 (w : UInt64) : UInt32Array :=
   trim (((UInt32Array.emptyWithCapacity 2).push w.toUInt32).push (w >>> 32).toUInt32)
 
 @[simp] public theorem toNat_ofWord64 (w : UInt64) : toNat (ofWord64 w) = w.toNat := by
-  rw [ofWord64, toNat_trim, toNat_toSlice_ofLimbs]
-  simp only [UInt32Array.toList_push, UInt32Array.emptyWithCapacity_eq_empty,
-    UInt32Array.toList_empty, List.nil_append, List.cons_append, ofLimbs_cons, ofLimbs_nil,
-    UInt64.toNat_toUInt32, UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow]
+  rw [ofWord64, toNat_trim, toNat_push, toNat_push]
+  simp only [UInt32Array.emptyWithCapacity_eq_empty, toNat_toSlice, Nat.sub_self,
+    UInt32Array.valAt_zero, UInt32Array.size_push, UInt32Array.size_empty, UInt64.toNat_toUInt32,
+    UInt64.toNat_shiftRight, Nat.shiftRight_eq_div_pow, UInt64.reduceToNat, Nat.reduceMod]
   have := w.toNat_lt
-  simp only [UInt64.reduceToNat, Nat.reduceMod]
   lia
 
 public theorem isTrimmed_ofWord64 (w : UInt64) : isTrimmed (ofWord64 w) = true := isTrimmed_trim _
