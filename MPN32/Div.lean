@@ -41,8 +41,23 @@ def topSizeLoop (s : UInt32Array.Slice) : Nat → Nat
   | 0 => 0
   | i + 1 => if s.getD i 0 = 0 then topSizeLoop s i else i + 1
 
-/-- The number of limbs of `s` without its trailing zero limbs. -/
-public def topSize (s : UInt32Array.Slice) : Nat := topSizeLoop s s.size
+/-- The limbs of a slice below `2³² - 1` limbs are a loop on machine indices. -/
+private theorem topSize_bound (s : UInt32Array.Slice) (hs : s.array.size < 4294967295) :
+    WordArray.LoopBound s.array s.start.toUSize s.size.toUSize := by
+  have := s.stop_le_array_size; have := s.start_le_stop; have := s.size_eq
+  have := USize.le_size
+  simp only [WordArray.LoopBound]
+  rw [toNat_toUSize (by lia), toNat_toUSize (by lia)]
+  exact ⟨show s.start + s.size ≤ s.array.size by lia, by lia⟩
+
+/--
+The number of limbs of `s` without its trailing zero limbs: by `WordArray.topLenW` on machine
+indices, and by `topSizeLoop` on `Nat`s were the array not below `2³² - 1` limbs.
+-/
+public def topSize (s : UInt32Array.Slice) : Nat :=
+  if hs : s.array.size < 4294967295 then
+    (WordArray.topLenW s.array s.start.toUSize s.size.toUSize (topSize_bound s hs)).toNat
+  else topSizeLoop s s.size
 
 private theorem topSizeLoop_spec (s : UInt32Array.Slice) (i : Nat) :
     topSizeLoop s i ≤ i ∧
@@ -61,19 +76,39 @@ private theorem topSizeLoop_spec (s : UInt32Array.Slice) (i : Nat) :
     · rename_i h
       exact ⟨Nat.le_refl _, fun k hk hki => by lia, fun _ => h⟩
 
+private theorem topSize_spec (s : UInt32Array.Slice) :
+    topSize s ≤ s.size ∧ (∀ k, topSize s ≤ k → k < s.size → s.getD k 0 = 0) ∧
+      (0 < topSize s → s.getD (topSize s - 1) 0 ≠ 0) := by
+  unfold topSize
+  split
+  · rename_i hs
+    have := s.stop_le_array_size; have := s.start_le_stop; have := s.size_eq
+    have := USize.le_size
+    obtain ⟨h₁, h₂, h₃⟩ := WordArray.topLenW_spec s.array _ _ (topSize_bound s hs)
+    have e₁ : s.start.toUSize.toNat = s.start := toNat_toUSize (by lia)
+    have e₂ : s.size.toUSize.toNat = s.size := toNat_toUSize (by lia)
+    simp only [e₁, e₂] at h₁ h₂ h₃
+    have e : ∀ k, k < s.size → s.getD k 0 = s.array[s.start + k]! := fun k hk => by
+      rw [UInt32Array.Slice.getD_eq, dite_eq_left hk, UInt32Array.Slice.getElem_eq_getElem!]
+    refine ⟨h₁, fun k hk hks => ?_, fun hp => ?_⟩
+    · rw [e k hks]; exact UInt32.toNat_inj.1 (h₂ k hk hks)
+    · rw [e _ (by lia), ← Nat.add_sub_assoc hp]
+      exact fun h => h₃ hp (by change UInt32.toNat s.array[_]! = 0; rw [h]; rfl)
+  · exact topSizeLoop_spec s s.size
+
 public theorem topSize_le (s : UInt32Array.Slice) : topSize s ≤ s.size :=
-  (topSizeLoop_spec s s.size).1
+  (topSize_spec s).1
 
 /-- The top limb below `topSize s` is not zero. -/
 public theorem getD_topSize_ne_zero (s : UInt32Array.Slice) (h : 0 < topSize s) :
     s.getD (topSize s - 1) 0 ≠ 0 :=
-  (topSizeLoop_spec s s.size).2.2 h
+  (topSize_spec s).2.2 h
 
 /-- Cutting `s` to `topSize s` limbs keeps its value. -/
 public theorem toNat_slice_topSize (s : UInt32Array.Slice) :
     toNat (s.slice 0 (topSize s)) = toNat s := by
   have hle := topSize_le s
-  have hz : ∀ k, topSize s ≤ k → k < s.size → s.getD k 0 = 0 := (topSizeLoop_spec s s.size).2.1
+  have hz : ∀ k, topSize s ≤ k → k < s.size → s.getD k 0 = 0 := (topSize_spec s).2.1
   have h := toNat_slice_add_toNat_slice s (topSize s) hle
   have h0 : toNat (s.slice (topSize s) s.size) = 0 := by
     rw [toNat_slice, Nat.min_self]

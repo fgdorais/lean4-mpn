@@ -90,6 +90,52 @@ public theorem log2W_eq (a : A) (o j : USize) (h : LoopBound a o j) :
       show j.toNat - 1 + 1 - 1 = j.toNat - 1 by lia,
       log2_top (LimbArray.valAt_lt ..) hx]
 
+/-! ## Size without the zero limbs on top -/
+
+/-- The number of limbs `o` to `o + j - 1` of `a` without the zero limbs on top, from the top down. -/
+@[expose, specialize] public def topLenW (a : A) (o j : USize) (h : LoopBound a o j) : USize :=
+  if hj : j = 0 then 0
+  else
+    let x := R.uget a (o + (j - 1)) (h.uset_bound (pred_lt' (pos_of_ne hj)))
+    if R.isZero x then topLenW a o (j - 1) (bound_pred h (pos_of_ne hj)) else j
+termination_by j.toNat
+decreasing_by
+  have := toNat_pred' (pos_of_ne hj)
+  have : j.toNat ≠ 0 := fun e => hj (USize.toNat_inj.1 (by rw [e]; rfl))
+  lia
+
+omit F in
+/-- `topLenW` is at most `j`, the limbs from it to `j` are zero, and the one below it is not. -/
+public theorem topLenW_spec (a : A) (o j : USize) (h : LoopBound a o j) :
+    (topLenW a o j h).toNat ≤ j.toNat ∧
+      (∀ k, (topLenW a o j h).toNat ≤ k → k < j.toNat → LA.val (LA.get a (o.toNat + k)) = 0) ∧
+      (0 < (topLenW a o j h).toNat →
+        LA.val (LA.get a (o.toNat + (topLenW a o j h).toNat - 1)) ≠ 0) := by
+  induction j, h using topLenW.induct (R := R) a o with
+  | case1 h =>
+    rw [topLenW]
+    simp
+  | case2 j h hj x hx ih =>
+    rw [topLenW, dite_eq_right hj]
+    simp only [x] at hx ⊢
+    rw [ite_eq_left hx]
+    have hp := toNat_pred' (pos_of_ne hj)
+    have : j.toNat ≠ 0 := fun e => hj (USize.toNat_inj.1 (by rw [e]; rfl))
+    rw [R.isZero_iff, R.uget_eq, h.toNat_add (pred_lt' (pos_of_ne hj)), hp] at hx
+    rw [hp] at ih
+    refine ⟨by lia, fun k hk hkj => ?_, ih.2.2⟩
+    by_cases e : k = j.toNat - 1
+    · rw [e]; exact hx
+    · exact ih.2.1 k hk (by lia)
+  | case3 j h hj x hx =>
+    rw [topLenW, dite_eq_right hj]
+    simp only [x] at hx ⊢
+    rw [ite_eq_right hx]
+    rw [R.isZero_iff, R.uget_eq, h.toNat_add (pred_lt' (pos_of_ne hj)), toNat_pred' (pos_of_ne hj)]
+      at hx
+    refine ⟨Nat.le_refl _, fun k hk hkj => by lia, fun _ => ?_⟩
+    rwa [Nat.add_sub_assoc (by lia)]
+
 /-! ## Comparison -/
 
 /--

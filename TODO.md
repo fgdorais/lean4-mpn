@@ -48,8 +48,6 @@ two widths moved into one package is in the history of `MPN32/TODO.md`.
   limbs. 32-bit `add` is 6–10% slower at 4 to 32 limbs on the shared `addW` (`478b578`), about
   3 ns: two folds and their setup, where the old loop copied `a` with a `memcpy` and added `b` in
   place with one fold.
-- [ ] **`topSizeLoop`** (`MPN32.Div`) computes on boxed `Nat`s, and moving it by 32 bytes made
-  1-limb division 24% slower (`478b578`).
 
 ## Algorithms
 
