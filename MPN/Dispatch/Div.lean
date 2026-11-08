@@ -16,11 +16,12 @@ thresholds of a `DivConfig` and a `SqrtConfig`. Each width normalizes its operan
 shifts and calls:
 
 * `divN`, for a divisor of `n` limbs with its top bit set: Barrett's division with Newton's
-  reciprocal (`NatOps.divMuW`) from `divMu` limbs, and below the divide-and-conquer division
-  (`NatOps.divNorm`, the scheme of Burnikel and Ziegler and of GMP's `mpn_dcpi1_div_qr`), which
-  goes down to the schoolbook division of the width below `divDC` limbs;
+  reciprocal of the top limbs of the divisor (`NatOps.divMuT`, as GMP's `mpn_mu_div_qr`) from
+  `divMu` limbs, and below the divide-and-conquer division (`NatOps.divNorm`, the scheme of
+  Burnikel and Ziegler and of GMP's `mpn_dcpi1_div_qr`), which goes down to the schoolbook
+  division of the width below `divDC` limbs;
 * `divQN`, the quotient alone: by Barrett's division without the remainder of the last block
-  (`NatOps.divQMuW`) from `divQMu` limbs, and otherwise that of `divN`;
+  (`NatOps.divQMuT`) from `divQMu` limbs, and otherwise that of `divN`;
 * `sqrtBy`, which takes the square root of a large number by the Zimmermann recursion of the
   width when the width says so, and by Newton's iteration (`GNat.sqrtNewton`) otherwise.
 
@@ -71,19 +72,19 @@ section Div
 variable {α : Type} (o : NatOps α)
 
 /--
-`(U / V, U % V)` for `0 < V < Bⁿ` and `U < V Bᵏ`: by `NatOps.divMuW` when the divisor and the
+`(U / V, U % V)` for `0 < V < Bⁿ` and `U < V Bᵏ`: by `NatOps.divMuT` when the divisor and the
 quotient both have `divMu` limbs, and by `NatOps.divNorm` with `base` below `divDC` limbs otherwise.
 Barrett's division takes the reciprocal of the whole divisor, which a short quotient does not repay.
 -/
 public def divN (c : DivConfig) (base : α → α → α × α) (U V : α) (n k : Nat) : α × α :=
-  if c.divMu ≤ min n k then o.divMuW U V else o.divNorm base c.divDC U V n k
+  if c.divMu ≤ min n k then o.divMuT U V else o.divNorm base c.divDC U V n k
 
 /--
-`U / V` as in `divN`: by `NatOps.divQMuW` when the divisor and the quotient both have `divQMu`
+`U / V` as in `divN`: by `NatOps.divQMuT` when the divisor and the quotient both have `divQMu`
 limbs.
 -/
 public def divQN (c : DivConfig) (base : α → α → α × α) (U V : α) (n k : Nat) : α :=
-  if c.divQMu ≤ min n k then o.divQMuW U V else (divN o c base U V n k).1
+  if c.divQMu ≤ min n k then o.divQMuT U V else (divN o c base U V n k).1
 
 variable {o} {base : α → α → α × α}
 
@@ -96,7 +97,7 @@ public theorem divN_spec (c : DivConfig)
       o.val (divN o c base U V n k).2 = o.val U % o.val V := by
   unfold divN
   split
-  · exact o.divMuW_spec U V hV
+  · exact o.divMuT_spec U V hV
   · exact o.divNorm_spec base hbase c.divDC n k U V hV hVn hU
 
 public theorem divQN_spec (c : DivConfig)
@@ -107,7 +108,7 @@ public theorem divQN_spec (c : DivConfig)
     o.val (divQN o c base U V n k) = o.val U / o.val V := by
   unfold divQN
   split
-  · exact o.divQMuW_spec U V hV
+  · exact o.divQMuT_spec U V hV
   · exact (divN_spec c hbase hV hVn hU).1
 
 /-- The quotient of `a f / b f` is `a / b`, and the remainder `(a % b) f`. -/

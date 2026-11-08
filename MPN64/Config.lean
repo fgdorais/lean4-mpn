@@ -65,8 +65,8 @@ public structure Config extends Dispatch.MulConfig, Dispatch.DivConfig, Dispatch
   sqrFFT := 5120
   fftKFactor := 10
   divDC := 208
-  divMu := 8192
-  divQMu := 6144
+  divMu := 6144
+  divQMu := 4096
   /--
   The size from which division by a normalized limb takes Möller and Granlund's steps with a
   precomputed reciprocal instead of the hardware divider: always, like GMP's `mpn_divrem_1`.

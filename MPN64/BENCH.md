@@ -48,8 +48,8 @@ so five runs make the tables reliable. Within one run, distrust a row whose spre
 | `shl`, `shr` | `MPN.lshift`, `MPN.rshift` | `n` limbs, by 13 bits | one pass, `USize` indices; `Nat`'s `<<<` and `>>>` |
 | `div1` | `MPN.divRem1` by `0xF123456789ABCDEF` | `n` limbs by a normalized limb | one pass from the top, `UInt64.div2` (128 by 64 bits) per limb, and the checked 2-by-1 steps with a reciprocal (always, `div1Recip` = 0, like GMP) (`main`'s `WordArray.divRem1W`) |
 | `div1u` | `MPN.divRem1` by `0x0123456789ABCDEF` | `n` limbs by an unnormalized limb | as `div1`, with the same steps on the dividend shifted in place (`divRem1U`; always, `div1Unnorm` = 0, like GMP) |
-| `div` | `MPN.Num.div` | `2 n` by `n` limbs | the quotient alone: Barrett's division without the last remainder (`divQMuW`) from `divQMu = 5632` limbs in the divisor, below as `divmod` |
-| `divmod` | `MPN.Num.divMod` | `2 n` by `n` limbs | Barrett's division with wrapped remainders (`divMuW`) from `divMu = 8192` limbs in the divisor, divide and conquer (`divNorm`) from `divDC = 512`, schoolbook below; `Nat` computes the quotient only |
+| `div` | `MPN.Num.div` | `2 n` by `n` limbs | the quotient alone: Barrett's division by the reciprocal of the top half of the divisor without the last remainder (`divQMuT`) from `divQMu = 4096` limbs in the divisor, below as `divmod` |
+| `divmod` | `MPN.Num.divMod` | `2 n` by `n` limbs | Barrett's division by the reciprocal of the top half of the divisor with wrapped remainders (`divMuT`) from `divMu = 6144` limbs in the divisor, divide and conquer (`divNorm`) from `divDC = 208`, schoolbook below; `Nat` computes the quotient only |
 | `sbdiv` | `MPN.divRem` | `2 n` by `n` limbs | schoolbook (Algorithm D), normalized |
 | `sqrt` | `MPN.sqrtRem` | `n` limbs | Zimmermann's Karatsuba square root on `MPN.Num`; `Nat.sqrt` is Lean's Newton iteration on `Nat`, not GMP's `mpz_sqrt` |
 | `mulmod` | `MPN.Num.mulModB` | `n` by `n` limbs modulo `β^n - 1` | the FFT with the pieces wrapping around (`fftMulModAt`), `2ᵏ` pieces for `k = fftK n`; `Nat` multiplies |

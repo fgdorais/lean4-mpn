@@ -173,7 +173,7 @@ public theorem size_divMod (a b : UInt64Array) (hb : 0 < b.toNat)
 /--
 `a / b`, for `0 < b`: as `divMod`, by `main`'s `Div.divQG`, from `config.divQMu` limbs of `b` by
 Barrett's division of the normalized `a` and `b` without the last remainder when the estimate
-decides (`NatOps.divQMuW`).
+decides (`NatOps.divQMuT`).
 -/
 public def div (a b : UInt64Array) : UInt64Array :=
   let nb := MPN.W64.log2 b.toUSlice / 64 + 1

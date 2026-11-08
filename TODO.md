@@ -20,12 +20,6 @@ two widths moved into one package is in the history of `MPN32/TODO.md`.
   `subMul1` 25%, so faster products help it most. Ruled out on 32-bit limbs: a carry chain under
   three operations in `subMul1` (LLVM reassociates it). Schoolbook division takes two quotient
   limbs per pass since `4143568`, on both widths.
-- [ ] **`Num.divMod` on 64-bit limbs by Barrett is bimodal**: from `divMu` (8192 limbs) on, `2 n / n`
-  takes either about 1.13 or about 1.36 times the quotient alone, by size (13.2 ms at 8192, 8224 and
-  8256 limbs, 11.7 ms at 8200, 8288 and 8320). Both kinds do the same work: the same Barrett blocks,
-  FFT parameters and numbers of FFT products, wrapped products, pointwise products and butterflies
-  (counted with breakpoints), and glibc's allocation settings don't move it, so it is a memory or
-  cache effect in the FFT, not the division.
 - [ ] **The cost of small divisions**: since `adfb500` both widths normalize by shifts in `main`'s
   `Schoolbook.divRemN`, without copying a normalized divisor, which took 25–50% off `2 n / n` from
   2 to 8 limbs. On 64-bit limbs `/` is now 1.3–1.8 times `Nat` from 2 to 8 limbs and 2.2–2.3

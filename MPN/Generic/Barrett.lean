@@ -92,6 +92,88 @@ private theorem barrett_bound {P n x d μ : Nat} (hP : 2 ≤ P) (hn : 1 ≤ n) (
     rw [Nat.add_mul]
     lia
 
+/-- Barrett's estimate from the reciprocal of the top limbs is at most 7 below the quotient. -/
+private theorem trunc_bound {P n k x d μ : Nat} (hP : 8 ≤ P) (hk : 1 ≤ k) (hkn : k + 1 ≤ n)
+    (hd : d < P ^ n) (hnorm : P ^ n ≤ 2 * d)
+    (hA : (d / P ^ (n - k - 1) + 1) * μ ≤ P ^ (2 * (k + 1)))
+    (hB : P ^ (2 * (k + 1)) < (d / P ^ (n - k - 1) + 1) * (μ + 5)) (hx : x < 2 * P ^ k * d) :
+    x / P ^ (n - 1) * μ / P ^ (k + 2) * d ≤ x ∧
+      x < (x / P ^ (n - 1) * μ / P ^ (k + 2) + 8) * d := by
+  generalize hS : P ^ (n - k - 1) = S at hA hB
+  have hS0 : 0 < S := by rw [← hS]; exact Nat.pow_pos (by lia)
+  have hPn1 : P ^ (n - 1) = S * P ^ k := by rw [← hS, ← Nat.pow_add]; congr 1; lia
+  have hPn : P ^ n = S * P ^ k * P := by rw [← hPn1, ← Nat.pow_succ]; congr 1; lia
+  have hT : P ≤ P ^ k := by
+    have := Nat.pow_le_pow_right (show 0 < P by lia) hk; rwa [Nat.pow_one] at this
+  have hP2 : P ^ (2 * (k + 1)) = P ^ k * P * (P ^ k * P) := by
+    rw [show 2 * (k + 1) = (k + 1) + (k + 1) by lia, Nat.pow_add, Nat.pow_succ]
+  have hP3 : P ^ (k + 1) = P ^ k * P := Nat.pow_succ ..
+  have hP4 : P ^ (k + 2) = P ^ k * P * P := by rw [Nat.pow_succ, Nat.pow_succ]
+  -- The estimate from `X = ⌊x / S⌋` by `D`.
+  have hXq : x / P ^ (n - 1) = x / S / P ^ (k + 1 - 1) := by
+    rw [hPn1, Nat.div_div_eq_div_mul, show k + 1 - 1 = k by lia]
+  rw [hXq, show k + 2 = k + 1 + 1 by lia]
+  rw [hPn] at hd hnorm
+  rw [hP2] at hA hB
+  generalize hTk : P ^ k = T at *
+  generalize hD : d / S + 1 = D at hA hB
+  -- `D` bounds `d` from above, by less than `S`.
+  have hdm := Nat.div_add_mod d S
+  have hmS := Nat.mod_lt d hS0
+  have hDS : D * S = S * (d / S) + S := by rw [← hD]; grind
+  have hd₁ : d < D * S := by lia
+  have hd₂ : D * S ≤ d + S := by lia
+  -- `D` is normalized: `S T P ≤ 2 d < 2 D S`.
+  have hnormD : P ^ (k + 1) ≤ 2 * D := by
+    rw [hP3]
+    have h₁ : S * (T * P) < S * (2 * D) := by
+      have e₁ : S * (T * P) = S * T * P := by grind
+      have e₂ : S * (2 * D) = 2 * (D * S) := by grind
+      lia
+    exact Nat.le_of_lt (Nat.lt_of_mul_lt_mul_left h₁)
+  -- `⌊x / S⌋ < 2 T² P ≤ (T P)²`.
+  have hX : x / S < P ^ (2 * (k + 1)) := by
+    rw [hP2, Nat.div_lt_iff_lt_mul hS0]
+    have h₁ : 2 * T * d < 2 * T * (S * T * P) := Nat.mul_lt_mul_of_pos_left hd (by lia)
+    have h₂ : T * T * P * 2 ≤ T * T * P * P := Nat.mul_le_mul_left _ (by lia)
+    have e₁ : 2 * T * (S * T * P) = T * T * P * 2 * S := by grind
+    have e₂ : T * P * (T * P) * S = T * T * P * P * S := by grind
+    have h₃ := Nat.mul_le_mul_right S h₂
+    lia
+  rw [hP2] at hX
+  have hB' : T * P * (T * P) < D * (μ + 5) := hB
+  obtain ⟨b₁, b₂⟩ := barrett_bound (n := k + 1) (x := x / S) (show 2 ≤ P by lia) (by lia)
+    hnormD (by rw [hP2]; exact hA) (by rw [hP2]; exact hB') (by rw [hP2]; exact hX)
+  generalize x / S / P ^ (k + 1 - 1) * μ / P ^ (k + 1 + 1) = q at *
+  have hxS₁ : x / S * S ≤ x := Nat.div_mul_le_self x S
+  have hxS₂ : x < (x / S + 1) * S := by
+    have := Nat.lt_mul_div_succ x hS0; rw [Nat.mul_comm] at this; exact this
+  generalize x / S = X at *
+  -- `q d ≤ q D S ≤ X S ≤ x`.
+  have c₁ : q * d ≤ x := by
+    have : q * d ≤ q * D * S := by
+      rw [Nat.mul_assoc]; exact Nat.mul_le_mul_left _ (Nat.le_of_lt hd₁)
+    have := Nat.mul_le_mul_right S b₁
+    lia
+  refine ⟨c₁, ?_⟩
+  -- `x < (X + 1) S ≤ (q + 7) D S ≤ (q + 7) (d + S)`, and `(q + 7) S ≤ d`.
+  have hq : q < 2 * T := by
+    have : q * d < 2 * T * d := Nat.lt_of_le_of_lt c₁ hx
+    exact Nat.lt_of_mul_lt_mul_right this
+  have c₂ : x < (q + 7) * D * S := by
+    have : (X + 1) * S ≤ (q + 7) * D * S := Nat.mul_le_mul_right S (by lia)
+    lia
+  have c₃ : (q + 7) * D * S ≤ (q + 7) * d + (q + 7) * S := by
+    rw [Nat.mul_assoc, ← Nat.mul_add]; exact Nat.mul_le_mul_left _ hd₂
+  have c₄ : (q + 7) * S ≤ d := by
+    have h₁ : (q + 7) * S ≤ (2 * T + 6) * S := Nat.mul_le_mul_right S (by lia)
+    have h₂ : S * T * 8 ≤ S * T * P := Nat.mul_le_mul_left _ hP
+    have h₃ : S * 8 ≤ S * T := Nat.mul_le_mul_left _ (by lia)
+    have e₁ : (2 * T + 6) * S = 2 * (S * T) + 6 * S := by grind
+    lia
+  rw [Nat.add_mul (q + 7) 1, Nat.one_mul] at *
+  lia
+
 /-- The floors of the Newton correction `δ = ⌊μₕ ⌊e / Bᵗ⌋ / Bʰ⁺²⌋`, with `t + h + 2 = 2 h`. -/
 private theorem newton_floors {P t h μh e : Nat} (hP : 2 ≤ P) (ht : t + 2 = h) :
     μh * (e / P ^ t) / P ^ (h + 2) * P ^ (2 * h) ≤ μh * e ∧
@@ -1176,6 +1258,331 @@ public theorem divQMuW_spec (a d : α) (hd : 0 < o.val d) :
         rw [h₁, Nat.add_comm, Nat.add_mul_div_right _ _ hd, Nat.div_eq_of_lt h₂, Nat.zero_add]
     · exact (o.divMu_spec a d hd).1
   · exact (o.divMu_spec a d hd).1
+
+/-! ## A reciprocal of the top limbs
+
+GMP's `mpn_mu_div_qr` and `mpn_mu_divappr_q` divide by a reciprocal shorter than the divisor: for
+a quotient of `n` limbs by `n` limbs, one of about `n / 2` limbs, of the top limbs of the divisor,
+with the quotient in two blocks of that size. Newton's iteration on half the limbs costs half as
+much, and the products of the blocks are half as long.
+
+`D = ⌊d / Bⁿ⁻ᵏ⁻¹⌋ + 1` (`topD`) is the top `k + 1` limbs of the `n`-limb `d`, plus one, so that
+`d < D Bⁿ⁻ᵏ⁻¹`, and `μ` its reciprocal from `recipG`. For `x < 2 Bᵏ d`, the estimate
+`⌊⌊x / Bⁿ⁻¹⌋ μ / Bᵏ⁺²⌋` is at most 7 below `⌊x / d⌋` (`trunc_bound`): the remainder is less than
+`8 d`, its residue modulo `B^N - 1` for `N > n` (`barrettT`).
+-/
+
+/-- The top `k + 1` limbs of the `n`-limb `d`, plus one. -/
+@[expose] public def topD (d : α) (n k : Nat) : α := o.add (o.hi (n - k - 1) d) o.one
+
+theorem val_topD (d : α) (n k : Nat) : o.val (o.topD d n k) = o.val d / o.B ^ (n - k - 1) + 1 := by
+  rw [topD, o.val_add, o.val_hi, o.val_one]
+
+/--
+Barrett's step for `x < 2 Bᵏ d` by the `n`-limb `d`, with `μ` the reciprocal of `topD d n k`: a
+quotient of `k + 1` limbs at most, and the remainder from residues modulo `B^N - 1`, `q d` by
+`mulMod`, as in `barrettW`.
+-/
+public def barrettT (x d μ : α) (n k : Nat) : α × α :=
+  let q := o.hi (k + 2) (o.mul (o.hi (n - 1) x) μ)
+  let N := o.mulModSize (n + 1)
+  let w := o.foldM N 4 (o.mulMod (n + 1) q d)
+  let xm := o.foldM N 4 x
+  let r := if o.le w xm then o.sub xm w else o.sub (o.add xm (o.sub (o.pow N) o.one)) w
+  o.fixUp x d q r 8
+
+/-- The conditions on `d` and `μ` of the steps by the reciprocal of the top limbs. -/
+public structure TruncOK (d μ : α) (n k : Nat) : Prop where
+  hB : 8 ≤ o.B
+  hk : 1 ≤ k
+  hkn : k + 1 ≤ n
+  hd : o.val d < o.B ^ n
+  hnorm : o.B ^ n ≤ 2 * o.val d
+  hA : (o.val d / o.B ^ (n - k - 1) + 1) * o.val μ ≤ o.B ^ (2 * (k + 1))
+  hμ : o.B ^ (2 * (k + 1)) < (o.val d / o.B ^ (n - k - 1) + 1) * (o.val μ + 5)
+
+theorem trunc_est {d μ : α} {n k : Nat} (h : o.TruncOK d μ n k) (x : α)
+    (hx : o.val x < 2 * o.B ^ k * o.val d) :
+    o.val (o.hi (k + 2) (o.mul (o.hi (n - 1) x) μ)) * o.val d ≤ o.val x ∧
+      o.val x < (o.val (o.hi (k + 2) (o.mul (o.hi (n - 1) x) μ)) + 8) * o.val d := by
+  rw [o.val_hi, o.val_mul, o.val_hi]
+  exact trunc_bound h.hB h.hk h.hkn h.hd h.hnorm h.hA h.hμ hx
+
+/-- The estimate of `barrettT` and the quotient. -/
+theorem trunc_est_div {d μ : α} {n k : Nat} (h : o.TruncOK d μ n k) (x : α)
+    (hx : o.val x < 2 * o.B ^ k * o.val d) :
+    o.val (o.hi (k + 2) (o.mul (o.hi (n - 1) x) μ)) ≤ o.val x / o.val d ∧
+      o.val x / o.val d ≤ o.val (o.hi (k + 2) (o.mul (o.hi (n - 1) x) μ)) + 7 := by
+  have hd0 : 0 < o.val d := by have := Nat.pow_pos (n := n) (show 0 < o.B by have := h.hB; lia); have := h.hnorm; lia
+  obtain ⟨b₁, b₂⟩ := o.trunc_est h x hx
+  generalize o.val (o.hi (k + 2) (o.mul (o.hi (n - 1) x) μ)) = q at *
+  refine ⟨(Nat.le_div_iff_mul_le hd0).2 b₁, ?_⟩
+  have := (Nat.div_lt_iff_lt_mul hd0).2 b₂
+  lia
+
+public theorem barrettT_spec (x d μ : α) (n k : Nat) (h : o.TruncOK d μ n k)
+    (hx : o.val x < 2 * o.B ^ k * o.val d) :
+    o.IsDivRem (o.val x) (o.val d) (o.barrettT x d μ n k) := by
+  have hB := h.hB
+  have hd := h.hd
+  have hd0 : 0 < o.val d := by have := Nat.pow_pos (n := n) (show 0 < o.B by lia); have := h.hnorm; lia
+  obtain ⟨b₁, b₂⟩ := o.trunc_est h x hx
+  unfold barrettT
+  dsimp only
+  have hN := o.le_mulModSize (n + 1)
+  have hwN : ∀ q : α, o.val (o.foldM (o.mulModSize (n + 1)) 4 (o.mulMod (n + 1) q d)) =
+      o.val q * o.val d % (o.B ^ o.mulModSize (n + 1) - 1) := fun q => by
+    rw [o.val_foldM _ (by lia), o.val_mulMod]
+  generalize o.mulModSize (n + 1) = N at *
+  generalize o.hi (k + 2) (o.mul (o.hi (n - 1) x) μ) = q at *
+  -- The modulus exceeds `8 d`.
+  have hM : 8 * o.val d < o.B ^ N - 1 := by
+    have h₁ : o.B ^ n * 8 ≤ o.B ^ (n + 1) := by rw [Nat.pow_succ]; exact Nat.mul_le_mul_left _ hB
+    have h₂ : o.B ^ (n + 1) ≤ o.B ^ N := Nat.pow_le_pow_right (by lia) hN
+    lia
+  have hw := hwN q
+  have hxm : o.val (o.foldM N 4 x) = o.val x % (o.B ^ N - 1) := o.val_foldM N (by lia) 4 x
+  have hr := sub_of_mod (a := o.val x) (b := o.val q * o.val d) (M := o.B ^ N - 1) b₁ (by lia)
+  apply o.fixUp_spec x d hd0
+  split
+  · rename_i hle
+    rw [o.le_iff, hw, hxm] at hle
+    rw [o.val_sub _ _ (by rw [hw, hxm]; exact hle), hw, hxm]
+    rw [ite_eq_left hle] at hr
+    lia
+  · rename_i hle
+    have hlt := o.le_false (by simpa using hle)
+    rw [hw, hxm] at hlt
+    have hmod := Nat.mod_lt (o.val q * o.val d) (show 0 < o.B ^ N - 1 by lia)
+    rw [o.val_sub _ _ (by rw [o.val_add, o.val_pow_sub_one, hw, hxm]; lia), o.val_add,
+      o.val_pow_sub_one, hw, hxm]
+    rw [ite_eq_right (by lia)] at hr
+    lia
+
+/-- `a` by the `n`-limb `d`, `k` limbs of quotient at a time from the top, by `barrettT`. -/
+public def divBlocksT (d μ : α) (n k : Nat) (hk : 0 < k) (a : α) : α × α :=
+  if o.size a ≤ n + k then o.barrettT a d μ n k
+  else
+    let t := divBlocksT d μ n k hk (o.hi k a)
+    let s := o.barrettT (o.add (o.shl k t.2) (o.lo k a)) d μ n k
+    (o.add (o.shl k t.1) s.1, s.2)
+termination_by o.size a
+decreasing_by rw [o.size_hi]; lia
+
+/-- A block below `d Bᵏ` is below `2 Bᵏ d`. -/
+theorem block_lt {k : Nat} {t d L : Nat} (ht : t < d) (hL : L < o.B ^ k) :
+    t * o.B ^ k + L < 2 * o.B ^ k * d := by
+  have h₂ : (t + 1) * o.B ^ k ≤ d * o.B ^ k := Nat.mul_le_mul_right _ ht
+  have h₃ : d * o.B ^ k ≤ o.B ^ k * d := Nat.le_of_eq (Nat.mul_comm _ _)
+  rw [Nat.add_mul, Nat.one_mul] at h₂
+  have : 0 < o.B ^ k * d := by
+    have : 0 < d := by lia
+    exact Nat.mul_pos (Nat.pow_pos (by have := o.one_lt_B; lia)) this
+  lia
+
+/-- A dividend of `n + k` limbs at most is below `2 Bᵏ d`. -/
+theorem first_lt {d μ : α} {n k : Nat} (h : o.TruncOK d μ n k) (a : α) (hsz : o.size a ≤ n + k) :
+    o.val a < 2 * o.B ^ k * o.val d := by
+  have h₁ := Nat.lt_of_lt_of_le (o.val_lt a) (Nat.pow_le_pow_right (by have := h.hB; lia) hsz)
+  rw [Nat.pow_add] at h₁
+  have h₂ : o.B ^ n * o.B ^ k ≤ 2 * o.val d * o.B ^ k := Nat.mul_le_mul_right _ h.hnorm
+  have e : 2 * o.val d * o.B ^ k = 2 * o.B ^ k * o.val d := by grind
+  lia
+
+public theorem divBlocksT_spec (d μ : α) (n k : Nat) (hk : 0 < k) (h : o.TruncOK d μ n k)
+    (a : α) : o.IsDivRem (o.val a) (o.val d) (o.divBlocksT d μ n k hk a) := by
+  have hBk : 0 < o.B ^ k := Nat.pow_pos (by have := h.hB; lia)
+  induction a using WellFounded.induction (InvImage.wf o.size Nat.lt_wfRel.wf) with
+  | h a ih =>
+    unfold divBlocksT
+    split
+    · rename_i hsz
+      exact o.barrettT_spec _ _ _ _ _ h (o.first_lt h a hsz)
+    · rename_i hsz
+      dsimp only
+      obtain ⟨ht₁, ht₂⟩ := ih (o.hi k a) (by
+        show o.size (o.hi k a) < o.size a
+        rw [o.size_hi]; lia)
+      generalize o.divBlocksT d μ n k hk (o.hi k a) = t at ht₁ ht₂
+      have hblk : o.val (o.add (o.shl k t.2) (o.lo k a)) < 2 * o.B ^ k * o.val d := by
+        rw [o.val_add, o.val_shl, o.val_lo]
+        exact o.block_lt ht₂ (Nat.mod_lt _ hBk)
+      obtain ⟨hs₁, hs₂⟩ := o.barrettT_spec (o.add (o.shl k t.2) (o.lo k a)) d μ n k h hblk
+      generalize o.barrettT (o.add (o.shl k t.2) (o.lo k a)) d μ n k = s at hs₁ hs₂
+      refine ⟨?_, hs₂⟩
+      rw [o.val_add, o.val_lo] at hs₁
+      rw [o.val_shl] at hs₁
+      rw [o.val_hi] at ht₁
+      show o.val a = o.val (o.add (o.shl k t.1) s.1) * o.val d + o.val s.2
+      rw [o.val_add, o.val_shl]
+      have hsplit := Nat.div_add_mod (o.val a) (o.B ^ k)
+      generalize o.val a / o.B ^ k = A at hsplit ht₁
+      generalize o.val a % o.B ^ k = L at hsplit hs₁
+      generalize o.B ^ k = P at *
+      rw [← hsplit, ht₁]
+      generalize o.val t.1 = T₁ at *
+      generalize o.val t.2 = T₂ at *
+      generalize o.val s.1 = S₁ at *
+      generalize o.val s.2 = S₂ at *
+      generalize o.val d = D at *
+      grind
+
+/-- Dropping the last limb of an estimate at most 7 below, when its last limb is not near `B`. -/
+private theorem div_stable7 {q y P : Nat} (h₁ : q ≤ y) (h₂ : y ≤ q + 7) (h₃ : q % P + 7 < P) :
+    y / P = q / P := by
+  have hP : 0 < P := by lia
+  have hq := Nat.div_add_mod q P
+  have hy : y = P * (q / P) + (q % P + (y - q)) := by lia
+  rw [hy, Nat.add_comm, Nat.add_mul_div_left _ _ hP, Nat.div_eq_of_lt (by lia), Nat.zero_add]
+
+/--
+The quotient of `a` by the `n`-limb `d` as in `divQBlocksW`, with blocks of `k` limbs by the
+reciprocal `μ` of `topD d n k`, and whether the estimate's last limb decides it.
+-/
+public def divQBlocksT (d μ : α) (n k : Nat) (hk : 0 < k) (a : α) : α × Bool :=
+  let a' := o.shl 1 a
+  let qt := if o.size a' ≤ n + k then o.hi (k + 2) (o.mul (o.hi (n - 1) a') μ)
+    else
+      let t := o.divBlocksT d μ n k hk (o.hi k a')
+      let x := o.add (o.shl k t.2) (o.lo k a')
+      o.add (o.shl k t.1) (o.hi (k + 2) (o.mul (o.hi (n - 1) x) μ))
+  (o.hi 1 qt, o.le (o.add (o.add (o.lo 1 qt) o.seven) o.one) (o.pow 1))
+
+public theorem divQBlocksT_spec (d μ : α) (n k : Nat) (hk : 0 < k) (h : o.TruncOK d μ n k)
+    (a : α) (hok : (o.divQBlocksT d μ n k hk a).2 = true) :
+    o.val (o.divQBlocksT d μ n k hk a).1 = o.val a / o.val d := by
+  have hB := h.hB
+  have hBk : 0 < o.B ^ k := Nat.pow_pos (by lia)
+  have hd0 : 0 < o.val d := by have := Nat.pow_pos (n := n) (show 0 < o.B by lia); have := h.hnorm; lia
+  unfold divQBlocksT at hok ⊢
+  dsimp only at hok ⊢
+  -- The estimate is at most 7 below the quotient of `a B`.
+  have hY : ∀ qt : α, (o.val qt ≤ o.val a * o.B / o.val d ∧ o.val a * o.B / o.val d ≤ o.val qt + 7) →
+      o.le (o.add (o.add (o.lo 1 qt) o.seven) o.one) (o.pow 1) = true →
+      o.val (o.hi 1 qt) = o.val a / o.val d := by
+    intro qt ⟨y₁, y₂⟩ hc
+    rw [o.le_iff, o.val_add, o.val_add, o.val_lo, o.val_seven, o.val_one, o.val_pow,
+      Nat.pow_one] at hc
+    rw [o.val_hi, Nat.pow_one, ← div_stable7 y₁ y₂ (by lia), Nat.div_div_eq_div_mul,
+      Nat.mul_div_mul_right _ _ (by lia)]
+  apply hY _ ?_ hok
+  have hval : o.val (o.shl 1 a) = o.val a * o.B := by rw [o.val_shl, Nat.pow_one]
+  split
+  · rename_i hsz
+    rw [← hval]
+    exact o.trunc_est_div h _ (o.first_lt h _ hsz)
+  · rename_i hsz
+    obtain ⟨ht₁, ht₂⟩ := o.divBlocksT_spec d μ n k hk h (o.hi k (o.shl 1 a))
+    generalize o.divBlocksT d μ n k hk (o.hi k (o.shl 1 a)) = t at ht₁ ht₂
+    have hblk : o.val (o.add (o.shl k t.2) (o.lo k (o.shl 1 a))) < 2 * o.B ^ k * o.val d := by
+      rw [o.val_add, o.val_shl, o.val_lo]
+      exact o.block_lt ht₂ (Nat.mod_lt _ hBk)
+    obtain ⟨q₁, q₂⟩ := o.trunc_est_div h _ hblk
+    rw [o.val_add, o.val_shl, o.val_lo] at q₁ q₂
+    rw [o.val_add, o.val_shl]
+    rw [o.val_hi] at ht₁
+    -- `a B = Bᵏ (T₁ d + T₂) + L`, and its quotient is `Bᵏ T₁` plus that of `T₂ Bᵏ + L`.
+    have hsplit := Nat.div_add_mod (o.val (o.shl 1 a)) (o.B ^ k)
+    rw [hval] at hsplit ht₁ q₁ q₂
+    generalize o.val a * o.B / o.B ^ k = A at hsplit ht₁
+    generalize o.val a * o.B % o.B ^ k = Lw at hsplit q₁ q₂
+    generalize hX : o.val a * o.B = X at *
+    have hX' : X = o.val t.1 * o.B ^ k * o.val d + (o.val t.2 * o.B ^ k + Lw) := by
+      rw [← hsplit, ht₁]; grind
+    have hdiv : X / o.val d = o.val t.1 * o.B ^ k + (o.val t.2 * o.B ^ k + Lw) / o.val d := by
+      rw [hX', Nat.add_comm, Nat.add_mul_div_right _ _ hd0, Nat.add_comm]
+    rw [hdiv]
+    generalize (o.val t.2 * o.B ^ k + Lw) / o.val d = Y at *
+    generalize o.val (o.hi (k + 2) (o.mul (o.hi (n - 1) (o.add (o.shl k t.2) (o.lo k (o.shl 1 a))))
+      μ)) = Q at *
+    constructor <;> lia
+
+/--
+The size of the reciprocal for a quotient of `qn` limbs by `n` limbs, as GMP's
+`mpn_mu_divappr_q_choose_in`: a partition of the quotient into blocks of at most `n` limbs, two
+blocks of half the quotient when it has more than a third of the divisor's limbs, and one block
+below that.
+-/
+@[expose] public def chooseIn (qn n : Nat) : Nat :=
+  if n < qn then (qn - 1) / ((qn - 1) / n + 1) + 1
+  else if n < 3 * qn then (qn - 1) / 2 + 1
+  else qn
+
+/--
+Whether Barrett's division by the reciprocal of the top `k + 1` limbs applies: at an even base,
+`k + 1 ≤ n`, a normalized `d`, a normalized `topD d n k` of `k + 1` limbs and the checks of
+`recipG`.
+-/
+@[expose] public def truncOK (d : α) (n k : Nat) (m : α × Bool) : Bool :=
+  decide (8 ≤ o.B ∧ o.B % 2 = 0 ∧ 1 ≤ k ∧ k + 1 ≤ n) && o.le (o.pow n) (o.add d d) &&
+    decide (o.size (o.topD d n k) = k + 1) &&
+    o.le (o.pow (k + 1)) (o.add (o.topD d n k) (o.topD d n k)) && m.2
+
+theorem truncOK_spec (d : α) (n k : Nat) (hn : o.size d = n)
+    (h : o.truncOK d n k (o.recipG (o.topD d n k)) = true) :
+    o.TruncOK d (o.recipG (o.topD d n k)).1 n k := by
+  simp only [truncOK, Bool.and_eq_true, decide_eq_true_eq] at h
+  obtain ⟨⟨⟨⟨⟨hB, hB2, hk, hkn⟩, hnorm⟩, hsz⟩, hnormD⟩, hok⟩ := h
+  rw [o.le_iff, o.val_pow, o.val_add] at hnorm hnormD
+  rw [← hsz] at hnormD
+  obtain ⟨hA, hμ⟩ := o.recipG_spec hB hB2 _ _ rfl (by lia) hok
+  rw [hsz, o.val_topD] at hA hμ
+  have hd := o.val_lt d
+  rw [hn] at hd
+  exact ⟨hB, hk, hkn, hd, by lia, hA, hμ⟩
+
+/--
+`(a / d, a % d)` by Barrett's division with the reciprocal of the top `k + 1` limbs of `d`, `k`
+from `chooseIn` (`divBlocksT`), when `truncOK` holds; otherwise by `divMuW`.
+-/
+public def divMuT (a d : α) : α × α :=
+  let n := o.size d
+  let k := chooseIn (o.size a - n) n
+  let m := o.recipG (o.topD d n k)
+  if h : o.truncOK d n k m = true then
+    o.divBlocksT d m.1 n k (by simp only [truncOK, Bool.and_eq_true, decide_eq_true_eq] at h; lia) a
+  else o.divMuW a d
+
+public theorem divMuT_spec (a d : α) (hd : 0 < o.val d) :
+    o.val (o.divMuT a d).1 = o.val a / o.val d ∧ o.val (o.divMuT a d).2 = o.val a % o.val d := by
+  unfold divMuT
+  dsimp only
+  split
+  · rename_i h
+    obtain ⟨h₁, h₂⟩ := o.divBlocksT_spec d _ _ _ _ (o.truncOK_spec d _ _ rfl h) a
+    generalize o.divBlocksT d _ _ _ _ a = r at h₁ h₂
+    refine ⟨?_, ?_⟩
+    · rw [h₁, Nat.add_comm, Nat.add_mul_div_right _ _ hd, Nat.div_eq_of_lt h₂, Nat.zero_add]
+    · rw [h₁, Nat.add_comm, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt h₂]
+  · exact o.divMuW_spec a d hd
+
+/--
+`a / d` as in `divMuT`, without the remainder of the last block when the estimate decides the
+quotient (`divQBlocksT`); otherwise by `divQMuW`.
+-/
+public def divQMuT (a d : α) : α :=
+  let n := o.size d
+  let k := chooseIn (o.size a - n) n
+  let m := o.recipG (o.topD d n k)
+  if h : o.truncOK d n k m = true then
+    have hk : 0 < k := by simp only [truncOK, Bool.and_eq_true, decide_eq_true_eq] at h; lia
+    let r := o.divQBlocksT d m.1 n k hk a
+    if r.2 then r.1 else (o.divBlocksT d m.1 n k hk a).1
+  else o.divQMuW a d
+
+public theorem divQMuT_spec (a d : α) (hd : 0 < o.val d) :
+    o.val (o.divQMuT a d) = o.val a / o.val d := by
+  unfold divQMuT
+  dsimp only
+  split
+  · rename_i h
+    have hT := o.truncOK_spec d _ _ rfl h
+    split
+    · rename_i hr
+      exact o.divQBlocksT_spec d _ _ _ _ hT a hr
+    · obtain ⟨h₁, h₂⟩ := o.divBlocksT_spec d _ _ _ _ hT a
+      rw [h₁, Nat.add_comm, Nat.add_mul_div_right _ _ hd, Nat.div_eq_of_lt h₂, Nat.zero_add]
+  · exact o.divQMuW_spec a d hd
 
 end NatOps
 
