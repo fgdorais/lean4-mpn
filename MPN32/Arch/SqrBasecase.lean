@@ -47,7 +47,7 @@ def sqrRowsLoop (a : UInt32Array.Slice) (r : UInt32Array) (i : Nat) (h : r.size 
     UInt32Array :=
   if hi : i < a.size then
     sqrRowsLoop a (addMul1SetPre r i a i a[i] (by lia) (by lia)) (i + 1)
-      (by simp [addMul1SetPre_eq, h])
+      (by simp [h])
   else
     r
 termination_by a.size - i
@@ -64,10 +64,6 @@ private theorem sqrRowsLoop_spec (a : UInt32Array.Slice) (r : UInt32Array) (i : 
     rw [sqrRowsLoop]
     simp only [hi', ↓reduceDIte]
     apply ih (by lia)
-    rw [addMul1SetPre_eq]
-    have hsl : (a.slice 0 i).size = i := by simp; lia
-    have hsl' : toNat (a.slice 0 i) = a.array.valAt a.start i := by
-      rw [toNat_slice, Nat.add_zero, Nat.min_eq_left (by lia), Nat.sub_zero]
     -- The limb at `i + i` is zero, since the rows so far are below `2^(32 (i + i))`.
     have hA := UInt32Array.valAt_lt a.array a.start i
     have hlt : r.valAt 0 r.size < 2 ^ (32 * (i + i)) := by
@@ -76,8 +72,8 @@ private theorem sqrRowsLoop_spec (a : UInt32Array.Slice) (r : UInt32Array) (i : 
       rw [Nat.mul_add, Nat.pow_add]
       lia
     have hz := UInt32Array.getElem_eq_zero_of_valAt_lt r (k := i + i) (by lia) hlt
-    have hadd := toNat_addMul1Set r i (a.slice 0 i) a[i] (by simp; lia) (by simpa [hsl] using hz)
-    rw [toNat_array_eq_valAt, toNat_array_eq_valAt, hsl'] at hadd
+    have hadd := (toNat_addMul1SetPre r i a i a[i] (by lia) (by lia) (by simpa using hz)).2
+    rw [toNat_array_eq_valAt, toNat_array_eq_valAt] at hadd
     have hA1 : a.array.valAt a.start (i + 1) =
         a.array.valAt a.start i + 2 ^ (32 * i) * a[i].toNat := by
       rw [UInt32Array.valAt_add, UInt32Array.valAt_one, ← UInt32Array.Slice.getElem_eq_getElem!]

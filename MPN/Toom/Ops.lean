@@ -48,6 +48,26 @@ public theorem Writes.valAt_eq {b a : A} {o len : Nat} (h : Writes b a o len) {l
     (hd : lo + n ≤ o ∨ o + len ≤ lo) : valAt b lo n = valAt a lo n :=
   valAt_congr _ fun i h₁ h₂ => h.2 i (by lia)
 
+/-- The value of an array written within a window, from the values of the window. -/
+public theorem Writes.valAt_whole {b a : A} {o len : Nat} (h : Writes b a o len)
+    (hl : o + len ≤ LimbArray.size a) :
+    valAt b 0 (LimbArray.size b) + 2 ^ (LimbArray.w A * o) * valAt a o len =
+      valAt a 0 (LimbArray.size a) + 2 ^ (LimbArray.w A * o) * valAt b o len := by
+  have hs : ∀ x : A, valAt x 0 (o + (len + (LimbArray.size a - (o + len)))) =
+      valAt x 0 o + 2 ^ (LimbArray.w A * o) * (valAt x o len +
+        2 ^ (LimbArray.w A * len) * valAt x (o + len) (LimbArray.size a - (o + len))) := by
+    intro x; rw [valAt_add, valAt_add, Nat.zero_add]
+  have e : LimbArray.size a = o + (len + (LimbArray.size a - (o + len))) := by lia
+  rw [h.1, e, hs b, hs a, h.valAt_eq (lo := 0) (n := o) (.inl (by lia)),
+    h.valAt_eq (lo := o + len) (.inr (Nat.le_refl _))]
+  generalize valAt a 0 o = X
+  generalize 2 ^ (LimbArray.w A * o) = P
+  generalize 2 ^ (LimbArray.w A * len) * valAt a (o + len) _ = Y
+  generalize valAt a o len = U
+  generalize valAt b o len = V
+  rw [Nat.mul_add, Nat.mul_add]
+  lia
+
 /-- The value of `writeNat`, and the limbs it writes. -/
 public theorem writes_writeNat (a : A) (o len v : Nat) :
     Writes (writeNat a o len v) a o len :=
