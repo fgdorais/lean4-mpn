@@ -148,6 +148,7 @@ above; ratios before `15534f8` for `MPN.Nat` rows were inflated by the hashing c
 
 | date | commit | change | effect |
 |---|---|---|---|
+| 2026-11-09 | `a9173ec` | lean4-scalar-arrays v1.1.0 (was `fe6af25` on its `main`): the slice iterator without a stack frame per element, small changes to the in-place folds | From three alternating runs against `447d8fa`, without `Nat`, 4 to 1024 limbs: mean −0.1% over 55 rows, `sub` +3.7% at 16 limbs, `sqr` +3.5% at 4, `btostr` −3.3% at 64, the rest within ±2% |
 | 2026-11-08 | `b65f73e` | Toom-8 (`main`'s `toom88`, as GMP's `mpn_toom8h_mul`) from `mulToom8 = 3072` limbs; the Toom-8 square stays off (`sqrToom8` never: +1% on average over 2048 to 14336 in a sweep) | From three alternating runs against `bffeab6`: `mul` −2% at 3072 limbs, −2.5% to −4.5% from 4096 to 8192 (the FFT from 14336); `div` −1% to −2% at 6144 and 8192; the rest within ±3%, `sub` within ±5% |
 | 2026-11-08 | `8763715` | Half-gcd of the top third of the limbs in the gcd loop (`main`'s `NatOps.hgcdReduceP`, as GMP's `mpn_gcd`) | From three alternating runs against `c4bc02b`, without `Nat`: `bgcd` −12% at 4096 limbs, −11% at 8192 and 16384; unchanged at 1024 |
 | 2026-11-08 | `c4bc02b` | Barrett's division by the reciprocal of the top half of the divisor (`main`'s `NatOps.divMuT`, `divQMuT`, as GMP's `mpn_mu_div_qr`); `divMu` 14336 → 8192, `divQMu` 8192 → 5120 | From three alternating runs against `c6b2764`: `div` −7% at 5120 limbs, −16% at 6144, −22% to −26% from 8192 to 16384; the rest within ±1%, `sub` within ±5% |
