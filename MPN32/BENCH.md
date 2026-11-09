@@ -35,8 +35,9 @@ rather than the ratios.
   word fast path for values below `2⁶⁴`, which is what its 1- and 2-limb rows measure.
 - **Results are checked in O(1)** on both sides, so the time is the operation alone. (Before
   `15534f8`, `MPN.Nat` results were hashed, which inflated the large `b*` rows 2–4×.)
-- **Machine:** AMD Ryzen 5 5600X (Zen 3), Linux 7.1, Lean `v4.36.0-rc1`, lean4-scalar-arrays
-  `49cf1b1`. Commit `e8b34d7`, 2026-10-25, the fastest of three runs.
+- **Machine:** AMD Ryzen 5 5600X (Zen 3), Linux 7.2, Lean `v4.36.0-rc2`, lean4-scalar-arrays
+  `fe6af25`. Commit `b0a1b55`, 2026-11-08, the fastest of five runs over the rows whose spread
+  is within ±2%.
 
 ### Operations
 
@@ -69,70 +70,71 @@ Ratio MPN / Nat (below 1 is faster than Nat):
 
 | op | 1 | 2 | 4 | 8 | 16 | 32 | 64 | 128 | 256 | 512 | 1024 | 2048 | 4096 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `add` | 4.71 | 0.42 | 0.43 | 0.46 | 0.50 | 0.49 | 0.58 | 0.92 | 1.30 | 1.12 | 1.35 | 1.37 | 1.53 |
-| `sub` | 5.16 | 0.51 | 0.49 | 0.48 | 0.48 | 0.58 | 0.69 | 0.74 | 1.34 | 1.13 | 1.36 | 1.56 | 1.60 |
-| `mul1` | 3.27 | 0.27 | 0.28 | 0.27 | 0.31 | 0.35 | 0.46 | 0.59 | 0.94 | 0.93 | 1.13 | 1.28 | 1.30 |
-| `mul` | 3.67 | 0.47 | 0.56 | 1.11 | 1.60 | 2.24 | 3.00 | 3.12 | 3.97 | 4.19 | 4.47 | 5.07 | 4.86 |
-| `sqr` | 3.70 | 0.50 | 0.53 | 0.83 | 1.52 | 1.74 | 1.99 | 2.24 | 2.40 | 2.53 | 2.89 | 3.26 | 3.31 |
-| `div` | 5.29 | 1.91 | 1.74 | 2.65 | 3.09 | 4.38 | 6.24 | 8.15 | 7.58 | 6.63 | 6.48 | 6.29 | 6.99 |
-| `shr` | 1.55 | 0.75 | 0.39 | 0.30 | 0.40 | 0.41 | 0.49 | 0.58 | 0.89 | 0.82 | 0.87 | 1.00 | 1.06 |
-| `badd` | 1.85 | 0.37 | 0.77 | 0.79 | 0.78 | 0.88 | 0.78 | 1.07 | 1.47 | 1.19 | 1.40 |  |  |
-| `bsub` | 1.87 | 1.06 | 0.78 | 0.80 | 0.71 | 0.85 | 0.97 | 1.04 | 1.55 | 1.30 | 1.48 |  |  |
-| `bmul` | 1.75 | 0.58 | 0.76 | 1.31 | 1.85 | 2.36 | 3.04 | 3.70 | 3.95 | 4.22 | 4.52 |  |  |
-| `bdiv` | 1.73 | 1.76 | 2.47 | 2.72 | 3.34 | 4.55 | 6.21 | 8.21 | 7.67 | 6.63 | 6.54 |  |  |
-| `bgcd` | 0.62 | 1.61 | 4.01 | 3.47 | 3.27 | 3.54 | 3.71 | 3.99 | 4.43 | 4.65 | 4.06 |  |  |
-| `bshl` | 0.62 | 0.67 | 0.65 | 0.62 | 0.66 | 0.50 | 0.67 | 0.80 | 1.15 | 0.93 | 1.16 |  |  |
-| `bshr` | 1.70 | 0.35 | 0.43 | 0.37 | 0.42 | 0.41 | 0.48 | 0.67 | 0.93 | 0.75 | 1.00 |  |  |
-| `bsqrt` | 1.00 | 0.34 | 0.83 | 1.48 | 2.20 | 1.72 | 1.99 | 1.36 | 1.20 | 0.93 | 0.81 |  |  |
-| `btostr` | 0.92 | 0.84 | 0.06 | 0.05 | 0.05 | 0.05 | 0.06 | 0.06 | 0.05 | 0.04 | 0.03 |  |  |
-| `bofstr` | 2.15 | 0.98 | 0.19 | 0.11 | 0.10 | 0.09 | 0.09 | 0.09 | 0.09 | 0.09 | 0.09 |  |  |
-| `btonat` | 0.94 | 0.77 | 1.95 | 4.55 | 9.92 | 21.81 | 45.57 | 73.38 | 144.59 | 182.68 | 247.63 |  |  |
-| `bofnat` | 1.46 | 0.59 | 1.08 | 2.93 | 6.69 | 12.52 | 24.93 | 49.02 | 89.81 | 114.23 | 157.33 |  |  |
+| `add` | 2.93 | 0.33 | 0.35 | 0.36 | 0.37 | 0.44 | 0.54 | 0.71 | 1.01 | 0.96 | 1.23 | 1.38 | 1.50 |
+| `sub` | 2.66 | 0.30 | 0.30 | 0.33 | 0.35 | 0.40 | 0.52 | 0.60 | 1.01 | 0.95 | 1.29 | 1.42 | 1.55 |
+| `mul1` | 2.15 | 0.20 | 0.21 | 0.22 | 0.25 | 0.29 | 0.38 | 0.53 | 0.75 | 0.76 | 0.96 | 1.08 | 1.14 |
+| `mul` | 2.56 | 0.39 | 0.44 | 0.76 | 1.25 | 1.76 | 2.58 | 3.30 | 3.58 | 3.79 | 4.25 | 4.43 | 4.30 |
+| `sqr` | 2.91 | 0.35 | 0.39 | 0.63 | 1.06 | 1.38 | 1.74 | 2.03 | 2.25 | 2.37 | 2.86 | 3.13 | 3.06 |
+| `div` | 3.26 | 1.89 | 1.50 | 1.58 | 2.33 | 3.52 | 4.93 | 6.39 | 6.98 | 6.08 | 6.00 | 5.84 | 6.51 |
+| `shr` | 1.28 | 0.75 | 0.39 | 0.40 | 0.42 | 0.43 | 0.46 | 0.51 | 0.62 | 0.54 | 0.66 | 0.77 | 0.74 |
+| `badd` | 1.42 | 0.28 | 0.53 | 0.54 | 0.55 | 0.60 | 0.71 | 0.86 | 1.14 | 1.08 | 1.32 |  |  |
+| `bsub` | 1.44 | 0.56 | 0.40 | 0.44 | 0.44 | 0.50 | 0.61 | 0.69 | 1.07 | 0.98 | 1.33 |  |  |
+| `bmul` | 1.34 | 0.28 | 0.65 | 0.95 | 1.40 | 1.88 | 2.63 | 3.34 | 3.66 | 3.81 | 4.27 |  |  |
+| `bdiv` | 1.34 | 2.07 | 1.76 | 1.77 | 2.51 | 3.63 | 5.03 | 6.45 | 7.00 | 6.14 | 6.02 |  |  |
+| `bgcd` | 0.50 | 1.34 | 3.21 | 2.97 | 3.08 | 3.22 | 3.35 | 3.63 | 4.01 | 4.14 | 3.66 |  |  |
+| `bshl` | 0.50 | 0.60 | 0.47 | 0.49 | 0.47 | 0.49 | 0.53 | 0.58 | 0.70 | 0.58 | 0.69 |  |  |
+| `bshr` | 1.36 | 0.48 | 0.47 | 0.48 | 0.50 | 0.51 | 0.54 | 0.58 | 0.71 | 0.56 | 0.69 |  |  |
+| `bsqrt` | 1.28 | 0.57 | 1.19 | 1.36 | 1.61 | 1.32 | 1.06 | 0.60 | 0.39 | 0.29 | 0.25 |  |  |
+| `btostr` | 0.93 | 0.86 | 0.06 | 0.05 | 0.05 | 0.06 | 0.07 | 0.06 | 0.05 | 0.03 | 0.03 |  |  |
+| `bofstr` | 1.91 | 0.75 | 0.15 | 0.09 | 0.07 | 0.07 | 0.07 | 0.07 | 0.08 | 0.08 | 0.08 |  |  |
+| `btonat` | 1.06 | 0.84 | 1.87 | 4.06 | 8.57 | 18.13 | 35.63 | 69.51 | 127.93 | 165.72 | 279.06 |  |  |
+| `bofnat` | 1.79 | 0.50 | 1.00 | 2.40 | 5.82 | 11.46 | 22.37 | 44.66 | 82.86 | 109.23 | 178.64 |  |  |
 
 Time of MPN:
 
 | op | 1 | 2 | 4 | 8 | 16 | 32 | 64 | 128 | 256 | 512 | 1024 | 2048 | 4096 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `add` | 38 ns | 40.7 ns | 41.1 ns | 41.4 ns | 44.8 ns | 52.3 ns | 68 ns | 108 ns | 183 ns | 313 ns | 597 ns | 1.14 µs | 2.28 µs |
-| `sub` | 48.2 ns | 48.4 ns | 47.5 ns | 48.8 ns | 55.9 ns | 60 ns | 77.8 ns | 120 ns | 192 ns | 334 ns | 624 ns | 1.2 µs | 2.39 µs |
-| `mul1` | 32.7 ns | 32.9 ns | 34.2 ns | 34.7 ns | 38 ns | 46.5 ns | 65.6 ns | 104 ns | 194 ns | 348 ns | 667 ns | 1.27 µs | 2.49 µs |
-| `mul` | 36.1 ns | 45.4 ns | 58.1 ns | 112 ns | 218 ns | 522 ns | 1.58 µs | 5.08 µs | 16.2 µs | 49.4 µs | 135 µs | 386 µs | 1.03 ms |
-| `sqr` | 40.3 ns | 41.9 ns | 53.1 ns | 82.8 ns | 195 ns | 413 ns | 1.05 µs | 3.09 µs | 9.69 µs | 29.8 µs | 87.4 µs | 245 µs | 695 µs |
-| `div` | 54.5 ns | 95.1 ns | 226 ns | 318 ns | 538 ns | 1.23 µs | 3.47 µs | 11.9 µs | 37.3 µs | 110 µs | 329 µs | 950 µs | 2.74 ms |
-| `shr` | 15.5 ns | 37.6 ns | 40.1 ns | 36.9 ns | 37.9 ns | 39.8 ns | 45.9 ns | 62.4 ns | 99.1 ns | 169 ns | 315 ns | 583 ns | 1.19 µs |
-| `badd` | 15.1 ns | 31 ns | 63.1 ns | 66 ns | 70 ns | 77.4 ns | 92.4 ns | 129 ns | 206 ns | 332 ns | 626 ns |  |  |
-| `bsub` | 17.5 ns | 95.9 ns | 76.4 ns | 76.7 ns | 84.6 ns | 87.4 ns | 105 ns | 151 ns | 222 ns | 365 ns | 658 ns |  |  |
-| `bmul` | 17.1 ns | 47.9 ns | 83.3 ns | 138 ns | 244 ns | 545 ns | 1.58 µs | 5.1 µs | 15.9 µs | 49.4 µs | 135 µs |  |  |
-| `bdiv` | 16.6 ns | 91.8 ns | 249 ns | 343 ns | 564 ns | 1.25 µs | 3.48 µs | 11.9 µs | 37.3 µs | 110 µs | 332 µs |  |  |
-| `bgcd` | 65.4 ns | 95.7 ns | 709 ns | 2.04 µs | 3.99 µs | 9.52 µs | 22.8 µs | 56.6 µs | 164 µs | 493 µs | 1.63 ms |  |  |
-| `bshl` | 66.2 ns | 67.9 ns | 54.6 ns | 53 ns | 53.8 ns | 56.4 ns | 61.4 ns | 87.2 ns | 128 ns | 203 ns | 386 ns |  |  |
-| `bshr` | 16.7 ns | 16.7 ns | 43.9 ns | 44.5 ns | 45.3 ns | 45.1 ns | 52.1 ns | 69.8 ns | 105 ns | 176 ns | 323 ns |  |  |
-| `bsqrt` | 99.7 ns | 471 ns | 1.21 µs | 2.44 µs | 4.58 µs | 6.09 µs | 11.4 µs | 27.7 µs | 77 µs | 224 µs | 647 µs |  |  |
-| `btostr` | 26.1 ns | 30.3 ns | 412 ns | 832 ns | 1.85 µs | 4.64 µs | 13.1 µs | 32.5 µs | 82.6 µs | 219 µs | 600 µs |  |  |
-| `bofstr` | 305 ns | 454 ns | 744 ns | 1.3 µs | 2.79 µs | 5.49 µs | 11.1 µs | 24.2 µs | 60.3 µs | 164 µs | 508 µs |  |  |
-| `btonat` | 9.81 ns | 95.7 ns | 248 ns | 591 ns | 1.28 µs | 2.77 µs | 5.56 µs | 11.3 µs | 22.7 µs | 46.4 µs | 94.1 µs |  |  |
-| `bofnat` | 16.5 ns | 79.7 ns | 131 ns | 340 ns | 843 ns | 1.69 µs | 3.39 µs | 7.01 µs | 14.1 µs | 28.9 µs | 59 µs |  |  |
+| `add` | 36.1 ns | 38.7 ns | 41.5 ns | 43.3 ns | 44.5 ns | 53.6 ns | 68.7 ns | 100 ns | 174 ns | 300 ns | 559 ns | 1.06 µs | 2.12 µs |
+| `sub` | 36.2 ns | 37.6 ns | 36.6 ns | 42.3 ns | 50 ns | 51.8 ns | 70.8 ns | 108 ns | 179 ns | 314 ns | 576 ns | 1.12 µs | 2.25 µs |
+| `mul1` | 30.1 ns | 30.8 ns | 32.5 ns | 33.2 ns | 37.9 ns | 47 ns | 63.8 ns | 101 ns | 172 ns | 301 ns | 558 ns | 1.07 µs | 2.12 µs |
+| `mul` | 35.9 ns | 46.6 ns | 59.1 ns | 100 ns | 193 ns | 450 ns | 1.39 µs | 4.68 µs | 14.6 µs | 44.7 µs | 128 µs | 337 µs | 908 µs |
+| `sqr` | 41.9 ns | 41.4 ns | 52.4 ns | 81.9 ns | 164 ns | 349 ns | 940 ns | 2.86 µs | 9.1 µs | 28 µs | 85.2 µs | 236 µs | 642 µs |
+| `div` | 45 ns | 98.4 ns | 207 ns | 236 ns | 457 ns | 1.02 µs | 2.82 µs | 9.45 µs | 34.4 µs | 101 µs | 305 µs | 882 µs | 2.52 ms |
+| `shr` | 17.7 ns | 34 ns | 43.5 ns | 45.5 ns | 47.9 ns | 50 ns | 54.7 ns | 65 ns | 90.1 ns | 135 ns | 226 ns | 397 ns | 753 ns |
+| `badd` | 18.3 ns | 32.6 ns | 63.1 ns | 64.6 ns | 65.4 ns | 74.1 ns | 90.7 ns | 123 ns | 197 ns | 323 ns | 583 ns |  |  |
+| `bsub` | 18.7 ns | 68.4 ns | 49.1 ns | 54.6 ns | 62.7 ns | 64.7 ns | 82.8 ns | 122 ns | 190 ns | 324 ns | 594 ns |  |  |
+| `bmul` | 18.7 ns | 32.9 ns | 86.5 ns | 124 ns | 215 ns | 475 ns | 1.42 µs | 4.71 µs | 14.8 µs | 44.9 µs | 128 µs |  |  |
+| `bdiv` | 18.5 ns | 107 ns | 241 ns | 266 ns | 490 ns | 1.06 µs | 2.88 µs | 9.61 µs | 34.5 µs | 102 µs | 305 µs |  |  |
+| `bgcd` | 54.4 ns | 84.6 ns | 578 ns | 1.75 µs | 3.76 µs | 8.64 µs | 20.5 µs | 51.6 µs | 147 µs | 439 µs | 1.46 ms |  |  |
+| `bshl` | 67 ns | 67.9 ns | 54.3 ns | 56.5 ns | 54.4 ns | 57.3 ns | 63.5 ns | 73.7 ns | 102 ns | 144 ns | 232 ns |  |  |
+| `bshr` | 22.4 ns | 23.4 ns | 53.5 ns | 55.6 ns | 58.2 ns | 60.9 ns | 65.9 ns | 76.3 ns | 104 ns | 141 ns | 232 ns |  |  |
+| `bsqrt` | 125 ns | 788 ns | 1.74 µs | 2.21 µs | 3.34 µs | 4.69 µs | 6.11 µs | 12.2 µs | 25.4 µs | 69.4 µs | 199 µs |  |  |
+| `btostr` | 29.6 ns | 33.4 ns | 479 ns | 930 ns | 2.12 µs | 5.22 µs | 14.6 µs | 30.9 µs | 75.3 µs | 196 µs | 548 µs |  |  |
+| `bofstr` | 261 ns | 366 ns | 603 ns | 1.02 µs | 2.01 µs | 4.03 µs | 8.45 µs | 19.3 µs | 50.1 µs | 144 µs | 436 µs |  |  |
+| `btonat` | 16.9 ns | 131 ns | 286 ns | 630 ns | 1.32 µs | 2.81 µs | 5.63 µs | 11.4 µs | 22.9 µs | 46.9 µs | 94.6 µs |  |  |
+| `bofnat` | 22.9 ns | 74.3 ns | 149 ns | 362 ns | 873 ns | 1.73 µs | 3.49 µs | 7.19 µs | 14.5 µs | 29.6 µs | 60.2 µs |  |  |
 
 ## Where it stands
 
-- **Linear operations** (`add`, `sub`, `mul1`, shifts) are faster than `Nat` up to 64–128 limbs,
-  where `Nat`'s wrapper dominates, and the shifts up to 256–512. They stay within 1.0–1.6× at
-  large sizes, where GMP's assembly and 64-bit limbs win.
-- **Multiplication** is 3.0–5.1× behind from 64 limbs up (under 4× to 256 limbs), **squaring**
-  2.0–3.3×. 32-bit limbs need 4× as many limb products as GMP's 64-bit limbs, and Lean has no
-  64 × 64 → 128-bit multiply; the schoolbook rows make up for part of it by vectorizing, two
-  limb products per instruction with SSE2. Beyond the table,
-  Toom-6 from 1792 limbs (2496 for squares) and the FFT from 14336 (12288 for squares).
-- **Division** is 6.2–8.2× behind from 64 limbs up, about 1.5× multiplication's gap: GMP divides
-  `2n` by `n` limbs for about the cost of one `n × n` product, and this library for 2.4 of its
-  own. Small `MPN.Nat` divisions still pay a fixed cost (normalization, several arrays): 1.8–3.3×
-  from 2 to 16 limbs. Division by a word of two limbs costs about 6.5 ns per limb, 3.6× GMP's
-  at 256 limbs and even with it at 5.
-- **`gcd`** is 3.3–4.7× behind from 4 limbs, Lehmer with word cofactors and both new numbers in
-  one pass; half-gcd (`Generic.HGCD`) takes over from `gcdHalf = 4608` limbs, beyond the table.
-- **`sqrt`** is 1.2–2.2× behind from 8 to 256 limbs, faster from 512 and up to 4; **decimal
-  strings** are 17–33× faster than `Nat` to write and 5–11× to read from 4 limbs, since `Nat`'s
-  conversions work digit by digit.
+- **Linear operations** (`add`, `sub`, `mul1`) are faster than `Nat` up to 128 limbs, where
+  `Nat`'s wrapper dominates, and the shifts at every size in the table. They stay within
+  1.0–1.6× at large sizes, where GMP's assembly and 64-bit limbs win.
+- **Multiplication** is 2.6–4.4× behind from 64 limbs up (under 4× to 512 limbs, 4.8× at 16384),
+  **squaring** 1.7–3.1×. 32-bit limbs need 4× as many limb products as GMP's 64-bit limbs, and Lean
+  has no 64 × 64 → 128-bit multiply; the schoolbook rows make up for part of it by vectorizing, two
+  limb products per instruction with SSE2. Beyond the table, Toom-6 from 1792 limbs (2496 for
+  squares), Toom-8 from 3072 and the FFT from 14336 (12288 for squares).
+- **Division** is 4.9–7.0× behind from 64 limbs up (5.6× at 16384, with Barrett's division by the
+  top half of the divisor from 5120 limbs), about 1.5× multiplication's gap: GMP divides `2n` by `n`
+  limbs for about the cost of one `n × n` product, and this library for 2.4 of its own. Small
+  `MPN.Nat` divisions still pay a fixed cost (several arrays): 1.8–2.5× from 2 to 16 limbs. Division
+  by a word of two limbs costs about 6.5 ns per limb, 3.6× GMP's at 256 limbs and even with it at 5.
+- **`gcd`** is 3.0–4.1× behind from 4 limbs, Lehmer with word cofactors and both new numbers in
+  one pass; half-gcd of the top third of the limbs (`Generic.HGCD`) takes over from
+  `gcdHalf = 1536` limbs, beyond the table (4.0× at 16384).
+- **`sqrt`** is 1.2–1.6× behind from 4 to 32 limbs, even at 64 and faster from 128, up to 4×;
+  **decimal strings** are 14–33× faster than `Nat` to write and 7–14× to read from 4 limbs,
+  since `Nat`'s conversions work digit by digit.
 - **On an Apple M2** (`e0a0473`): the linear operations are within 1.1–2.4× from 1024 limbs,
   multiplication 2.5–5.1× from 64 limbs (1.6–1.85× faster than at `b4e717f`, where it was
   4.7–8.3×), squaring 1.8–3.5× (15–24% faster than at `caab3b6`) and division 5.6–7.6×.

@@ -8,10 +8,10 @@ two widths moved into one package is in the history of `MPN32/TODO.md`.
 
 ## Performance
 
-- [ ] **Division on 64-bit limbs** is the only operation more than 4× behind GMP: `Num.div` runs
-  at 4.2–4.6× from 5632 to 10240 limbs and `Num.divMod` at about 5×, against products at
-  1.5–3.2×. Its costs per `n`-limb product `M`: the reciprocal about 2.2 `M`, a Barrett step about
-  2 `M`; GMP's division is about 2.1 of its own products, which are 3× faster.
+- [ ] **Division on 64-bit limbs** is the operation closest to 4× GMP: since `c4bc02b` (Barrett's
+  division by the top half of the divisor) `Num.div` runs at 2.9–3.7× from 1024 limbs, worst near
+  4096 where the divide-and-conquer division hands over, and `Num.divMod` at 3.6–4.0× from 4096,
+  against products at 2.5–3.3×. GMP's division is about 2.1 of its own products.
 - [ ] **Quotient-only division with an approximate quotient** (GMP's `mpn_div_q` with
   `divappr`): `/` computes, through the low halves of Burnikel–Ziegler's products and Algorithm
   D's last steps, a remainder it throws away. A quotient off by at most one and then checked needs
