@@ -22,7 +22,7 @@ The parts of the greatest common divisor that depend on 64-bit limbs, for `main`
   (`wmatOf`: entries below `2⁶²`, determinant `±1`); `LehmerStep` applies them to the full numbers
   in one pass each (`mulSubMul`). Nothing about the steps on the words needs a proof: a matrix of
   determinant `±1` keeps the greatest common divisor.
-* Half-gcd (`NatOps.hgcdReduce`, `hgcd64`), whose base case up to `hgcdBase` limbs is the same
+* Half-gcd (`NatOps.hgcdReduceP`, `hgcd64`), whose base case up to `hgcdBase` limbs is the same
   steps with their matrix kept up to date in one pass per entry (`LehmerStep.smallSteps`,
   `mulAddMul`).
 -/

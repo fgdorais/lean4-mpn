@@ -20,7 +20,7 @@ the limbs of a number to `α`, and `ofO` from `α` back to a number, which trims
   on `x 4ᶜ` of `2 n` limbs with `β^(2n) ≤ 4 x 4ᶜ`, shifted back by `c` bits, with the base case
   `newtonBase`: a width's own for short numbers, and Newton's iteration (`GNat.sqrtNewton`) above;
 * `sqrtRem`, any square root with its remainder;
-* `hgcd`, one reduction by half-gcd (`NatOps.hgcdReduce`);
+* `hgcd`, one reduction by half-gcd of the top third of the limbs (`NatOps.hgcdReduceP`);
 
 and `lehmer`, Lehmer's step (`LehmerStep.lehmerStep`) on the limbs of two numbers.
 -/
@@ -153,10 +153,13 @@ public theorem toNat_sqrtRem (sqrt : GNat A → GNat A)
 
 /-! ## Greatest common divisor -/
 
-/-- One reduction of `x ≥ y` by half-gcd (`NatOps.hgcdReduce`) with `base` up to `T` limbs. -/
+/--
+One reduction of `x ≥ y` by half-gcd of its top third (`NatOps.hgcdReduceP`) with `base` up to `T`
+limbs.
+-/
 @[inline] public def hgcd (base : Nat → α → α → Mat2 α × α × α) (T : Nat) (x y : GNat A) :
     GNat A × GNat A :=
-  let p := b.o.hgcdReduce base T (b.toO x.limbs) (b.toO y.limbs)
+  let p := b.o.hgcdReduceP base T (b.toO x.limbs) (b.toO y.limbs)
   (b.ofO p.1, b.ofO p.2)
 
 public theorem gcd_hgcd (base : Nat → α → α → Mat2 α × α × α)
@@ -164,7 +167,7 @@ public theorem gcd_hgcd (base : Nat → α → α → Mat2 α × α × α)
     _root_.Nat.gcd (b.hgcd base T x y).1.toNat (b.hgcd base T x y).2.toNat =
       _root_.Nat.gcd x.toNat y.toNat := by
   simp only [hgcd, b.toNat_ofO]
-  rw [b.o.gcd_hgcdReduce base hbase T, b.val_toO, b.val_toO, GNat.val_limbs, GNat.val_limbs]
+  rw [b.o.gcd_hgcdReduceP base hbase T, b.val_toO, b.val_toO, GNat.val_limbs, GNat.val_limbs]
 
 end Bridge
 

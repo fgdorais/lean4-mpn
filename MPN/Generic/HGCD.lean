@@ -639,6 +639,34 @@ public theorem gcd_hgcdReduce (base : Nat → α → α → Mat2 α × α × α)
   · exact h
   · rw [Nat.gcd_comm]; exact h
 
+/--
+One reduction of `a ≥ b` as in `hgcdReduce`, by half-gcd of the top third of the limbs, as GMP's
+`mpn_gcd`: the matrix and numbers of `hgcd` on `⌊a / Bᵖ⌋` and `⌊b / Bᵖ⌋` for `p = ⌊2 n / 3⌋`,
+extended to `a` and `b` by `applySplit`; by `hgcdReduce` when the matrix went too far. Half-gcd
+costs more per limb on longer numbers, so a reduction by a sixth of the limbs from a third of them
+costs less per limb than one by half of them from all of them.
+-/
+public def hgcdReduceP (base : Nat → α → α → Mat2 α × α × α) (T : Nat) (a b : α) : α × α :=
+  let p := 2 * o.size a / 3
+  let R := o.hgcd base T (o.hi p a) (o.hi p b)
+  match o.applySplit R.1 R.2.1 R.2.2 a b p with
+  | none => o.hgcdReduce base T a b
+  | some q => (o.orient R.1 q).2
+
+public theorem gcd_hgcdReduceP (base : Nat → α → α → Mat2 α × α × α)
+    (hbase : ∀ s a b, o.HgcdOK a b (base s a b)) (T : Nat) (a b : α) :
+    Nat.gcd (o.val (o.hgcdReduceP base T a b).1) (o.val (o.hgcdReduceP base T a b).2) =
+      Nat.gcd (o.val a) (o.val b) := by
+  unfold hgcdReduceP
+  dsimp only
+  split
+  · exact o.gcd_hgcdReduce base hbase T a b
+  · rename_i q hq
+    obtain ⟨hM, hF⟩ := o.hgcd_ok base hbase T (o.hi (2 * o.size a / 3) a)
+      (o.hi (2 * o.size a / 3) b)
+    have hF' := o.fwd_applySplit _ hM _ _ a b _ hF q hq
+    exact (o.gcd_of_fwd _ (o.unimodular_orient _ hM q) a b _ _ (o.fwd_orient _ a b q hF')).symm
+
 end NatOps
 
 end MPN

@@ -93,7 +93,7 @@ public structure Config extends Dispatch.MulConfig, Dispatch.DivConfig, Dispatch
   sqrtZimmermann := 1
   sqrtBase := 1
   /-- The size of the smaller number from which the greatest common divisor uses half-gcd. -/
-  gcdHalf : Nat := 2560
+  gcdHalf : Nat := 1536
   /-- The size from which decimal strings are written by divide and conquer. -/
   strDC : Nat := 44
   /--
