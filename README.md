@@ -38,7 +38,7 @@ belong in them; anything faster that needs C goes in `MPN64`. CI checks it twice
 (`scripts/check_portable.py`), and by building `MPN32` and running its tests on Linux arm64, macOS
 arm64 and Windows.
 
-`MPN.Default` (the library `MPNDefault`) makes `MPN.Nat` the natural numbers on 64-bit limbs. Both
+`MPN.Default` (the library of the same name) makes `MPN.Nat` the natural numbers on 64-bit limbs. Both
 widths build in one environment, and the tests (`lake test`) check both. The branches `main32` and
 `main64`, which held the two widths before, are kept as the tags `archive/main32` and
 `archive/main64`.

@@ -173,10 +173,13 @@ lean_lib MPN64 where
   leanOptions := thresholdOptions64
   moreLeancArgs := marchArgs ++ #["-falign-loops=64"]
 
-/-- `MPN.Nat`, the natural numbers on 64-bit limbs, for projects that use one width. -/
+/--
+`MPN.Nat`, the natural numbers on 64-bit limbs, for projects that use one width. The library is
+named after its one root, which makes its shared library a plugin for the precompiled tests, loaded
+after `MPN64`'s; under another name it is loaded before them, which Windows refuses (error 126).
+-/
 @[default_target]
-lean_lib MPNDefault where
-  roots := #[`MPN.Default]
+lean_lib MPN.Default where
 
 @[default_target]
 lean_lib MPNTest where

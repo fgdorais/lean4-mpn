@@ -11,8 +11,8 @@ public import MPN64
 
 `MPN.Nat` is `MPN.W64.Nat`, the natural numbers on 64-bit limbs, with its functions `ofNat`,
 `ofString?` and `sqrt`; the rest of its operations are `MPN`'s `GNat` and its instances. The
-natural numbers on 32-bit limbs are `MPN.W32.Nat`, from `MPN32`. This module is the library
-`MPNDefault`, apart from the shared root `MPN`, which both widths import.
+natural numbers on 32-bit limbs are `MPN.W32.Nat`, from `MPN32`. This module is the library of
+the same name, apart from the shared root `MPN`, which both widths import.
 -/
 
 namespace MPN
