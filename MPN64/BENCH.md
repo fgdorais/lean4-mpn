@@ -53,7 +53,7 @@ so five runs make the tables reliable. Within one run, distrust a row whose spre
 | `sbdiv` | `MPN.divRem` | `2 n` by `n` limbs | schoolbook (Algorithm D), normalized |
 | `sqrt` | `MPN.sqrtRem` | `n` limbs | Zimmermann's Karatsuba square root on `MPN.Num`; `Nat.sqrt` is Lean's Newton iteration on `Nat`, not GMP's `mpz_sqrt` |
 | `mulmod` | `MPN.Num.mulModB` | `n` by `n` limbs modulo `β^n - 1` | the FFT with the pieces wrapping around (`fftMulModAt`), `2ᵏ` pieces for `k = fftK n`; `Nat` multiplies |
-| `gcd` | `MPN.Num.gcd` | `n` and `n` limbs | Euclid's algorithm on pairs of words (`gcd2`) up to two limbs, Lehmer's algorithm with steps of 62 bits (`cofactors2`, `mulSubMul`), half-gcd from `gcdHalf = 1024` limbs with its own base case (`baseW`, `mulAddMul`); `Nat.gcd` is GMP's |
+| `gcd` | `MPN.Num.gcd` | `n` and `n` limbs | Euclid's algorithm on pairs of words (`gcd2`) up to two limbs, Lehmer's algorithm with steps of 62 bits (`cofactors2`, `mulSubMul`), half-gcd of the top third (`hgcdReduceP`, as GMP's `mpn_gcd`) from `gcdHalf = 1536` limbs with its own base case (`baseW`, `mulAddMul`); `Nat.gcd` is GMP's |
 | `str` | `MPN.Num.toDecimal` | `n` limbs | chunks of 19 digits, divide and conquer from `strDC = 40` limbs; `Nat.repr` is Lean's, not GMP |
 | `parse` | `MPN.Num.ofDecimal?` | the digits of `n` limbs | chunks of 19 digits, divide and conquer from `19 parseDC` digits (`parseDC = 512`); `String.toNat?` is Lean's, not GMP |
 | `mul1` | `MPN.mul1` | `n` limbs times a limb | one pass, `USize` indices |
@@ -215,10 +215,10 @@ GMP's `mpz_gcd`.
 
 `gcd` is Lehmer's algorithm with steps of about 62 bits, like GMP's: two runs of Euclid's steps on
 the leading words, the second on the leading 128 bits after the first (`cofactors2`), applied by
-`mulSubMul` in one pass for each number; and half-gcd from `gcdHalf = 1024` limbs, whose base
-case up to `hgcdBase = 128` limbs is the same steps with the matrix updated in one pass per entry
-(`mulAddMul`); above the base case it runs on the generic layer. At 16384 limbs `gcd` takes
-216 ms, 3.57 times `Nat`. `gcdh<T>` sweeps `gcdHalf`.
+`mulSubMul` in one pass for each number; and from `gcdHalf = 1536` limbs half-gcd of the top
+third of the limbs, as GMP's `mpn_gcd`, whose base case up to `hgcdBase = 128` limbs is the same
+steps with the matrix updated in one pass per entry (`mulAddMul`); above the base case it runs on
+the generic layer. At 16384 limbs `gcd` takes 151 ms, 2.51 times `Nat`. `gcdh<T>` sweeps `gcdHalf`.
 
 ### Large sizes, squares
 
@@ -367,3 +367,4 @@ Times are the fastest of five runs, in the format of the tables above.
 | 2026-11-08 | `4504f02` | `lshift` and `rshift` removed; the rows `shl` and `shr` time `Num.shl` and `Num.shr` (`main`'s `shlBits`, `shrBits`, which allocate their result) instead of the in-place kernels | From three alternating runs against `aa10f07`: `shl` −11% to −12% and `shr` −15% to −16% at 4 and 64 limbs, −1% to −3% from 1024; `add` −4% to 64 limbs; `div`, `sqrt` within ±1% |
 | 2026-11-08 | `d558004`, `d41b576` | The unused restatements of the FFT transforms removed; `Num.low` by `main`'s `loA` and `MPN64.AddSub` (`add1`) removed | From three runs and five more of the outliers, alternating, against `4504f02`, mean +1.1% over 52 rows: `mul` +13% to +25% at 2 and 4 limbs and `gcd` +4% from 4 limbs with the same code at the same alignment, the time in the runtime's allocator (placement); `fft` −3.5% at 4; the rest within ±3% |
 | 2026-11-08 | `c4bc02b` | Barrett's division by the reciprocal of the top half of the divisor (`main`'s `NatOps.divMuT`, `divQMuT`, as GMP's `mpn_mu_div_qr`): `recipG` on the top `k + 1` limbs, `k` about half the quotient, and the quotient in blocks of `k` limbs; `divMu` 8192 → 6144, `divQMu` 6144 → 4096 | From three alternating runs against `c6b2764`, without `Nat`: `div` −9% at 4096 limbs, −17% at 5120, −19% to −23% from 6144 to 65536 (9.80 → 7.95 ms at 8192); `divmod` −5.5% at 6144, −16% to −26% from 8192 (13.2 → 9.7 ms at 8192, no longer bimodal by size); `sqrt` and `str` −5% to −7% at 32768; the rest within ±2%, except, from placement (same code, moved), `add` +5% at 4 limbs and +13% at 16, `div` +6% at 1 |
+| 2026-11-08 | `8763715` | Half-gcd of the top third of the limbs in the gcd loop (`main`'s `NatOps.hgcdReduceP`, as GMP's `mpn_gcd`: `hgcd` on the top `n - ⌊2n/3⌋` limbs, extended by `applySplit`); `gcdHalf` 2560 → 1536, from a sweep (1536: −4% to −5% from 2048 to 4096 limbs, 1024 within ±1%; split points 1/2, 3/5 and 3/4 at most as fast as 2/3) | From three alternating runs against `c4bc02b`, without `Nat`: `gcd` −8% at 4096 limbs, −11% at 8192, −13% at 16384, −14% at 32768 (457 → 392 ms); `blcm` the same; with the new `gcdHalf`, −5% at 2048; 2.2 times `Nat` at 8192 and 2.6 at 32768 (was 2.6 and 3.1); the rest within ±3%, except, from placement, `add` −5% to −12% at 4 to 64 limbs (back from `c4bc02b`), `sqrt` +4% at 1 |
