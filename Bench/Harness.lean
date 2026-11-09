@@ -118,6 +118,10 @@ public def timeMpn2 (f : UInt64Array → UInt64Array → UInt32) (x y : Nat) : I
   let (a, b) := (Mpn.limbs x, Mpn.limbs y)
   if a.size < b.size then time f id b a else time f id a b
 
+/-- The time of a GMP kernel on two arrays of limbs, the longer first. -/
+public def timeMpnA (f : UInt64Array → UInt64Array → UInt32) (a b : UInt64Array) : IO Timing :=
+  if a.size < b.size then time f id b a else time f id a b
+
 /-- The time of a GMP kernel on one number. -/
 public def timeMpn1 (f : UInt64Array → UInt32) (x : Nat) : IO Timing :=
   time (fun a (_ : UInt64Array) => f a) id (Mpn.limbs x) (Mpn.limbs x)

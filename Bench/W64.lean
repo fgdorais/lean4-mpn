@@ -256,7 +256,7 @@ def run (noNat : Bool) (op : String) (n : Nat) : IO Bool := do
         MPN.W64.mulKaratsuba MPN.W64.config (zr (x.size + y.size)) x.toUSlice
           y.toUSlice) checkArr a h)
       (time (· * ·) checkNat na (toNat h))
-      (some (time Mpn.mul id a h))
+      (some (timeMpnA Mpn.mul a h))
   | "toom2" =>
     let h := sample (n / 2) 2
     row noNat op n
@@ -264,7 +264,7 @@ def run (noNat : Bool) (op : String) (n : Nat) : IO Bool := do
         MPN.W64.mulToom MPN.W64.config (zr (x.size + y.size)) x.toUSlice
           y.toUSlice) checkArr a h)
       (time (· * ·) checkNat na (toNat h))
-      (some (time Mpn.mul id a h))
+      (some (timeMpnA Mpn.mul a h))
   | "fft" =>
     row noNat op n
       (time (fun (x y : UInt64Array) =>
@@ -306,7 +306,7 @@ def run (noNat : Bool) (op : String) (n : Nat) : IO Bool := do
         MPN.W64.FFT.fftMul MPN.W64.config (zr (x.size + y.size)) x.toUSlice
           y.toUSlice (MPN.W64.FFT.fftK (x.size + y.size))) checkArr a h)
       (time (· * ·) checkNat na (toNat h))
-      (some (time Mpn.mul id a h))
+      (some (timeMpnA Mpn.mul a h))
   | "mulref" =>
     row noNat op n (time refMul checkArr a b) (time (· * ·) checkNat na nb)
   | _ =>
@@ -322,7 +322,7 @@ def run (noNat : Bool) (op : String) (n : Nat) : IO Bool := do
           MPN.W64.mul MPN.W64.config (zr (x.size + y.size)) x.toUSlice y.toUSlice)
           checkArr a h)
         (time (· * ·) checkNat na (toNat h))
-        (some (time Mpn.mul id a h))
+        (some (timeMpnA Mpn.mul a h))
     else
     if op.startsWith "gcdh" then
       -- `gcdh<T>`: `gcd` with half-gcd from `T` limbs, for tuning `gcdHalf`.
@@ -354,7 +354,7 @@ def run (noNat : Bool) (op : String) (n : Nat) : IO Bool := do
             MPN.W64.mulToom MPN.W64.config (zr (x.size + y.size)) x.toUSlice
               y.toUSlice) checkArr a h)
         (time (· * ·) checkNat na (toNat h))
-        (some (time Mpn.mul id a h))
+        (some (timeMpnA Mpn.mul a h))
     else
     -- `fft<k>`: the FFT with `2ᵏ` pieces, for tuning `fftK`.
     match (op.drop 3).toString.toNat? with
