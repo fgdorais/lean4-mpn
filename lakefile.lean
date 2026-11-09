@@ -13,11 +13,11 @@ this package's own settings, by passing options with its `require`. In a `lakefi
 [[require]]
 name = "lean4-mpn"
 git = "https://github.com/fgdorais/lean4-mpn"
-rev = "unified"
+rev = "main"
 options = { march = "native", w64_mulKaratsuba = "48" }
 ```
 
-or in a `lakefile.lean`, `require «lean4-mpn» from git "…" @ "unified" with
+or in a `lakefile.lean`, `require «lean4-mpn» from git "…" @ "main" with
 NameMap.empty |>.insert `march "native"`. The same options work on the command line with `-K`,
 for example `lake build -R -K march=native`. Lake keeps the configuration it elaborated, so after
 changing the options, build once with `-R` to reconfigure.
@@ -139,7 +139,7 @@ package «lean4-mpn» where
   testDriver := "MPNTest"
 
 require «lean4-scalar-arrays» from git
-  "https://github.com/fgdorais/lean4-scalar-arrays" @ "main"
+  "https://github.com/fgdorais/lean4-scalar-arrays" @ "v1.1.0"
 
 -- Loops aligned to 32 bytes in the shared code and on 32-bit limbs: at 64, the loops unrolled
 -- twice of `sub` and `mul1` (about 72 bytes) put most of their instructions in one 64-byte window
