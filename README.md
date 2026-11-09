@@ -3,6 +3,23 @@
 Verified multi-precision arithmetic for Lean 4, in the style of GMP's `mpn` functions. Every
 operation is proved correct against `Nat`.
 
+## What is proved, and what is trusted
+
+Every public operation is proved to compute what the same operation on `Nat` does, and every
+declaration of the three libraries depends on Lean's standard axioms alone (`propext`,
+`Classical.choice`, `Quot.sound`): no `sorry`, no `native_decide`. `lake test` checks the axioms
+of all of them (`MPNTest/Axioms.lean`). The proofs are about the Lean definitions; the compiled
+code also trusts:
+
+- Lean's compiler and runtime;
+- lean4-scalar-arrays, whose arrays' primitives are implemented in C and whose fast loops replace
+  their Lean models by `implemented_by`;
+- on 64-bit limbs only, the five `extern c inline` functions of `MPN64/Arch/UInt.lean`: the high
+  words of sums, differences and products and the division of two words by one, in `__uint128_t`,
+  each next to the Lean definition it replaces.
+
+`MPN32` and the shared `MPN` add nothing to that list (see the portability rule below).
+
 ## Layout
 
 One package, three libraries:
@@ -23,7 +40,8 @@ arm64 and Windows.
 
 `MPN.Default` (the library `MPNDefault`) makes `MPN.Nat` the natural numbers on 64-bit limbs. Both
 widths build in one environment, and the tests (`lake test`) check both. The branches `main32` and
-`main64`, which held the two widths before, are frozen.
+`main64`, which held the two widths before, are kept as the tags `archive/main32` and
+`archive/main64`.
 
 ## Using it
 
