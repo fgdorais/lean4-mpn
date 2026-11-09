@@ -9,7 +9,7 @@ the history at the end records what changed and by how much.
 ```sh
 lake build bench                      # `lake build` alone does not rebuild it
 taskset -c 2 .lake/build/bin/bench > bench.txt
-taskset -c 2 .lake/build/bin/bench badd bsub bmul bdiv bmod bsqr bpow blcm blog2 bcmp beq bhash \
+taskset -c 2 .lake/build/bin/bench badd bsub bmul bdiv bmod bdiv1 bmod1 bsqr bpow blcm blog2 bcmp beq bhash \
   bgcd bshl bshr band bor bxor bsqrt btostr bofstr \
   btonat bofnat 1 2 4 8 16 32 64 128 256 512 1024 >> bench.txt
 scripts/bench_md.py bench.txt         # the two tables below
@@ -53,6 +53,7 @@ rather than the ratios.
 | `shr` | `shiftRight` by 37 bits | `n` limbs | one pass in place |
 | `badd` … `bdiv` | `MPN.Nat` `+ - * /` | as above (`bdiv`: `2n` by `n`) | word fast path, then as above |
 | `bmod`, `bsqr`, `bpow` | `MPN.Nat` `%`, `sqr`, `x³` | as `bdiv`, `bmul` | the division, the square, squares and products |
+| `bdiv1`, `bmod1` | `MPN.Nat` `/`, `%` | `n` limbs by `10⁹ + 7` | one limb, unnormalized: `/` by `divRem1`, `%` by `main`'s `WordArray.mod1A` (the reciprocal steps by `d 2ˢ` on the dividend unshifted, then one step modulo `d`), no quotient |
 | `blcm`, `blog2` | `MPN.Nat.lcm`, `log2` | `n` limbs | the gcd, a division and a product; the top limb |
 | `bcmp`, `beq`, `bhash` | `x < x + 1`, `x = x'` (two copies), `hash` | `n` limbs | every limb compared or hashed |
 | `bgcd` | `MPN.Nat.gcd` | `n` and `n` limbs | Lehmer with word cofactors, Euclid on words |
@@ -148,6 +149,8 @@ above; ratios before `15534f8` for `MPN.Nat` rows were inflated by the hashing c
 
 | date | commit | change | effect |
 |---|---|---|---|
+| 2026-11-09 | `db395d1` | Algorithm D in one array (`main`'s `Schoolbook.workS`) with three ends: both results, the quotient alone (`divQN`, which `divQG` takes) and the remainder alone (`modN`: shifted back in place by `WordArray.rshDown`, the quotient limbs popped off, no new array); `mod` by the new remainder driver `Div.divRG` (`modLimbsWith`) from three limbs of divisor | From three alternating runs against `6d99d39`: `bmod` −24% at 3 limbs, −18% at 4, −14% at 8, ±3% from 16; `bdiv` −19% at 3, −10% at 4 and 8, −6% to −7% at 16 and 32, −2% at 64; `div` −12% at 2, −20% at 3, −18% at 4, −15% at 8, −10% at 16, −2% at 64; `bgcd`, `bsqrt`, `btostr` within ±3.5% |
+| 2026-11-09 | `6d99d39` | The remainder by a word without the quotient: `modW` below `2³²` by `main`'s `WordArray.mod1A` (`modLoop`, `divLoop` without writing the quotient, like GMP's `mpn_mod_1`; the checked steps with the reciprocal, for an unnormalized `d` by `d 2ˢ` on the dividend unshifted and one more step modulo `d`), instead of `divRemWord`; new rows `bdiv1`, `bmod1` | From three alternating runs against `9d46499`: `bmod1` −50% at 4 limbs, −33% at 16, −15% at 64, −11% at 256 and 1024; `bdiv1` −1% to −5% (unchanged code); `bdiv`, `bmod` within ±5% |
 | 2026-11-09 | `a9173ec` | lean4-scalar-arrays v1.1.0 (was `fe6af25` on its `main`): the slice iterator without a stack frame per element, small changes to the in-place folds | From three alternating runs against `447d8fa`, without `Nat`, 4 to 1024 limbs: mean −0.1% over 55 rows, `sub` +3.7% at 16 limbs, `sqr` +3.5% at 4, `btostr` −3.3% at 64, the rest within ±2% |
 | 2026-11-08 | `b65f73e` | Toom-8 (`main`'s `toom88`, as GMP's `mpn_toom8h_mul`) from `mulToom8 = 3072` limbs; the Toom-8 square stays off (`sqrToom8` never: +1% on average over 2048 to 14336 in a sweep) | From three alternating runs against `bffeab6`: `mul` −2% at 3072 limbs, −2.5% to −4.5% from 4096 to 8192 (the FFT from 14336); `div` −1% to −2% at 6144 and 8192; the rest within ±3%, `sub` within ±5% |
 | 2026-11-08 | `8763715` | Half-gcd of the top third of the limbs in the gcd loop (`main`'s `NatOps.hgcdReduceP`, as GMP's `mpn_gcd`) | From three alternating runs against `c4bc02b`, without `Nat`: `bgcd` −12% at 4096 limbs, −11% at 8192 and 16384; unchanged at 1024 |
