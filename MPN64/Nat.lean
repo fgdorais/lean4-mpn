@@ -415,32 +415,19 @@ public instance natLimbs64 : NatLimbs UInt64Array where
     · split <;> exact Limbs64.isTrim_norm _
     · exact Limbs64.isTrim_norm _
   val_mod := Limbs64.toNat_mod
-  divW a b := Limbs64.div a (UInt64Array.replicate 1 b)
-  trimmed_divW a b := by
-    show Limbs64.isTrim (Limbs64.div a _) = true
-    unfold Limbs64.div
-    split
-    · split
-      · simp [Limbs64.isTrim, Limbs64.zero]
-      · exact Limbs64.isTrim_norm _
-    · exact Limbs64.isTrim_norm _
-  val_divW a b _ := by
-    show (Limbs64.div a _).toNat = _
-    rw [Limbs64.toNat_div]
-    simp [toNat_eq_valAt]
-  modW a b := Limbs64.toWord (Limbs64.mod a (UInt64Array.replicate 1 b))
+  divW a b := Limbs64.norm (WordArray.divRem1A 1 div1RecipU div1UnnormU a b).1
+  trimmed_divW _ _ := Limbs64.isTrim_norm _
+  val_divW a b hb := by
+    have hb' : 0 < b.toNat := Nat.pos_of_ne_zero fun e => hb (UInt64.toNat_inj.1 (by simpa using e))
+    show (Limbs64.norm _).toNat = _
+    rw [Limbs64.toNat_norm, ← decVA_eq, ← decVA_eq]
+    exact (WordArray.divRem1A_spec 1 div1RecipU div1UnnormU a b hb').1
+  modW a b := WordArray.mod1A div1RecipU div1UnnormU a b
   val_modW a b hb := by
     have hb' : 0 < b.toNat := Nat.pos_of_ne_zero fun e => hb (UInt64.toNat_inj.1 (by simpa using e))
-    have hv : (UInt64Array.replicate 1 b).toNat = b.toNat := by simp [toNat_eq_valAt]
-    have hm := Limbs64.toNat_mod a (UInt64Array.replicate 1 b)
-    rw [hv] at hm
-    have ht : Limbs64.isTrim (Limbs64.mod a (UInt64Array.replicate 1 b)) = true := by
-      unfold Limbs64.mod
-      split
-      · split <;> exact Limbs64.isTrim_norm _
-      · exact Limbs64.isTrim_norm _
-    rw [Limbs64.toNat_toWord _ ht (by rw [hm]; exact Nat.lt_trans (Nat.mod_lt _ hb') b.toNat_lt),
-      hm]
+    have := WordArray.val_mod1A div1RecipU div1UnnormU a b hb'
+    rw [← decVA_eq]
+    exact this
   shl := Limbs64.shl
   trimmed_shl a n := by unfold Limbs64.shl; split <;> exact Limbs64.isTrim_norm _
   val_shl := Limbs64.toNat_shl

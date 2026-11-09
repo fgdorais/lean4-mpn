@@ -12,7 +12,8 @@ public import MPN.Div.ByLimb
 # The array operations of decimal strings, for limbs of any width
 
 The operations that `DecOps` asks of a width's arrays, on any `WordArray`: `isZeroA` (by `ltA`),
-`divRem1A`, the quotient and the remainder by a limb (by `divRem1W` into new limbs), and `mulAddA`,
+`divRem1A`, the quotient and the remainder by a limb (by `divRem1W` into new limbs), `mod1A`, the
+remainder alone (by `mod1W`, which writes no quotient), and `mulAddA`,
 `a m + v` (by `mul1W` into new limbs), the arrays trimmed to `k` limbs. Past the sizes of the
 fast paths they compute from the values, which never happens.
 -/
@@ -79,6 +80,23 @@ public theorem divRem1A_spec (k : Nat) (t tu : USize) (a : A) (d : L) (hd : 0 < 
     rw [valAt_trimTo, valAt_ofNatW, val_limbOf, Nat.mod_eq_of_lt]
     · exact ⟨rfl, rfl⟩
     · exact Nat.lt_of_lt_of_le (Nat.mod_lt _ hd) (Nat.le_of_lt (LA.val_lt d))
+
+omit F in
+/-- `a % d`, by `mod1W` with the thresholds `t` and `tu`, without the quotient. -/
+@[inline, expose] public def mod1A (t tu : USize) (a : A) (d : L) : L :=
+  if h : fitsU (LA.size a) then
+    mod1W A t tu a 0 (LA.size a).toUSize (full_bound a (lt_of_fitsU h)) d
+  else limbOf A (valAt a 0 (LA.size a) % LA.val d)
+
+omit F in
+public theorem val_mod1A (t tu : USize) (a : A) (d : L) (hd : 0 < LA.val d) :
+    LA.val (mod1A t tu a d) = valAt a 0 (LA.size a) % LA.val d := by
+  unfold mod1A
+  split
+  · rename_i h
+    rw [mod1W_spec _ _ _ _ _ _ _ hd, USize.toNat_zero, toNat_toUSize_of_lt (lt_of_fitsU h)]
+  · rw [val_limbOf, Nat.mod_eq_of_lt]
+    exact Nat.lt_of_lt_of_le (Nat.mod_lt _ hd) (Nat.le_of_lt (LA.val_lt d))
 
 /-- `a m + v`, trimmed to `k` limbs, by `mul1W` with the carry in `v`, into new limbs. -/
 @[inline, expose] public def mulAddA (k : Nat) (a : A) (m v : L) : A :=

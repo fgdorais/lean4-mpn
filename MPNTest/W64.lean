@@ -428,7 +428,7 @@ def bigNatValues : List Nat :=
     2 ^ 128 - 1, 2 ^ 128, randomBits 200 61, randomBits 1000 67, 3 ^ 200]
 
 -- Division by a word, and literals.
-#guard [2 ^ 64, 2 ^ 128 - 1, randomBits 300 89, 2 ^ 1024 - 1].all fun a =>
+#guard [2 ^ 64, 2 ^ 128 - 1, randomBits 300 89, 2 ^ 1024 - 1, randomBits 6400 97].all fun a =>
   [1, 3, 2 ^ 32 + 1, 2 ^ 63, 2 ^ 64 - 1, 10 ^ 18].all fun b =>
     (MPN.W64.Nat.ofNat a / MPN.W64.Nat.ofNat b).toNat == a / b &&
       (MPN.W64.Nat.ofNat a % MPN.W64.Nat.ofNat b).toNat == a % b

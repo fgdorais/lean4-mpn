@@ -481,9 +481,14 @@ public def divW (a : UInt32Array) (b : UInt64) : UInt32Array :=
     if q.2.1 = 0 then limbsOfWord q.1 else limbs4 q.1 q.2.1
   else trim (divWord a b)
 
-/-- `a % b` for a nonzero word: by `divRem128` for up to four limbs and `2³² ≤ b`. -/
+/--
+`a % b` for a nonzero word: by `divRem128` for up to four limbs and `2³² ≤ b`, by `main`'s
+`WordArray.mod1A`, which writes no quotient, below `2³²`, and by `divRemWord` otherwise.
+-/
 public def modW (a : UInt32Array) (b : UInt64) : UInt64 :=
-  if a.size ≤ 4 ∧ 4294967296 ≤ b then (divRem128 a b).2.2 else (divRemWord a b).2
+  if a.size ≤ 4 ∧ 4294967296 ≤ b then (divRem128 a b).2.2
+  else if b < 4294967296 then (WordArray.mod1A div1RecipU div1UnnormU a b.toUInt32).toUInt64
+  else (divRemWord a b).2
 
 /-- `⌊log₂ a⌋`, from the top limb. -/
 public def log2A (a : UInt32Array) : Nat := WordArray.log2A a
@@ -588,7 +593,17 @@ public instance natLimbs32 : NatLimbs UInt32Array where
     unfold Nat.modW
     split
     · rename_i h; exact (Nat.divRem128_spec a b h.1 h.2).2
-    · exact (Nat.divRemWord_spec a b hb).2
+    · split
+      · rename_i h
+        have h' : b.toNat < 4294967296 := UInt64.lt_iff_toNat_lt.1 h
+        have e : b.toUInt32.toNat = b.toNat := by
+          rw [UInt64.toNat_toUInt32, Nat.mod_eq_of_lt h']
+        have hb' : 0 < b.toUInt32.toNat := by
+          rw [e]; exact Nat.pos_of_ne_zero fun e => hb (UInt64.toNat_inj.1 (by simpa using e))
+        have := WordArray.val_mod1A div1RecipU div1UnnormU a b.toUInt32 hb'
+        rw [UInt32.toNat_toUInt64, toNat_array_eq_valAt, ← e]
+        exact this
+      · exact (Nat.divRemWord_spec a b hb).2
   shl a n := MPN.W32.shiftLeft a n
   trimmed_shl a n := isTrimmed_shiftLeft a n
   val_shl a n := MPN.W32.toNat_shiftLeft a n

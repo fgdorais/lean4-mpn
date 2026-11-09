@@ -409,6 +409,12 @@ def dcCheck (x y : Nat) : Bool :=
       dcCheck (2 ^ (32 * (n + k)) - 1) (2 ^ (32 * n) - 1) &&
       dcCheck (2 ^ (32 * (n + k)) - 1) (2 ^ (32 * n - 1) + 1)
 
+-- Division by a word of one limb, normalized or not (`WordArray.mod1A` for the remainder).
+#guard [2 ^ 64, 2 ^ 128 - 1, sample1 300 89, 2 ^ 1024 - 1, sample1 3200 97].all fun a =>
+  [1, 3, 10, 2 ^ 31, 2 ^ 31 + 1, 2 ^ 32 - 1].all fun b =>
+    (MPN.W32.Nat.ofNat a / MPN.W32.Nat.ofNat b).toNat == a / b &&
+      (MPN.W32.Nat.ofNat a % MPN.W32.Nat.ofNat b).toNat == a % b
+
 -- Division of up to four limbs by a word of two limbs, on words alone (`divRem128`).
 #guard [2 ^ 64, 2 ^ 64 + 12345, 2 ^ 96 - 1, 2 ^ 96, 2 ^ 127 + 2 ^ 64 + 7, 2 ^ 128 - 1,
     sample1 96 71, sample1 128 73, sample1 120 79].all fun a =>

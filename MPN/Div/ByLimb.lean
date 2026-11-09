@@ -309,6 +309,102 @@ public theorem divLoop_spec (step : L → L → L × L) (d : L)
     generalize 2 ^ LA.w = B at *
     grind
 
+/-! ## The loop without the quotient -/
+
+variable (A) in
+/--
+The remainder of `c βʲ` plus limbs `ao` to `ao + j - 1` of `a` by the steps `step`, from limb
+`ao + j - 1` down: `divLoop` without writing the quotient, like GMP's `mpn_mod_1`.
+-/
+@[expose, specialize]
+public def modLoop (step : L → L → L × L) (a : A) (ao j : USize) (ha : LoopBound a ao j) (c : L) :
+    L :=
+  if hj : j = 0 then c
+  else
+    have hm := pos_of_ne hj
+    modLoop step a ao (j - 1) (bound_pred ha hm)
+      (step c (R.uget a (ao + (j - 1)) (ha.uset_bound (pred_lt' hm)))).2
+termination_by j.toNat
+decreasing_by
+  have := toNat_pred' (pos_of_ne hj)
+  have := USize.lt_iff_toNat_lt.1 (pos_of_ne hj)
+  lia
+
+/-- `divLoop_mono` for `modLoop`. -/
+public theorem modLoop_mono (step : L → L → L × L) (d : L)
+    (hm : ∀ c x, LA.val (step c x).2 < LA.val d → LA.val c < LA.val d) (a : A) (ao j : USize)
+    (ha : LoopBound a ao j) (c : L) (hf : LA.val (modLoop A step a ao j ha c) < LA.val d) :
+    LA.val c < LA.val d := by
+  induction j, ha, c using modLoop.induct A (R := R) step a ao with
+  | case1 ha c => rw [modLoop, dite_eq_left rfl] at hf; exact hf
+  | case2 j ha c hj hm' ih =>
+    rw [modLoop, dite_eq_right hj] at hf
+    exact hm _ _ (ih hf)
+
+/-- `divLoop_fwd` for `modLoop`. -/
+public theorem modLoop_fwd (step : L → L → L × L) (d : L)
+    (hw : ∀ c x, LA.val c < LA.val d → LA.val (step c x).2 < LA.val d) (a : A) (ao j : USize)
+    (ha : LoopBound a ao j) (c : L) (hc : LA.val c < LA.val d) :
+    LA.val (modLoop A step a ao j ha c) < LA.val d := by
+  induction j, ha, c using modLoop.induct A (R := R) step a ao with
+  | case1 ha c => rw [modLoop, dite_eq_left rfl]; exact hc
+  | case2 j ha c hj hm' ih =>
+    rw [modLoop, dite_eq_right hj]
+    exact ih (hw _ _ hc)
+
+/--
+`modLoop` takes the remainder, under the hypotheses of `divLoop_spec`, when its remainder at the
+end is below `d`.
+-/
+public theorem modLoop_spec (step : L → L → L × L) (d : L)
+    (hs : ∀ c x, LA.val c < LA.val d → LA.val (step c x).2 < LA.val d →
+      LA.val d * LA.val (step c x).1 + LA.val (step c x).2 = LA.val c * 2 ^ LA.w + LA.val x)
+    (hk : (∀ c x, LA.val c < LA.val d → LA.val (step c x).2 < LA.val d) ∨
+      (∀ c x, LA.val (step c x).2 < LA.val d → LA.val c < LA.val d))
+    (a : A) (ao j : USize) (ha : LoopBound a ao j) (c : L) (hc : LA.val c < LA.val d)
+    (hf : LA.val (modLoop A step a ao j ha c) < LA.val d) :
+    LA.val (modLoop A step a ao j ha c) =
+      (LA.val c * 2 ^ (LA.w * j.toNat) + LimbArray.valAt a ao.toNat j.toNat) % LA.val d := by
+  induction j, ha, c using modLoop.induct A (R := R) step a ao with
+  | case1 ha c =>
+    rw [modLoop, dite_eq_left rfl] at hf ⊢
+    simp [Nat.mod_eq_of_lt hc]
+  | case2 j ha c hj hm ih =>
+    rw [modLoop, dite_eq_right hj] at hf ⊢
+    dsimp only at hf ⊢
+    have hp := toNat_pred' hm
+    have hj₀ := USize.lt_iff_toNat_lt.1 hm
+    have hc' : LA.val (step c (R.uget a (ao + (j - 1)) (ha.uset_bound (pred_lt' hm)))).2 <
+        LA.val d := by
+      rcases hk with hw | hm'
+      · exact hw _ _ hc
+      · exact modLoop_mono step d hm' _ _ _ _ _ hf
+    have i₁ := ih hc' hf
+    have e := hs _ _ hc hc'
+    have hx : R.uget a (ao + (j - 1)) (ha.uset_bound (pred_lt' hm)) =
+        LA.get a (ao.toNat + (j.toNat - 1)) := by
+      rw [R.uget_eq, ha.toNat_add (pred_lt' hm), hp]
+    rw [hp] at i₁
+    generalize modLoop A step a ao (j - 1) _ _ = F at *
+    generalize step c (R.uget a (ao + (j - 1)) (ha.uset_bound (pred_lt' hm))) = p at *
+    rw [hx] at e
+    clear ih hs hk hx hf hc'
+    obtain ⟨k, hk'⟩ : ∃ k, j.toNat = k + 1 := ⟨j.toNat - 1, by lia⟩
+    rw [hk', Nat.add_sub_cancel] at i₁ e
+    rw [i₁, hk', LimbArray.valAt_add, LimbArray.valAt_one, Nat.mul_succ, Nat.pow_add]
+    generalize LimbArray.valAt a ao.toNat k = X at *
+    generalize 2 ^ (LA.w * k) = P at *
+    generalize LA.val (LA.get a (ao.toNat + k)) = y at *
+    generalize LA.val p.1 = q₁ at *
+    generalize LA.val p.2 = r₁ at *
+    generalize 2 ^ LA.w = B at *
+    have : LA.val c * (P * B) + (X + P * y) = r₁ * P + X + LA.val d * (q₁ * P) := by
+      rw [Nat.mul_comm P B, ← Nat.mul_assoc, Nat.mul_comm P y]
+      have := congrArg (· * P) e
+      simp only [Nat.add_mul, Nat.mul_assoc] at this
+      lia
+    rw [this, Nat.add_mul_mod_self_left]
+
 /-! ## The loop on a shifted dividend -/
 
 variable (A) in
@@ -679,5 +775,86 @@ public theorem divRem1W_spec (t tu : USize) (r : A) (ro : USize) (a : A) (ao n :
   · split
     · exact divRem1U_spec r ro a ao n hr ha d hd
     · exact divRem1W_plain r ro a ao n hr ha d hd
+
+/-- A checked shift `s < w` with `(d 2ˢ) / 2ˢ = d` multiplies `d` by `2ˢ`. -/
+private theorem val_shl_of_check (d s : L)
+    (h : (R.ltB s (R.ofUSize R.wU) && R.eqB (R.shr (R.shl d s) s) d) = true) :
+    LA.val (R.shl d s) = LA.val d * 2 ^ LA.val s := by
+  simp only [Bool.and_eq_true, R.ltB_iff, R.eqB_iff, R.val_ofUSize, R.toNat_wU] at h
+  obtain ⟨h₂, h₃⟩ := h
+  have hw : LA.w < 2 ^ LA.w := Nat.lt_two_pow_self
+  rw [Nat.mod_eq_of_lt hw] at h₂
+  rw [R.val_shr, R.val_shl, Nat.mod_eq_of_lt h₂] at h₃
+  rw [R.val_shl, Nat.mod_eq_of_lt h₂]
+  have hle := Nat.mod_le (LA.val d * 2 ^ LA.val s) (2 ^ LA.w)
+  have hge := Nat.div_mul_le_self (LA.val d * 2 ^ LA.val s % 2 ^ LA.w) (2 ^ LA.val s)
+  rw [h₃] at hge
+  lia
+
+variable (A) in
+/--
+`a % d`, for limbs `ao` to `ao + n - 1` of `a`, like GMP's `mpn_mod_1`: `divRem1W` without the
+quotient (`modLoop`). It requires `0 < d`. From `t` limbs for a normalized `d`, and from `tu` limbs
+for another, it takes the steps with the reciprocal (`div21`) by the normalized `d 2ˢ`, whose
+remainder `a % d 2ˢ` one more step takes modulo `d`; `a` itself is not shifted. The shift is
+checked, `s < w` and `(d 2ˢ) / 2ˢ = d`, and so is the last remainder of the steps, as in
+`divRem1W`, with `divStep` when a check fails, so that neither needs a proof.
+-/
+@[inline, expose] public def mod1W (t tu : USize) (a : A) (ao n : USize)
+    (ha : LoopBound a ao n) (d : L) : L :=
+  let nd := isNorm A d
+  if (nd && decide (t ≤ n)) || (!nd && decide (tu ≤ n)) then
+    let s := normShift A d
+    let dn := R.shl d s
+    if (R.ltB s (R.ofUSize R.wU) && R.eqB (R.shr dn s) d) = true then
+      let c := modLoop A (div21 A (recip21 A dn) dn) a ao n ha R.zero
+      if R.ltB c dn then (if R.eqB dn d then c else (divStep A d R.zero c).2)
+      else modLoop A (divStep A d) a ao n ha R.zero
+    else modLoop A (divStep A d) a ao n ha R.zero
+  else modLoop A (divStep A d) a ao n ha R.zero
+
+private theorem mod1W_plain (a : A) (ao n : USize) (ha : LoopBound a ao n) (d : L)
+    (hd : 0 < LA.val d) :
+    LA.val (modLoop A (divStep A d) a ao n ha R.zero) =
+      LimbArray.valAt a ao.toNat n.toNat % LA.val d := by
+  have hz : LA.val (R.zero : L) < LA.val d := by rw [R.val_zero]; exact hd
+  have hw : ∀ c x, LA.val c < LA.val d → LA.val (divStep A d c x).2 < LA.val d :=
+    fun c x h => (divStep_spec d c x h).1
+  have := modLoop_spec _ d (fun c x h _ => (divStep_spec d c x h).2) (.inl hw) a ao n ha _ hz
+    (modLoop_fwd _ d hw a ao n ha _ hz)
+  rw [R.val_zero, Nat.zero_mul, Nat.zero_add] at this
+  exact this
+
+public theorem mod1W_spec (t tu : USize) (a : A) (ao n : USize) (ha : LoopBound a ao n) (d : L)
+    (hd : 0 < LA.val d) :
+    LA.val (mod1W A t tu a ao n ha d) = LimbArray.valAt a ao.toNat n.toNat % LA.val d := by
+  unfold mod1W
+  dsimp only
+  split
+  · split
+    · rename_i hs
+      have hdn := val_shl_of_check d (normShift A d) hs
+      generalize R.shl d (normShift A d) = dn at *
+      have hdn₀ : 0 < LA.val dn := by rw [hdn]; exact Nat.mul_pos hd (Nat.two_pow_pos _)
+      have hz : LA.val (R.zero : L) < LA.val dn := by rw [R.val_zero]; exact hdn₀
+      split
+      · rename_i hlt
+        have hc := modLoop_spec _ dn (fun c x _ h => (div21_spec _ dn c x h).2)
+          (.inr fun c x h => (div21_spec _ dn c x h).1) a ao n ha _ hz ((R.ltB_iff ..).1 hlt)
+        rw [R.val_zero, Nat.zero_mul, Nat.zero_add] at hc
+        have hdvd : LA.val d ∣ LA.val dn := ⟨_, hdn⟩
+        split
+        · rename_i he
+          rw [(R.eqB_iff ..).1 he] at hc
+          exact hc
+        · have hz' : LA.val (R.zero : L) < LA.val d := by rw [R.val_zero]; exact hd
+          obtain ⟨h₁, h₂⟩ := divStep_spec d R.zero (modLoop A (div21 A (recip21 A dn) dn) a ao n
+            ha R.zero) hz'
+          rw [R.val_zero, Nat.zero_mul, Nat.zero_add] at h₂
+          generalize divStep A d R.zero _ = p at h₁ h₂ ⊢
+          rw [← Nat.mod_mod_of_dvd _ hdvd, ← hc, ← h₂, Nat.mul_add_mod, Nat.mod_eq_of_lt h₁]
+      · exact mod1W_plain a ao n ha d hd
+    · exact mod1W_plain a ao n ha d hd
+  · exact mod1W_plain a ao n ha d hd
 
 end MPN.WordArray

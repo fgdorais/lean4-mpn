@@ -130,6 +130,9 @@ public def bigRow {N : Type} [Add N] [Sub N] [Mul N] [Div N] [Mod N] [AndOp N] [
   | "bmul" => two (· * ·) (· * ·) na nb
   | "bdiv" => two (· / ·) (· / ·) na2 nb  -- `2 n` by `n` limbs.
   | "bmod" => two (· % ·) (· % ·) na2 nb
+  -- `n` limbs by `10⁹ + 7`, a word below `2³²`: one limb on both widths, unnormalized.
+  | "bdiv1" => two (· / ·) (· / ·) na 1000000007
+  | "bmod1" => two (· % ·) (· % ·) na 1000000007
   | "band" => two (· &&& ·) (· &&& ·) na nb
   | "bor" => two (· ||| ·) (· ||| ·) na nb
   | "bxor" => two (· ^^^ ·) (· ^^^ ·) na nb
@@ -171,9 +174,9 @@ public def bigRow {N : Type} [Add N] [Sub N] [Mul N] [Div N] [Mod N] [AndOp N] [
 
 /-- The operations of `bigRow`. -/
 public def bigOps : List String :=
-  ["badd", "bsub", "bmul", "bdiv", "bmod", "band", "bor", "bxor", "bgcd", "blcm", "bsqr", "bpow",
-    "bshl", "bshr", "bsqrt", "blog2", "btonat", "bofnat", "bcmp", "beq", "bhash", "btostr",
-    "bofstr"]
+  ["badd", "bsub", "bmul", "bdiv", "bmod", "bdiv1", "bmod1", "band", "bor", "bxor", "bgcd",
+    "blcm", "bsqr", "bpow", "bshl", "bshr", "bsqrt", "blog2", "btonat", "bofnat", "bcmp", "beq",
+    "bhash", "btostr", "bofstr"]
 
 /--
 The command line `[--no-nat] [op…] [size…]`, with the operations and sizes given or else the
