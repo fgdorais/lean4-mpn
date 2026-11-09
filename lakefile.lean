@@ -29,15 +29,15 @@ changing the options, build once with `-R` to reconfigure.
   `MPN.W64.Config`) with the prefix `w32_` or `w64_`, for example `w32_mulKaratsuba`. The keys
   have no dots, since TOML passes a quoted key as one name.
   On 32-bit limbs: `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`, `mulToom43`, `mulToom4`,
-  `mulToom6`, `mulFFT`, `mulUnbalanced`, `mulRows`, `mulCombaW`, `sqrBasecase`, `sqrRows`,
-  `sqrKaratsuba`, `sqrToom3`, `sqrToom4`, `sqrToom6`, `sqrFFT`, `divDC`, `divMu`, `divQMu`,
-  `div1Recip`, `div1Unnorm`, `div32Recip`, `div2Rows`, `sqrtZimmermann`, `sqrtBase`, `gcdHalf`,
-  `strDC`, `parseDC`.
+  `mulToom6`, `mulToom8`, `mulFFT`, `mulUnbalanced`, `mulRows`, `mulCombaW`, `sqrBasecase`,
+  `sqrRows`, `sqrKaratsuba`, `sqrToom3`, `sqrToom4`, `sqrToom6`, `sqrToom8`, `sqrFFT`, `divDC`,
+  `divMu`, `divQMu`, `div1Recip`, `div1Unnorm`, `div32Recip`, `div2Rows`, `sqrtZimmermann`,
+  `sqrtBase`, `gcdHalf`, `strDC`, `parseDC`.
   On 64-bit limbs: `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`, `mulToom43`, `mulToom4`,
-  `mulToom6`, `mulFFT`, `mulFFTUnbal`, `mulFFTMin`, `mulUnbalanced`, `mulChunkMax`, `sqrKaratsuba`,
-  `sqrToom3`, `sqrToom4`, `sqrToom6`, `sqrFFT`, `divDC`, `divMu`, `divQMu`, `div1Recip`,
-  `div1Unnorm`, `div32Recip`, `div2Rows`, `sqrtZimmermann`, `sqrtBase`, `gcdHalf`, `strDC`,
-  `parseDC`.
+  `mulToom6`, `mulToom8`, `mulFFT`, `mulFFTUnbal`, `mulFFTMin`, `mulUnbalanced`, `mulChunkMax`,
+  `sqrKaratsuba`, `sqrToom3`, `sqrToom4`, `sqrToom6`, `sqrToom8`, `sqrFFT`, `divDC`, `divMu`,
+  `divQMu`, `div1Recip`, `div1Unnorm`, `div32Recip`, `div2Rows`, `sqrtZimmermann`, `sqrtBase`,
+  `gcdHalf`, `strDC`, `parseDC`.
 -/
 
 /--
@@ -59,6 +59,7 @@ def thresholdOptions32 : Array LeanOption :=
     opt `mulToom43 (get_config? w32_mulToom43) ++
     opt `mulToom4 (get_config? w32_mulToom4) ++
     opt `mulToom6 (get_config? w32_mulToom6) ++
+    opt `mulToom8 (get_config? w32_mulToom8) ++
     opt `mulFFT (get_config? w32_mulFFT) ++
     opt `mulUnbalanced (get_config? w32_mulUnbalanced) ++
     opt `sqrBasecase (get_config? w32_sqrBasecase) ++
@@ -69,6 +70,7 @@ def thresholdOptions32 : Array LeanOption :=
     opt `sqrToom3 (get_config? w32_sqrToom3) ++
     opt `sqrToom4 (get_config? w32_sqrToom4) ++
     opt `sqrToom6 (get_config? w32_sqrToom6) ++
+    opt `sqrToom8 (get_config? w32_sqrToom8) ++
     opt `sqrFFT (get_config? w32_sqrFFT) ++
     opt `divDC (get_config? w32_divDC) ++
     opt `divMu (get_config? w32_divMu) ++
@@ -101,6 +103,7 @@ def thresholdOptions64 : Array LeanOption :=
     opt `mulToom43 (get_config? w64_mulToom43) ++
     opt `mulToom4 (get_config? w64_mulToom4) ++
     opt `mulToom6 (get_config? w64_mulToom6) ++
+    opt `mulToom8 (get_config? w64_mulToom8) ++
     opt `mulFFT (get_config? w64_mulFFT) ++
     opt `mulFFTUnbal (get_config? w64_mulFFTUnbal) ++
     opt `mulFFTMin (get_config? w64_mulFFTMin) ++
@@ -110,6 +113,7 @@ def thresholdOptions64 : Array LeanOption :=
     opt `sqrToom3 (get_config? w64_sqrToom3) ++
     opt `sqrToom4 (get_config? w64_sqrToom4) ++
     opt `sqrToom6 (get_config? w64_sqrToom6) ++
+    opt `sqrToom8 (get_config? w64_sqrToom8) ++
     opt `sqrFFT (get_config? w64_sqrFFT) ++
     opt `divDC (get_config? w64_divDC) ++
     opt `divMu (get_config? w64_divMu) ++

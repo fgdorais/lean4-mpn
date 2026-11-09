@@ -284,16 +284,17 @@ public def main (args : List String) : IO UInt32 := do
   IO.println ""
   let opts := [("mulKaratsuba", cfg.mulKaratsuba), ("mulToom3", cfg.mulToom3),
     ("mulToom32", cfg.mulToom32), ("mulToom42", cfg.mulToom42), ("mulToom43", cfg.mulToom43),
-    ("mulToom4", cfg.mulToom4), ("mulToom6", cfg.mulToom6), ("mulFFT", cfg.mulFFT),
-    ("mulFFTUnbal", cfg.mulFFTUnbal), ("mulFFTMin", cfg.mulFFTMin),
+    ("mulToom4", cfg.mulToom4), ("mulToom6", cfg.mulToom6), ("mulToom8", cfg.mulToom8),
+    ("mulFFT", cfg.mulFFT), ("mulFFTUnbal", cfg.mulFFTUnbal), ("mulFFTMin", cfg.mulFFTMin),
     ("mulUnbalanced", cfg.mulUnbalanced), ("mulChunkMax", cfg.mulChunkMax),
     ("mulRows", cfg.mulRows), ("mulCombaW", cfg.mulCombaW), ("sqrRows", cfg.sqrRows),
     ("sqrBasecase", cfg.sqrBasecase), ("sqrKaratsuba", cfg.sqrKaratsuba),
     ("sqrToom3", cfg.sqrToom3), ("sqrToom4", cfg.sqrToom4), ("sqrToom6", cfg.sqrToom6),
-    ("sqrFFT", cfg.sqrFFT), ("divDC", cfg.divDC), ("divMu", cfg.divMu), ("divQMu", cfg.divQMu),
-    ("div1Recip", cfg.div1Recip), ("div1Unnorm", cfg.div1Unnorm), ("div32Recip", cfg.div32Recip),
-    ("gcdHalf", cfg.gcdHalf), ("strDC", cfg.strDC), ("parseDC", cfg.parseDC),
-    ("sqrtZimmermann", cfg.sqrtZimmermann), ("sqrtBase", cfg.sqrtBase)]
+    ("sqrToom8", cfg.sqrToom8), ("sqrFFT", cfg.sqrFFT), ("divDC", cfg.divDC),
+    ("divMu", cfg.divMu), ("divQMu", cfg.divQMu), ("div1Recip", cfg.div1Recip),
+    ("div1Unnorm", cfg.div1Unnorm), ("div32Recip", cfg.div32Recip), ("gcdHalf", cfg.gcdHalf),
+    ("strDC", cfg.strDC), ("parseDC", cfg.parseDC), ("sqrtZimmermann", cfg.sqrtZimmermann),
+    ("sqrtBase", cfg.sqrtBase)]
   IO.println "To compile these into the library, add to its `require` in lakefile.toml:"
   IO.println s!"  options = \{ {", ".intercalate (opts.map fun (k, v) => s!"w32_{k} = \"{v}\"")} }"
   IO.println "or build this package with:"

@@ -214,6 +214,13 @@ public structure Config where
   mulToom6 : Nat
   /-- Toom-6 needs at least `32` limbs for its split. -/
   thirtytwo_le_mulToom6 : 32 ≤ mulToom6
+  /--
+  The size of the smaller operand from which multiplication uses Toom-8 instead of Toom-6, when
+  the operands are within eight sevenths of each other; never by default.
+  -/
+  mulToom8 : Nat := 1000000000
+  /-- Toom-8 needs at least `64` limbs for its split. -/
+  sixtyfour_le_mulToom8 : 64 ≤ mulToom8 := by decide
   /-- The size from which squaring uses Karatsuba instead of the schoolbook square. -/
   sqrKaratsuba : Nat
   /-- Karatsuba needs at least `4` limbs to make its squares smaller. -/
@@ -230,6 +237,10 @@ public structure Config where
   sqrToom6 : Nat
   /-- Toom-6 needs at least `32` limbs for its split. -/
   thirtytwo_le_sqrToom6 : 32 ≤ sqrToom6
+  /-- The size from which squaring uses Toom-8 instead of Toom-6; never by default. -/
+  sqrToom8 : Nat := 1000000000
+  /-- Toom-8 needs at least `64` limbs for its split. -/
+  sixtyfour_le_sqrToom8 : 64 ≤ sqrToom8 := by decide
   deriving Repr
 
 end MPN.Toom

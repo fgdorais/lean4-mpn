@@ -1552,4 +1552,1415 @@ public theorem interp10_spec (d : A) (o n k L : Nat) (w₁ w₂ w₃ w₄ w₅ w
   generalize 2 ^ (LA.w * (10 * k)) * c₁₀ = T₁₀ at htot ⊢
   lia
 
+/--
+The interpolation of degree 14 at `0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, ∞`, of Toom-8: from `c₀` in the `2 k` limbs of `d`
+from `o` and `c_14` from limb `o + 14 k` to `o + n`, with `w₁, …, w_13` the values at
+`1, …, 13` in `L` limbs each, writes `c₀ + c₁ x + ⋯ + c_14 x^14` into the `n` limbs from `o`,
+`x = 2^(w k)`.
+-/
+@[expose, specialize] public def interp14 (d : A) (o n k L : Nat) (w₁ w₂ w₃ w₄ w₅ w₆ w₇ w₈ w₉ w₁₀ w₁₁ w₁₂ w₁₃ : A) : A :=
+  let w₁₃ := R.subInto w₁₃ 0 L w₁₂ 0 L
+  let w₁₂ := R.subInto w₁₂ 0 L w₁₁ 0 L
+  let w₁₁ := R.subInto w₁₁ 0 L w₁₀ 0 L
+  let w₁₀ := R.subInto w₁₀ 0 L w₉ 0 L
+  let w₉ := R.subInto w₉ 0 L w₈ 0 L
+  let w₈ := R.subInto w₈ 0 L w₇ 0 L
+  let w₇ := R.subInto w₇ 0 L w₆ 0 L
+  let w₆ := R.subInto w₆ 0 L w₅ 0 L
+  let w₅ := R.subInto w₅ 0 L w₄ 0 L
+  let w₄ := R.subInto w₄ 0 L w₃ 0 L
+  let w₃ := R.subInto w₃ 0 L w₂ 0 L
+  let w₂ := R.subInto w₂ 0 L w₁ 0 L
+  let w₁ := R.subInto w₁ 0 L d o (k + k)
+  let w₁₃ := R.subInto w₁₃ 0 L w₁₂ 0 L
+  let w₁₂ := R.subInto w₁₂ 0 L w₁₁ 0 L
+  let w₁₁ := R.subInto w₁₁ 0 L w₁₀ 0 L
+  let w₁₀ := R.subInto w₁₀ 0 L w₉ 0 L
+  let w₉ := R.subInto w₉ 0 L w₈ 0 L
+  let w₈ := R.subInto w₈ 0 L w₇ 0 L
+  let w₇ := R.subInto w₇ 0 L w₆ 0 L
+  let w₆ := R.subInto w₆ 0 L w₅ 0 L
+  let w₅ := R.subInto w₅ 0 L w₄ 0 L
+  let w₄ := R.subInto w₄ 0 L w₃ 0 L
+  let w₃ := R.subInto w₃ 0 L w₂ 0 L
+  let w₂ := R.subInto w₂ 0 L w₁ 0 L
+  let w₁₃ := R.subInto w₁₃ 0 L w₁₂ 0 L
+  let w₁₂ := R.subInto w₁₂ 0 L w₁₁ 0 L
+  let w₁₁ := R.subInto w₁₁ 0 L w₁₀ 0 L
+  let w₁₀ := R.subInto w₁₀ 0 L w₉ 0 L
+  let w₉ := R.subInto w₉ 0 L w₈ 0 L
+  let w₈ := R.subInto w₈ 0 L w₇ 0 L
+  let w₇ := R.subInto w₇ 0 L w₆ 0 L
+  let w₆ := R.subInto w₆ 0 L w₅ 0 L
+  let w₅ := R.subInto w₅ 0 L w₄ 0 L
+  let w₄ := R.subInto w₄ 0 L w₃ 0 L
+  let w₃ := R.subInto w₃ 0 L w₂ 0 L
+  let w₁₃ := R.subInto w₁₃ 0 L w₁₂ 0 L
+  let w₁₂ := R.subInto w₁₂ 0 L w₁₁ 0 L
+  let w₁₁ := R.subInto w₁₁ 0 L w₁₀ 0 L
+  let w₁₀ := R.subInto w₁₀ 0 L w₉ 0 L
+  let w₉ := R.subInto w₉ 0 L w₈ 0 L
+  let w₈ := R.subInto w₈ 0 L w₇ 0 L
+  let w₇ := R.subInto w₇ 0 L w₆ 0 L
+  let w₆ := R.subInto w₆ 0 L w₅ 0 L
+  let w₅ := R.subInto w₅ 0 L w₄ 0 L
+  let w₄ := R.subInto w₄ 0 L w₃ 0 L
+  let w₁₃ := R.subInto w₁₃ 0 L w₁₂ 0 L
+  let w₁₂ := R.subInto w₁₂ 0 L w₁₁ 0 L
+  let w₁₁ := R.subInto w₁₁ 0 L w₁₀ 0 L
+  let w₁₀ := R.subInto w₁₀ 0 L w₉ 0 L
+  let w₉ := R.subInto w₉ 0 L w₈ 0 L
+  let w₈ := R.subInto w₈ 0 L w₇ 0 L
+  let w₇ := R.subInto w₇ 0 L w₆ 0 L
+  let w₆ := R.subInto w₆ 0 L w₅ 0 L
+  let w₅ := R.subInto w₅ 0 L w₄ 0 L
+  let w₁₃ := R.subInto w₁₃ 0 L w₁₂ 0 L
+  let w₁₂ := R.subInto w₁₂ 0 L w₁₁ 0 L
+  let w₁₁ := R.subInto w₁₁ 0 L w₁₀ 0 L
+  let w₁₀ := R.subInto w₁₀ 0 L w₉ 0 L
+  let w₉ := R.subInto w₉ 0 L w₈ 0 L
+  let w₈ := R.subInto w₈ 0 L w₇ 0 L
+  let w₇ := R.subInto w₇ 0 L w₆ 0 L
+  let w₆ := R.subInto w₆ 0 L w₅ 0 L
+  let w₁₃ := R.subInto w₁₃ 0 L w₁₂ 0 L
+  let w₁₂ := R.subInto w₁₂ 0 L w₁₁ 0 L
+  let w₁₁ := R.subInto w₁₁ 0 L w₁₀ 0 L
+  let w₁₀ := R.subInto w₁₀ 0 L w₉ 0 L
+  let w₉ := R.subInto w₉ 0 L w₈ 0 L
+  let w₈ := R.subInto w₈ 0 L w₇ 0 L
+  let w₇ := R.subInto w₇ 0 L w₆ 0 L
+  let w₁₃ := R.subInto w₁₃ 0 L w₁₂ 0 L
+  let w₁₂ := R.subInto w₁₂ 0 L w₁₁ 0 L
+  let w₁₁ := R.subInto w₁₁ 0 L w₁₀ 0 L
+  let w₁₀ := R.subInto w₁₀ 0 L w₉ 0 L
+  let w₉ := R.subInto w₉ 0 L w₈ 0 L
+  let w₈ := R.subInto w₈ 0 L w₇ 0 L
+  let w₁₃ := R.subInto w₁₃ 0 L w₁₂ 0 L
+  let w₁₂ := R.subInto w₁₂ 0 L w₁₁ 0 L
+  let w₁₁ := R.subInto w₁₁ 0 L w₁₀ 0 L
+  let w₁₀ := R.subInto w₁₀ 0 L w₉ 0 L
+  let w₉ := R.subInto w₉ 0 L w₈ 0 L
+  let w₁₃ := R.subInto w₁₃ 0 L w₁₂ 0 L
+  let w₁₂ := R.subInto w₁₂ 0 L w₁₁ 0 L
+  let w₁₁ := R.subInto w₁₁ 0 L w₁₀ 0 L
+  let w₁₀ := R.subInto w₁₀ 0 L w₉ 0 L
+  let w₁₃ := R.subInto w₁₃ 0 L w₁₂ 0 L
+  let w₁₂ := R.subInto w₁₂ 0 L w₁₁ 0 L
+  let w₁₁ := R.subInto w₁₁ 0 L w₁₀ 0 L
+  let w₁₃ := R.subInto w₁₃ 0 L w₁₂ 0 L
+  let w₁₂ := R.subInto w₁₂ 0 L w₁₁ 0 L
+  let w₁₃ := R.subInto w₁₃ 0 L w₁₂ 0 L
+  let w₂ := R.shr w₂ 0 L 1
+  let w₃ := R.divExact w₃ 0 L 3
+  let w₃ := R.shr w₃ 0 L 1
+  let w₄ := R.divExact w₄ 0 L 3
+  let w₄ := R.shr w₄ 0 L 3
+  let w₅ := R.divExact w₅ 0 L 15
+  let w₅ := R.shr w₅ 0 L 3
+  let w₆ := R.divExact w₆ 0 L 45
+  let w₆ := R.shr w₆ 0 L 4
+  let w₇ := R.divExact w₇ 0 L 315
+  let w₇ := R.shr w₇ 0 L 4
+  let w₈ := R.divExact w₈ 0 L 315
+  let w₈ := R.shr w₈ 0 L 7
+  let w₉ := R.divExact w₉ 0 L 2835
+  let w₉ := R.shr w₉ 0 L 7
+  let w₁₀ := R.divExact w₁₀ 0 L 14175
+  let w₁₀ := R.shr w₁₀ 0 L 8
+  let w₁₁ := R.divExact w₁₁ 0 L 155925
+  let w₁₁ := R.shr w₁₁ 0 L 8
+  let w₁₂ := R.divExact w₁₂ 0 L 467775
+  let w₁₂ := R.shr w₁₂ 0 L 10
+  let w₁₃ := R.divExact w₁₃ 0 L 6081075
+  let w₁₃ := R.shr w₁₃ 0 L 10
+  let w₁₃ := R.subMulInto w₁₃ 0 L d (o + 14 * k) (n - 14 * k) 13
+  let w₁₂ := R.subMulInto w₁₂ 0 L w₁₃ 0 L 12
+  let w₁₃ := R.subMulInto w₁₃ 0 L d (o + 14 * k) (n - 14 * k) 12
+  let w₁₁ := R.subMulInto w₁₁ 0 L w₁₂ 0 L 11
+  let w₁₂ := R.subMulInto w₁₂ 0 L w₁₃ 0 L 11
+  let w₁₃ := R.subMulInto w₁₃ 0 L d (o + 14 * k) (n - 14 * k) 11
+  let w₁₀ := R.subMulInto w₁₀ 0 L w₁₁ 0 L 10
+  let w₁₁ := R.subMulInto w₁₁ 0 L w₁₂ 0 L 10
+  let w₁₂ := R.subMulInto w₁₂ 0 L w₁₃ 0 L 10
+  let w₁₃ := R.subMulInto w₁₃ 0 L d (o + 14 * k) (n - 14 * k) 10
+  let w₉ := R.subMulInto w₉ 0 L w₁₀ 0 L 9
+  let w₁₀ := R.subMulInto w₁₀ 0 L w₁₁ 0 L 9
+  let w₁₁ := R.subMulInto w₁₁ 0 L w₁₂ 0 L 9
+  let w₁₂ := R.subMulInto w₁₂ 0 L w₁₃ 0 L 9
+  let w₁₃ := R.subMulInto w₁₃ 0 L d (o + 14 * k) (n - 14 * k) 9
+  let w₈ := R.subMulInto w₈ 0 L w₉ 0 L 8
+  let w₉ := R.subMulInto w₉ 0 L w₁₀ 0 L 8
+  let w₁₀ := R.subMulInto w₁₀ 0 L w₁₁ 0 L 8
+  let w₁₁ := R.subMulInto w₁₁ 0 L w₁₂ 0 L 8
+  let w₁₂ := R.subMulInto w₁₂ 0 L w₁₃ 0 L 8
+  let w₁₃ := R.subMulInto w₁₃ 0 L d (o + 14 * k) (n - 14 * k) 8
+  let w₇ := R.subMulInto w₇ 0 L w₈ 0 L 7
+  let w₈ := R.subMulInto w₈ 0 L w₉ 0 L 7
+  let w₉ := R.subMulInto w₉ 0 L w₁₀ 0 L 7
+  let w₁₀ := R.subMulInto w₁₀ 0 L w₁₁ 0 L 7
+  let w₁₁ := R.subMulInto w₁₁ 0 L w₁₂ 0 L 7
+  let w₁₂ := R.subMulInto w₁₂ 0 L w₁₃ 0 L 7
+  let w₁₃ := R.subMulInto w₁₃ 0 L d (o + 14 * k) (n - 14 * k) 7
+  let w₆ := R.subMulInto w₆ 0 L w₇ 0 L 6
+  let w₇ := R.subMulInto w₇ 0 L w₈ 0 L 6
+  let w₈ := R.subMulInto w₈ 0 L w₉ 0 L 6
+  let w₉ := R.subMulInto w₉ 0 L w₁₀ 0 L 6
+  let w₁₀ := R.subMulInto w₁₀ 0 L w₁₁ 0 L 6
+  let w₁₁ := R.subMulInto w₁₁ 0 L w₁₂ 0 L 6
+  let w₁₂ := R.subMulInto w₁₂ 0 L w₁₃ 0 L 6
+  let w₁₃ := R.subMulInto w₁₃ 0 L d (o + 14 * k) (n - 14 * k) 6
+  let w₅ := R.subMulInto w₅ 0 L w₆ 0 L 5
+  let w₆ := R.subMulInto w₆ 0 L w₇ 0 L 5
+  let w₇ := R.subMulInto w₇ 0 L w₈ 0 L 5
+  let w₈ := R.subMulInto w₈ 0 L w₉ 0 L 5
+  let w₉ := R.subMulInto w₉ 0 L w₁₀ 0 L 5
+  let w₁₀ := R.subMulInto w₁₀ 0 L w₁₁ 0 L 5
+  let w₁₁ := R.subMulInto w₁₁ 0 L w₁₂ 0 L 5
+  let w₁₂ := R.subMulInto w₁₂ 0 L w₁₃ 0 L 5
+  let w₁₃ := R.subMulInto w₁₃ 0 L d (o + 14 * k) (n - 14 * k) 5
+  let w₄ := R.subMulInto w₄ 0 L w₅ 0 L 4
+  let w₅ := R.subMulInto w₅ 0 L w₆ 0 L 4
+  let w₆ := R.subMulInto w₆ 0 L w₇ 0 L 4
+  let w₇ := R.subMulInto w₇ 0 L w₈ 0 L 4
+  let w₈ := R.subMulInto w₈ 0 L w₉ 0 L 4
+  let w₉ := R.subMulInto w₉ 0 L w₁₀ 0 L 4
+  let w₁₀ := R.subMulInto w₁₀ 0 L w₁₁ 0 L 4
+  let w₁₁ := R.subMulInto w₁₁ 0 L w₁₂ 0 L 4
+  let w₁₂ := R.subMulInto w₁₂ 0 L w₁₃ 0 L 4
+  let w₁₃ := R.subMulInto w₁₃ 0 L d (o + 14 * k) (n - 14 * k) 4
+  let w₃ := R.subMulInto w₃ 0 L w₄ 0 L 3
+  let w₄ := R.subMulInto w₄ 0 L w₅ 0 L 3
+  let w₅ := R.subMulInto w₅ 0 L w₆ 0 L 3
+  let w₆ := R.subMulInto w₆ 0 L w₇ 0 L 3
+  let w₇ := R.subMulInto w₇ 0 L w₈ 0 L 3
+  let w₈ := R.subMulInto w₈ 0 L w₉ 0 L 3
+  let w₉ := R.subMulInto w₉ 0 L w₁₀ 0 L 3
+  let w₁₀ := R.subMulInto w₁₀ 0 L w₁₁ 0 L 3
+  let w₁₁ := R.subMulInto w₁₁ 0 L w₁₂ 0 L 3
+  let w₁₂ := R.subMulInto w₁₂ 0 L w₁₃ 0 L 3
+  let w₁₃ := R.subMulInto w₁₃ 0 L d (o + 14 * k) (n - 14 * k) 3
+  let w₂ := R.subMulInto w₂ 0 L w₃ 0 L 2
+  let w₃ := R.subMulInto w₃ 0 L w₄ 0 L 2
+  let w₄ := R.subMulInto w₄ 0 L w₅ 0 L 2
+  let w₅ := R.subMulInto w₅ 0 L w₆ 0 L 2
+  let w₆ := R.subMulInto w₆ 0 L w₇ 0 L 2
+  let w₇ := R.subMulInto w₇ 0 L w₈ 0 L 2
+  let w₈ := R.subMulInto w₈ 0 L w₉ 0 L 2
+  let w₉ := R.subMulInto w₉ 0 L w₁₀ 0 L 2
+  let w₁₀ := R.subMulInto w₁₀ 0 L w₁₁ 0 L 2
+  let w₁₁ := R.subMulInto w₁₁ 0 L w₁₂ 0 L 2
+  let w₁₂ := R.subMulInto w₁₂ 0 L w₁₃ 0 L 2
+  let w₁₃ := R.subMulInto w₁₃ 0 L d (o + 14 * k) (n - 14 * k) 2
+  let w₁ := R.subInto w₁ 0 L w₂ 0 L
+  let w₂ := R.subInto w₂ 0 L w₃ 0 L
+  let w₃ := R.subInto w₃ 0 L w₄ 0 L
+  let w₄ := R.subInto w₄ 0 L w₅ 0 L
+  let w₅ := R.subInto w₅ 0 L w₆ 0 L
+  let w₆ := R.subInto w₆ 0 L w₇ 0 L
+  let w₇ := R.subInto w₇ 0 L w₈ 0 L
+  let w₈ := R.subInto w₈ 0 L w₉ 0 L
+  let w₉ := R.subInto w₉ 0 L w₁₀ 0 L
+  let w₁₀ := R.subInto w₁₀ 0 L w₁₁ 0 L
+  let w₁₁ := R.subInto w₁₁ 0 L w₁₂ 0 L
+  let w₁₂ := R.subInto w₁₂ 0 L w₁₃ 0 L
+  let w₁₃ := R.subInto w₁₃ 0 L d (o + 14 * k) (n - 14 * k)
+  -- The recombination.
+  let d := R.zeroInto d (o + (k + k)) (14 * k - (k + k))
+  let d := R.addInto d (o + k) (n - k) w₁ 0 (min (n - k) L)
+  let d := R.addInto d (o + (2 * k)) (n - (2 * k)) w₂ 0 (min (n - (2 * k)) L)
+  let d := R.addInto d (o + (3 * k)) (n - (3 * k)) w₃ 0 (min (n - (3 * k)) L)
+  let d := R.addInto d (o + (4 * k)) (n - (4 * k)) w₄ 0 (min (n - (4 * k)) L)
+  let d := R.addInto d (o + (5 * k)) (n - (5 * k)) w₅ 0 (min (n - (5 * k)) L)
+  let d := R.addInto d (o + (6 * k)) (n - (6 * k)) w₆ 0 (min (n - (6 * k)) L)
+  let d := R.addInto d (o + (7 * k)) (n - (7 * k)) w₇ 0 (min (n - (7 * k)) L)
+  let d := R.addInto d (o + (8 * k)) (n - (8 * k)) w₈ 0 (min (n - (8 * k)) L)
+  let d := R.addInto d (o + (9 * k)) (n - (9 * k)) w₉ 0 (min (n - (9 * k)) L)
+  let d := R.addInto d (o + (10 * k)) (n - (10 * k)) w₁₀ 0 (min (n - (10 * k)) L)
+  let d := R.addInto d (o + (11 * k)) (n - (11 * k)) w₁₁ 0 (min (n - (11 * k)) L)
+  let d := R.addInto d (o + (12 * k)) (n - (12 * k)) w₁₂ 0 (min (n - (12 * k)) L)
+  R.addInto d (o + (13 * k)) (n - (13 * k)) w₁₃ 0 (min (n - (13 * k)) L)
+
+set_option maxHeartbeats 8000000 in
+public theorem interp14_spec (d : A) (o n k L : Nat) (w₁ w₂ w₃ w₄ w₅ w₆ w₇ w₈ w₉ w₁₀ w₁₁ w₁₂ w₁₃ : A) (c₀ c₁ c₂ c₃ c₄ c₅ c₆ c₇ c₈ c₉ c₁₀ c₁₁ c₁₂ c₁₃ c₁₄ : Nat)
+    (hd : o + n ≤ LA.size d) (hk : 14 * k ≤ n) (_hL : 2 ≤ L)
+    (hw₁ : LA.size w₁ = L) (hw₂ : LA.size w₂ = L) (hw₃ : LA.size w₃ = L) (hw₄ : LA.size w₄ = L)
+    (hw₅ : LA.size w₅ = L) (hw₆ : LA.size w₆ = L) (hw₇ : LA.size w₇ = L) (hw₈ : LA.size w₈ = L)
+    (hw₉ : LA.size w₉ = L) (hw₁₀ : LA.size w₁₀ = L) (hw₁₁ : LA.size w₁₁ = L)
+    (hw₁₂ : LA.size w₁₂ = L) (hw₁₃ : LA.size w₁₃ = L)
+    (hc₀ : valAt d o (k + k) = c₀) (hc₁₄ : valAt d (o + 14 * k) (n - 14 * k) = c₁₄)
+    (hv₁ : valAt w₁ 0 L = c₀ + c₁ + c₂ + c₃ + c₄ + c₅ + c₆ + c₇ + c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ +
+        c₁₄)
+    (hv₂ : valAt w₂ 0 L = c₀ + 2 * c₁ + 4 * c₂ + 8 * c₃ + 16 * c₄ + 32 * c₅ + 64 * c₆ + 128 * c₇ +
+        256 * c₈ + 512 * c₉ + 1024 * c₁₀ + 2048 * c₁₁ + 4096 * c₁₂ + 8192 * c₁₃ + 16384 * c₁₄)
+    (hv₃ : valAt w₃ 0 L = c₀ + 3 * c₁ + 9 * c₂ + 27 * c₃ + 81 * c₄ + 243 * c₅ + 729 * c₆ + 2187 * c₇
+        + 6561 * c₈ + 19683 * c₉ + 59049 * c₁₀ + 177147 * c₁₁ + 531441 * c₁₂ + 1594323 * c₁₃ +
+        4782969 * c₁₄)
+    (hv₄ : valAt w₄ 0 L = c₀ + 4 * c₁ + 16 * c₂ + 64 * c₃ + 256 * c₄ + 1024 * c₅ + 4096 * c₆ + 16384
+        * c₇ + 65536 * c₈ + 262144 * c₉ + 1048576 * c₁₀ + 4194304 * c₁₁ + 16777216 * c₁₂ + 67108864
+        * c₁₃ + 268435456 * c₁₄)
+    (hv₅ : valAt w₅ 0 L = c₀ + 5 * c₁ + 25 * c₂ + 125 * c₃ + 625 * c₄ + 3125 * c₅ + 15625 * c₆ +
+        78125 * c₇ + 390625 * c₈ + 1953125 * c₉ + 9765625 * c₁₀ + 48828125 * c₁₁ + 244140625 * c₁₂ +
+        1220703125 * c₁₃ + 6103515625 * c₁₄)
+    (hv₆ : valAt w₆ 0 L = c₀ + 6 * c₁ + 36 * c₂ + 216 * c₃ + 1296 * c₄ + 7776 * c₅ + 46656 * c₆ +
+        279936 * c₇ + 1679616 * c₈ + 10077696 * c₉ + 60466176 * c₁₀ + 362797056 * c₁₁ + 2176782336 *
+        c₁₂ + 13060694016 * c₁₃ + 78364164096 * c₁₄)
+    (hv₇ : valAt w₇ 0 L = c₀ + 7 * c₁ + 49 * c₂ + 343 * c₃ + 2401 * c₄ + 16807 * c₅ + 117649 * c₆ +
+        823543 * c₇ + 5764801 * c₈ + 40353607 * c₉ + 282475249 * c₁₀ + 1977326743 * c₁₁ +
+        13841287201 * c₁₂ + 96889010407 * c₁₃ + 678223072849 * c₁₄)
+    (hv₈ : valAt w₈ 0 L = c₀ + 8 * c₁ + 64 * c₂ + 512 * c₃ + 4096 * c₄ + 32768 * c₅ + 262144 * c₆ +
+        2097152 * c₇ + 16777216 * c₈ + 134217728 * c₉ + 1073741824 * c₁₀ + 8589934592 * c₁₁ +
+        68719476736 * c₁₂ + 549755813888 * c₁₃ + 4398046511104 * c₁₄)
+    (hv₉ : valAt w₉ 0 L = c₀ + 9 * c₁ + 81 * c₂ + 729 * c₃ + 6561 * c₄ + 59049 * c₅ + 531441 * c₆ +
+        4782969 * c₇ + 43046721 * c₈ + 387420489 * c₉ + 3486784401 * c₁₀ + 31381059609 * c₁₁ +
+        282429536481 * c₁₂ + 2541865828329 * c₁₃ + 22876792454961 * c₁₄)
+    (hv₁₀ : valAt w₁₀ 0 L = c₀ + 10 * c₁ + 100 * c₂ + 1000 * c₃ + 10000 * c₄ + 100000 * c₅ + 1000000
+        * c₆ + 10000000 * c₇ + 100000000 * c₈ + 1000000000 * c₉ + 10000000000 * c₁₀ + 100000000000 *
+        c₁₁ + 1000000000000 * c₁₂ + 10000000000000 * c₁₃ + 100000000000000 * c₁₄)
+    (hv₁₁ : valAt w₁₁ 0 L = c₀ + 11 * c₁ + 121 * c₂ + 1331 * c₃ + 14641 * c₄ + 161051 * c₅ + 1771561
+        * c₆ + 19487171 * c₇ + 214358881 * c₈ + 2357947691 * c₉ + 25937424601 * c₁₀ + 285311670611 *
+        c₁₁ + 3138428376721 * c₁₂ + 34522712143931 * c₁₃ + 379749833583241 * c₁₄)
+    (hv₁₂ : valAt w₁₂ 0 L = c₀ + 12 * c₁ + 144 * c₂ + 1728 * c₃ + 20736 * c₄ + 248832 * c₅ + 2985984
+        * c₆ + 35831808 * c₇ + 429981696 * c₈ + 5159780352 * c₉ + 61917364224 * c₁₀ + 743008370688 *
+        c₁₁ + 8916100448256 * c₁₂ + 106993205379072 * c₁₃ + 1283918464548864 * c₁₄)
+    (hv₁₃ : valAt w₁₃ 0 L = c₀ + 13 * c₁ + 169 * c₂ + 2197 * c₃ + 28561 * c₄ + 371293 * c₅ + 4826809
+        * c₆ + 62748517 * c₇ + 815730721 * c₈ + 10604499373 * c₉ + 137858491849 * c₁₀ +
+        1792160394037 * c₁₁ + 23298085122481 * c₁₂ + 302875106592253 * c₁₃ + 3937376385699289 * c₁₄)
+    (htot : c₀ + 2 ^ (LA.w * k) * c₁ + 2 ^ (LA.w * (2 * k)) * c₂ + 2 ^ (LA.w * (3 * k)) * c₃ + 2 ^
+        (LA.w * (4 * k)) * c₄ + 2 ^ (LA.w * (5 * k)) * c₅ + 2 ^ (LA.w * (6 * k)) * c₆ + 2 ^ (LA.w *
+        (7 * k)) * c₇ + 2 ^ (LA.w * (8 * k)) * c₈ + 2 ^ (LA.w * (9 * k)) * c₉ + 2 ^ (LA.w * (10 *
+        k)) * c₁₀ + 2 ^ (LA.w * (11 * k)) * c₁₁ + 2 ^ (LA.w * (12 * k)) * c₁₂ + 2 ^ (LA.w * (13 *
+        k)) * c₁₃ + 2 ^ (LA.w * (14 * k)) * c₁₄ < 2 ^ (LA.w * n)) :
+    Writes (interp14 d o n k L w₁ w₂ w₃ w₄ w₅ w₆ w₇ w₈ w₉ w₁₀ w₁₁ w₁₂ w₁₃) d o n ∧
+      valAt (interp14 d o n k L w₁ w₂ w₃ w₄ w₅ w₆ w₇ w₈ w₉ w₁₀ w₁₁ w₁₂ w₁₃) o n = c₀ + 2 ^ (LA.w *
+          k) * c₁ + 2 ^ (LA.w * (2 * k)) * c₂ + 2 ^ (LA.w * (3 * k)) * c₃ + 2 ^ (LA.w * (4 * k)) *
+          c₄ + 2 ^ (LA.w * (5 * k)) * c₅ + 2 ^ (LA.w * (6 * k)) * c₆ + 2 ^ (LA.w * (7 * k)) * c₇ + 2
+          ^ (LA.w * (8 * k)) * c₈ + 2 ^ (LA.w * (9 * k)) * c₉ + 2 ^ (LA.w * (10 * k)) * c₁₀ + 2 ^
+          (LA.w * (11 * k)) * c₁₁ + 2 ^ (LA.w * (12 * k)) * c₁₂ + 2 ^ (LA.w * (13 * k)) * c₁₃ + 2 ^
+          (LA.w * (14 * k)) * c₁₄ := by
+  unfold interp14
+  extract_lets q₁ q₂ q₃ q₄ q₅ q₆ q₇ q₈ q₉ q₁₀ q₁₁ q₁₂ q₁₃ q₁₄ q₁₅ q₁₆ q₁₇ q₁₈ q₁₉ q₂₀ q₂₁ q₂₂ q₂₃
+     q₂₄ q₂₅ q₂₆ q₂₇ q₂₈ q₂₉ q₃₀ q₃₁ q₃₂ q₃₃ q₃₄ q₃₅ q₃₆ q₃₇ q₃₈ q₃₉ q₄₀ q₄₁ q₄₂ q₄₃ q₄₄ q₄₅ q₄₆ q₄₇
+     q₄₈ q₄₉ q₅₀ q₅₁ q₅₂ q₅₃ q₅₄ q₅₅ q₅₆ q₅₇ q₅₈ q₅₉ q₆₀ q₆₁ q₆₂ q₆₃ q₆₄ q₆₅ q₆₆ q₆₇ q₆₈ q₆₉ q₇₀ q₇₁
+     q₇₂ q₇₃ q₇₄ q₇₅ q₇₆ q₇₇ q₇₈ q₇₉ q₈₀ q₈₁ q₈₂ q₈₃ q₈₄ q₈₅ q₈₆ q₈₇ q₈₈ q₈₉ q₉₀ q₉₁ q₉₂ q₉₃ q₉₄ q₉₅
+     q₉₆ q₉₇ q₉₈ q₉₉ q₁₀₀ q₁₀₁ q₁₀₂ q₁₀₃ q₁₀₄ q₁₀₅ q₁₀₆ q₁₀₇ q₁₀₈ q₁₀₉ q₁₁₀ q₁₁₁ q₁₁₂ q₁₁₃ q₁₁₄ q₁₁₅
+     q₁₁₆ q₁₁₇ q₁₁₈ q₁₁₉ q₁₂₀ q₁₂₁ q₁₂₂ q₁₂₃ q₁₂₄ q₁₂₅ q₁₂₆ q₁₂₇ q₁₂₈ q₁₂₉ q₁₃₀ q₁₃₁ q₁₃₂ q₁₃₃ q₁₃₄
+     q₁₃₅ q₁₃₆ q₁₃₇ q₁₃₈ q₁₃₉ q₁₄₀ q₁₄₁ q₁₄₂ q₁₄₃ q₁₄₄ q₁₄₅ q₁₄₆ q₁₄₇ q₁₄₈ q₁₄₉ q₁₅₀ q₁₅₁ q₁₅₂ q₁₅₃
+     q₁₅₄ q₁₅₅ q₁₅₆ q₁₅₇ q₁₅₈ q₁₅₉ q₁₆₀ q₁₆₁ q₁₆₂ q₁₆₃ q₁₆₄ q₁₆₅ q₁₆₆ q₁₆₇ q₁₆₈ q₁₆₉ q₁₇₀ q₁₇₁ q₁₇₂
+     q₁₇₃ q₁₇₄ q₁₇₅ q₁₇₆ q₁₇₇ q₁₇₈ q₁₇₉ q₁₈₀ q₁₈₁ q₁₈₂ q₁₈₃ q₁₈₄ q₁₈₅ q₁₈₆ q₁₈₇ q₁₈₈ q₁₈₉ q₁₉₀ q₁₉₁
+     q₁₉₂ q₁₉₃ q₁₉₄ q₁₉₅ q₁₉₆ q₁₉₇ q₁₉₈ q₁₉₉ q₂₀₀ q₂₀₁ q₂₀₂ q₂₀₃ q₂₀₄ q₂₀₅ A₀ A₁ A₂ A₃ A₄ A₅ A₆ A₇
+     A₈ A₉ A₁₀ A₁₁ A₁₂
+  obtain ⟨s₁, e₁⟩ := sub_val (q := w₁₃) (o := 0) (len := L) (by rw [hw₁₃]; lia) w₁₂ 0 L
+      (V := c₁ + 25 * c₂ + 469 * c₃ + 7825 * c₄ + 122461 * c₅ + 1840825 * c₆ + 26916709 * c₇ + 385749025 * c₈ + 5444719021 * c₉ + 75941127625 * c₁₀ + 1049152023349 * c₁₁ + 14381984674225 * c₁₂ + 195881901213181 * c₁₃ + 2653457921150425 * c₁₄) hv₁₃ hv₁₂ (by lia)
+  rw [← (show q₁ = R.subInto w₁₃ 0 L w₁₂ 0 L from rfl)] at s₁ e₁
+  rw [hw₁₃] at s₁
+  obtain ⟨s₂, e₂⟩ := sub_val (q := w₁₂) (o := 0) (len := L) (by rw [hw₁₂]; lia) w₁₁ 0 L
+      (V := c₁ + 23 * c₂ + 397 * c₃ + 6095 * c₄ + 87781 * c₅ + 1214423 * c₆ + 16344637 * c₇ + 215622815 * c₈ + 2801832661 * c₉ + 35979939623 * c₁₀ + 457696700077 * c₁₁ + 5777672071535 * c₁₂ + 72470493235141 * c₁₃ + 904168630965623 * c₁₄) hv₁₂ hv₁₁ (by lia)
+  rw [← (show q₂ = R.subInto w₁₂ 0 L w₁₁ 0 L from rfl)] at s₂ e₂
+  rw [hw₁₂] at s₂
+  obtain ⟨s₃, e₃⟩ := sub_val (q := w₁₁) (o := 0) (len := L) (by rw [hw₁₁]; lia) w₁₀ 0 L
+      (V := c₁ + 21 * c₂ + 331 * c₃ + 4641 * c₄ + 61051 * c₅ + 771561 * c₆ + 9487171 * c₇ + 114358881 * c₈ + 1357947691 * c₉ + 15937424601 * c₁₀ + 185311670611 * c₁₁ + 2138428376721 * c₁₂ + 24522712143931 * c₁₃ + 279749833583241 * c₁₄) hv₁₁ hv₁₀ (by lia)
+  rw [← (show q₃ = R.subInto w₁₁ 0 L w₁₀ 0 L from rfl)] at s₃ e₃
+  rw [hw₁₁] at s₃
+  obtain ⟨s₄, e₄⟩ := sub_val (q := w₁₀) (o := 0) (len := L) (by rw [hw₁₀]; lia) w₉ 0 L
+      (V := c₁ + 19 * c₂ + 271 * c₃ + 3439 * c₄ + 40951 * c₅ + 468559 * c₆ + 5217031 * c₇ + 56953279 * c₈ + 612579511 * c₉ + 6513215599 * c₁₀ + 68618940391 * c₁₁ + 717570463519 * c₁₂ + 7458134171671 * c₁₃ + 77123207545039 * c₁₄) hv₁₀ hv₉ (by lia)
+  rw [← (show q₄ = R.subInto w₁₀ 0 L w₉ 0 L from rfl)] at s₄ e₄
+  rw [hw₁₀] at s₄
+  obtain ⟨s₅, e₅⟩ := sub_val (q := w₉) (o := 0) (len := L) (by rw [hw₉]; lia) w₈ 0 L
+      (V := c₁ + 17 * c₂ + 217 * c₃ + 2465 * c₄ + 26281 * c₅ + 269297 * c₆ + 2685817 * c₇ + 26269505 * c₈ + 253202761 * c₉ + 2413042577 * c₁₀ + 22791125017 * c₁₁ + 213710059745 * c₁₂ + 1992110014441 * c₁₃ + 18478745943857 * c₁₄) hv₉ hv₈ (by lia)
+  rw [← (show q₅ = R.subInto w₉ 0 L w₈ 0 L from rfl)] at s₅ e₅
+  rw [hw₉] at s₅
+  obtain ⟨s₆, e₆⟩ := sub_val (q := w₈) (o := 0) (len := L) (by rw [hw₈]; lia) w₇ 0 L
+      (V := c₁ + 15 * c₂ + 169 * c₃ + 1695 * c₄ + 15961 * c₅ + 144495 * c₆ + 1273609 * c₇ + 11012415 * c₈ + 93864121 * c₉ + 791266575 * c₁₀ + 6612607849 * c₁₁ + 54878189535 * c₁₂ + 452866803481 * c₁₃ + 3719823438255 * c₁₄) hv₈ hv₇ (by lia)
+  rw [← (show q₆ = R.subInto w₈ 0 L w₇ 0 L from rfl)] at s₆ e₆
+  rw [hw₈] at s₆
+  obtain ⟨s₇, e₇⟩ := sub_val (q := w₇) (o := 0) (len := L) (by rw [hw₇]; lia) w₆ 0 L
+      (V := c₁ + 13 * c₂ + 127 * c₃ + 1105 * c₄ + 9031 * c₅ + 70993 * c₆ + 543607 * c₇ + 4085185 * c₈ + 30275911 * c₉ + 222009073 * c₁₀ + 1614529687 * c₁₁ + 11664504865 * c₁₂ + 83828316391 * c₁₃ + 599858908753 * c₁₄) hv₇ hv₆ (by lia)
+  rw [← (show q₇ = R.subInto w₇ 0 L w₆ 0 L from rfl)] at s₇ e₇
+  rw [hw₇] at s₇
+  obtain ⟨s₈, e₈⟩ := sub_val (q := w₆) (o := 0) (len := L) (by rw [hw₆]; lia) w₅ 0 L
+      (V := c₁ + 11 * c₂ + 91 * c₃ + 671 * c₄ + 4651 * c₅ + 31031 * c₆ + 201811 * c₇ + 1288991 * c₈ + 8124571 * c₉ + 50700551 * c₁₀ + 313968931 * c₁₁ + 1932641711 * c₁₂ + 11839990891 * c₁₃ + 72260648471 * c₁₄) hv₆ hv₅ (by lia)
+  rw [← (show q₈ = R.subInto w₆ 0 L w₅ 0 L from rfl)] at s₈ e₈
+  rw [hw₆] at s₈
+  obtain ⟨s₉, e₉⟩ := sub_val (q := w₅) (o := 0) (len := L) (by rw [hw₅]; lia) w₄ 0 L
+      (V := c₁ + 9 * c₂ + 61 * c₃ + 369 * c₄ + 2101 * c₅ + 11529 * c₆ + 61741 * c₇ + 325089 * c₈ + 1690981 * c₉ + 8717049 * c₁₀ + 44633821 * c₁₁ + 227363409 * c₁₂ + 1153594261 * c₁₃ + 5835080169 * c₁₄) hv₅ hv₄ (by lia)
+  rw [← (show q₉ = R.subInto w₅ 0 L w₄ 0 L from rfl)] at s₉ e₉
+  rw [hw₅] at s₉
+  obtain ⟨s₁₀, e₁₀⟩ := sub_val (q := w₄) (o := 0) (len := L) (by rw [hw₄]; lia) w₃ 0 L
+      (V := c₁ + 7 * c₂ + 37 * c₃ + 175 * c₄ + 781 * c₅ + 3367 * c₆ + 14197 * c₇ + 58975 * c₈ + 242461 * c₉ + 989527 * c₁₀ + 4017157 * c₁₁ + 16245775 * c₁₂ + 65514541 * c₁₃ + 263652487 * c₁₄) hv₄ hv₃ (by lia)
+  rw [← (show q₁₀ = R.subInto w₄ 0 L w₃ 0 L from rfl)] at s₁₀ e₁₀
+  rw [hw₄] at s₁₀
+  obtain ⟨s₁₁, e₁₁⟩ := sub_val (q := w₃) (o := 0) (len := L) (by rw [hw₃]; lia) w₂ 0 L
+      (V := c₁ + 5 * c₂ + 19 * c₃ + 65 * c₄ + 211 * c₅ + 665 * c₆ + 2059 * c₇ + 6305 * c₈ + 19171 * c₉ + 58025 * c₁₀ + 175099 * c₁₁ + 527345 * c₁₂ + 1586131 * c₁₃ + 4766585 * c₁₄) hv₃ hv₂ (by lia)
+  rw [← (show q₁₁ = R.subInto w₃ 0 L w₂ 0 L from rfl)] at s₁₁ e₁₁
+  rw [hw₃] at s₁₁
+  obtain ⟨s₁₂, e₁₂⟩ := sub_val (q := w₂) (o := 0) (len := L) (by rw [hw₂]; lia) w₁ 0 L
+      (V := c₁ + 3 * c₂ + 7 * c₃ + 15 * c₄ + 31 * c₅ + 63 * c₆ + 127 * c₇ + 255 * c₈ + 511 * c₉ + 1023 * c₁₀ + 2047 * c₁₁ + 4095 * c₁₂ + 8191 * c₁₃ + 16383 * c₁₄) hv₂ hv₁ (by lia)
+  rw [← (show q₁₂ = R.subInto w₂ 0 L w₁ 0 L from rfl)] at s₁₂ e₁₂
+  rw [hw₂] at s₁₂
+  obtain ⟨s₁₃, e₁₃⟩ := sub_val (q := w₁) (o := 0) (len := L) (by rw [hw₁]; lia) d o (k + k)
+      (V := c₁ + c₂ + c₃ + c₄ + c₅ + c₆ + c₇ + c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) hv₁ hc₀ (by lia)
+  rw [← (show q₁₃ = R.subInto w₁ 0 L d o (k + k) from rfl)] at s₁₃ e₁₃
+  rw [hw₁] at s₁₃
+  obtain ⟨s₁₄, e₁₄⟩ := sub_val (q := q₁) (o := 0) (len := L) (by rw [s₁]; lia) q₂ 0 L
+      (V := 2 * c₂ + 72 * c₃ + 1730 * c₄ + 34680 * c₅ + 626402 * c₆ + 10572072 * c₇ + 170126210 * c₈ + 2642886360 * c₉ + 39961188002 * c₁₀ + 591455323272 * c₁₁ + 8604312602690 * c₁₂ + 123411407978040 * c₁₃ + 1749289290184802 * c₁₄) e₁ e₂ (by lia)
+  rw [← (show q₁₄ = R.subInto q₁ 0 L q₂ 0 L from rfl)] at s₁₄ e₁₄
+  rw [s₁] at s₁₄
+  obtain ⟨s₁₅, e₁₅⟩ := sub_val (q := q₂) (o := 0) (len := L) (by rw [s₂]; lia) q₃ 0 L
+      (V := 2 * c₂ + 66 * c₃ + 1454 * c₄ + 26730 * c₅ + 442862 * c₆ + 6857466 * c₇ + 101263934 * c₈ + 1443884970 * c₉ + 20042515022 * c₁₀ + 272385029466 * c₁₁ + 3639243694814 * c₁₂ + 47947781091210 * c₁₃ + 624418797382382 * c₁₄) e₂ e₃ (by lia)
+  rw [← (show q₁₅ = R.subInto q₂ 0 L q₃ 0 L from rfl)] at s₁₅ e₁₅
+  rw [s₂] at s₁₅
+  obtain ⟨s₁₆, e₁₆⟩ := sub_val (q := q₃) (o := 0) (len := L) (by rw [s₃]; lia) q₄ 0 L
+      (V := 2 * c₂ + 60 * c₃ + 1202 * c₄ + 20100 * c₅ + 303002 * c₆ + 4270140 * c₇ + 57405602 * c₈ + 745368180 * c₉ + 9424209002 * c₁₀ + 116692730220 * c₁₁ + 1420857913202 * c₁₂ + 17064577972260 * c₁₃ + 202626626038202 * c₁₄) e₃ e₄ (by lia)
+  rw [← (show q₁₆ = R.subInto q₃ 0 L q₄ 0 L from rfl)] at s₁₆ e₁₆
+  rw [s₃] at s₁₆
+  obtain ⟨s₁₇, e₁₇⟩ := sub_val (q := q₄) (o := 0) (len := L) (by rw [s₄]; lia) q₅ 0 L
+      (V := 2 * c₂ + 54 * c₃ + 974 * c₄ + 14670 * c₅ + 199262 * c₆ + 2531214 * c₇ + 30683774 * c₈ + 359376750 * c₉ + 4100173022 * c₁₀ + 45827815374 * c₁₁ + 503860403774 * c₁₂ + 5466024157230 * c₁₃ + 58644461601182 * c₁₄) e₄ e₅ (by lia)
+  rw [← (show q₁₇ = R.subInto q₄ 0 L q₅ 0 L from rfl)] at s₁₇ e₁₇
+  rw [s₄] at s₁₇
+  obtain ⟨s₁₈, e₁₈⟩ := sub_val (q := q₅) (o := 0) (len := L) (by rw [s₅]; lia) q₆ 0 L
+      (V := 2 * c₂ + 48 * c₃ + 770 * c₄ + 10320 * c₅ + 124802 * c₆ + 1412208 * c₇ + 15257090 * c₈ + 159338640 * c₉ + 1621776002 * c₁₀ + 16178517168 * c₁₁ + 158831870210 * c₁₂ + 1539243210960 * c₁₃ + 14758922505602 * c₁₄) e₅ e₆ (by lia)
+  rw [← (show q₁₈ = R.subInto q₅ 0 L q₆ 0 L from rfl)] at s₁₈ e₁₈
+  rw [s₅] at s₁₈
+  obtain ⟨s₁₉, e₁₉⟩ := sub_val (q := q₆) (o := 0) (len := L) (by rw [s₆]; lia) q₇ 0 L
+      (V := 2 * c₂ + 42 * c₃ + 590 * c₄ + 6930 * c₅ + 73502 * c₆ + 730002 * c₇ + 6927230 * c₈ + 63588210 * c₉ + 569257502 * c₁₀ + 4998078162 * c₁₁ + 43213684670 * c₁₂ + 369038487090 * c₁₃ + 3119964529502 * c₁₄) e₆ e₇ (by lia)
+  rw [← (show q₁₉ = R.subInto q₆ 0 L q₇ 0 L from rfl)] at s₁₉ e₁₉
+  rw [s₆] at s₁₉
+  obtain ⟨s₂₀, e₂₀⟩ := sub_val (q := q₇) (o := 0) (len := L) (by rw [s₇]; lia) q₈ 0 L
+      (V := 2 * c₂ + 36 * c₃ + 434 * c₄ + 4380 * c₅ + 39962 * c₆ + 341796 * c₇ + 2796194 * c₈ + 22151340 * c₉ + 171308522 * c₁₀ + 1300560756 * c₁₁ + 9731863154 * c₁₂ + 71988325500 * c₁₃ + 527598260282 * c₁₄) e₇ e₈ (by lia)
+  rw [← (show q₂₀ = R.subInto q₇ 0 L q₈ 0 L from rfl)] at s₂₀ e₂₀
+  rw [s₇] at s₂₀
+  obtain ⟨s₂₁, e₂₁⟩ := sub_val (q := q₈) (o := 0) (len := L) (by rw [s₈]; lia) q₉ 0 L
+      (V := 2 * c₂ + 30 * c₃ + 302 * c₄ + 2550 * c₅ + 19502 * c₆ + 140070 * c₇ + 963902 * c₈ + 6433590 * c₉ + 41983502 * c₁₀ + 269335110 * c₁₁ + 1705278302 * c₁₂ + 10686396630 * c₁₃ + 66425568302 * c₁₄) e₈ e₉ (by lia)
+  rw [← (show q₂₁ = R.subInto q₈ 0 L q₉ 0 L from rfl)] at s₂₁ e₂₁
+  rw [s₈] at s₂₁
+  obtain ⟨s₂₂, e₂₂⟩ := sub_val (q := q₉) (o := 0) (len := L) (by rw [s₉]; lia) q₁₀ 0 L
+      (V := 2 * c₂ + 24 * c₃ + 194 * c₄ + 1320 * c₅ + 8162 * c₆ + 47544 * c₇ + 266114 * c₈ + 1448520 * c₉ + 7727522 * c₁₀ + 40616664 * c₁₁ + 211117634 * c₁₂ + 1088079720 * c₁₃ + 5571427682 * c₁₄) e₉ e₁₀ (by lia)
+  rw [← (show q₂₂ = R.subInto q₉ 0 L q₁₀ 0 L from rfl)] at s₂₂ e₂₂
+  rw [s₉] at s₂₂
+  obtain ⟨s₂₃, e₂₃⟩ := sub_val (q := q₁₀) (o := 0) (len := L) (by rw [s₁₀]; lia) q₁₁ 0 L
+      (V := 2 * c₂ + 18 * c₃ + 110 * c₄ + 570 * c₅ + 2702 * c₆ + 12138 * c₇ + 52670 * c₈ + 223290 * c₉ + 931502 * c₁₀ + 3842058 * c₁₁ + 15718430 * c₁₂ + 63928410 * c₁₃ + 258885902 * c₁₄) e₁₀ e₁₁ (by lia)
+  rw [← (show q₂₃ = R.subInto q₁₀ 0 L q₁₁ 0 L from rfl)] at s₂₃ e₂₃
+  rw [s₁₀] at s₂₃
+  obtain ⟨s₂₄, e₂₄⟩ := sub_val (q := q₁₁) (o := 0) (len := L) (by rw [s₁₁]; lia) q₁₂ 0 L
+      (V := 2 * c₂ + 12 * c₃ + 50 * c₄ + 180 * c₅ + 602 * c₆ + 1932 * c₇ + 6050 * c₈ + 18660 * c₉ + 57002 * c₁₀ + 173052 * c₁₁ + 523250 * c₁₂ + 1577940 * c₁₃ + 4750202 * c₁₄) e₁₁ e₁₂ (by lia)
+  rw [← (show q₂₄ = R.subInto q₁₁ 0 L q₁₂ 0 L from rfl)] at s₂₄ e₂₄
+  rw [s₁₁] at s₂₄
+  obtain ⟨s₂₅, e₂₅⟩ := sub_val (q := q₁₂) (o := 0) (len := L) (by rw [s₁₂]; lia) q₁₃ 0 L
+      (V := 2 * c₂ + 6 * c₃ + 14 * c₄ + 30 * c₅ + 62 * c₆ + 126 * c₇ + 254 * c₈ + 510 * c₉ + 1022 * c₁₀ + 2046 * c₁₁ + 4094 * c₁₂ + 8190 * c₁₃ + 16382 * c₁₄) e₁₂ e₁₃ (by lia)
+  rw [← (show q₂₅ = R.subInto q₁₂ 0 L q₁₃ 0 L from rfl)] at s₂₅ e₂₅
+  rw [s₁₂] at s₂₅
+  obtain ⟨s₂₆, e₂₆⟩ := sub_val (q := q₁₄) (o := 0) (len := L) (by rw [s₁₄]; lia) q₁₅ 0 L
+      (V := 6 * c₃ + 276 * c₄ + 7950 * c₅ + 183540 * c₆ + 3714606 * c₇ + 68862276 * c₈ + 1199001390 * c₉ + 19918672980 * c₁₀ + 319070293806 * c₁₁ + 4965068907876 * c₁₂ + 75463626886830 * c₁₃ + 1124870492802420 * c₁₄) e₁₄ e₁₅ (by lia)
+  rw [← (show q₂₆ = R.subInto q₁₄ 0 L q₁₅ 0 L from rfl)] at s₂₆ e₂₆
+  rw [s₁₄] at s₂₆
+  obtain ⟨s₂₇, e₂₇⟩ := sub_val (q := q₁₅) (o := 0) (len := L) (by rw [s₁₅]; lia) q₁₆ 0 L
+      (V := 6 * c₃ + 252 * c₄ + 6630 * c₅ + 139860 * c₆ + 2587326 * c₇ + 43858332 * c₈ + 698516790 * c₉ + 10618306020 * c₁₀ + 155692299246 * c₁₁ + 2218385781612 * c₁₂ + 30883203118950 * c₁₃ + 421792171344180 * c₁₄) e₁₅ e₁₆ (by lia)
+  rw [← (show q₂₇ = R.subInto q₁₅ 0 L q₁₆ 0 L from rfl)] at s₂₇ e₂₇
+  rw [s₁₅] at s₂₇
+  obtain ⟨s₂₈, e₂₈⟩ := sub_val (q := q₁₆) (o := 0) (len := L) (by rw [s₁₆]; lia) q₁₇ 0 L
+      (V := 6 * c₃ + 228 * c₄ + 5430 * c₅ + 103740 * c₆ + 1738926 * c₇ + 26721828 * c₈ + 385991430 * c₉ + 5324035980 * c₁₀ + 70864914846 * c₁₁ + 916997509428 * c₁₂ + 11598553815030 * c₁₃ + 143982164437020 * c₁₄) e₁₆ e₁₇ (by lia)
+  rw [← (show q₂₈ = R.subInto q₁₆ 0 L q₁₇ 0 L from rfl)] at s₂₈ e₂₈
+  rw [s₁₆] at s₂₈
+  obtain ⟨s₂₉, e₂₉⟩ := sub_val (q := q₁₇) (o := 0) (len := L) (by rw [s₁₇]; lia) q₁₈ 0 L
+      (V := 6 * c₃ + 204 * c₄ + 4350 * c₅ + 74460 * c₆ + 1119006 * c₇ + 15426684 * c₈ + 200038110 * c₉ + 2478397020 * c₁₀ + 29649298206 * c₁₁ + 345028533564 * c₁₂ + 3926780946270 * c₁₃ + 43885539095580 * c₁₄) e₁₇ e₁₈ (by lia)
+  rw [← (show q₂₉ = R.subInto q₁₇ 0 L q₁₈ 0 L from rfl)] at s₂₉ e₂₉
+  rw [s₁₇] at s₂₉
+  obtain ⟨s₃₀, e₃₀⟩ := sub_val (q := q₁₈) (o := 0) (len := L) (by rw [s₁₈]; lia) q₁₉ 0 L
+      (V := 6 * c₃ + 180 * c₄ + 3390 * c₅ + 51300 * c₆ + 682206 * c₇ + 8329860 * c₈ + 95750430 * c₉ + 1052518500 * c₁₀ + 11180439006 * c₁₁ + 115618185540 * c₁₂ + 1170204723870 * c₁₃ + 11638957976100 * c₁₄) e₁₈ e₁₉ (by lia)
+  rw [← (show q₃₀ = R.subInto q₁₈ 0 L q₁₉ 0 L from rfl)] at s₃₀ e₃₀
+  rw [s₁₈] at s₃₀
+  obtain ⟨s₃₁, e₃₁⟩ := sub_val (q := q₁₉) (o := 0) (len := L) (by rw [s₁₉]; lia) q₂₀ 0 L
+      (V := 6 * c₃ + 156 * c₄ + 2550 * c₅ + 33540 * c₆ + 388206 * c₇ + 4131036 * c₈ + 41436870 * c₉ + 397948980 * c₁₀ + 3697517406 * c₁₁ + 33481821516 * c₁₂ + 297050161590 * c₁₃ + 2592366269220 * c₁₄) e₁₉ e₂₀ (by lia)
+  rw [← (show q₃₁ = R.subInto q₁₉ 0 L q₂₀ 0 L from rfl)] at s₃₁ e₃₁
+  rw [s₁₉] at s₃₁
+  obtain ⟨s₃₂, e₃₂⟩ := sub_val (q := q₂₀) (o := 0) (len := L) (by rw [s₂₀]; lia) q₂₁ 0 L
+      (V := 6 * c₃ + 132 * c₄ + 1830 * c₅ + 20460 * c₆ + 201726 * c₇ + 1832292 * c₈ + 15717750 * c₉ + 129325020 * c₁₀ + 1031225646 * c₁₁ + 8026584852 * c₁₂ + 61301928870 * c₁₃ + 461172691980 * c₁₄) e₂₀ e₂₁ (by lia)
+  rw [← (show q₃₂ = R.subInto q₂₀ 0 L q₂₁ 0 L from rfl)] at s₃₂ e₃₂
+  rw [s₂₀] at s₃₂
+  obtain ⟨s₃₃, e₃₃⟩ := sub_val (q := q₂₁) (o := 0) (len := L) (by rw [s₂₁]; lia) q₂₂ 0 L
+      (V := 6 * c₃ + 108 * c₄ + 1230 * c₅ + 11340 * c₆ + 92526 * c₇ + 697788 * c₈ + 4985070 * c₉ + 34255980 * c₁₀ + 228718446 * c₁₁ + 1494160668 * c₁₂ + 9598316910 * c₁₃ + 60854140620 * c₁₄) e₂₁ e₂₂ (by lia)
+  rw [← (show q₃₃ = R.subInto q₂₁ 0 L q₂₂ 0 L from rfl)] at s₃₃ e₃₃
+  rw [s₂₁] at s₃₃
+  obtain ⟨s₃₄, e₃₄⟩ := sub_val (q := q₂₂) (o := 0) (len := L) (by rw [s₂₂]; lia) q₂₃ 0 L
+      (V := 6 * c₃ + 84 * c₄ + 750 * c₅ + 5460 * c₆ + 35406 * c₇ + 213444 * c₈ + 1225230 * c₉ + 6796020 * c₁₀ + 36774606 * c₁₁ + 195399204 * c₁₂ + 1024151310 * c₁₃ + 5312541780 * c₁₄) e₂₂ e₂₃ (by lia)
+  rw [← (show q₃₄ = R.subInto q₂₂ 0 L q₂₃ 0 L from rfl)] at s₃₄ e₃₄
+  rw [s₂₂] at s₃₄
+  obtain ⟨s₃₅, e₃₅⟩ := sub_val (q := q₂₃) (o := 0) (len := L) (by rw [s₂₃]; lia) q₂₄ 0 L
+      (V := 6 * c₃ + 60 * c₄ + 390 * c₅ + 2100 * c₆ + 10206 * c₇ + 46620 * c₈ + 204630 * c₉ + 874500 * c₁₀ + 3669006 * c₁₁ + 15195180 * c₁₂ + 62350470 * c₁₃ + 254135700 * c₁₄) e₂₃ e₂₄ (by lia)
+  rw [← (show q₃₅ = R.subInto q₂₃ 0 L q₂₄ 0 L from rfl)] at s₃₅ e₃₅
+  rw [s₂₃] at s₃₅
+  obtain ⟨s₃₆, e₃₆⟩ := sub_val (q := q₂₄) (o := 0) (len := L) (by rw [s₂₄]; lia) q₂₅ 0 L
+      (V := 6 * c₃ + 36 * c₄ + 150 * c₅ + 540 * c₆ + 1806 * c₇ + 5796 * c₈ + 18150 * c₉ + 55980 * c₁₀ + 171006 * c₁₁ + 519156 * c₁₂ + 1569750 * c₁₃ + 4733820 * c₁₄) e₂₄ e₂₅ (by lia)
+  rw [← (show q₃₆ = R.subInto q₂₄ 0 L q₂₅ 0 L from rfl)] at s₃₆ e₃₆
+  rw [s₂₄] at s₃₆
+  obtain ⟨s₃₇, e₃₇⟩ := sub_val (q := q₂₆) (o := 0) (len := L) (by rw [s₂₆]; lia) q₂₇ 0 L
+      (V := 24 * c₄ + 1320 * c₅ + 43680 * c₆ + 1127280 * c₇ + 25003944 * c₈ + 500484600 * c₉ + 9300366960 * c₁₀ + 163377994560 * c₁₁ + 2746683126264 * c₁₂ + 44580423767880 * c₁₃ + 703078321458240 * c₁₄) e₂₆ e₂₇ (by lia)
+  rw [← (show q₃₇ = R.subInto q₂₆ 0 L q₂₇ 0 L from rfl)] at s₃₇ e₃₇
+  rw [s₂₆] at s₃₇
+  obtain ⟨s₃₈, e₃₈⟩ := sub_val (q := q₂₇) (o := 0) (len := L) (by rw [s₂₇]; lia) q₂₈ 0 L
+      (V := 24 * c₄ + 1200 * c₅ + 36120 * c₆ + 848400 * c₇ + 17136504 * c₈ + 312525360 * c₉ + 5294270040 * c₁₀ + 84827384400 * c₁₁ + 1301388272184 * c₁₂ + 19284649303920 * c₁₃ + 277810006907160 * c₁₄) e₂₇ e₂₈ (by lia)
+  rw [← (show q₃₈ = R.subInto q₂₇ 0 L q₂₈ 0 L from rfl)] at s₃₈ e₃₈
+  rw [s₂₇] at s₃₈
+  obtain ⟨s₃₉, e₃₉⟩ := sub_val (q := q₂₈) (o := 0) (len := L) (by rw [s₂₈]; lia) q₂₉ 0 L
+      (V := 24 * c₄ + 1080 * c₅ + 29280 * c₆ + 619920 * c₇ + 11295144 * c₈ + 185953320 * c₉ + 2845638960 * c₁₀ + 41215616640 * c₁₁ + 571968975864 * c₁₂ + 7671772868760 * c₁₃ + 100096625341440 * c₁₄) e₂₈ e₂₉ (by lia)
+  rw [← (show q₃₉ = R.subInto q₂₈ 0 L q₂₉ 0 L from rfl)] at s₃₉ e₃₉
+  rw [s₂₈] at s₃₉
+  obtain ⟨s₄₀, e₄₀⟩ := sub_val (q := q₂₉) (o := 0) (len := L) (by rw [s₂₉]; lia) q₃₀ 0 L
+      (V := 24 * c₄ + 960 * c₅ + 23160 * c₆ + 436800 * c₇ + 7096824 * c₈ + 104287680 * c₉ + 1425878520 * c₁₀ + 18468859200 * c₁₁ + 229410348024 * c₁₂ + 2756576222400 * c₁₃ + 32246581119480 * c₁₄) e₂₉ e₃₀ (by lia)
+  rw [← (show q₄₀ = R.subInto q₂₉ 0 L q₃₀ 0 L from rfl)] at s₄₀ e₄₀
+  rw [s₂₉] at s₄₀
+  obtain ⟨s₄₁, e₄₁⟩ := sub_val (q := q₃₀) (o := 0) (len := L) (by rw [s₃₀]; lia) q₃₁ 0 L
+      (V := 24 * c₄ + 840 * c₅ + 17760 * c₆ + 294000 * c₇ + 4198824 * c₈ + 54313560 * c₉ + 654569520 * c₁₀ + 7482921600 * c₁₁ + 82136364024 * c₁₂ + 873154562280 * c₁₃ + 9046591706880 * c₁₄) e₃₀ e₃₁ (by lia)
+  rw [← (show q₄₁ = R.subInto q₃₀ 0 L q₃₁ 0 L from rfl)] at s₄₁ e₄₁
+  rw [s₃₀] at s₄₁
+  obtain ⟨s₄₂, e₄₂⟩ := sub_val (q := q₃₁) (o := 0) (len := L) (by rw [s₃₁]; lia) q₃₂ 0 L
+      (V := 24 * c₄ + 720 * c₅ + 13080 * c₆ + 186480 * c₇ + 2298744 * c₈ + 25719120 * c₉ + 268623960 * c₁₀ + 2666291760 * c₁₁ + 25455236664 * c₁₂ + 235748232720 * c₁₃ + 2131193577240 * c₁₄) e₃₁ e₃₂ (by lia)
+  rw [← (show q₄₂ = R.subInto q₃₁ 0 L q₃₂ 0 L from rfl)] at s₄₂ e₄₂
+  rw [s₃₁] at s₄₂
+  obtain ⟨s₄₃, e₄₃⟩ := sub_val (q := q₃₂) (o := 0) (len := L) (by rw [s₃₂]; lia) q₃₃ 0 L
+      (V := 24 * c₄ + 600 * c₅ + 9120 * c₆ + 109200 * c₇ + 1134504 * c₈ + 10732680 * c₉ + 95069040 * c₁₀ + 802507200 * c₁₁ + 6532424184 * c₁₂ + 51703611960 * c₁₃ + 400318551360 * c₁₄) e₃₂ e₃₃ (by lia)
+  rw [← (show q₄₃ = R.subInto q₃₂ 0 L q₃₃ 0 L from rfl)] at s₄₃ e₄₃
+  rw [s₃₂] at s₄₃
+  obtain ⟨s₄₄, e₄₄⟩ := sub_val (q := q₃₃) (o := 0) (len := L) (by rw [s₃₃]; lia) q₃₄ 0 L
+      (V := 24 * c₄ + 480 * c₅ + 5880 * c₆ + 57120 * c₇ + 484344 * c₈ + 3759840 * c₉ + 27459960 * c₁₀ + 191943840 * c₁₁ + 1298761464 * c₁₂ + 8574165600 * c₁₃ + 55541598840 * c₁₄) e₃₃ e₃₄ (by lia)
+  rw [← (show q₄₄ = R.subInto q₃₃ 0 L q₃₄ 0 L from rfl)] at s₄₄ e₄₄
+  rw [s₃₃] at s₄₄
+  obtain ⟨s₄₅, e₄₅⟩ := sub_val (q := q₃₄) (o := 0) (len := L) (by rw [s₃₄]; lia) q₃₅ 0 L
+      (V := 24 * c₄ + 360 * c₅ + 3360 * c₆ + 25200 * c₇ + 166824 * c₈ + 1020600 * c₉ + 5921520 * c₁₀ + 33105600 * c₁₁ + 180204024 * c₁₂ + 961800840 * c₁₃ + 5058406080 * c₁₄) e₃₄ e₃₅ (by lia)
+  rw [← (show q₄₅ = R.subInto q₃₄ 0 L q₃₅ 0 L from rfl)] at s₄₅ e₄₅
+  rw [s₃₄] at s₄₅
+  obtain ⟨s₄₆, e₄₆⟩ := sub_val (q := q₃₅) (o := 0) (len := L) (by rw [s₃₅]; lia) q₃₆ 0 L
+      (V := 24 * c₄ + 240 * c₅ + 1560 * c₆ + 8400 * c₇ + 40824 * c₈ + 186480 * c₉ + 818520 * c₁₀ + 3498000 * c₁₁ + 14676024 * c₁₂ + 60780720 * c₁₃ + 249401880 * c₁₄) e₃₅ e₃₆ (by lia)
+  rw [← (show q₄₆ = R.subInto q₃₅ 0 L q₃₆ 0 L from rfl)] at s₄₆ e₄₆
+  rw [s₃₅] at s₄₆
+  obtain ⟨s₄₇, e₄₇⟩ := sub_val (q := q₃₇) (o := 0) (len := L) (by rw [s₃₇]; lia) q₃₈ 0 L
+      (V := 120 * c₅ + 7560 * c₆ + 278880 * c₇ + 7867440 * c₈ + 187959240 * c₉ + 4006096920 * c₁₀ + 78550610160 * c₁₁ + 1445294854080 * c₁₂ + 25295774463960 * c₁₃ + 425268314551080 * c₁₄) e₃₇ e₃₈ (by lia)
+  rw [← (show q₄₇ = R.subInto q₃₇ 0 L q₃₈ 0 L from rfl)] at s₄₇ e₄₇
+  rw [s₃₇] at s₄₇
+  obtain ⟨s₄₈, e₄₈⟩ := sub_val (q := q₃₈) (o := 0) (len := L) (by rw [s₃₈]; lia) q₃₉ 0 L
+      (V := 120 * c₅ + 6840 * c₆ + 228480 * c₇ + 5841360 * c₈ + 126572040 * c₉ + 2448631080 * c₁₀ + 43611767760 * c₁₁ + 729419296320 * c₁₂ + 11612876435160 * c₁₃ + 177713381565720 * c₁₄) e₃₈ e₃₉ (by lia)
+  rw [← (show q₄₈ = R.subInto q₃₈ 0 L q₃₉ 0 L from rfl)] at s₄₈ e₄₈
+  rw [s₃₈] at s₄₈
+  obtain ⟨s₄₉, e₄₉⟩ := sub_val (q := q₃₉) (o := 0) (len := L) (by rw [s₃₉]; lia) q₄₀ 0 L
+      (V := 120 * c₅ + 6120 * c₆ + 183120 * c₇ + 4198320 * c₈ + 81665640 * c₉ + 1419760440 * c₁₀ + 22746757440 * c₁₁ + 342558627840 * c₁₂ + 4915196646360 * c₁₃ + 67850044221960 * c₁₄) e₃₉ e₄₀ (by lia)
+  rw [← (show q₄₉ = R.subInto q₃₉ 0 L q₄₀ 0 L from rfl)] at s₄₉ e₄₉
+  rw [s₃₉] at s₄₉
+  obtain ⟨s₅₀, e₅₀⟩ := sub_val (q := q₄₀) (o := 0) (len := L) (by rw [s₄₀]; lia) q₄₁ 0 L
+      (V := 120 * c₅ + 5400 * c₆ + 142800 * c₇ + 2898000 * c₈ + 49974120 * c₉ + 771309000 * c₁₀ + 10985937600 * c₁₁ + 147273984000 * c₁₂ + 1883421660120 * c₁₃ + 23199989412600 * c₁₄) e₄₀ e₄₁ (by lia)
+  rw [← (show q₅₀ = R.subInto q₄₀ 0 L q₄₁ 0 L from rfl)] at s₅₀ e₅₀
+  rw [s₄₀] at s₅₀
+  obtain ⟨s₅₁, e₅₁⟩ := sub_val (q := q₄₁) (o := 0) (len := L) (by rw [s₄₁]; lia) q₄₂ 0 L
+      (V := 120 * c₅ + 4680 * c₆ + 107520 * c₇ + 1900080 * c₈ + 28594440 * c₉ + 385945560 * c₁₀ + 4816629840 * c₁₁ + 56681127360 * c₁₂ + 637406329560 * c₁₃ + 6915398129640 * c₁₄) e₄₁ e₄₂ (by lia)
+  rw [← (show q₅₁ = R.subInto q₄₁ 0 L q₄₂ 0 L from rfl)] at s₅₁ e₅₁
+  rw [s₄₁] at s₅₁
+  obtain ⟨s₅₂, e₅₂⟩ := sub_val (q := q₄₂) (o := 0) (len := L) (by rw [s₄₂]; lia) q₄₃ 0 L
+      (V := 120 * c₅ + 3960 * c₆ + 77280 * c₇ + 1164240 * c₈ + 14986440 * c₉ + 173554920 * c₁₀ + 1863784560 * c₁₁ + 18922812480 * c₁₂ + 184044620760 * c₁₃ + 1730875025880 * c₁₄) e₄₂ e₄₃ (by lia)
+  rw [← (show q₅₂ = R.subInto q₄₂ 0 L q₄₃ 0 L from rfl)] at s₅₂ e₅₂
+  rw [s₄₂] at s₅₂
+  obtain ⟨s₅₃, e₅₃⟩ := sub_val (q := q₄₃) (o := 0) (len := L) (by rw [s₄₃]; lia) q₄₄ 0 L
+      (V := 120 * c₅ + 3240 * c₆ + 52080 * c₇ + 650160 * c₈ + 6972840 * c₉ + 67609080 * c₁₀ + 610563360 * c₁₁ + 5233662720 * c₁₂ + 43129446360 * c₁₃ + 344776952520 * c₁₄) e₄₃ e₄₄ (by lia)
+  rw [← (show q₅₃ = R.subInto q₄₃ 0 L q₄₄ 0 L from rfl)] at s₅₃ e₅₃
+  rw [s₄₃] at s₅₃
+  obtain ⟨s₅₄, e₅₄⟩ := sub_val (q := q₄₄) (o := 0) (len := L) (by rw [s₄₄]; lia) q₄₅ 0 L
+      (V := 120 * c₅ + 2520 * c₆ + 31920 * c₇ + 317520 * c₈ + 2739240 * c₉ + 21538440 * c₁₀ + 158838240 * c₁₁ + 1118557440 * c₁₂ + 7612364760 * c₁₃ + 50483192760 * c₁₄) e₄₄ e₄₅ (by lia)
+  rw [← (show q₅₄ = R.subInto q₄₄ 0 L q₄₅ 0 L from rfl)] at s₅₄ e₅₄
+  rw [s₄₄] at s₅₄
+  obtain ⟨s₅₅, e₅₅⟩ := sub_val (q := q₄₅) (o := 0) (len := L) (by rw [s₄₅]; lia) q₄₆ 0 L
+      (V := 120 * c₅ + 1800 * c₆ + 16800 * c₇ + 126000 * c₈ + 834120 * c₉ + 5103000 * c₁₀ + 29607600 * c₁₁ + 165528000 * c₁₂ + 901020120 * c₁₃ + 4809004200 * c₁₄) e₄₅ e₄₆ (by lia)
+  rw [← (show q₅₅ = R.subInto q₄₅ 0 L q₄₆ 0 L from rfl)] at s₅₅ e₅₅
+  rw [s₄₅] at s₅₅
+  obtain ⟨s₅₆, e₅₆⟩ := sub_val (q := q₄₇) (o := 0) (len := L) (by rw [s₄₇]; lia) q₄₈ 0 L
+      (V := 720 * c₆ + 50400 * c₇ + 2026080 * c₈ + 61387200 * c₉ + 1557465840 * c₁₀ + 34938842400 * c₁₁ + 715875557760 * c₁₂ + 13682898028800 * c₁₃ + 247554932985360 * c₁₄) e₄₇ e₄₈ (by lia)
+  rw [← (show q₅₆ = R.subInto q₄₇ 0 L q₄₈ 0 L from rfl)] at s₅₆ e₅₆
+  rw [s₄₇] at s₅₆
+  obtain ⟨s₅₇, e₅₇⟩ := sub_val (q := q₄₈) (o := 0) (len := L) (by rw [s₄₈]; lia) q₄₉ 0 L
+      (V := 720 * c₆ + 45360 * c₇ + 1643040 * c₈ + 44906400 * c₉ + 1028870640 * c₁₀ + 20865010320 * c₁₁ + 386860668480 * c₁₂ + 6697679788800 * c₁₃ + 109863337343760 * c₁₄) e₄₈ e₄₉ (by lia)
+  rw [← (show q₅₇ = R.subInto q₄₈ 0 L q₄₉ 0 L from rfl)] at s₅₇ e₅₇
+  rw [s₄₈] at s₅₇
+  obtain ⟨s₅₈, e₅₈⟩ := sub_val (q := q₄₉) (o := 0) (len := L) (by rw [s₄₉]; lia) q₅₀ 0 L
+      (V := 720 * c₆ + 40320 * c₇ + 1300320 * c₈ + 31691520 * c₉ + 648451440 * c₁₀ + 11760819840 * c₁₁ + 195284643840 * c₁₂ + 3031774986240 * c₁₃ + 44650054809360 * c₁₄) e₄₉ e₅₀ (by lia)
+  rw [← (show q₅₈ = R.subInto q₄₉ 0 L q₅₀ 0 L from rfl)] at s₅₈ e₅₈
+  rw [s₄₉] at s₅₈
+  obtain ⟨s₅₉, e₅₉⟩ := sub_val (q := q₅₀) (o := 0) (len := L) (by rw [s₅₀]; lia) q₅₁ 0 L
+      (V := 720 * c₆ + 35280 * c₇ + 997920 * c₈ + 21379680 * c₉ + 385363440 * c₁₀ + 6169307760 * c₁₁ + 90592856640 * c₁₂ + 1246015330560 * c₁₃ + 16284591282960 * c₁₄) e₅₀ e₅₁ (by lia)
+  rw [← (show q₅₉ = R.subInto q₅₀ 0 L q₅₁ 0 L from rfl)] at s₅₉ e₅₉
+  rw [s₅₀] at s₅₉
+  obtain ⟨s₆₀, e₆₀⟩ := sub_val (q := q₅₁) (o := 0) (len := L) (by rw [s₅₁]; lia) q₅₂ 0 L
+      (V := 720 * c₆ + 30240 * c₇ + 735840 * c₈ + 13608000 * c₉ + 212390640 * c₁₀ + 2952845280 * c₁₁ + 37758314880 * c₁₂ + 453361708800 * c₁₃ + 5184523103760 * c₁₄) e₅₁ e₅₂ (by lia)
+  rw [← (show q₆₀ = R.subInto q₅₁ 0 L q₅₂ 0 L from rfl)] at s₆₀ e₆₀
+  rw [s₅₁] at s₆₀
+  obtain ⟨s₆₁, e₆₁⟩ := sub_val (q := q₅₂) (o := 0) (len := L) (by rw [s₅₂]; lia) q₅₃ 0 L
+      (V := 720 * c₆ + 25200 * c₇ + 514080 * c₈ + 8013600 * c₉ + 105945840 * c₁₀ + 1253221200 * c₁₁ + 13689149760 * c₁₂ + 140915174400 * c₁₃ + 1386098073360 * c₁₄) e₅₂ e₅₃ (by lia)
+  rw [← (show q₆₁ = R.subInto q₅₂ 0 L q₅₃ 0 L from rfl)] at s₆₁ e₆₁
+  rw [s₅₂] at s₆₁
+  obtain ⟨s₆₂, e₆₂⟩ := sub_val (q := q₅₃) (o := 0) (len := L) (by rw [s₅₃]; lia) q₅₄ 0 L
+      (V := 720 * c₆ + 20160 * c₇ + 332640 * c₈ + 4233600 * c₉ + 46070640 * c₁₀ + 451725120 * c₁₁ + 4115105280 * c₁₂ + 35517081600 * c₁₃ + 294293759760 * c₁₄) e₅₃ e₅₄ (by lia)
+  rw [← (show q₆₂ = R.subInto q₅₃ 0 L q₅₄ 0 L from rfl)] at s₆₂ e₆₂
+  rw [s₅₃] at s₆₂
+  obtain ⟨s₆₃, e₆₃⟩ := sub_val (q := q₅₄) (o := 0) (len := L) (by rw [s₅₄]; lia) q₅₅ 0 L
+      (V := 720 * c₆ + 15120 * c₇ + 191520 * c₈ + 1905120 * c₉ + 16435440 * c₁₀ + 129230640 * c₁₁ + 953029440 * c₁₂ + 6711344640 * c₁₃ + 45674188560 * c₁₄) e₅₄ e₅₅ (by lia)
+  rw [← (show q₆₃ = R.subInto q₅₄ 0 L q₅₅ 0 L from rfl)] at s₆₃ e₆₃
+  rw [s₅₄] at s₆₃
+  obtain ⟨s₆₄, e₆₄⟩ := sub_val (q := q₅₆) (o := 0) (len := L) (by rw [s₅₆]; lia) q₅₇ 0 L
+      (V := 5040 * c₇ + 383040 * c₈ + 16480800 * c₉ + 528595200 * c₁₀ + 14073832080 * c₁₁ + 329014889280 * c₁₂ + 6985218240000 * c₁₃ + 137691595641600 * c₁₄) e₅₆ e₅₇ (by lia)
+  rw [← (show q₆₄ = R.subInto q₅₆ 0 L q₅₇ 0 L from rfl)] at s₆₄ e₆₄
+  rw [s₅₆] at s₆₄
+  obtain ⟨s₆₅, e₆₅⟩ := sub_val (q := q₅₇) (o := 0) (len := L) (by rw [s₅₇]; lia) q₅₈ 0 L
+      (V := 5040 * c₇ + 342720 * c₈ + 13214880 * c₉ + 380419200 * c₁₀ + 9104190480 * c₁₁ + 191576024640 * c₁₂ + 3665904802560 * c₁₃ + 65213282534400 * c₁₄) e₅₇ e₅₈ (by lia)
+  rw [← (show q₆₅ = R.subInto q₅₇ 0 L q₅₈ 0 L from rfl)] at s₆₅ e₆₅
+  rw [s₅₇] at s₆₅
+  obtain ⟨s₆₆, e₆₆⟩ := sub_val (q := q₅₈) (o := 0) (len := L) (by rw [s₅₈]; lia) q₅₉ 0 L
+      (V := 5040 * c₇ + 302400 * c₈ + 10311840 * c₉ + 263088000 * c₁₀ + 5591512080 * c₁₁ + 104691787200 * c₁₂ + 1785759655680 * c₁₃ + 28365463526400 * c₁₄) e₅₈ e₅₉ (by lia)
+  rw [← (show q₆₆ = R.subInto q₅₈ 0 L q₅₉ 0 L from rfl)] at s₆₆ e₆₆
+  rw [s₅₈] at s₆₆
+  obtain ⟨s₆₇, e₆₇⟩ := sub_val (q := q₅₉) (o := 0) (len := L) (by rw [s₅₉]; lia) q₆₀ 0 L
+      (V := 5040 * c₇ + 262080 * c₈ + 7771680 * c₉ + 172972800 * c₁₀ + 3216462480 * c₁₁ + 52834541760 * c₁₂ + 792653621760 * c₁₃ + 11100068179200 * c₁₄) e₅₉ e₆₀ (by lia)
+  rw [← (show q₆₇ = R.subInto q₅₉ 0 L q₆₀ 0 L from rfl)] at s₆₇ e₆₇
+  rw [s₅₉] at s₆₇
+  obtain ⟨s₆₈, e₆₈⟩ := sub_val (q := q₆₀) (o := 0) (len := L) (by rw [s₆₀]; lia) q₆₁ 0 L
+      (V := 5040 * c₇ + 221760 * c₈ + 5594400 * c₉ + 106444800 * c₁₀ + 1699624080 * c₁₁ + 24069165120 * c₁₂ + 312446534400 * c₁₃ + 3798425030400 * c₁₄) e₆₀ e₆₁ (by lia)
+  rw [← (show q₆₈ = R.subInto q₆₀ 0 L q₆₁ 0 L from rfl)] at s₆₈ e₆₈
+  rw [s₆₀] at s₆₈
+  obtain ⟨s₆₉, e₆₉⟩ := sub_val (q := q₆₁) (o := 0) (len := L) (by rw [s₆₁]; lia) q₆₂ 0 L
+      (V := 5040 * c₇ + 181440 * c₈ + 3780000 * c₉ + 59875200 * c₁₀ + 801496080 * c₁₁ + 9574044480 * c₁₂ + 105398092800 * c₁₃ + 1091804313600 * c₁₄) e₆₁ e₆₂ (by lia)
+  rw [← (show q₆₉ = R.subInto q₆₁ 0 L q₆₂ 0 L from rfl)] at s₆₉ e₆₉
+  rw [s₆₁] at s₆₉
+  obtain ⟨s₇₀, e₇₀⟩ := sub_val (q := q₆₂) (o := 0) (len := L) (by rw [s₆₂]; lia) q₆₃ 0 L
+      (V := 5040 * c₇ + 141120 * c₈ + 2328480 * c₉ + 29635200 * c₁₀ + 322494480 * c₁₁ + 3162075840 * c₁₂ + 28805736960 * c₁₃ + 248619571200 * c₁₄) e₆₂ e₆₃ (by lia)
+  rw [← (show q₇₀ = R.subInto q₆₂ 0 L q₆₃ 0 L from rfl)] at s₇₀ e₇₀
+  rw [s₆₂] at s₇₀
+  obtain ⟨s₇₁, e₇₁⟩ := sub_val (q := q₆₄) (o := 0) (len := L) (by rw [s₆₄]; lia) q₆₅ 0 L
+      (V := 40320 * c₈ + 3265920 * c₉ + 148176000 * c₁₀ + 4969641600 * c₁₁ + 137438864640 * c₁₂ + 3319313437440 * c₁₃ + 72478313107200 * c₁₄) e₆₄ e₆₅ (by lia)
+  rw [← (show q₇₁ = R.subInto q₆₄ 0 L q₆₅ 0 L from rfl)] at s₇₁ e₇₁
+  rw [s₆₄] at s₇₁
+  obtain ⟨s₇₂, e₇₂⟩ := sub_val (q := q₆₅) (o := 0) (len := L) (by rw [s₆₅]; lia) q₆₆ 0 L
+      (V := 40320 * c₈ + 2903040 * c₉ + 117331200 * c₁₀ + 3512678400 * c₁₁ + 86884237440 * c₁₂ + 1880145146880 * c₁₃ + 36847819008000 * c₁₄) e₆₅ e₆₆ (by lia)
+  rw [← (show q₇₂ = R.subInto q₆₅ 0 L q₆₆ 0 L from rfl)] at s₇₂ e₇₂
+  rw [s₆₅] at s₇₂
+  obtain ⟨s₇₃, e₇₃⟩ := sub_val (q := q₆₆) (o := 0) (len := L) (by rw [s₆₆]; lia) q₆₇ 0 L
+      (V := 40320 * c₈ + 2540160 * c₉ + 90115200 * c₁₀ + 2375049600 * c₁₁ + 51857245440 * c₁₂ + 993106033920 * c₁₃ + 17265395347200 * c₁₄) e₆₆ e₆₇ (by lia)
+  rw [← (show q₇₃ = R.subInto q₆₆ 0 L q₆₇ 0 L from rfl)] at s₇₃ e₇₃
+  rw [s₆₆] at s₇₃
+  obtain ⟨s₇₄, e₇₄⟩ := sub_val (q := q₆₇) (o := 0) (len := L) (by rw [s₆₇]; lia) q₆₈ 0 L
+      (V := 40320 * c₈ + 2177280 * c₉ + 66528000 * c₁₀ + 1516838400 * c₁₁ + 28765376640 * c₁₂ + 480207087360 * c₁₃ + 7301643148800 * c₁₄) e₆₇ e₆₈ (by lia)
+  rw [← (show q₇₄ = R.subInto q₆₇ 0 L q₆₈ 0 L from rfl)] at s₇₄ e₇₄
+  rw [s₆₇] at s₇₄
+  obtain ⟨s₇₅, e₇₅⟩ := sub_val (q := q₆₈) (o := 0) (len := L) (by rw [s₆₈]; lia) q₆₉ 0 L
+      (V := 40320 * c₈ + 1814400 * c₉ + 46569600 * c₁₀ + 898128000 * c₁₁ + 14495120640 * c₁₂ + 207048441600 * c₁₃ + 2706620716800 * c₁₄) e₆₈ e₆₉ (by lia)
+  rw [← (show q₇₅ = R.subInto q₆₈ 0 L q₆₉ 0 L from rfl)] at s₇₅ e₇₅
+  rw [s₆₈] at s₇₅
+  obtain ⟨s₇₆, e₇₆⟩ := sub_val (q := q₆₉) (o := 0) (len := L) (by rw [s₆₉]; lia) q₇₀ 0 L
+      (V := 40320 * c₈ + 1451520 * c₉ + 30240000 * c₁₀ + 479001600 * c₁₁ + 6411968640 * c₁₂ + 76592355840 * c₁₃ + 843184742400 * c₁₄) e₆₉ e₇₀ (by lia)
+  rw [← (show q₇₆ = R.subInto q₆₉ 0 L q₇₀ 0 L from rfl)] at s₇₆ e₇₆
+  rw [s₆₉] at s₇₆
+  obtain ⟨s₇₇, e₇₇⟩ := sub_val (q := q₇₁) (o := 0) (len := L) (by rw [s₇₁]; lia) q₇₂ 0 L
+      (V := 362880 * c₉ + 30844800 * c₁₀ + 1456963200 * c₁₁ + 50554627200 * c₁₂ + 1439168290560 * c₁₃ + 35630494099200 * c₁₄) e₇₁ e₇₂ (by lia)
+  rw [← (show q₇₇ = R.subInto q₇₁ 0 L q₇₂ 0 L from rfl)] at s₇₇ e₇₇
+  rw [s₇₁] at s₇₇
+  obtain ⟨s₇₈, e₇₈⟩ := sub_val (q := q₇₂) (o := 0) (len := L) (by rw [s₇₂]; lia) q₇₃ 0 L
+      (V := 362880 * c₉ + 27216000 * c₁₀ + 1137628800 * c₁₁ + 35026992000 * c₁₂ + 887039112960 * c₁₃ + 19582423660800 * c₁₄) e₇₂ e₇₃ (by lia)
+  rw [← (show q₇₈ = R.subInto q₇₂ 0 L q₇₃ 0 L from rfl)] at s₇₈ e₇₈
+  rw [s₇₂] at s₇₈
+  obtain ⟨s₇₉, e₇₉⟩ := sub_val (q := q₇₃) (o := 0) (len := L) (by rw [s₇₃]; lia) q₇₄ 0 L
+      (V := 362880 * c₉ + 23587200 * c₁₀ + 858211200 * c₁₁ + 23091868800 * c₁₂ + 512898946560 * c₁₃ + 9963752198400 * c₁₄) e₇₃ e₇₄ (by lia)
+  rw [← (show q₇₉ = R.subInto q₇₃ 0 L q₇₄ 0 L from rfl)] at s₇₉ e₇₉
+  rw [s₇₃] at s₇₉
+  obtain ⟨s₈₀, e₈₀⟩ := sub_val (q := q₇₄) (o := 0) (len := L) (by rw [s₇₄]; lia) q₇₅ 0 L
+      (V := 362880 * c₉ + 19958400 * c₁₀ + 618710400 * c₁₁ + 14270256000 * c₁₂ + 273158645760 * c₁₃ + 4595022432000 * c₁₄) e₇₄ e₇₅ (by lia)
+  rw [← (show q₈₀ = R.subInto q₇₄ 0 L q₇₅ 0 L from rfl)] at s₈₀ e₈₀
+  rw [s₇₄] at s₈₀
+  obtain ⟨s₈₁, e₈₁⟩ := sub_val (q := q₇₅) (o := 0) (len := L) (by rw [s₇₅]; lia) q₇₆ 0 L
+      (V := 362880 * c₉ + 16329600 * c₁₀ + 419126400 * c₁₁ + 8083152000 * c₁₂ + 130456085760 * c₁₃ + 1863435974400 * c₁₄) e₇₅ e₇₆ (by lia)
+  rw [← (show q₈₁ = R.subInto q₇₅ 0 L q₇₆ 0 L from rfl)] at s₈₁ e₈₁
+  rw [s₇₅] at s₈₁
+  obtain ⟨s₈₂, e₈₂⟩ := sub_val (q := q₇₇) (o := 0) (len := L) (by rw [s₇₇]; lia) q₇₈ 0 L
+      (V := 3628800 * c₁₀ + 319334400 * c₁₁ + 15527635200 * c₁₂ + 552129177600 * c₁₃ + 16048070438400 * c₁₄) e₇₇ e₇₈ (by lia)
+  rw [← (show q₈₂ = R.subInto q₇₇ 0 L q₇₈ 0 L from rfl)] at s₈₂ e₈₂
+  rw [s₇₇] at s₈₂
+  obtain ⟨s₈₃, e₈₃⟩ := sub_val (q := q₇₈) (o := 0) (len := L) (by rw [s₇₈]; lia) q₇₉ 0 L
+      (V := 3628800 * c₁₀ + 279417600 * c₁₁ + 11935123200 * c₁₂ + 374140166400 * c₁₃ + 9618671462400 * c₁₄) e₇₈ e₇₉ (by lia)
+  rw [← (show q₈₃ = R.subInto q₇₈ 0 L q₇₉ 0 L from rfl)] at s₈₃ e₈₃
+  rw [s₇₈] at s₈₃
+  obtain ⟨s₈₄, e₈₄⟩ := sub_val (q := q₇₉) (o := 0) (len := L) (by rw [s₇₉]; lia) q₈₀ 0 L
+      (V := 3628800 * c₁₀ + 239500800 * c₁₁ + 8821612800 * c₁₂ + 239740300800 * c₁₃ + 5368729766400 * c₁₄) e₇₉ e₈₀ (by lia)
+  rw [← (show q₈₄ = R.subInto q₇₉ 0 L q₈₀ 0 L from rfl)] at s₈₄ e₈₄
+  rw [s₇₉] at s₈₄
+  obtain ⟨s₈₅, e₈₅⟩ := sub_val (q := q₈₀) (o := 0) (len := L) (by rw [s₈₀]; lia) q₈₁ 0 L
+      (V := 3628800 * c₁₀ + 199584000 * c₁₁ + 6187104000 * c₁₂ + 142702560000 * c₁₃ + 2731586457600 * c₁₄) e₈₀ e₈₁ (by lia)
+  rw [← (show q₈₅ = R.subInto q₈₀ 0 L q₈₁ 0 L from rfl)] at s₈₅ e₈₅
+  rw [s₈₀] at s₈₅
+  obtain ⟨s₈₆, e₈₆⟩ := sub_val (q := q₈₂) (o := 0) (len := L) (by rw [s₈₂]; lia) q₈₃ 0 L
+      (V := 39916800 * c₁₁ + 3592512000 * c₁₂ + 177989011200 * c₁₃ + 6429398976000 * c₁₄) e₈₂ e₈₃ (by lia)
+  rw [← (show q₈₆ = R.subInto q₈₂ 0 L q₈₃ 0 L from rfl)] at s₈₆ e₈₆
+  rw [s₈₂] at s₈₆
+  obtain ⟨s₈₇, e₈₇⟩ := sub_val (q := q₈₃) (o := 0) (len := L) (by rw [s₈₃]; lia) q₈₄ 0 L
+      (V := 39916800 * c₁₁ + 3113510400 * c₁₂ + 134399865600 * c₁₃ + 4249941696000 * c₁₄) e₈₃ e₈₄ (by lia)
+  rw [← (show q₈₇ = R.subInto q₈₃ 0 L q₈₄ 0 L from rfl)] at s₈₇ e₈₇
+  rw [s₈₃] at s₈₇
+  obtain ⟨s₈₈, e₈₈⟩ := sub_val (q := q₈₄) (o := 0) (len := L) (by rw [s₈₄]; lia) q₈₅ 0 L
+      (V := 39916800 * c₁₁ + 2634508800 * c₁₂ + 97037740800 * c₁₃ + 2637143308800 * c₁₄) e₈₄ e₈₅ (by lia)
+  rw [← (show q₈₈ = R.subInto q₈₄ 0 L q₈₅ 0 L from rfl)] at s₈₈ e₈₈
+  rw [s₈₄] at s₈₈
+  obtain ⟨s₈₉, e₈₉⟩ := sub_val (q := q₈₆) (o := 0) (len := L) (by rw [s₈₆]; lia) q₈₇ 0 L
+      (V := 479001600 * c₁₂ + 43589145600 * c₁₃ + 2179457280000 * c₁₄) e₈₆ e₈₇ (by lia)
+  rw [← (show q₈₉ = R.subInto q₈₆ 0 L q₈₇ 0 L from rfl)] at s₈₉ e₈₉
+  rw [s₈₆] at s₈₉
+  obtain ⟨s₉₀, e₉₀⟩ := sub_val (q := q₈₇) (o := 0) (len := L) (by rw [s₈₇]; lia) q₈₈ 0 L
+      (V := 479001600 * c₁₂ + 37362124800 * c₁₃ + 1612798387200 * c₁₄) e₈₇ e₈₈ (by lia)
+  rw [← (show q₉₀ = R.subInto q₈₇ 0 L q₈₈ 0 L from rfl)] at s₉₀ e₉₀
+  rw [s₈₇] at s₉₀
+  obtain ⟨s₉₁, e₉₁⟩ := sub_val (q := q₈₉) (o := 0) (len := L) (by rw [s₈₉]; lia) q₉₀ 0 L
+      (V := 6227020800 * c₁₃ + 566658892800 * c₁₄) e₈₉ e₉₀ (by lia)
+  rw [← (show q₉₁ = R.subInto q₈₉ 0 L q₉₀ 0 L from rfl)] at s₉₁ e₉₁
+  rw [s₈₉] at s₉₁
+  obtain ⟨s₉₂, e₉₂⟩ := shr_val (q := q₂₅) (o := 0) (len := L) (by rw [s₂₅]; lia) 1 (by decide) (by decide)
+      (V := c₂ + 3 * c₃ + 7 * c₄ + 15 * c₅ + 31 * c₆ + 63 * c₇ + 127 * c₈ + 255 * c₉ + 511 * c₁₀ + 1023 * c₁₁ + 2047 * c₁₂ + 4095 * c₁₃ + 8191 * c₁₄) e₂₅ (by lia)
+  rw [← (show q₉₂ = R.shr q₂₅ 0 L 1 from rfl)] at s₉₂ e₉₂
+  rw [s₂₅] at s₉₂
+  obtain ⟨s₉₃, e₉₃⟩ := div_val (q := q₃₆) (o := 0) (len := L) (by rw [s₃₆]; lia) 3 (by decide) (by decide)
+      (V := 2 * c₃ + 12 * c₄ + 50 * c₅ + 180 * c₆ + 602 * c₇ + 1932 * c₈ + 6050 * c₉ + 18660 * c₁₀ + 57002 * c₁₁ + 173052 * c₁₂ + 523250 * c₁₃ + 1577940 * c₁₄) e₃₆ (by lia)
+  rw [← (show q₉₃ = R.divExact q₃₆ 0 L 3 from rfl)] at s₉₃ e₉₃
+  rw [s₃₆] at s₉₃
+  obtain ⟨s₉₄, e₉₄⟩ := shr_val (q := q₉₃) (o := 0) (len := L) (by rw [s₉₃]; lia) 1 (by decide) (by decide)
+      (V := c₃ + 6 * c₄ + 25 * c₅ + 90 * c₆ + 301 * c₇ + 966 * c₈ + 3025 * c₉ + 9330 * c₁₀ + 28501 * c₁₁ + 86526 * c₁₂ + 261625 * c₁₃ + 788970 * c₁₄) e₉₃ (by lia)
+  rw [← (show q₉₄ = R.shr q₉₃ 0 L 1 from rfl)] at s₉₄ e₉₄
+  rw [s₉₃] at s₉₄
+  obtain ⟨s₉₅, e₉₅⟩ := div_val (q := q₄₆) (o := 0) (len := L) (by rw [s₄₆]; lia) 3 (by decide) (by decide)
+      (V := 8 * c₄ + 80 * c₅ + 520 * c₆ + 2800 * c₇ + 13608 * c₈ + 62160 * c₉ + 272840 * c₁₀ + 1166000 * c₁₁ + 4892008 * c₁₂ + 20260240 * c₁₃ + 83133960 * c₁₄) e₄₆ (by lia)
+  rw [← (show q₉₅ = R.divExact q₄₆ 0 L 3 from rfl)] at s₉₅ e₉₅
+  rw [s₄₆] at s₉₅
+  obtain ⟨s₉₆, e₉₆⟩ := shr_val (q := q₉₅) (o := 0) (len := L) (by rw [s₉₅]; lia) 3 (by decide) (by decide)
+      (V := c₄ + 10 * c₅ + 65 * c₆ + 350 * c₇ + 1701 * c₈ + 7770 * c₉ + 34105 * c₁₀ + 145750 * c₁₁ + 611501 * c₁₂ + 2532530 * c₁₃ + 10391745 * c₁₄) e₉₅ (by lia)
+  rw [← (show q₉₆ = R.shr q₉₅ 0 L 3 from rfl)] at s₉₆ e₉₆
+  rw [s₉₅] at s₉₆
+  obtain ⟨s₉₇, e₉₇⟩ := div_val (q := q₅₅) (o := 0) (len := L) (by rw [s₅₅]; lia) 15 (by decide) (by decide)
+      (V := 8 * c₅ + 120 * c₆ + 1120 * c₇ + 8400 * c₈ + 55608 * c₉ + 340200 * c₁₀ + 1973840 * c₁₁ + 11035200 * c₁₂ + 60068008 * c₁₃ + 320600280 * c₁₄) e₅₅ (by lia)
+  rw [← (show q₉₇ = R.divExact q₅₅ 0 L 15 from rfl)] at s₉₇ e₉₇
+  rw [s₅₅] at s₉₇
+  obtain ⟨s₉₈, e₉₈⟩ := shr_val (q := q₉₇) (o := 0) (len := L) (by rw [s₉₇]; lia) 3 (by decide) (by decide)
+      (V := c₅ + 15 * c₆ + 140 * c₇ + 1050 * c₈ + 6951 * c₉ + 42525 * c₁₀ + 246730 * c₁₁ + 1379400 * c₁₂ + 7508501 * c₁₃ + 40075035 * c₁₄) e₉₇ (by lia)
+  rw [← (show q₉₈ = R.shr q₉₇ 0 L 3 from rfl)] at s₉₈ e₉₈
+  rw [s₉₇] at s₉₈
+  obtain ⟨s₉₉, e₉₉⟩ := div_val (q := q₆₃) (o := 0) (len := L) (by rw [s₆₃]; lia) 45 (by decide) (by decide)
+      (V := 16 * c₆ + 336 * c₇ + 4256 * c₈ + 42336 * c₉ + 365232 * c₁₀ + 2871792 * c₁₁ + 21178432 * c₁₂ + 149140992 * c₁₃ + 1014981968 * c₁₄) e₆₃ (by lia)
+  rw [← (show q₉₉ = R.divExact q₆₃ 0 L 45 from rfl)] at s₉₉ e₉₉
+  rw [s₆₃] at s₉₉
+  obtain ⟨s₁₀₀, e₁₀₀⟩ := shr_val (q := q₉₉) (o := 0) (len := L) (by rw [s₉₉]; lia) 4 (by decide) (by decide)
+      (V := c₆ + 21 * c₇ + 266 * c₈ + 2646 * c₉ + 22827 * c₁₀ + 179487 * c₁₁ + 1323652 * c₁₂ + 9321312 * c₁₃ + 63436373 * c₁₄) e₉₉ (by lia)
+  rw [← (show q₁₀₀ = R.shr q₉₉ 0 L 4 from rfl)] at s₁₀₀ e₁₀₀
+  rw [s₉₉] at s₁₀₀
+  obtain ⟨s₁₀₁, e₁₀₁⟩ := div_val (q := q₇₀) (o := 0) (len := L) (by rw [s₇₀]; lia) 315 (by decide) (by decide)
+      (V := 16 * c₇ + 448 * c₈ + 7392 * c₉ + 94080 * c₁₀ + 1023792 * c₁₁ + 10038336 * c₁₂ + 91446784 * c₁₃ + 789268480 * c₁₄) e₇₀ (by lia)
+  rw [← (show q₁₀₁ = R.divExact q₇₀ 0 L 315 from rfl)] at s₁₀₁ e₁₀₁
+  rw [s₇₀] at s₁₀₁
+  obtain ⟨s₁₀₂, e₁₀₂⟩ := shr_val (q := q₁₀₁) (o := 0) (len := L) (by rw [s₁₀₁]; lia) 4 (by decide) (by decide)
+      (V := c₇ + 28 * c₈ + 462 * c₉ + 5880 * c₁₀ + 63987 * c₁₁ + 627396 * c₁₂ + 5715424 * c₁₃ + 49329280 * c₁₄) e₁₀₁ (by lia)
+  rw [← (show q₁₀₂ = R.shr q₁₀₁ 0 L 4 from rfl)] at s₁₀₂ e₁₀₂
+  rw [s₁₀₁] at s₁₀₂
+  obtain ⟨s₁₀₃, e₁₀₃⟩ := div_val (q := q₇₆) (o := 0) (len := L) (by rw [s₇₆]; lia) 315 (by decide) (by decide)
+      (V := 128 * c₈ + 4608 * c₉ + 96000 * c₁₀ + 1520640 * c₁₁ + 20355456 * c₁₂ + 243150336 * c₁₃ + 2676776960 * c₁₄) e₇₆ (by lia)
+  rw [← (show q₁₀₃ = R.divExact q₇₆ 0 L 315 from rfl)] at s₁₀₃ e₁₀₃
+  rw [s₇₆] at s₁₀₃
+  obtain ⟨s₁₀₄, e₁₀₄⟩ := shr_val (q := q₁₀₃) (o := 0) (len := L) (by rw [s₁₀₃]; lia) 7 (by decide) (by decide)
+      (V := c₈ + 36 * c₉ + 750 * c₁₀ + 11880 * c₁₁ + 159027 * c₁₂ + 1899612 * c₁₃ + 20912320 * c₁₄) e₁₀₃ (by lia)
+  rw [← (show q₁₀₄ = R.shr q₁₀₃ 0 L 7 from rfl)] at s₁₀₄ e₁₀₄
+  rw [s₁₀₃] at s₁₀₄
+  obtain ⟨s₁₀₅, e₁₀₅⟩ := div_val (q := q₈₁) (o := 0) (len := L) (by rw [s₈₁]; lia) 2835 (by decide) (by decide)
+      (V := 128 * c₉ + 5760 * c₁₀ + 147840 * c₁₁ + 2851200 * c₁₂ + 46016256 * c₁₃ + 657296640 * c₁₄) e₈₁ (by lia)
+  rw [← (show q₁₀₅ = R.divExact q₈₁ 0 L 2835 from rfl)] at s₁₀₅ e₁₀₅
+  rw [s₈₁] at s₁₀₅
+  obtain ⟨s₁₀₆, e₁₀₆⟩ := shr_val (q := q₁₀₅) (o := 0) (len := L) (by rw [s₁₀₅]; lia) 7 (by decide) (by decide)
+      (V := c₉ + 45 * c₁₀ + 1155 * c₁₁ + 22275 * c₁₂ + 359502 * c₁₃ + 5135130 * c₁₄) e₁₀₅ (by lia)
+  rw [← (show q₁₀₆ = R.shr q₁₀₅ 0 L 7 from rfl)] at s₁₀₆ e₁₀₆
+  rw [s₁₀₅] at s₁₀₆
+  obtain ⟨s₁₀₇, e₁₀₇⟩ := div_val (q := q₈₅) (o := 0) (len := L) (by rw [s₈₅]; lia) 14175 (by decide) (by decide)
+      (V := 256 * c₁₀ + 14080 * c₁₁ + 436480 * c₁₂ + 10067200 * c₁₃ + 192704512 * c₁₄) e₈₅ (by lia)
+  rw [← (show q₁₀₇ = R.divExact q₈₅ 0 L 14175 from rfl)] at s₁₀₇ e₁₀₇
+  rw [s₈₅] at s₁₀₇
+  obtain ⟨s₁₀₈, e₁₀₈⟩ := shr_val (q := q₁₀₇) (o := 0) (len := L) (by rw [s₁₀₇]; lia) 8 (by decide) (by decide)
+      (V := c₁₀ + 55 * c₁₁ + 1705 * c₁₂ + 39325 * c₁₃ + 752752 * c₁₄) e₁₀₇ (by lia)
+  rw [← (show q₁₀₈ = R.shr q₁₀₇ 0 L 8 from rfl)] at s₁₀₈ e₁₀₈
+  rw [s₁₀₇] at s₁₀₈
+  obtain ⟨s₁₀₉, e₁₀₉⟩ := div_val (q := q₈₈) (o := 0) (len := L) (by rw [s₈₈]; lia) 155925 (by decide) (by decide)
+      (V := 256 * c₁₁ + 16896 * c₁₂ + 622336 * c₁₃ + 16912896 * c₁₄) e₈₈ (by lia)
+  rw [← (show q₁₀₉ = R.divExact q₈₈ 0 L 155925 from rfl)] at s₁₀₉ e₁₀₉
+  rw [s₈₈] at s₁₀₉
+  obtain ⟨s₁₁₀, e₁₁₀⟩ := shr_val (q := q₁₀₉) (o := 0) (len := L) (by rw [s₁₀₉]; lia) 8 (by decide) (by decide)
+      (V := c₁₁ + 66 * c₁₂ + 2431 * c₁₃ + 66066 * c₁₄) e₁₀₉ (by lia)
+  rw [← (show q₁₁₀ = R.shr q₁₀₉ 0 L 8 from rfl)] at s₁₁₀ e₁₁₀
+  rw [s₁₀₉] at s₁₁₀
+  obtain ⟨s₁₁₁, e₁₁₁⟩ := div_val (q := q₉₀) (o := 0) (len := L) (by rw [s₉₀]; lia) 467775 (by decide) (by decide)
+      (V := 1024 * c₁₂ + 79872 * c₁₃ + 3447808 * c₁₄) e₉₀ (by lia)
+  rw [← (show q₁₁₁ = R.divExact q₉₀ 0 L 467775 from rfl)] at s₁₁₁ e₁₁₁
+  rw [s₉₀] at s₁₁₁
+  obtain ⟨s₁₁₂, e₁₁₂⟩ := shr_val (q := q₁₁₁) (o := 0) (len := L) (by rw [s₁₁₁]; lia) 10 (by decide) (by decide)
+      (V := c₁₂ + 78 * c₁₃ + 3367 * c₁₄) e₁₁₁ (by lia)
+  rw [← (show q₁₁₂ = R.shr q₁₁₁ 0 L 10 from rfl)] at s₁₁₂ e₁₁₂
+  rw [s₁₁₁] at s₁₁₂
+  obtain ⟨s₁₁₃, e₁₁₃⟩ := div_val (q := q₉₁) (o := 0) (len := L) (by rw [s₉₁]; lia) 6081075 (by decide) (by decide)
+      (V := 1024 * c₁₃ + 93184 * c₁₄) e₉₁ (by lia)
+  rw [← (show q₁₁₃ = R.divExact q₉₁ 0 L 6081075 from rfl)] at s₁₁₃ e₁₁₃
+  rw [s₉₁] at s₁₁₃
+  obtain ⟨s₁₁₄, e₁₁₄⟩ := shr_val (q := q₁₁₃) (o := 0) (len := L) (by rw [s₁₁₃]; lia) 10 (by decide) (by decide)
+      (V := c₁₃ + 91 * c₁₄) e₁₁₃ (by lia)
+  rw [← (show q₁₁₄ = R.shr q₁₁₃ 0 L 10 from rfl)] at s₁₁₄ e₁₁₄
+  rw [s₁₁₃] at s₁₁₄
+  obtain ⟨s₁₁₅, e₁₁₅⟩ := subMul_val (q := q₁₁₄) (o := 0) (len := L) (by rw [s₁₁₄]; lia) d (o + 14 * k) (n - 14 * k) 13 (by decide)
+      (V := c₁₃ + 78 * c₁₄) e₁₁₄ hc₁₄ (by lia)
+  rw [← (show q₁₁₅ = R.subMulInto q₁₁₄ 0 L d (o + 14 * k) (n - 14 * k) 13 from rfl)] at s₁₁₅ e₁₁₅
+  rw [s₁₁₄] at s₁₁₅
+  obtain ⟨s₁₁₆, e₁₁₆⟩ := subMul_val (q := q₁₁₂) (o := 0) (len := L) (by rw [s₁₁₂]; lia) q₁₁₅ 0 L 12 (by decide)
+      (V := c₁₂ + 66 * c₁₃ + 2431 * c₁₄) e₁₁₂ e₁₁₅ (by lia)
+  rw [← (show q₁₁₆ = R.subMulInto q₁₁₂ 0 L q₁₁₅ 0 L 12 from rfl)] at s₁₁₆ e₁₁₆
+  rw [s₁₁₂] at s₁₁₆
+  obtain ⟨s₁₁₇, e₁₁₇⟩ := subMul_val (q := q₁₁₅) (o := 0) (len := L) (by rw [s₁₁₅]; lia) d (o + 14 * k) (n - 14 * k) 12 (by decide)
+      (V := c₁₃ + 66 * c₁₄) e₁₁₅ hc₁₄ (by lia)
+  rw [← (show q₁₁₇ = R.subMulInto q₁₁₅ 0 L d (o + 14 * k) (n - 14 * k) 12 from rfl)] at s₁₁₇ e₁₁₇
+  rw [s₁₁₅] at s₁₁₇
+  obtain ⟨s₁₁₈, e₁₁₈⟩ := subMul_val (q := q₁₁₀) (o := 0) (len := L) (by rw [s₁₁₀]; lia) q₁₁₆ 0 L 11 (by decide)
+      (V := c₁₁ + 55 * c₁₂ + 1705 * c₁₃ + 39325 * c₁₄) e₁₁₀ e₁₁₆ (by lia)
+  rw [← (show q₁₁₈ = R.subMulInto q₁₁₀ 0 L q₁₁₆ 0 L 11 from rfl)] at s₁₁₈ e₁₁₈
+  rw [s₁₁₀] at s₁₁₈
+  obtain ⟨s₁₁₉, e₁₁₉⟩ := subMul_val (q := q₁₁₆) (o := 0) (len := L) (by rw [s₁₁₆]; lia) q₁₁₇ 0 L 11 (by decide)
+      (V := c₁₂ + 55 * c₁₃ + 1705 * c₁₄) e₁₁₆ e₁₁₇ (by lia)
+  rw [← (show q₁₁₉ = R.subMulInto q₁₁₆ 0 L q₁₁₇ 0 L 11 from rfl)] at s₁₁₉ e₁₁₉
+  rw [s₁₁₆] at s₁₁₉
+  obtain ⟨s₁₂₀, e₁₂₀⟩ := subMul_val (q := q₁₁₇) (o := 0) (len := L) (by rw [s₁₁₇]; lia) d (o + 14 * k) (n - 14 * k) 11 (by decide)
+      (V := c₁₃ + 55 * c₁₄) e₁₁₇ hc₁₄ (by lia)
+  rw [← (show q₁₂₀ = R.subMulInto q₁₁₇ 0 L d (o + 14 * k) (n - 14 * k) 11 from rfl)] at s₁₂₀ e₁₂₀
+  rw [s₁₁₇] at s₁₂₀
+  obtain ⟨s₁₂₁, e₁₂₁⟩ := subMul_val (q := q₁₀₈) (o := 0) (len := L) (by rw [s₁₀₈]; lia) q₁₁₈ 0 L 10 (by decide)
+      (V := c₁₀ + 45 * c₁₁ + 1155 * c₁₂ + 22275 * c₁₃ + 359502 * c₁₄) e₁₀₈ e₁₁₈ (by lia)
+  rw [← (show q₁₂₁ = R.subMulInto q₁₀₈ 0 L q₁₁₈ 0 L 10 from rfl)] at s₁₂₁ e₁₂₁
+  rw [s₁₀₈] at s₁₂₁
+  obtain ⟨s₁₂₂, e₁₂₂⟩ := subMul_val (q := q₁₁₈) (o := 0) (len := L) (by rw [s₁₁₈]; lia) q₁₁₉ 0 L 10 (by decide)
+      (V := c₁₁ + 45 * c₁₂ + 1155 * c₁₃ + 22275 * c₁₄) e₁₁₈ e₁₁₉ (by lia)
+  rw [← (show q₁₂₂ = R.subMulInto q₁₁₈ 0 L q₁₁₉ 0 L 10 from rfl)] at s₁₂₂ e₁₂₂
+  rw [s₁₁₈] at s₁₂₂
+  obtain ⟨s₁₂₃, e₁₂₃⟩ := subMul_val (q := q₁₁₉) (o := 0) (len := L) (by rw [s₁₁₉]; lia) q₁₂₀ 0 L 10 (by decide)
+      (V := c₁₂ + 45 * c₁₃ + 1155 * c₁₄) e₁₁₉ e₁₂₀ (by lia)
+  rw [← (show q₁₂₃ = R.subMulInto q₁₁₉ 0 L q₁₂₀ 0 L 10 from rfl)] at s₁₂₃ e₁₂₃
+  rw [s₁₁₉] at s₁₂₃
+  obtain ⟨s₁₂₄, e₁₂₄⟩ := subMul_val (q := q₁₂₀) (o := 0) (len := L) (by rw [s₁₂₀]; lia) d (o + 14 * k) (n - 14 * k) 10 (by decide)
+      (V := c₁₃ + 45 * c₁₄) e₁₂₀ hc₁₄ (by lia)
+  rw [← (show q₁₂₄ = R.subMulInto q₁₂₀ 0 L d (o + 14 * k) (n - 14 * k) 10 from rfl)] at s₁₂₄ e₁₂₄
+  rw [s₁₂₀] at s₁₂₄
+  obtain ⟨s₁₂₅, e₁₂₅⟩ := subMul_val (q := q₁₀₆) (o := 0) (len := L) (by rw [s₁₀₆]; lia) q₁₂₁ 0 L 9 (by decide)
+      (V := c₉ + 36 * c₁₀ + 750 * c₁₁ + 11880 * c₁₂ + 159027 * c₁₃ + 1899612 * c₁₄) e₁₀₆ e₁₂₁ (by lia)
+  rw [← (show q₁₂₅ = R.subMulInto q₁₀₆ 0 L q₁₂₁ 0 L 9 from rfl)] at s₁₂₅ e₁₂₅
+  rw [s₁₀₆] at s₁₂₅
+  obtain ⟨s₁₂₆, e₁₂₆⟩ := subMul_val (q := q₁₂₁) (o := 0) (len := L) (by rw [s₁₂₁]; lia) q₁₂₂ 0 L 9 (by decide)
+      (V := c₁₀ + 36 * c₁₁ + 750 * c₁₂ + 11880 * c₁₃ + 159027 * c₁₄) e₁₂₁ e₁₂₂ (by lia)
+  rw [← (show q₁₂₆ = R.subMulInto q₁₂₁ 0 L q₁₂₂ 0 L 9 from rfl)] at s₁₂₆ e₁₂₆
+  rw [s₁₂₁] at s₁₂₆
+  obtain ⟨s₁₂₇, e₁₂₇⟩ := subMul_val (q := q₁₂₂) (o := 0) (len := L) (by rw [s₁₂₂]; lia) q₁₂₃ 0 L 9 (by decide)
+      (V := c₁₁ + 36 * c₁₂ + 750 * c₁₃ + 11880 * c₁₄) e₁₂₂ e₁₂₃ (by lia)
+  rw [← (show q₁₂₇ = R.subMulInto q₁₂₂ 0 L q₁₂₃ 0 L 9 from rfl)] at s₁₂₇ e₁₂₇
+  rw [s₁₂₂] at s₁₂₇
+  obtain ⟨s₁₂₈, e₁₂₈⟩ := subMul_val (q := q₁₂₃) (o := 0) (len := L) (by rw [s₁₂₃]; lia) q₁₂₄ 0 L 9 (by decide)
+      (V := c₁₂ + 36 * c₁₃ + 750 * c₁₄) e₁₂₃ e₁₂₄ (by lia)
+  rw [← (show q₁₂₈ = R.subMulInto q₁₂₃ 0 L q₁₂₄ 0 L 9 from rfl)] at s₁₂₈ e₁₂₈
+  rw [s₁₂₃] at s₁₂₈
+  obtain ⟨s₁₂₉, e₁₂₉⟩ := subMul_val (q := q₁₂₄) (o := 0) (len := L) (by rw [s₁₂₄]; lia) d (o + 14 * k) (n - 14 * k) 9 (by decide)
+      (V := c₁₃ + 36 * c₁₄) e₁₂₄ hc₁₄ (by lia)
+  rw [← (show q₁₂₉ = R.subMulInto q₁₂₄ 0 L d (o + 14 * k) (n - 14 * k) 9 from rfl)] at s₁₂₉ e₁₂₉
+  rw [s₁₂₄] at s₁₂₉
+  obtain ⟨s₁₃₀, e₁₃₀⟩ := subMul_val (q := q₁₀₄) (o := 0) (len := L) (by rw [s₁₀₄]; lia) q₁₂₅ 0 L 8 (by decide)
+      (V := c₈ + 28 * c₉ + 462 * c₁₀ + 5880 * c₁₁ + 63987 * c₁₂ + 627396 * c₁₃ + 5715424 * c₁₄) e₁₀₄ e₁₂₅ (by lia)
+  rw [← (show q₁₃₀ = R.subMulInto q₁₀₄ 0 L q₁₂₅ 0 L 8 from rfl)] at s₁₃₀ e₁₃₀
+  rw [s₁₀₄] at s₁₃₀
+  obtain ⟨s₁₃₁, e₁₃₁⟩ := subMul_val (q := q₁₂₅) (o := 0) (len := L) (by rw [s₁₂₅]; lia) q₁₂₆ 0 L 8 (by decide)
+      (V := c₉ + 28 * c₁₀ + 462 * c₁₁ + 5880 * c₁₂ + 63987 * c₁₃ + 627396 * c₁₄) e₁₂₅ e₁₂₆ (by lia)
+  rw [← (show q₁₃₁ = R.subMulInto q₁₂₅ 0 L q₁₂₆ 0 L 8 from rfl)] at s₁₃₁ e₁₃₁
+  rw [s₁₂₅] at s₁₃₁
+  obtain ⟨s₁₃₂, e₁₃₂⟩ := subMul_val (q := q₁₂₆) (o := 0) (len := L) (by rw [s₁₂₆]; lia) q₁₂₇ 0 L 8 (by decide)
+      (V := c₁₀ + 28 * c₁₁ + 462 * c₁₂ + 5880 * c₁₃ + 63987 * c₁₄) e₁₂₆ e₁₂₇ (by lia)
+  rw [← (show q₁₃₂ = R.subMulInto q₁₂₆ 0 L q₁₂₇ 0 L 8 from rfl)] at s₁₃₂ e₁₃₂
+  rw [s₁₂₆] at s₁₃₂
+  obtain ⟨s₁₃₃, e₁₃₃⟩ := subMul_val (q := q₁₂₇) (o := 0) (len := L) (by rw [s₁₂₇]; lia) q₁₂₈ 0 L 8 (by decide)
+      (V := c₁₁ + 28 * c₁₂ + 462 * c₁₃ + 5880 * c₁₄) e₁₂₇ e₁₂₈ (by lia)
+  rw [← (show q₁₃₃ = R.subMulInto q₁₂₇ 0 L q₁₂₈ 0 L 8 from rfl)] at s₁₃₃ e₁₃₃
+  rw [s₁₂₇] at s₁₃₃
+  obtain ⟨s₁₃₄, e₁₃₄⟩ := subMul_val (q := q₁₂₈) (o := 0) (len := L) (by rw [s₁₂₈]; lia) q₁₂₉ 0 L 8 (by decide)
+      (V := c₁₂ + 28 * c₁₃ + 462 * c₁₄) e₁₂₈ e₁₂₉ (by lia)
+  rw [← (show q₁₃₄ = R.subMulInto q₁₂₈ 0 L q₁₂₉ 0 L 8 from rfl)] at s₁₃₄ e₁₃₄
+  rw [s₁₂₈] at s₁₃₄
+  obtain ⟨s₁₃₅, e₁₃₅⟩ := subMul_val (q := q₁₂₉) (o := 0) (len := L) (by rw [s₁₂₉]; lia) d (o + 14 * k) (n - 14 * k) 8 (by decide)
+      (V := c₁₃ + 28 * c₁₄) e₁₂₉ hc₁₄ (by lia)
+  rw [← (show q₁₃₅ = R.subMulInto q₁₂₉ 0 L d (o + 14 * k) (n - 14 * k) 8 from rfl)] at s₁₃₅ e₁₃₅
+  rw [s₁₂₉] at s₁₃₅
+  obtain ⟨s₁₃₆, e₁₃₆⟩ := subMul_val (q := q₁₀₂) (o := 0) (len := L) (by rw [s₁₀₂]; lia) q₁₃₀ 0 L 7 (by decide)
+      (V := c₇ + 21 * c₈ + 266 * c₉ + 2646 * c₁₀ + 22827 * c₁₁ + 179487 * c₁₂ + 1323652 * c₁₃ + 9321312 * c₁₄) e₁₀₂ e₁₃₀ (by lia)
+  rw [← (show q₁₃₆ = R.subMulInto q₁₀₂ 0 L q₁₃₀ 0 L 7 from rfl)] at s₁₃₆ e₁₃₆
+  rw [s₁₀₂] at s₁₃₆
+  obtain ⟨s₁₃₇, e₁₃₇⟩ := subMul_val (q := q₁₃₀) (o := 0) (len := L) (by rw [s₁₃₀]; lia) q₁₃₁ 0 L 7 (by decide)
+      (V := c₈ + 21 * c₉ + 266 * c₁₀ + 2646 * c₁₁ + 22827 * c₁₂ + 179487 * c₁₃ + 1323652 * c₁₄) e₁₃₀ e₁₃₁ (by lia)
+  rw [← (show q₁₃₇ = R.subMulInto q₁₃₀ 0 L q₁₃₁ 0 L 7 from rfl)] at s₁₃₇ e₁₃₇
+  rw [s₁₃₀] at s₁₃₇
+  obtain ⟨s₁₃₈, e₁₃₈⟩ := subMul_val (q := q₁₃₁) (o := 0) (len := L) (by rw [s₁₃₁]; lia) q₁₃₂ 0 L 7 (by decide)
+      (V := c₉ + 21 * c₁₀ + 266 * c₁₁ + 2646 * c₁₂ + 22827 * c₁₃ + 179487 * c₁₄) e₁₃₁ e₁₃₂ (by lia)
+  rw [← (show q₁₃₈ = R.subMulInto q₁₃₁ 0 L q₁₃₂ 0 L 7 from rfl)] at s₁₃₈ e₁₃₈
+  rw [s₁₃₁] at s₁₃₈
+  obtain ⟨s₁₃₉, e₁₃₉⟩ := subMul_val (q := q₁₃₂) (o := 0) (len := L) (by rw [s₁₃₂]; lia) q₁₃₃ 0 L 7 (by decide)
+      (V := c₁₀ + 21 * c₁₁ + 266 * c₁₂ + 2646 * c₁₃ + 22827 * c₁₄) e₁₃₂ e₁₃₃ (by lia)
+  rw [← (show q₁₃₉ = R.subMulInto q₁₃₂ 0 L q₁₃₃ 0 L 7 from rfl)] at s₁₃₉ e₁₃₉
+  rw [s₁₃₂] at s₁₃₉
+  obtain ⟨s₁₄₀, e₁₄₀⟩ := subMul_val (q := q₁₃₃) (o := 0) (len := L) (by rw [s₁₃₃]; lia) q₁₃₄ 0 L 7 (by decide)
+      (V := c₁₁ + 21 * c₁₂ + 266 * c₁₃ + 2646 * c₁₄) e₁₃₃ e₁₃₄ (by lia)
+  rw [← (show q₁₄₀ = R.subMulInto q₁₃₃ 0 L q₁₃₄ 0 L 7 from rfl)] at s₁₄₀ e₁₄₀
+  rw [s₁₃₃] at s₁₄₀
+  obtain ⟨s₁₄₁, e₁₄₁⟩ := subMul_val (q := q₁₃₄) (o := 0) (len := L) (by rw [s₁₃₄]; lia) q₁₃₅ 0 L 7 (by decide)
+      (V := c₁₂ + 21 * c₁₃ + 266 * c₁₄) e₁₃₄ e₁₃₅ (by lia)
+  rw [← (show q₁₄₁ = R.subMulInto q₁₃₄ 0 L q₁₃₅ 0 L 7 from rfl)] at s₁₄₁ e₁₄₁
+  rw [s₁₃₄] at s₁₄₁
+  obtain ⟨s₁₄₂, e₁₄₂⟩ := subMul_val (q := q₁₃₅) (o := 0) (len := L) (by rw [s₁₃₅]; lia) d (o + 14 * k) (n - 14 * k) 7 (by decide)
+      (V := c₁₃ + 21 * c₁₄) e₁₃₅ hc₁₄ (by lia)
+  rw [← (show q₁₄₂ = R.subMulInto q₁₃₅ 0 L d (o + 14 * k) (n - 14 * k) 7 from rfl)] at s₁₄₂ e₁₄₂
+  rw [s₁₃₅] at s₁₄₂
+  obtain ⟨s₁₄₃, e₁₄₃⟩ := subMul_val (q := q₁₀₀) (o := 0) (len := L) (by rw [s₁₀₀]; lia) q₁₃₆ 0 L 6 (by decide)
+      (V := c₆ + 15 * c₇ + 140 * c₈ + 1050 * c₉ + 6951 * c₁₀ + 42525 * c₁₁ + 246730 * c₁₂ + 1379400 * c₁₃ + 7508501 * c₁₄) e₁₀₀ e₁₃₆ (by lia)
+  rw [← (show q₁₄₃ = R.subMulInto q₁₀₀ 0 L q₁₃₆ 0 L 6 from rfl)] at s₁₄₃ e₁₄₃
+  rw [s₁₀₀] at s₁₄₃
+  obtain ⟨s₁₄₄, e₁₄₄⟩ := subMul_val (q := q₁₃₆) (o := 0) (len := L) (by rw [s₁₃₆]; lia) q₁₃₇ 0 L 6 (by decide)
+      (V := c₇ + 15 * c₈ + 140 * c₉ + 1050 * c₁₀ + 6951 * c₁₁ + 42525 * c₁₂ + 246730 * c₁₃ + 1379400 * c₁₄) e₁₃₆ e₁₃₇ (by lia)
+  rw [← (show q₁₄₄ = R.subMulInto q₁₃₆ 0 L q₁₃₇ 0 L 6 from rfl)] at s₁₄₄ e₁₄₄
+  rw [s₁₃₆] at s₁₄₄
+  obtain ⟨s₁₄₅, e₁₄₅⟩ := subMul_val (q := q₁₃₇) (o := 0) (len := L) (by rw [s₁₃₇]; lia) q₁₃₈ 0 L 6 (by decide)
+      (V := c₈ + 15 * c₉ + 140 * c₁₀ + 1050 * c₁₁ + 6951 * c₁₂ + 42525 * c₁₃ + 246730 * c₁₄) e₁₃₇ e₁₃₈ (by lia)
+  rw [← (show q₁₄₅ = R.subMulInto q₁₃₇ 0 L q₁₃₈ 0 L 6 from rfl)] at s₁₄₅ e₁₄₅
+  rw [s₁₃₇] at s₁₄₅
+  obtain ⟨s₁₄₆, e₁₄₆⟩ := subMul_val (q := q₁₃₈) (o := 0) (len := L) (by rw [s₁₃₈]; lia) q₁₃₉ 0 L 6 (by decide)
+      (V := c₉ + 15 * c₁₀ + 140 * c₁₁ + 1050 * c₁₂ + 6951 * c₁₃ + 42525 * c₁₄) e₁₃₈ e₁₃₉ (by lia)
+  rw [← (show q₁₄₆ = R.subMulInto q₁₃₈ 0 L q₁₃₉ 0 L 6 from rfl)] at s₁₄₆ e₁₄₆
+  rw [s₁₃₈] at s₁₄₆
+  obtain ⟨s₁₄₇, e₁₄₇⟩ := subMul_val (q := q₁₃₉) (o := 0) (len := L) (by rw [s₁₃₉]; lia) q₁₄₀ 0 L 6 (by decide)
+      (V := c₁₀ + 15 * c₁₁ + 140 * c₁₂ + 1050 * c₁₃ + 6951 * c₁₄) e₁₃₉ e₁₄₀ (by lia)
+  rw [← (show q₁₄₇ = R.subMulInto q₁₃₉ 0 L q₁₄₀ 0 L 6 from rfl)] at s₁₄₇ e₁₄₇
+  rw [s₁₃₉] at s₁₄₇
+  obtain ⟨s₁₄₈, e₁₄₈⟩ := subMul_val (q := q₁₄₀) (o := 0) (len := L) (by rw [s₁₄₀]; lia) q₁₄₁ 0 L 6 (by decide)
+      (V := c₁₁ + 15 * c₁₂ + 140 * c₁₃ + 1050 * c₁₄) e₁₄₀ e₁₄₁ (by lia)
+  rw [← (show q₁₄₈ = R.subMulInto q₁₄₀ 0 L q₁₄₁ 0 L 6 from rfl)] at s₁₄₈ e₁₄₈
+  rw [s₁₄₀] at s₁₄₈
+  obtain ⟨s₁₄₉, e₁₄₉⟩ := subMul_val (q := q₁₄₁) (o := 0) (len := L) (by rw [s₁₄₁]; lia) q₁₄₂ 0 L 6 (by decide)
+      (V := c₁₂ + 15 * c₁₃ + 140 * c₁₄) e₁₄₁ e₁₄₂ (by lia)
+  rw [← (show q₁₄₉ = R.subMulInto q₁₄₁ 0 L q₁₄₂ 0 L 6 from rfl)] at s₁₄₉ e₁₄₉
+  rw [s₁₄₁] at s₁₄₉
+  obtain ⟨s₁₅₀, e₁₅₀⟩ := subMul_val (q := q₁₄₂) (o := 0) (len := L) (by rw [s₁₄₂]; lia) d (o + 14 * k) (n - 14 * k) 6 (by decide)
+      (V := c₁₃ + 15 * c₁₄) e₁₄₂ hc₁₄ (by lia)
+  rw [← (show q₁₅₀ = R.subMulInto q₁₄₂ 0 L d (o + 14 * k) (n - 14 * k) 6 from rfl)] at s₁₅₀ e₁₅₀
+  rw [s₁₄₂] at s₁₅₀
+  obtain ⟨s₁₅₁, e₁₅₁⟩ := subMul_val (q := q₉₈) (o := 0) (len := L) (by rw [s₉₈]; lia) q₁₄₃ 0 L 5 (by decide)
+      (V := c₅ + 10 * c₆ + 65 * c₇ + 350 * c₈ + 1701 * c₉ + 7770 * c₁₀ + 34105 * c₁₁ + 145750 * c₁₂ + 611501 * c₁₃ + 2532530 * c₁₄) e₉₈ e₁₄₃ (by lia)
+  rw [← (show q₁₅₁ = R.subMulInto q₉₈ 0 L q₁₄₃ 0 L 5 from rfl)] at s₁₅₁ e₁₅₁
+  rw [s₉₈] at s₁₅₁
+  obtain ⟨s₁₅₂, e₁₅₂⟩ := subMul_val (q := q₁₄₃) (o := 0) (len := L) (by rw [s₁₄₃]; lia) q₁₄₄ 0 L 5 (by decide)
+      (V := c₆ + 10 * c₇ + 65 * c₈ + 350 * c₉ + 1701 * c₁₀ + 7770 * c₁₁ + 34105 * c₁₂ + 145750 * c₁₃ + 611501 * c₁₄) e₁₄₃ e₁₄₄ (by lia)
+  rw [← (show q₁₅₂ = R.subMulInto q₁₄₃ 0 L q₁₄₄ 0 L 5 from rfl)] at s₁₅₂ e₁₅₂
+  rw [s₁₄₃] at s₁₅₂
+  obtain ⟨s₁₅₃, e₁₅₃⟩ := subMul_val (q := q₁₄₄) (o := 0) (len := L) (by rw [s₁₄₄]; lia) q₁₄₅ 0 L 5 (by decide)
+      (V := c₇ + 10 * c₈ + 65 * c₉ + 350 * c₁₀ + 1701 * c₁₁ + 7770 * c₁₂ + 34105 * c₁₃ + 145750 * c₁₄) e₁₄₄ e₁₄₅ (by lia)
+  rw [← (show q₁₅₃ = R.subMulInto q₁₄₄ 0 L q₁₄₅ 0 L 5 from rfl)] at s₁₅₃ e₁₅₃
+  rw [s₁₄₄] at s₁₅₃
+  obtain ⟨s₁₅₄, e₁₅₄⟩ := subMul_val (q := q₁₄₅) (o := 0) (len := L) (by rw [s₁₄₅]; lia) q₁₄₆ 0 L 5 (by decide)
+      (V := c₈ + 10 * c₉ + 65 * c₁₀ + 350 * c₁₁ + 1701 * c₁₂ + 7770 * c₁₃ + 34105 * c₁₄) e₁₄₅ e₁₄₆ (by lia)
+  rw [← (show q₁₅₄ = R.subMulInto q₁₄₅ 0 L q₁₄₆ 0 L 5 from rfl)] at s₁₅₄ e₁₅₄
+  rw [s₁₄₅] at s₁₅₄
+  obtain ⟨s₁₅₅, e₁₅₅⟩ := subMul_val (q := q₁₄₆) (o := 0) (len := L) (by rw [s₁₄₆]; lia) q₁₄₇ 0 L 5 (by decide)
+      (V := c₉ + 10 * c₁₀ + 65 * c₁₁ + 350 * c₁₂ + 1701 * c₁₃ + 7770 * c₁₄) e₁₄₆ e₁₄₇ (by lia)
+  rw [← (show q₁₅₅ = R.subMulInto q₁₄₆ 0 L q₁₄₇ 0 L 5 from rfl)] at s₁₅₅ e₁₅₅
+  rw [s₁₄₆] at s₁₅₅
+  obtain ⟨s₁₅₆, e₁₅₆⟩ := subMul_val (q := q₁₄₇) (o := 0) (len := L) (by rw [s₁₄₇]; lia) q₁₄₈ 0 L 5 (by decide)
+      (V := c₁₀ + 10 * c₁₁ + 65 * c₁₂ + 350 * c₁₃ + 1701 * c₁₄) e₁₄₇ e₁₄₈ (by lia)
+  rw [← (show q₁₅₆ = R.subMulInto q₁₄₇ 0 L q₁₄₈ 0 L 5 from rfl)] at s₁₅₆ e₁₅₆
+  rw [s₁₄₇] at s₁₅₆
+  obtain ⟨s₁₅₇, e₁₅₇⟩ := subMul_val (q := q₁₄₈) (o := 0) (len := L) (by rw [s₁₄₈]; lia) q₁₄₉ 0 L 5 (by decide)
+      (V := c₁₁ + 10 * c₁₂ + 65 * c₁₃ + 350 * c₁₄) e₁₄₈ e₁₄₉ (by lia)
+  rw [← (show q₁₅₇ = R.subMulInto q₁₄₈ 0 L q₁₄₉ 0 L 5 from rfl)] at s₁₅₇ e₁₅₇
+  rw [s₁₄₈] at s₁₅₇
+  obtain ⟨s₁₅₈, e₁₅₈⟩ := subMul_val (q := q₁₄₉) (o := 0) (len := L) (by rw [s₁₄₉]; lia) q₁₅₀ 0 L 5 (by decide)
+      (V := c₁₂ + 10 * c₁₃ + 65 * c₁₄) e₁₄₉ e₁₅₀ (by lia)
+  rw [← (show q₁₅₈ = R.subMulInto q₁₄₉ 0 L q₁₅₀ 0 L 5 from rfl)] at s₁₅₈ e₁₅₈
+  rw [s₁₄₉] at s₁₅₈
+  obtain ⟨s₁₅₉, e₁₅₉⟩ := subMul_val (q := q₁₅₀) (o := 0) (len := L) (by rw [s₁₅₀]; lia) d (o + 14 * k) (n - 14 * k) 5 (by decide)
+      (V := c₁₃ + 10 * c₁₄) e₁₅₀ hc₁₄ (by lia)
+  rw [← (show q₁₅₉ = R.subMulInto q₁₅₀ 0 L d (o + 14 * k) (n - 14 * k) 5 from rfl)] at s₁₅₉ e₁₅₉
+  rw [s₁₅₀] at s₁₅₉
+  obtain ⟨s₁₆₀, e₁₆₀⟩ := subMul_val (q := q₉₆) (o := 0) (len := L) (by rw [s₉₆]; lia) q₁₅₁ 0 L 4 (by decide)
+      (V := c₄ + 6 * c₅ + 25 * c₆ + 90 * c₇ + 301 * c₈ + 966 * c₉ + 3025 * c₁₀ + 9330 * c₁₁ + 28501 * c₁₂ + 86526 * c₁₃ + 261625 * c₁₄) e₉₆ e₁₅₁ (by lia)
+  rw [← (show q₁₆₀ = R.subMulInto q₉₆ 0 L q₁₅₁ 0 L 4 from rfl)] at s₁₆₀ e₁₆₀
+  rw [s₉₆] at s₁₆₀
+  obtain ⟨s₁₆₁, e₁₆₁⟩ := subMul_val (q := q₁₅₁) (o := 0) (len := L) (by rw [s₁₅₁]; lia) q₁₅₂ 0 L 4 (by decide)
+      (V := c₅ + 6 * c₆ + 25 * c₇ + 90 * c₈ + 301 * c₉ + 966 * c₁₀ + 3025 * c₁₁ + 9330 * c₁₂ + 28501 * c₁₃ + 86526 * c₁₄) e₁₅₁ e₁₅₂ (by lia)
+  rw [← (show q₁₆₁ = R.subMulInto q₁₅₁ 0 L q₁₅₂ 0 L 4 from rfl)] at s₁₆₁ e₁₆₁
+  rw [s₁₅₁] at s₁₆₁
+  obtain ⟨s₁₆₂, e₁₆₂⟩ := subMul_val (q := q₁₅₂) (o := 0) (len := L) (by rw [s₁₅₂]; lia) q₁₅₃ 0 L 4 (by decide)
+      (V := c₆ + 6 * c₇ + 25 * c₈ + 90 * c₉ + 301 * c₁₀ + 966 * c₁₁ + 3025 * c₁₂ + 9330 * c₁₃ + 28501 * c₁₄) e₁₅₂ e₁₅₃ (by lia)
+  rw [← (show q₁₆₂ = R.subMulInto q₁₅₂ 0 L q₁₅₃ 0 L 4 from rfl)] at s₁₆₂ e₁₆₂
+  rw [s₁₅₂] at s₁₆₂
+  obtain ⟨s₁₆₃, e₁₆₃⟩ := subMul_val (q := q₁₅₃) (o := 0) (len := L) (by rw [s₁₅₃]; lia) q₁₅₄ 0 L 4 (by decide)
+      (V := c₇ + 6 * c₈ + 25 * c₉ + 90 * c₁₀ + 301 * c₁₁ + 966 * c₁₂ + 3025 * c₁₃ + 9330 * c₁₄) e₁₅₃ e₁₅₄ (by lia)
+  rw [← (show q₁₆₃ = R.subMulInto q₁₅₃ 0 L q₁₅₄ 0 L 4 from rfl)] at s₁₆₃ e₁₆₃
+  rw [s₁₅₃] at s₁₆₃
+  obtain ⟨s₁₆₄, e₁₆₄⟩ := subMul_val (q := q₁₅₄) (o := 0) (len := L) (by rw [s₁₅₄]; lia) q₁₅₅ 0 L 4 (by decide)
+      (V := c₈ + 6 * c₉ + 25 * c₁₀ + 90 * c₁₁ + 301 * c₁₂ + 966 * c₁₃ + 3025 * c₁₄) e₁₅₄ e₁₅₅ (by lia)
+  rw [← (show q₁₆₄ = R.subMulInto q₁₅₄ 0 L q₁₅₅ 0 L 4 from rfl)] at s₁₆₄ e₁₆₄
+  rw [s₁₅₄] at s₁₆₄
+  obtain ⟨s₁₆₅, e₁₆₅⟩ := subMul_val (q := q₁₅₅) (o := 0) (len := L) (by rw [s₁₅₅]; lia) q₁₅₆ 0 L 4 (by decide)
+      (V := c₉ + 6 * c₁₀ + 25 * c₁₁ + 90 * c₁₂ + 301 * c₁₃ + 966 * c₁₄) e₁₅₅ e₁₅₆ (by lia)
+  rw [← (show q₁₆₅ = R.subMulInto q₁₅₅ 0 L q₁₅₆ 0 L 4 from rfl)] at s₁₆₅ e₁₆₅
+  rw [s₁₅₅] at s₁₆₅
+  obtain ⟨s₁₆₆, e₁₆₆⟩ := subMul_val (q := q₁₅₆) (o := 0) (len := L) (by rw [s₁₅₆]; lia) q₁₅₇ 0 L 4 (by decide)
+      (V := c₁₀ + 6 * c₁₁ + 25 * c₁₂ + 90 * c₁₃ + 301 * c₁₄) e₁₅₆ e₁₅₇ (by lia)
+  rw [← (show q₁₆₆ = R.subMulInto q₁₅₆ 0 L q₁₅₇ 0 L 4 from rfl)] at s₁₆₆ e₁₆₆
+  rw [s₁₅₆] at s₁₆₆
+  obtain ⟨s₁₆₇, e₁₆₇⟩ := subMul_val (q := q₁₅₇) (o := 0) (len := L) (by rw [s₁₅₇]; lia) q₁₅₈ 0 L 4 (by decide)
+      (V := c₁₁ + 6 * c₁₂ + 25 * c₁₃ + 90 * c₁₄) e₁₅₇ e₁₅₈ (by lia)
+  rw [← (show q₁₆₇ = R.subMulInto q₁₅₇ 0 L q₁₅₈ 0 L 4 from rfl)] at s₁₆₇ e₁₆₇
+  rw [s₁₅₇] at s₁₆₇
+  obtain ⟨s₁₆₈, e₁₆₈⟩ := subMul_val (q := q₁₅₈) (o := 0) (len := L) (by rw [s₁₅₈]; lia) q₁₅₉ 0 L 4 (by decide)
+      (V := c₁₂ + 6 * c₁₃ + 25 * c₁₄) e₁₅₈ e₁₅₉ (by lia)
+  rw [← (show q₁₆₈ = R.subMulInto q₁₅₈ 0 L q₁₅₉ 0 L 4 from rfl)] at s₁₆₈ e₁₆₈
+  rw [s₁₅₈] at s₁₆₈
+  obtain ⟨s₁₆₉, e₁₆₉⟩ := subMul_val (q := q₁₅₉) (o := 0) (len := L) (by rw [s₁₅₉]; lia) d (o + 14 * k) (n - 14 * k) 4 (by decide)
+      (V := c₁₃ + 6 * c₁₄) e₁₅₉ hc₁₄ (by lia)
+  rw [← (show q₁₆₉ = R.subMulInto q₁₅₉ 0 L d (o + 14 * k) (n - 14 * k) 4 from rfl)] at s₁₆₉ e₁₆₉
+  rw [s₁₅₉] at s₁₆₉
+  obtain ⟨s₁₇₀, e₁₇₀⟩ := subMul_val (q := q₉₄) (o := 0) (len := L) (by rw [s₉₄]; lia) q₁₆₀ 0 L 3 (by decide)
+      (V := c₃ + 3 * c₄ + 7 * c₅ + 15 * c₆ + 31 * c₇ + 63 * c₈ + 127 * c₉ + 255 * c₁₀ + 511 * c₁₁ + 1023 * c₁₂ + 2047 * c₁₃ + 4095 * c₁₄) e₉₄ e₁₆₀ (by lia)
+  rw [← (show q₁₇₀ = R.subMulInto q₉₄ 0 L q₁₆₀ 0 L 3 from rfl)] at s₁₇₀ e₁₇₀
+  rw [s₉₄] at s₁₇₀
+  obtain ⟨s₁₇₁, e₁₇₁⟩ := subMul_val (q := q₁₆₀) (o := 0) (len := L) (by rw [s₁₆₀]; lia) q₁₆₁ 0 L 3 (by decide)
+      (V := c₄ + 3 * c₅ + 7 * c₆ + 15 * c₇ + 31 * c₈ + 63 * c₉ + 127 * c₁₀ + 255 * c₁₁ + 511 * c₁₂ + 1023 * c₁₃ + 2047 * c₁₄) e₁₆₀ e₁₆₁ (by lia)
+  rw [← (show q₁₇₁ = R.subMulInto q₁₆₀ 0 L q₁₆₁ 0 L 3 from rfl)] at s₁₇₁ e₁₇₁
+  rw [s₁₆₀] at s₁₇₁
+  obtain ⟨s₁₇₂, e₁₇₂⟩ := subMul_val (q := q₁₆₁) (o := 0) (len := L) (by rw [s₁₆₁]; lia) q₁₆₂ 0 L 3 (by decide)
+      (V := c₅ + 3 * c₆ + 7 * c₇ + 15 * c₈ + 31 * c₉ + 63 * c₁₀ + 127 * c₁₁ + 255 * c₁₂ + 511 * c₁₃ + 1023 * c₁₄) e₁₆₁ e₁₆₂ (by lia)
+  rw [← (show q₁₇₂ = R.subMulInto q₁₆₁ 0 L q₁₆₂ 0 L 3 from rfl)] at s₁₇₂ e₁₇₂
+  rw [s₁₆₁] at s₁₇₂
+  obtain ⟨s₁₇₃, e₁₇₃⟩ := subMul_val (q := q₁₆₂) (o := 0) (len := L) (by rw [s₁₆₂]; lia) q₁₆₃ 0 L 3 (by decide)
+      (V := c₆ + 3 * c₇ + 7 * c₈ + 15 * c₉ + 31 * c₁₀ + 63 * c₁₁ + 127 * c₁₂ + 255 * c₁₃ + 511 * c₁₄) e₁₆₂ e₁₆₃ (by lia)
+  rw [← (show q₁₇₃ = R.subMulInto q₁₆₂ 0 L q₁₆₃ 0 L 3 from rfl)] at s₁₇₃ e₁₇₃
+  rw [s₁₆₂] at s₁₇₃
+  obtain ⟨s₁₇₄, e₁₇₄⟩ := subMul_val (q := q₁₆₃) (o := 0) (len := L) (by rw [s₁₆₃]; lia) q₁₆₄ 0 L 3 (by decide)
+      (V := c₇ + 3 * c₈ + 7 * c₉ + 15 * c₁₀ + 31 * c₁₁ + 63 * c₁₂ + 127 * c₁₃ + 255 * c₁₄) e₁₆₃ e₁₆₄ (by lia)
+  rw [← (show q₁₇₄ = R.subMulInto q₁₆₃ 0 L q₁₆₄ 0 L 3 from rfl)] at s₁₇₄ e₁₇₄
+  rw [s₁₆₃] at s₁₇₄
+  obtain ⟨s₁₇₅, e₁₇₅⟩ := subMul_val (q := q₁₆₄) (o := 0) (len := L) (by rw [s₁₆₄]; lia) q₁₆₅ 0 L 3 (by decide)
+      (V := c₈ + 3 * c₉ + 7 * c₁₀ + 15 * c₁₁ + 31 * c₁₂ + 63 * c₁₃ + 127 * c₁₄) e₁₆₄ e₁₆₅ (by lia)
+  rw [← (show q₁₇₅ = R.subMulInto q₁₆₄ 0 L q₁₆₅ 0 L 3 from rfl)] at s₁₇₅ e₁₇₅
+  rw [s₁₆₄] at s₁₇₅
+  obtain ⟨s₁₇₆, e₁₇₆⟩ := subMul_val (q := q₁₆₅) (o := 0) (len := L) (by rw [s₁₆₅]; lia) q₁₆₆ 0 L 3 (by decide)
+      (V := c₉ + 3 * c₁₀ + 7 * c₁₁ + 15 * c₁₂ + 31 * c₁₃ + 63 * c₁₄) e₁₆₅ e₁₆₆ (by lia)
+  rw [← (show q₁₇₆ = R.subMulInto q₁₆₅ 0 L q₁₆₆ 0 L 3 from rfl)] at s₁₇₆ e₁₇₆
+  rw [s₁₆₅] at s₁₇₆
+  obtain ⟨s₁₇₇, e₁₇₇⟩ := subMul_val (q := q₁₆₆) (o := 0) (len := L) (by rw [s₁₆₆]; lia) q₁₆₇ 0 L 3 (by decide)
+      (V := c₁₀ + 3 * c₁₁ + 7 * c₁₂ + 15 * c₁₃ + 31 * c₁₄) e₁₆₆ e₁₆₇ (by lia)
+  rw [← (show q₁₇₇ = R.subMulInto q₁₆₆ 0 L q₁₆₇ 0 L 3 from rfl)] at s₁₇₇ e₁₇₇
+  rw [s₁₆₆] at s₁₇₇
+  obtain ⟨s₁₇₈, e₁₇₈⟩ := subMul_val (q := q₁₆₇) (o := 0) (len := L) (by rw [s₁₆₇]; lia) q₁₆₈ 0 L 3 (by decide)
+      (V := c₁₁ + 3 * c₁₂ + 7 * c₁₃ + 15 * c₁₄) e₁₆₇ e₁₆₈ (by lia)
+  rw [← (show q₁₇₈ = R.subMulInto q₁₆₇ 0 L q₁₆₈ 0 L 3 from rfl)] at s₁₇₈ e₁₇₈
+  rw [s₁₆₇] at s₁₇₈
+  obtain ⟨s₁₇₉, e₁₇₉⟩ := subMul_val (q := q₁₆₈) (o := 0) (len := L) (by rw [s₁₆₈]; lia) q₁₆₉ 0 L 3 (by decide)
+      (V := c₁₂ + 3 * c₁₃ + 7 * c₁₄) e₁₆₈ e₁₆₉ (by lia)
+  rw [← (show q₁₇₉ = R.subMulInto q₁₆₈ 0 L q₁₆₉ 0 L 3 from rfl)] at s₁₇₉ e₁₇₉
+  rw [s₁₆₈] at s₁₇₉
+  obtain ⟨s₁₈₀, e₁₈₀⟩ := subMul_val (q := q₁₆₉) (o := 0) (len := L) (by rw [s₁₆₉]; lia) d (o + 14 * k) (n - 14 * k) 3 (by decide)
+      (V := c₁₃ + 3 * c₁₄) e₁₆₉ hc₁₄ (by lia)
+  rw [← (show q₁₈₀ = R.subMulInto q₁₆₉ 0 L d (o + 14 * k) (n - 14 * k) 3 from rfl)] at s₁₈₀ e₁₈₀
+  rw [s₁₆₉] at s₁₈₀
+  obtain ⟨s₁₈₁, e₁₈₁⟩ := subMul_val (q := q₉₂) (o := 0) (len := L) (by rw [s₉₂]; lia) q₁₇₀ 0 L 2 (by decide)
+      (V := c₂ + c₃ + c₄ + c₅ + c₆ + c₇ + c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) e₉₂ e₁₇₀ (by lia)
+  rw [← (show q₁₈₁ = R.subMulInto q₉₂ 0 L q₁₇₀ 0 L 2 from rfl)] at s₁₈₁ e₁₈₁
+  rw [s₉₂] at s₁₈₁
+  obtain ⟨s₁₈₂, e₁₈₂⟩ := subMul_val (q := q₁₇₀) (o := 0) (len := L) (by rw [s₁₇₀]; lia) q₁₇₁ 0 L 2 (by decide)
+      (V := c₃ + c₄ + c₅ + c₆ + c₇ + c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) e₁₇₀ e₁₇₁ (by lia)
+  rw [← (show q₁₈₂ = R.subMulInto q₁₇₀ 0 L q₁₇₁ 0 L 2 from rfl)] at s₁₈₂ e₁₈₂
+  rw [s₁₇₀] at s₁₈₂
+  obtain ⟨s₁₈₃, e₁₈₃⟩ := subMul_val (q := q₁₇₁) (o := 0) (len := L) (by rw [s₁₇₁]; lia) q₁₇₂ 0 L 2 (by decide)
+      (V := c₄ + c₅ + c₆ + c₇ + c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) e₁₇₁ e₁₇₂ (by lia)
+  rw [← (show q₁₈₃ = R.subMulInto q₁₇₁ 0 L q₁₇₂ 0 L 2 from rfl)] at s₁₈₃ e₁₈₃
+  rw [s₁₇₁] at s₁₈₃
+  obtain ⟨s₁₈₄, e₁₈₄⟩ := subMul_val (q := q₁₇₂) (o := 0) (len := L) (by rw [s₁₇₂]; lia) q₁₇₃ 0 L 2 (by decide)
+      (V := c₅ + c₆ + c₇ + c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) e₁₇₂ e₁₇₃ (by lia)
+  rw [← (show q₁₈₄ = R.subMulInto q₁₇₂ 0 L q₁₇₃ 0 L 2 from rfl)] at s₁₈₄ e₁₈₄
+  rw [s₁₇₂] at s₁₈₄
+  obtain ⟨s₁₈₅, e₁₈₅⟩ := subMul_val (q := q₁₇₃) (o := 0) (len := L) (by rw [s₁₇₃]; lia) q₁₇₄ 0 L 2 (by decide)
+      (V := c₆ + c₇ + c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) e₁₇₃ e₁₇₄ (by lia)
+  rw [← (show q₁₈₅ = R.subMulInto q₁₇₃ 0 L q₁₇₄ 0 L 2 from rfl)] at s₁₈₅ e₁₈₅
+  rw [s₁₇₃] at s₁₈₅
+  obtain ⟨s₁₈₆, e₁₈₆⟩ := subMul_val (q := q₁₇₄) (o := 0) (len := L) (by rw [s₁₇₄]; lia) q₁₇₅ 0 L 2 (by decide)
+      (V := c₇ + c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) e₁₇₄ e₁₇₅ (by lia)
+  rw [← (show q₁₈₆ = R.subMulInto q₁₇₄ 0 L q₁₇₅ 0 L 2 from rfl)] at s₁₈₆ e₁₈₆
+  rw [s₁₇₄] at s₁₈₆
+  obtain ⟨s₁₈₇, e₁₈₇⟩ := subMul_val (q := q₁₇₅) (o := 0) (len := L) (by rw [s₁₇₅]; lia) q₁₇₆ 0 L 2 (by decide)
+      (V := c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) e₁₇₅ e₁₇₆ (by lia)
+  rw [← (show q₁₈₇ = R.subMulInto q₁₇₅ 0 L q₁₇₆ 0 L 2 from rfl)] at s₁₈₇ e₁₈₇
+  rw [s₁₇₅] at s₁₈₇
+  obtain ⟨s₁₈₈, e₁₈₈⟩ := subMul_val (q := q₁₇₆) (o := 0) (len := L) (by rw [s₁₇₆]; lia) q₁₇₇ 0 L 2 (by decide)
+      (V := c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) e₁₇₆ e₁₇₇ (by lia)
+  rw [← (show q₁₈₈ = R.subMulInto q₁₇₆ 0 L q₁₇₇ 0 L 2 from rfl)] at s₁₈₈ e₁₈₈
+  rw [s₁₇₆] at s₁₈₈
+  obtain ⟨s₁₈₉, e₁₈₉⟩ := subMul_val (q := q₁₇₇) (o := 0) (len := L) (by rw [s₁₇₇]; lia) q₁₇₈ 0 L 2 (by decide)
+      (V := c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) e₁₇₇ e₁₇₈ (by lia)
+  rw [← (show q₁₈₉ = R.subMulInto q₁₇₇ 0 L q₁₇₈ 0 L 2 from rfl)] at s₁₈₉ e₁₈₉
+  rw [s₁₇₇] at s₁₈₉
+  obtain ⟨s₁₉₀, e₁₉₀⟩ := subMul_val (q := q₁₇₈) (o := 0) (len := L) (by rw [s₁₇₈]; lia) q₁₇₉ 0 L 2 (by decide)
+      (V := c₁₁ + c₁₂ + c₁₃ + c₁₄) e₁₇₈ e₁₇₉ (by lia)
+  rw [← (show q₁₉₀ = R.subMulInto q₁₇₈ 0 L q₁₇₉ 0 L 2 from rfl)] at s₁₉₀ e₁₉₀
+  rw [s₁₇₈] at s₁₉₀
+  obtain ⟨s₁₉₁, e₁₉₁⟩ := subMul_val (q := q₁₇₉) (o := 0) (len := L) (by rw [s₁₇₉]; lia) q₁₈₀ 0 L 2 (by decide)
+      (V := c₁₂ + c₁₃ + c₁₄) e₁₇₉ e₁₈₀ (by lia)
+  rw [← (show q₁₉₁ = R.subMulInto q₁₇₉ 0 L q₁₈₀ 0 L 2 from rfl)] at s₁₉₁ e₁₉₁
+  rw [s₁₇₉] at s₁₉₁
+  obtain ⟨s₁₉₂, e₁₉₂⟩ := subMul_val (q := q₁₈₀) (o := 0) (len := L) (by rw [s₁₈₀]; lia) d (o + 14 * k) (n - 14 * k) 2 (by decide)
+      (V := c₁₃ + c₁₄) e₁₈₀ hc₁₄ (by lia)
+  rw [← (show q₁₉₂ = R.subMulInto q₁₈₀ 0 L d (o + 14 * k) (n - 14 * k) 2 from rfl)] at s₁₉₂ e₁₉₂
+  rw [s₁₈₀] at s₁₉₂
+  obtain ⟨s₁₉₃, e₁₉₃⟩ := sub_val (q := q₁₃) (o := 0) (len := L) (by rw [s₁₃]; lia) q₁₈₁ 0 L
+      (V := c₁) e₁₃ e₁₈₁ (by lia)
+  rw [← (show q₁₉₃ = R.subInto q₁₃ 0 L q₁₈₁ 0 L from rfl)] at s₁₉₃ e₁₉₃
+  rw [s₁₃] at s₁₉₃
+  obtain ⟨s₁₉₄, e₁₉₄⟩ := sub_val (q := q₁₈₁) (o := 0) (len := L) (by rw [s₁₈₁]; lia) q₁₈₂ 0 L
+      (V := c₂) e₁₈₁ e₁₈₂ (by lia)
+  rw [← (show q₁₉₄ = R.subInto q₁₈₁ 0 L q₁₈₂ 0 L from rfl)] at s₁₉₄ e₁₉₄
+  rw [s₁₈₁] at s₁₉₄
+  obtain ⟨s₁₉₅, e₁₉₅⟩ := sub_val (q := q₁₈₂) (o := 0) (len := L) (by rw [s₁₈₂]; lia) q₁₈₃ 0 L
+      (V := c₃) e₁₈₂ e₁₈₃ (by lia)
+  rw [← (show q₁₉₅ = R.subInto q₁₈₂ 0 L q₁₈₃ 0 L from rfl)] at s₁₉₅ e₁₉₅
+  rw [s₁₈₂] at s₁₉₅
+  obtain ⟨s₁₉₆, e₁₉₆⟩ := sub_val (q := q₁₈₃) (o := 0) (len := L) (by rw [s₁₈₃]; lia) q₁₈₄ 0 L
+      (V := c₄) e₁₈₃ e₁₈₄ (by lia)
+  rw [← (show q₁₉₆ = R.subInto q₁₈₃ 0 L q₁₈₄ 0 L from rfl)] at s₁₉₆ e₁₉₆
+  rw [s₁₈₃] at s₁₉₆
+  obtain ⟨s₁₉₇, e₁₉₇⟩ := sub_val (q := q₁₈₄) (o := 0) (len := L) (by rw [s₁₈₄]; lia) q₁₈₅ 0 L
+      (V := c₅) e₁₈₄ e₁₈₅ (by lia)
+  rw [← (show q₁₉₇ = R.subInto q₁₈₄ 0 L q₁₈₅ 0 L from rfl)] at s₁₉₇ e₁₉₇
+  rw [s₁₈₄] at s₁₉₇
+  obtain ⟨s₁₉₈, e₁₉₈⟩ := sub_val (q := q₁₈₅) (o := 0) (len := L) (by rw [s₁₈₅]; lia) q₁₈₆ 0 L
+      (V := c₆) e₁₈₅ e₁₈₆ (by lia)
+  rw [← (show q₁₉₈ = R.subInto q₁₈₅ 0 L q₁₈₆ 0 L from rfl)] at s₁₉₈ e₁₉₈
+  rw [s₁₈₅] at s₁₉₈
+  obtain ⟨s₁₉₉, e₁₉₉⟩ := sub_val (q := q₁₈₆) (o := 0) (len := L) (by rw [s₁₈₆]; lia) q₁₈₇ 0 L
+      (V := c₇) e₁₈₆ e₁₈₇ (by lia)
+  rw [← (show q₁₉₉ = R.subInto q₁₈₆ 0 L q₁₈₇ 0 L from rfl)] at s₁₉₉ e₁₉₉
+  rw [s₁₈₆] at s₁₉₉
+  obtain ⟨s₂₀₀, e₂₀₀⟩ := sub_val (q := q₁₈₇) (o := 0) (len := L) (by rw [s₁₈₇]; lia) q₁₈₈ 0 L
+      (V := c₈) e₁₈₇ e₁₈₈ (by lia)
+  rw [← (show q₂₀₀ = R.subInto q₁₈₇ 0 L q₁₈₈ 0 L from rfl)] at s₂₀₀ e₂₀₀
+  rw [s₁₈₇] at s₂₀₀
+  obtain ⟨s₂₀₁, e₂₀₁⟩ := sub_val (q := q₁₈₈) (o := 0) (len := L) (by rw [s₁₈₈]; lia) q₁₈₉ 0 L
+      (V := c₉) e₁₈₈ e₁₈₉ (by lia)
+  rw [← (show q₂₀₁ = R.subInto q₁₈₈ 0 L q₁₈₉ 0 L from rfl)] at s₂₀₁ e₂₀₁
+  rw [s₁₈₈] at s₂₀₁
+  obtain ⟨s₂₀₂, e₂₀₂⟩ := sub_val (q := q₁₈₉) (o := 0) (len := L) (by rw [s₁₈₉]; lia) q₁₉₀ 0 L
+      (V := c₁₀) e₁₈₉ e₁₉₀ (by lia)
+  rw [← (show q₂₀₂ = R.subInto q₁₈₉ 0 L q₁₉₀ 0 L from rfl)] at s₂₀₂ e₂₀₂
+  rw [s₁₈₉] at s₂₀₂
+  obtain ⟨s₂₀₃, e₂₀₃⟩ := sub_val (q := q₁₉₀) (o := 0) (len := L) (by rw [s₁₉₀]; lia) q₁₉₁ 0 L
+      (V := c₁₁) e₁₉₀ e₁₉₁ (by lia)
+  rw [← (show q₂₀₃ = R.subInto q₁₉₀ 0 L q₁₉₁ 0 L from rfl)] at s₂₀₃ e₂₀₃
+  rw [s₁₉₀] at s₂₀₃
+  obtain ⟨s₂₀₄, e₂₀₄⟩ := sub_val (q := q₁₉₁) (o := 0) (len := L) (by rw [s₁₉₁]; lia) q₁₉₂ 0 L
+      (V := c₁₂) e₁₉₁ e₁₉₂ (by lia)
+  rw [← (show q₂₀₄ = R.subInto q₁₉₁ 0 L q₁₉₂ 0 L from rfl)] at s₂₀₄ e₂₀₄
+  rw [s₁₉₁] at s₂₀₄
+  obtain ⟨s₂₀₅, e₂₀₅⟩ := sub_val (q := q₁₉₂) (o := 0) (len := L) (by rw [s₁₉₂]; lia) d (o + 14 * k) (n - 14 * k)
+      (V := c₁₃) e₁₉₂ hc₁₄ (by lia)
+  rw [← (show q₂₀₅ = R.subInto q₁₉₂ 0 L d (o + 14 * k) (n - 14 * k) from rfl)] at s₂₀₅ e₂₀₅
+  rw [s₁₉₂] at s₂₀₅
+  -- The recombination.
+  obtain ⟨z₁, z₂⟩ := zero_mid d o n (k + k) (14 * k) hd (by lia) (by lia)
+  rw [hc₀, hc₁₄] at z₂
+  rw [← (show A₀ = R.zeroInto d (o + (k + k)) (14 * k - (k + k)) from rfl)] at z₁ z₂
+  replace z₁ := z₁.mono (o' := o) (len' := n) (by lia) (by lia)
+  obtain ⟨a₁w, a₁v⟩ := add_coef A₀ o n k (by rw [z₁.1]; exact hd) (by lia)
+      q₁₉₃ 0 L c₁ e₁₉₃ (by
+    rw [z₂]
+    generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
+    generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
+    generalize 2 ^ (LA.w * (3 * k)) * c₃ = T₃ at htot ⊢
+    generalize 2 ^ (LA.w * (4 * k)) * c₄ = T₄ at htot ⊢
+    generalize 2 ^ (LA.w * (5 * k)) * c₅ = T₅ at htot ⊢
+    generalize 2 ^ (LA.w * (6 * k)) * c₆ = T₆ at htot ⊢
+    generalize 2 ^ (LA.w * (7 * k)) * c₇ = T₇ at htot ⊢
+    generalize 2 ^ (LA.w * (8 * k)) * c₈ = T₈ at htot ⊢
+    generalize 2 ^ (LA.w * (9 * k)) * c₉ = T₉ at htot ⊢
+    generalize 2 ^ (LA.w * (10 * k)) * c₁₀ = T₁₀ at htot ⊢
+    generalize 2 ^ (LA.w * (11 * k)) * c₁₁ = T₁₁ at htot ⊢
+    generalize 2 ^ (LA.w * (12 * k)) * c₁₂ = T₁₂ at htot ⊢
+    generalize 2 ^ (LA.w * (13 * k)) * c₁₃ = T₁₃ at htot ⊢
+    generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
+    lia)
+  rw [z₂] at a₁v
+  rw [← (show A₁ = R.addInto A₀ (o + k) (n - k) q₁₉₃ 0 (min (n - k) L) from rfl)] at a₁w a₁v
+  have a₁w' := a₁w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans z₁
+  obtain ⟨a₂w, a₂v⟩ := add_coef A₁ o n (2 * k) (by rw [a₁w'.1]; exact hd) (by lia)
+      q₁₉₄ 0 L c₂ e₁₉₄ (by
+    rw [a₁v]
+    generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
+    generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
+    generalize 2 ^ (LA.w * (3 * k)) * c₃ = T₃ at htot ⊢
+    generalize 2 ^ (LA.w * (4 * k)) * c₄ = T₄ at htot ⊢
+    generalize 2 ^ (LA.w * (5 * k)) * c₅ = T₅ at htot ⊢
+    generalize 2 ^ (LA.w * (6 * k)) * c₆ = T₆ at htot ⊢
+    generalize 2 ^ (LA.w * (7 * k)) * c₇ = T₇ at htot ⊢
+    generalize 2 ^ (LA.w * (8 * k)) * c₈ = T₈ at htot ⊢
+    generalize 2 ^ (LA.w * (9 * k)) * c₉ = T₉ at htot ⊢
+    generalize 2 ^ (LA.w * (10 * k)) * c₁₀ = T₁₀ at htot ⊢
+    generalize 2 ^ (LA.w * (11 * k)) * c₁₁ = T₁₁ at htot ⊢
+    generalize 2 ^ (LA.w * (12 * k)) * c₁₂ = T₁₂ at htot ⊢
+    generalize 2 ^ (LA.w * (13 * k)) * c₁₃ = T₁₃ at htot ⊢
+    generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
+    lia)
+  rw [a₁v] at a₂v
+  rw [← (show A₂ = R.addInto A₁ (o + (2 * k)) (n - (2 * k)) q₁₉₄ 0 (min (n - (2 * k)) L) from rfl)] at a₂w a₂v
+  have a₂w' := a₂w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₁w'
+  obtain ⟨a₃w, a₃v⟩ := add_coef A₂ o n (3 * k) (by rw [a₂w'.1]; exact hd) (by lia)
+      q₁₉₅ 0 L c₃ e₁₉₅ (by
+    rw [a₂v]
+    generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
+    generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
+    generalize 2 ^ (LA.w * (3 * k)) * c₃ = T₃ at htot ⊢
+    generalize 2 ^ (LA.w * (4 * k)) * c₄ = T₄ at htot ⊢
+    generalize 2 ^ (LA.w * (5 * k)) * c₅ = T₅ at htot ⊢
+    generalize 2 ^ (LA.w * (6 * k)) * c₆ = T₆ at htot ⊢
+    generalize 2 ^ (LA.w * (7 * k)) * c₇ = T₇ at htot ⊢
+    generalize 2 ^ (LA.w * (8 * k)) * c₈ = T₈ at htot ⊢
+    generalize 2 ^ (LA.w * (9 * k)) * c₉ = T₉ at htot ⊢
+    generalize 2 ^ (LA.w * (10 * k)) * c₁₀ = T₁₀ at htot ⊢
+    generalize 2 ^ (LA.w * (11 * k)) * c₁₁ = T₁₁ at htot ⊢
+    generalize 2 ^ (LA.w * (12 * k)) * c₁₂ = T₁₂ at htot ⊢
+    generalize 2 ^ (LA.w * (13 * k)) * c₁₃ = T₁₃ at htot ⊢
+    generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
+    lia)
+  rw [a₂v] at a₃v
+  rw [← (show A₃ = R.addInto A₂ (o + (3 * k)) (n - (3 * k)) q₁₉₅ 0 (min (n - (3 * k)) L) from rfl)] at a₃w a₃v
+  have a₃w' := a₃w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₂w'
+  obtain ⟨a₄w, a₄v⟩ := add_coef A₃ o n (4 * k) (by rw [a₃w'.1]; exact hd) (by lia)
+      q₁₉₆ 0 L c₄ e₁₉₆ (by
+    rw [a₃v]
+    generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
+    generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
+    generalize 2 ^ (LA.w * (3 * k)) * c₃ = T₃ at htot ⊢
+    generalize 2 ^ (LA.w * (4 * k)) * c₄ = T₄ at htot ⊢
+    generalize 2 ^ (LA.w * (5 * k)) * c₅ = T₅ at htot ⊢
+    generalize 2 ^ (LA.w * (6 * k)) * c₆ = T₆ at htot ⊢
+    generalize 2 ^ (LA.w * (7 * k)) * c₇ = T₇ at htot ⊢
+    generalize 2 ^ (LA.w * (8 * k)) * c₈ = T₈ at htot ⊢
+    generalize 2 ^ (LA.w * (9 * k)) * c₉ = T₉ at htot ⊢
+    generalize 2 ^ (LA.w * (10 * k)) * c₁₀ = T₁₀ at htot ⊢
+    generalize 2 ^ (LA.w * (11 * k)) * c₁₁ = T₁₁ at htot ⊢
+    generalize 2 ^ (LA.w * (12 * k)) * c₁₂ = T₁₂ at htot ⊢
+    generalize 2 ^ (LA.w * (13 * k)) * c₁₃ = T₁₃ at htot ⊢
+    generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
+    lia)
+  rw [a₃v] at a₄v
+  rw [← (show A₄ = R.addInto A₃ (o + (4 * k)) (n - (4 * k)) q₁₉₆ 0 (min (n - (4 * k)) L) from rfl)] at a₄w a₄v
+  have a₄w' := a₄w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₃w'
+  obtain ⟨a₅w, a₅v⟩ := add_coef A₄ o n (5 * k) (by rw [a₄w'.1]; exact hd) (by lia)
+      q₁₉₇ 0 L c₅ e₁₉₇ (by
+    rw [a₄v]
+    generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
+    generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
+    generalize 2 ^ (LA.w * (3 * k)) * c₃ = T₃ at htot ⊢
+    generalize 2 ^ (LA.w * (4 * k)) * c₄ = T₄ at htot ⊢
+    generalize 2 ^ (LA.w * (5 * k)) * c₅ = T₅ at htot ⊢
+    generalize 2 ^ (LA.w * (6 * k)) * c₆ = T₆ at htot ⊢
+    generalize 2 ^ (LA.w * (7 * k)) * c₇ = T₇ at htot ⊢
+    generalize 2 ^ (LA.w * (8 * k)) * c₈ = T₈ at htot ⊢
+    generalize 2 ^ (LA.w * (9 * k)) * c₉ = T₉ at htot ⊢
+    generalize 2 ^ (LA.w * (10 * k)) * c₁₀ = T₁₀ at htot ⊢
+    generalize 2 ^ (LA.w * (11 * k)) * c₁₁ = T₁₁ at htot ⊢
+    generalize 2 ^ (LA.w * (12 * k)) * c₁₂ = T₁₂ at htot ⊢
+    generalize 2 ^ (LA.w * (13 * k)) * c₁₃ = T₁₃ at htot ⊢
+    generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
+    lia)
+  rw [a₄v] at a₅v
+  rw [← (show A₅ = R.addInto A₄ (o + (5 * k)) (n - (5 * k)) q₁₉₇ 0 (min (n - (5 * k)) L) from rfl)] at a₅w a₅v
+  have a₅w' := a₅w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₄w'
+  obtain ⟨a₆w, a₆v⟩ := add_coef A₅ o n (6 * k) (by rw [a₅w'.1]; exact hd) (by lia)
+      q₁₉₈ 0 L c₆ e₁₉₈ (by
+    rw [a₅v]
+    generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
+    generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
+    generalize 2 ^ (LA.w * (3 * k)) * c₃ = T₃ at htot ⊢
+    generalize 2 ^ (LA.w * (4 * k)) * c₄ = T₄ at htot ⊢
+    generalize 2 ^ (LA.w * (5 * k)) * c₅ = T₅ at htot ⊢
+    generalize 2 ^ (LA.w * (6 * k)) * c₆ = T₆ at htot ⊢
+    generalize 2 ^ (LA.w * (7 * k)) * c₇ = T₇ at htot ⊢
+    generalize 2 ^ (LA.w * (8 * k)) * c₈ = T₈ at htot ⊢
+    generalize 2 ^ (LA.w * (9 * k)) * c₉ = T₉ at htot ⊢
+    generalize 2 ^ (LA.w * (10 * k)) * c₁₀ = T₁₀ at htot ⊢
+    generalize 2 ^ (LA.w * (11 * k)) * c₁₁ = T₁₁ at htot ⊢
+    generalize 2 ^ (LA.w * (12 * k)) * c₁₂ = T₁₂ at htot ⊢
+    generalize 2 ^ (LA.w * (13 * k)) * c₁₃ = T₁₃ at htot ⊢
+    generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
+    lia)
+  rw [a₅v] at a₆v
+  rw [← (show A₆ = R.addInto A₅ (o + (6 * k)) (n - (6 * k)) q₁₉₈ 0 (min (n - (6 * k)) L) from rfl)] at a₆w a₆v
+  have a₆w' := a₆w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₅w'
+  obtain ⟨a₇w, a₇v⟩ := add_coef A₆ o n (7 * k) (by rw [a₆w'.1]; exact hd) (by lia)
+      q₁₉₉ 0 L c₇ e₁₉₉ (by
+    rw [a₆v]
+    generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
+    generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
+    generalize 2 ^ (LA.w * (3 * k)) * c₃ = T₃ at htot ⊢
+    generalize 2 ^ (LA.w * (4 * k)) * c₄ = T₄ at htot ⊢
+    generalize 2 ^ (LA.w * (5 * k)) * c₅ = T₅ at htot ⊢
+    generalize 2 ^ (LA.w * (6 * k)) * c₆ = T₆ at htot ⊢
+    generalize 2 ^ (LA.w * (7 * k)) * c₇ = T₇ at htot ⊢
+    generalize 2 ^ (LA.w * (8 * k)) * c₈ = T₈ at htot ⊢
+    generalize 2 ^ (LA.w * (9 * k)) * c₉ = T₉ at htot ⊢
+    generalize 2 ^ (LA.w * (10 * k)) * c₁₀ = T₁₀ at htot ⊢
+    generalize 2 ^ (LA.w * (11 * k)) * c₁₁ = T₁₁ at htot ⊢
+    generalize 2 ^ (LA.w * (12 * k)) * c₁₂ = T₁₂ at htot ⊢
+    generalize 2 ^ (LA.w * (13 * k)) * c₁₃ = T₁₃ at htot ⊢
+    generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
+    lia)
+  rw [a₆v] at a₇v
+  rw [← (show A₇ = R.addInto A₆ (o + (7 * k)) (n - (7 * k)) q₁₉₉ 0 (min (n - (7 * k)) L) from rfl)] at a₇w a₇v
+  have a₇w' := a₇w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₆w'
+  obtain ⟨a₈w, a₈v⟩ := add_coef A₇ o n (8 * k) (by rw [a₇w'.1]; exact hd) (by lia)
+      q₂₀₀ 0 L c₈ e₂₀₀ (by
+    rw [a₇v]
+    generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
+    generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
+    generalize 2 ^ (LA.w * (3 * k)) * c₃ = T₃ at htot ⊢
+    generalize 2 ^ (LA.w * (4 * k)) * c₄ = T₄ at htot ⊢
+    generalize 2 ^ (LA.w * (5 * k)) * c₅ = T₅ at htot ⊢
+    generalize 2 ^ (LA.w * (6 * k)) * c₆ = T₆ at htot ⊢
+    generalize 2 ^ (LA.w * (7 * k)) * c₇ = T₇ at htot ⊢
+    generalize 2 ^ (LA.w * (8 * k)) * c₈ = T₈ at htot ⊢
+    generalize 2 ^ (LA.w * (9 * k)) * c₉ = T₉ at htot ⊢
+    generalize 2 ^ (LA.w * (10 * k)) * c₁₀ = T₁₀ at htot ⊢
+    generalize 2 ^ (LA.w * (11 * k)) * c₁₁ = T₁₁ at htot ⊢
+    generalize 2 ^ (LA.w * (12 * k)) * c₁₂ = T₁₂ at htot ⊢
+    generalize 2 ^ (LA.w * (13 * k)) * c₁₃ = T₁₃ at htot ⊢
+    generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
+    lia)
+  rw [a₇v] at a₈v
+  rw [← (show A₈ = R.addInto A₇ (o + (8 * k)) (n - (8 * k)) q₂₀₀ 0 (min (n - (8 * k)) L) from rfl)] at a₈w a₈v
+  have a₈w' := a₈w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₇w'
+  obtain ⟨a₉w, a₉v⟩ := add_coef A₈ o n (9 * k) (by rw [a₈w'.1]; exact hd) (by lia)
+      q₂₀₁ 0 L c₉ e₂₀₁ (by
+    rw [a₈v]
+    generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
+    generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
+    generalize 2 ^ (LA.w * (3 * k)) * c₃ = T₃ at htot ⊢
+    generalize 2 ^ (LA.w * (4 * k)) * c₄ = T₄ at htot ⊢
+    generalize 2 ^ (LA.w * (5 * k)) * c₅ = T₅ at htot ⊢
+    generalize 2 ^ (LA.w * (6 * k)) * c₆ = T₆ at htot ⊢
+    generalize 2 ^ (LA.w * (7 * k)) * c₇ = T₇ at htot ⊢
+    generalize 2 ^ (LA.w * (8 * k)) * c₈ = T₈ at htot ⊢
+    generalize 2 ^ (LA.w * (9 * k)) * c₉ = T₉ at htot ⊢
+    generalize 2 ^ (LA.w * (10 * k)) * c₁₀ = T₁₀ at htot ⊢
+    generalize 2 ^ (LA.w * (11 * k)) * c₁₁ = T₁₁ at htot ⊢
+    generalize 2 ^ (LA.w * (12 * k)) * c₁₂ = T₁₂ at htot ⊢
+    generalize 2 ^ (LA.w * (13 * k)) * c₁₃ = T₁₃ at htot ⊢
+    generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
+    lia)
+  rw [a₈v] at a₉v
+  rw [← (show A₉ = R.addInto A₈ (o + (9 * k)) (n - (9 * k)) q₂₀₁ 0 (min (n - (9 * k)) L) from rfl)] at a₉w a₉v
+  have a₉w' := a₉w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₈w'
+  obtain ⟨a₁₀w, a₁₀v⟩ := add_coef A₉ o n (10 * k) (by rw [a₉w'.1]; exact hd) (by lia)
+      q₂₀₂ 0 L c₁₀ e₂₀₂ (by
+    rw [a₉v]
+    generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
+    generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
+    generalize 2 ^ (LA.w * (3 * k)) * c₃ = T₃ at htot ⊢
+    generalize 2 ^ (LA.w * (4 * k)) * c₄ = T₄ at htot ⊢
+    generalize 2 ^ (LA.w * (5 * k)) * c₅ = T₅ at htot ⊢
+    generalize 2 ^ (LA.w * (6 * k)) * c₆ = T₆ at htot ⊢
+    generalize 2 ^ (LA.w * (7 * k)) * c₇ = T₇ at htot ⊢
+    generalize 2 ^ (LA.w * (8 * k)) * c₈ = T₈ at htot ⊢
+    generalize 2 ^ (LA.w * (9 * k)) * c₉ = T₉ at htot ⊢
+    generalize 2 ^ (LA.w * (10 * k)) * c₁₀ = T₁₀ at htot ⊢
+    generalize 2 ^ (LA.w * (11 * k)) * c₁₁ = T₁₁ at htot ⊢
+    generalize 2 ^ (LA.w * (12 * k)) * c₁₂ = T₁₂ at htot ⊢
+    generalize 2 ^ (LA.w * (13 * k)) * c₁₃ = T₁₃ at htot ⊢
+    generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
+    lia)
+  rw [a₉v] at a₁₀v
+  rw [← (show A₁₀ = R.addInto A₉ (o + (10 * k)) (n - (10 * k)) q₂₀₂ 0 (min (n - (10 * k)) L) from rfl)] at a₁₀w a₁₀v
+  have a₁₀w' := a₁₀w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₉w'
+  obtain ⟨a₁₁w, a₁₁v⟩ := add_coef A₁₀ o n (11 * k) (by rw [a₁₀w'.1]; exact hd) (by lia)
+      q₂₀₃ 0 L c₁₁ e₂₀₃ (by
+    rw [a₁₀v]
+    generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
+    generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
+    generalize 2 ^ (LA.w * (3 * k)) * c₃ = T₃ at htot ⊢
+    generalize 2 ^ (LA.w * (4 * k)) * c₄ = T₄ at htot ⊢
+    generalize 2 ^ (LA.w * (5 * k)) * c₅ = T₅ at htot ⊢
+    generalize 2 ^ (LA.w * (6 * k)) * c₆ = T₆ at htot ⊢
+    generalize 2 ^ (LA.w * (7 * k)) * c₇ = T₇ at htot ⊢
+    generalize 2 ^ (LA.w * (8 * k)) * c₈ = T₈ at htot ⊢
+    generalize 2 ^ (LA.w * (9 * k)) * c₉ = T₉ at htot ⊢
+    generalize 2 ^ (LA.w * (10 * k)) * c₁₀ = T₁₀ at htot ⊢
+    generalize 2 ^ (LA.w * (11 * k)) * c₁₁ = T₁₁ at htot ⊢
+    generalize 2 ^ (LA.w * (12 * k)) * c₁₂ = T₁₂ at htot ⊢
+    generalize 2 ^ (LA.w * (13 * k)) * c₁₃ = T₁₃ at htot ⊢
+    generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
+    lia)
+  rw [a₁₀v] at a₁₁v
+  rw [← (show A₁₁ = R.addInto A₁₀ (o + (11 * k)) (n - (11 * k)) q₂₀₃ 0 (min (n - (11 * k)) L) from rfl)] at a₁₁w a₁₁v
+  have a₁₁w' := a₁₁w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₁₀w'
+  obtain ⟨a₁₂w, a₁₂v⟩ := add_coef A₁₁ o n (12 * k) (by rw [a₁₁w'.1]; exact hd) (by lia)
+      q₂₀₄ 0 L c₁₂ e₂₀₄ (by
+    rw [a₁₁v]
+    generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
+    generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
+    generalize 2 ^ (LA.w * (3 * k)) * c₃ = T₃ at htot ⊢
+    generalize 2 ^ (LA.w * (4 * k)) * c₄ = T₄ at htot ⊢
+    generalize 2 ^ (LA.w * (5 * k)) * c₅ = T₅ at htot ⊢
+    generalize 2 ^ (LA.w * (6 * k)) * c₆ = T₆ at htot ⊢
+    generalize 2 ^ (LA.w * (7 * k)) * c₇ = T₇ at htot ⊢
+    generalize 2 ^ (LA.w * (8 * k)) * c₈ = T₈ at htot ⊢
+    generalize 2 ^ (LA.w * (9 * k)) * c₉ = T₉ at htot ⊢
+    generalize 2 ^ (LA.w * (10 * k)) * c₁₀ = T₁₀ at htot ⊢
+    generalize 2 ^ (LA.w * (11 * k)) * c₁₁ = T₁₁ at htot ⊢
+    generalize 2 ^ (LA.w * (12 * k)) * c₁₂ = T₁₂ at htot ⊢
+    generalize 2 ^ (LA.w * (13 * k)) * c₁₃ = T₁₃ at htot ⊢
+    generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
+    lia)
+  rw [a₁₁v] at a₁₂v
+  rw [← (show A₁₂ = R.addInto A₁₁ (o + (12 * k)) (n - (12 * k)) q₂₀₄ 0 (min (n - (12 * k)) L) from rfl)] at a₁₂w a₁₂v
+  have a₁₂w' := a₁₂w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₁₁w'
+  obtain ⟨a₁₃w, a₁₃v⟩ := add_coef A₁₂ o n (13 * k) (by rw [a₁₂w'.1]; exact hd) (by lia)
+      q₂₀₅ 0 L c₁₃ e₂₀₅ (by
+    rw [a₁₂v]
+    generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
+    generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
+    generalize 2 ^ (LA.w * (3 * k)) * c₃ = T₃ at htot ⊢
+    generalize 2 ^ (LA.w * (4 * k)) * c₄ = T₄ at htot ⊢
+    generalize 2 ^ (LA.w * (5 * k)) * c₅ = T₅ at htot ⊢
+    generalize 2 ^ (LA.w * (6 * k)) * c₆ = T₆ at htot ⊢
+    generalize 2 ^ (LA.w * (7 * k)) * c₇ = T₇ at htot ⊢
+    generalize 2 ^ (LA.w * (8 * k)) * c₈ = T₈ at htot ⊢
+    generalize 2 ^ (LA.w * (9 * k)) * c₉ = T₉ at htot ⊢
+    generalize 2 ^ (LA.w * (10 * k)) * c₁₀ = T₁₀ at htot ⊢
+    generalize 2 ^ (LA.w * (11 * k)) * c₁₁ = T₁₁ at htot ⊢
+    generalize 2 ^ (LA.w * (12 * k)) * c₁₂ = T₁₂ at htot ⊢
+    generalize 2 ^ (LA.w * (13 * k)) * c₁₃ = T₁₃ at htot ⊢
+    generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
+    lia)
+  rw [a₁₂v] at a₁₃v
+  refine ⟨(a₁₃w.mono (o' := o) (len' := n) (by lia) (by lia)).trans a₁₂w', ?_⟩
+  rw [a₁₃v]
+  generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
+  generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
+  generalize 2 ^ (LA.w * (3 * k)) * c₃ = T₃ at htot ⊢
+  generalize 2 ^ (LA.w * (4 * k)) * c₄ = T₄ at htot ⊢
+  generalize 2 ^ (LA.w * (5 * k)) * c₅ = T₅ at htot ⊢
+  generalize 2 ^ (LA.w * (6 * k)) * c₆ = T₆ at htot ⊢
+  generalize 2 ^ (LA.w * (7 * k)) * c₇ = T₇ at htot ⊢
+  generalize 2 ^ (LA.w * (8 * k)) * c₈ = T₈ at htot ⊢
+  generalize 2 ^ (LA.w * (9 * k)) * c₉ = T₉ at htot ⊢
+  generalize 2 ^ (LA.w * (10 * k)) * c₁₀ = T₁₀ at htot ⊢
+  generalize 2 ^ (LA.w * (11 * k)) * c₁₁ = T₁₁ at htot ⊢
+  generalize 2 ^ (LA.w * (12 * k)) * c₁₂ = T₁₂ at htot ⊢
+  generalize 2 ^ (LA.w * (13 * k)) * c₁₃ = T₁₃ at htot ⊢
+  generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
+  lia
+
 end MPN.Toom

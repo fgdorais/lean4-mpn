@@ -10,10 +10,10 @@ public import MPN.Toom.Methods
 # Products and squares by the Toom methods
 
 `mulToom cfg d o a ao al b bo bl` writes the `al + bl` limbs of `a b` into `d` from limb `o` on:
-by Toom-6, Toom-4 or Toom-4 by 3 from `cfg.mulToom6` and `cfg.mulToom4` limbs in the smaller
-operand, by Toom-3, Toom-3 by 2 or Toom-4 by 2 from `cfg.mulToom3`, `cfg.mulToom32` and
-`cfg.mulToom42`, by the shape of the operands, and by `mulKaratsuba` below or otherwise, with the
-products of the methods computed recursively. `sqrToom` does the same for squares.
+by Toom-8, Toom-6, Toom-4 or Toom-4 by 3 from `cfg.mulToom8`, `cfg.mulToom6` and `cfg.mulToom4`
+limbs in the smaller operand, by Toom-3, Toom-3 by 2 or Toom-4 by 2 from `cfg.mulToom3`,
+`cfg.mulToom32` and `cfg.mulToom42`, by the shape of the operands, and by `mulKaratsuba` below or
+otherwise, with the products of the methods computed recursively. `sqrToom` does the same for squares.
 -/
 
 namespace MPN.Toom
@@ -41,7 +41,10 @@ public theorem twelve_le_toomMin (cfg : Config) : 12 ≤ toomMin cfg := by
     else mulToomAux cfg d' o' b' bo' bl' a' ao' al'
   if h : toomMin cfg ≤ bl ∧ bl ≤ al then
     have := Nat.le_trans (twelve_le_toomMin cfg) h.1
-    if h₆₆ : cfg.mulToom6 ≤ bl ∧ 5 * ((al + 5) / 6) < bl then
+    if h₈₈ : cfg.mulToom8 ≤ bl ∧ 7 * ((al + 7) / 8) < bl then
+      toom88 d o a ao al b bo bl ((al + 7) / 8) (by
+        have := cfg.sixtyfour_le_mulToom8; refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> lia) mul
+    else if h₆₆ : cfg.mulToom6 ≤ bl ∧ 5 * ((al + 5) / 6) < bl then
       toom66 d o a ao al b bo bl ((al + 5) / 6) (by
         have := cfg.thirtytwo_le_mulToom6; refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> lia) mul
     else if h₄₄ : cfg.mulToom4 ≤ bl ∧ 3 * ((al + 3) / 4) < bl then
@@ -96,18 +99,20 @@ private theorem mulToomAux_spec (cfg : Config) : ∀ N (d : A) (o : Nat) (a : A)
   dsimp only
   split
   · split
-    · exact toom66_spec _ _ _ _ _ _ _ _ _ _ _ hmul hd
+    · exact toom88_spec _ _ _ _ _ _ _ _ _ _ _ hmul hd
     · split
-      · exact toom44_spec _ _ _ _ _ _ _ _ _ _ _ hmul hd
+      · exact toom66_spec _ _ _ _ _ _ _ _ _ _ _ hmul hd
       · split
-        · exact toom43_spec _ _ _ _ _ _ _ _ _ _ _ hmul hd
+        · exact toom44_spec _ _ _ _ _ _ _ _ _ _ _ hmul hd
         · split
-          · exact toom33_spec _ _ _ _ _ _ _ _ _ _ _ hmul hd
+          · exact toom43_spec _ _ _ _ _ _ _ _ _ _ _ hmul hd
           · split
-            · exact toom32_spec _ _ _ _ _ _ _ _ _ _ _ hmul hd
+            · exact toom33_spec _ _ _ _ _ _ _ _ _ _ _ hmul hd
             · split
-              · exact toom42_spec _ _ _ _ _ _ _ _ _ _ _ hmul hd
-              · exact hk hd
+              · exact toom32_spec _ _ _ _ _ _ _ _ _ _ _ hmul hd
+              · split
+                · exact toom42_spec _ _ _ _ _ _ _ _ _ _ _ hmul hd
+                · exact hk hd
   · exact hk hd
 
 public theorem mulToom_spec (cfg : Config) (d : A) (o : Nat) (a : A) (ao al : Nat) (b : A)
@@ -127,7 +132,10 @@ public theorem mulToom_spec (cfg : Config) (d : A) (o : Nat) (a : A) (ao al : Na
   let sq : SqrFn A al := fun d' o' a' ao' al' _ => sqrToom cfg d' o' a' ao' al'
   if h : cfg.sqrToom3 ≤ al then
     have := cfg.twelve_le_sqrToom3
-    if h₆ : cfg.sqrToom6 ≤ al then
+    if h₈ : cfg.sqrToom8 ≤ al then
+      toom8Sqr d o a ao al ((al + 7) / 8) (by
+        have := cfg.sixtyfour_le_sqrToom8; refine ⟨?_, ?_, ?_⟩ <;> lia) sq
+    else if h₆ : cfg.sqrToom6 ≤ al then
       toom6Sqr d o a ao al ((al + 5) / 6) (by
         have := cfg.thirtytwo_le_sqrToom6; refine ⟨?_, ?_, ?_⟩ <;> lia) sq
     else if h₄ : cfg.sqrToom4 ≤ al then
@@ -154,10 +162,12 @@ private theorem sqrToom_spec' (cfg : Config) : ∀ N (d : A) (o : Nat) (a : A) (
   dsimp only
   split
   · split
-    · exact toom6Sqr_spec _ _ _ _ _ _ _ _ hsq hd
+    · exact toom8Sqr_spec _ _ _ _ _ _ _ _ hsq hd
     · split
-      · exact toom4Sqr_spec _ _ _ _ _ _ _ _ hsq hd
-      · exact toom3Sqr_spec _ _ _ _ _ _ _ _ hsq hd
+      · exact toom6Sqr_spec _ _ _ _ _ _ _ _ hsq hd
+      · split
+        · exact toom4Sqr_spec _ _ _ _ _ _ _ _ hsq hd
+        · exact toom3Sqr_spec _ _ _ _ _ _ _ _ hsq hd
   · exact sqrKaratsuba_spec cfg al d o a ao al rfl hd
 
 public theorem sqrToom_spec (cfg : Config) (d : A) (o : Nat) (a : A) (ao al : Nat)

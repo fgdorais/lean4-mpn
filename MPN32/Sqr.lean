@@ -20,7 +20,7 @@ smaller squares instead of products.
 * below `cfg.sqrKaratsuba` limbs: the schoolbook `sqrBasecase`;
 * otherwise: `MPN`'s `Dispatch.sqr` into a new array, the FFT from `cfg.sqrFFT` limbs and the Toom
   squares and Karatsuba below, from the thresholds `cfg.sqrKaratsuba`, `cfg.sqrToom3`,
-  `cfg.sqrToom4` and `cfg.sqrToom6`.
+  `cfg.sqrToom4`, `cfg.sqrToom6` and `cfg.sqrToom8`.
 -/
 
 open ScalarArray

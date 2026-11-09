@@ -49,6 +49,8 @@ public structure Config extends Dispatch.MulConfig, Dispatch.DivConfig, Dispatch
   thirtytwo_le_mulToom43 := by decide
   mulToom6 := 768
   thirtytwo_le_mulToom6 := by decide
+  mulToom8 := 1792
+  sixtyfour_le_mulToom8 := by decide
   sqrKaratsuba := 88
   four_le_sqrKaratsuba := by decide
   sqrToom3 := 544
@@ -57,6 +59,8 @@ public structure Config extends Dispatch.MulConfig, Dispatch.DivConfig, Dispatch
   thirtytwo_le_sqrToom4 := by decide
   sqrToom6 := 1039
   thirtytwo_le_sqrToom6 := by decide
+  sqrToom8 := 2816
+  sixtyfour_le_sqrToom8 := by decide
   mulFFT := 6144
   mulFFTUnbal := 4992
   mulFFTMin := 352

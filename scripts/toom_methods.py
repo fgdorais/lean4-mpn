@@ -17,10 +17,11 @@ def pmk(i): return 'k' if i == 1 else f'({i} * k)'
 def Xp(i): return ' * '.join(['X'] * i)
 
 MUL = [('toom33', 'Toom-3', 3, 3), ('toom42', 'Toom-4 by 2', 4, 2), ('toom32', 'Toom-3 by 2', 3, 2),
-       ('toom44', 'Toom-4', 4, 4), ('toom43', 'Toom-4 by 3', 4, 3), ('toom66', 'Toom-6', 6, 6)]
+       ('toom44', 'Toom-4', 4, 4), ('toom43', 'Toom-4 by 3', 4, 3), ('toom66', 'Toom-6', 6, 6),
+       ('toom88', 'Toom-8', 8, 8)]
 SQR = [('toom3Sqr', 'The Toom-3 square', 3), ('toom4Sqr', 'The Toom-4 square', 4),
-       ('toom6Sqr', 'The Toom-6 square', 6)]
-HEART = {4: None, 3: None, 5: 2000000, 6: 2000000, 10: 8000000}
+       ('toom6Sqr', 'The Toom-6 square', 6), ('toom8Sqr', 'The Toom-8 square', 8)]
+HEART = {4: None, 3: None, 5: 2000000, 6: 2000000, 10: 8000000, 14: 16000000}
 
 def coeffs(p, q, sym_a='A', sym_b='B'):
     cs = []

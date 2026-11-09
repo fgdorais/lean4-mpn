@@ -7,10 +7,10 @@ supports (the portability rule of the [README](../README.md), checked by
 Verified arbitrary-precision natural numbers for Lean 4, stored as `UInt32` limbs in the unboxed
 arrays of [lean4-scalar-arrays](https://github.com/fgdorais/lean4-scalar-arrays). Each operation is
 proved correct against `Nat`, the specification being the value of the limbs (`valAt`). Addition and
-subtraction are linear. Multiplication uses schoolbook, Karatsuba, Toom-3, Toom-4 or Toom-6, or
-the unbalanced variants, and Schönhage–Strassen's FFT modulo `2ᴺ + 1` for the largest numbers,
-depending on the sizes, and splits very unbalanced products into nearly balanced ones; squaring uses
-the same algorithms. Division is Knuth's Algorithm D, divide-and-conquer (Burnikel–Ziegler) for
+subtraction are linear. Multiplication uses schoolbook, Karatsuba, Toom-3, Toom-4, Toom-6 or
+Toom-8, or the unbalanced variants, and Schönhage–Strassen's FFT modulo `2ᴺ + 1` for the largest
+numbers, depending on the sizes, and splits very unbalanced products into nearly balanced ones;
+squaring uses the same algorithms. Division is Knuth's Algorithm D, divide-and-conquer (Burnikel–Ziegler) for
 large divisors, and Barrett's division with Newton's reciprocal for the largest, by `MPN`'s shared
 dispatch (`MPN.Dispatch.Div`).
 
@@ -45,14 +45,14 @@ options = { march = "native", w32_mulKaratsuba = "64", w32_mulToom3 = "480", w32
 ```
 
 The keys are the fields of `MPN32.Config`: `mulKaratsuba`, `mulToom3`, `mulToom32`, `mulToom42`,
-`mulToom43`, `mulToom4`, `mulToom6`, `mulFFT`, `mulFFTUnbal`, `mulFFTMin`, `mulUnbalanced`,
-`mulChunkMax`, `mulRows`, `mulCombaW`, `sqrBasecase`, `sqrRows`, `sqrKaratsuba`, `sqrToom3`,
-`sqrToom4`, `sqrToom6`, `sqrFFT`, `divDC`, `divMu`, `divQMu`, `div1Recip`, `div1Unnorm`,
-`div32Recip`, `sqrtZimmermann`, `sqrtBase`, `gcdHalf`, `strDC` and `parseDC`; an invalid value
-stops the build. With `march = "native"` the C compiler may use the vector instructions of the
-build machine (5–12% faster products with AVX2), and the program then runs only on processors that
-have them. Lake keeps the configuration it elaborated, so after changing the options, build once
-with `lake build -R`. In this package itself, the same options go
+`mulToom43`, `mulToom4`, `mulToom6`, `mulToom8`, `mulFFT`, `mulFFTUnbal`, `mulFFTMin`,
+`mulUnbalanced`, `mulChunkMax`, `mulRows`, `mulCombaW`, `sqrBasecase`, `sqrRows`, `sqrKaratsuba`,
+`sqrToom3`, `sqrToom4`, `sqrToom6`, `sqrToom8`, `sqrFFT`, `divDC`, `divMu`, `divQMu`,
+`div1Recip`, `div1Unnorm`, `div32Recip`, `sqrtZimmermann`, `sqrtBase`, `gcdHalf`, `strDC` and
+`parseDC`; an invalid value stops the build. With `march = "native"` the C compiler may use the
+vector instructions of the build machine (5–12% faster products with AVX2), and the program then
+runs only on processors that have them. Lake keeps the configuration it elaborated, so after
+changing the options, build once with `lake build -R`. In this package itself, the same options go
 on the command line: `lake build -R -K march=native`.
 
 ## Programs

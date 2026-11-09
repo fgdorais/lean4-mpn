@@ -340,6 +340,10 @@ def checkToom (m n : Nat) : Bool :=
 #guard [(770, 770), (800, 790), (1500, 1500), (1700, 1500), (3000, 2600), (6000, 6000)].all
   fun (m, n) => checkToom m n
 
+-- Toom-8 (`7/8 < n/m`), at and above `mulToom8`, and Toom-6 below it on shapes under six fifths.
+#guard [(1792, 1792), (1800, 1795), (2000, 1800), (2100, 1830), (4000, 3600)].all
+  fun (m, n) => checkToom m n
+
 -- The unbalanced shapes from their own thresholds: Toom-3 by 2 from `mulToom32` and Toom-4 by 2
 -- from `mulToom42`, below `mulToom3`.
 #guard [(308, 176), (350, 100), (350, 87), (240, 175), (330, 180)].all fun (m, n) => checkToom m n
@@ -410,8 +414,8 @@ def checkSqrToom (n : Nat) : Bool :=
     let s := MPN.W64.sqrToom MPN.W64.config (inner r (2 * n)) (limbs n x).toUSlice
     window s 1 (2 * n) == x * x && s[0]! == pad && s[2 * n + 1]! == pad
 
--- Around `sqrToom3`, `sqrToom4` and `sqrToom6`, and recursion.
-#guard [599, 600, 999, 1000, 1199, 1200, 2800, 7300].all checkSqrToom
+-- Around `sqrToom3`, `sqrToom4`, `sqrToom6` and `sqrToom8`, and recursion.
+#guard [599, 600, 999, 1000, 1199, 1200, 2800, 2816, 2900, 5000, 7300].all checkSqrToom
 
 
 /-- A random number of `bits` bits. -/

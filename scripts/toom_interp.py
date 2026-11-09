@@ -43,7 +43,38 @@ SCHEDULES = {
          "6 - 3*7; 7 - 3*8; 8 - 3*9; 2 - 2*3; 3 - 2*4; 4 - 2*5; 5 - 2*6; 6 - 2*7; 7 - 2*8; "
          "8 - 2*9; 1 - 2; 2 - 3; 3 - 4; 4 - 5; 5 - 6; 6 - 7; 7 - 8; 8 - 9"),
 }
-HEARTBEATS = {3: None, 4: None, 5: 1000000, 6: 1000000, 10: 8000000}
+HEARTBEATS = {3: None, 4: None, 5: 1000000, 6: 1000000, 10: 8000000, 14: 8000000}
+
+
+def newton_schedule(D):
+    """The schedule of the falling factorials `x (x - 1) ⋯ (x - i + 1)`, which vanish at `0, …, i - 1`:
+    differences level by level give `i!` times the coefficients in that basis, the divisions by the
+    `i!` give them, and multiplying out the factors `x - i` from the top gives the coefficients in
+    powers of `x`. The multipliers stay below `D`, and `c_D` is never subtracted with `D^D`."""
+    p = []
+    for l in range(1, D):
+        for j in range(D - 1, l - 1, -1):
+            p.append(f"{j} - {'X0' if j == 1 else j - 1}")
+    for j in range(2, D):
+        f = 1
+        for i in range(2, j + 1):
+            f *= i
+        s = 0
+        while f % 2 == 0:
+            f //= 2
+            s += 1
+        if f > 1:
+            p.append(f"{j} / {f}")
+        if s:
+            p.append(f"{j} >> {s}")
+    for i in range(D - 1, 0, -1):
+        for j in range(i, D):
+            src = 'Xd' if j + 1 == D else str(j + 1)
+            p.append(f"{j} - {src}" if i == 1 else f"{j} - {i}*{src}")
+    return '; '.join(p)
+
+
+SCHEDULES[14] = ("Toom-8", newton_schedule(14))
 
 SUB = str.maketrans('0123456789', '₀₁₂₃₄₅₆₇₈₉')
 def sub(n): return str(n).translate(SUB)
@@ -277,6 +308,6 @@ variable {A L : Type} [LA : LimbArray A L] [R : ToomOps A L]
 
 if __name__ == '__main__':
     print(HEADER)
-    for D in (3, 4, 5, 6, 10):
+    for D in (3, 4, 5, 6, 10, 14):
         print(gen(D))
     print('end MPN.Toom')

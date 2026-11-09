@@ -13,7 +13,7 @@ public import MPN.Toom.Mul
 
 `mulToom cfg r a b` writes the `a.size + b.size` limbs of `a * b` into the slice `r` and
 `sqrToom cfg r a` the `2 a.size` limbs of `a²`, by `main`'s `MPN.Toom.mulToom` and
-`MPN.Toom.sqrToom` on `toomOpsW`, from `toomBase64`: Toom-6, Toom-4, Toom-4 by 3, Toom-3,
+`MPN.Toom.sqrToom` on `toomOpsW`, from `toomBase64`: Toom-8, Toom-6, Toom-4, Toom-4 by 3, Toom-3,
 Toom-3 by 2 and Toom-4 by 2 by the sizes and the shape, with interpolations at the natural points
 `0, 1, 2, …, ∞`, and `mulKaratsuba` or `sqrKaratsuba` below the thresholds of `cfg`. They require
 `a.size + b.size ≤ r.size`, and leave `r` unchanged otherwise.

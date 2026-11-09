@@ -49,6 +49,8 @@ public structure Config extends Dispatch.MulConfig, Dispatch.DivConfig, Dispatch
   thirtytwo_le_mulToom43 := by decide
   mulToom6 := 1792
   thirtytwo_le_mulToom6 := by decide
+  mulToom8 := 3072
+  sixtyfour_le_mulToom8 := by decide
   sqrKaratsuba := 160
   four_le_sqrKaratsuba := by decide
   sqrToom3 := 944

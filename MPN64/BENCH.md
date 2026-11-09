@@ -60,7 +60,7 @@ so five runs make the tables reliable. Within one run, distrust a row whose spre
 | `addmul1` | `MPN.addMul1` | `n` limbs times a limb, added to `n` limbs | one pass, `USize` indices |
 | `mul` | `MPN.mulBasecase` | `n` by `n` limbs | schoolbook by rows: `mul1`, then `addMul1` with a continuation, `USize` indices |
 | `kara` | `MPN.mulKaratsuba` | `n` by `n` limbs | Karatsuba from 64 limbs (`mulKaratsuba`), `mulBasecase` below |
-| `toom` | `MPN.mulToom` | `n` by `n` limbs | Toom-6 from 768 limbs (`mulToom6`), Toom-4 from 600 (`mulToom4`), Toom-3 from 384 (`mulToom3`), `mulKaratsuba` below |
+| `toom` | `MPN.mulToom` | `n` by `n` limbs | Toom-8 from 1792 limbs (`mulToom8`), Toom-6 from 768 (`mulToom6`), Toom-4 from 600 (`mulToom4`), Toom-3 from 384 (`mulToom3`), `mulKaratsuba` below |
 | `kara2` | `MPN.mulKaratsuba` | `n` by `n / 2` limbs | as `kara` |
 | `toom2` | `MPN.mulToom` | `n` by `n / 2` limbs | Toom-3 by 2 or Toom-4 by 2 from 384 limbs in the smaller operand, `mulKaratsuba` below |
 | `fft` | `MPN.FFT.fftMul` | `n` by `n` limbs | Schönhage–Strassen with `2ᵏ` pieces, `k = fftK (2 n)`, the pointwise products by `mulToom` |
@@ -72,7 +72,7 @@ so five runs make the tables reliable. Within one run, distrust a row whose spre
 | `fftbS`, `toombS` | `MPN.FFT.fftMul`, `MPN.mulToom` | `n` by `S` limbs, for example `fftb256` | for tuning `mulFFTMin` |
 | `fftsqr` | `MPN.FFT.fftSqr` | `n` limbs | one forward transform, the pointwise squares by `sqrKaratsuba`, `k = fftK (2 n)` |
 | `fsqK` | `MPN.FFT.fftSqr` | `n` limbs | as `fftsqr` with `2ᴷ` pieces, for example `fsq9` |
-| `toomsqr` | `MPN.sqrToom` | `n` limbs | the Toom-6 square from 1152 limbs (`sqrToom6`), the Toom-4 square from 1000 (`sqrToom4`), the Toom-3 square from 600 (`sqrToom3`), `sqrKaratsuba` below |
+| `toomsqr` | `MPN.sqrToom` | `n` limbs | the Toom-8 square from 2816 limbs (`sqrToom8`), the Toom-6 square from 1039 (`sqrToom6`), the Toom-4 square from 1000 (`sqrToom4`), the Toom-3 square from 600 (`sqrToom3`), `sqrKaratsuba` below |
 | `autosqr` | `MPN.sqr` | `n` limbs | the FFT from `sqrFFT = 2816` limbs, `sqrToom` below |
 | `sqr` | `MPN.sqrBasecase` | `n` limbs | the cross products once by rows (`mul1`, `addMul1`), then doubled with the diagonal in one pass |
 | `ksqr` | `MPN.sqrKaratsuba` | `n` limbs | Karatsuba with three squares from 96 limbs (`sqrKaratsuba`), `sqrBasecase` below |

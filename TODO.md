@@ -48,10 +48,12 @@ two widths moved into one package is in the history of `MPN32/TODO.md`.
 - [ ] **The FFT, next**: the pointwise products of residues by the FFT itself at very large sizes
   (GMP's recursive `mpn_mul_fft`), a fused butterfly (one pass for `a ± 2ˢ b`), and `fftK` tuned
   per machine.
-- [ ] **Toom-8½, Toom-6 by 5 and the like**: Toom-8 gained 7–11% over Toom-4 in a one-level
-  prototype at 6144–16384 limbs on 32-bit limbs, about as much as Toom-6; the generator
-  (`scripts/toom_interp.py`, `scripts/toom_methods.py`) handles any degree. Unbalanced Toom-6
-  shapes (beyond six fifths) still go to Toom-4 by 3.
+- [ ] **Toom-8½, Toom-6 by 5 and the like**: the generators (`scripts/toom_interp.py`,
+  `scripts/toom_methods.py`) handle any degree, and `newton_schedule` keeps the multipliers below
+  the degree. Unbalanced Toom-6 and Toom-8 shapes (beyond six fifths, eight sevenths) still go to
+  Toom-4 by 3; on 1:2 shapes Toom-4 by 2 and Toom-3 by 2 tie (±1%) from 1024 to 3072 limbs on
+  64-bit limbs, so Toom-6 by 3 looks doubtful. The Toom-8 square loses on 32-bit limbs (its
+  default is never there).
 
 ## Sharing
 

@@ -239,6 +239,32 @@ def sqrToom4Config : Config :=
     toNat (sqrLimbsWith sqrToom4Config (ofNat (2 ^ (32 * n) - 1))) ==
       (2 ^ (32 * n) - 1) * (2 ^ (32 * n) - 1)
 
+-- Toom-8 from 64 limbs, on shapes under eight sevenths, and all ones, with Toom-6 under it.
+def toom8Config : Config :=
+  { mulKaratsuba := 8, mulToom3 := 12, mulToom32 := 12, mulToom42 := 12, mulToom43 := 32,
+    mulToom4 := 32, mulToom6 := 32, mulToom8 := 64 }
+
+#guard [(64, 64), (65, 57), (71, 63), (72, 64), (100, 90), (200, 180), (513, 449),
+    (600, 600)].all fun (m, n) =>
+  let x := sample1 (32 * m) 43
+  let y := sample1 (32 * n) 47
+  let r := mulLimbsWith toom8Config (ofNat x) (ofNat y)
+  r.size == m + n && toNat r == x * y &&
+    toNat (mulLimbsWith toom8Config (ofNat (2 ^ (32 * m) - 1)) (ofNat (2 ^ (32 * n) - 1))) ==
+      (2 ^ (32 * m) - 1) * (2 ^ (32 * n) - 1)
+
+-- Toom-8 squaring from 64 limbs, over Toom-6 squaring from 32.
+def sqrToom8Config : Config :=
+  { sqrBasecase := 2, sqrKaratsuba := 4, sqrToom3 := 12, sqrToom4 := 32, sqrToom6 := 32,
+    sqrToom8 := 64 }
+
+#guard [63, 64, 65, 71, 72, 73, 100, 255, 256, 600].all fun n =>
+  let x := sample1 (32 * n) 43
+  let r := sqrLimbsWith sqrToom8Config (ofNat x)
+  r.size == n + n && toNat r == x * x &&
+    toNat (sqrLimbsWith sqrToom8Config (ofNat (2 ^ (32 * n) - 1))) ==
+      (2 ^ (32 * n) - 1) * (2 ^ (32 * n) - 1)
+
 -- Toom-6 squaring from 32 limbs, over Toom-4 squaring from 32.
 def sqrToom6Config : Config :=
   { sqrBasecase := 2, sqrKaratsuba := 4, sqrToom3 := 12, sqrToom4 := 32, sqrToom6 := 32 }

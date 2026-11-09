@@ -90,8 +90,9 @@ public def tuneMul (base : Dispatch.MulConfig) (log : Bool) : IO Dispatch.MulCon
     (fun n => karatsubaW
       { base.toConfig with mulKaratsuba := max 4 n, four_le_mulKaratsuba := by lia })
     c (fun n => operandsW n n) (scaled (A := A) 8 256 4) (log := log)
-  let b : Dispatch.MulConfig :=
-    { base with mulKaratsuba := max 4 kar, four_le_mulKaratsuba := by lia }
+  let b : Dispatch.MulConfig := { base with
+    mulKaratsuba := max 4 kar, four_le_mulKaratsuba := (by lia),
+    mulToom8 := never, sixtyfour_le_mulToom8 := by decide }
   IO.println "mulToom3: one step of Toom-3 against Karatsuba"
   let t := { noShapes b with
     mulToom4 := never, thirtytwo_le_mulToom4 := (by decide),
@@ -132,6 +133,11 @@ public def tuneMul (base : Dispatch.MulConfig) (log : Bool) : IO Dispatch.MulCon
     (fun n => toomW { b.toConfig with mulToom6 := max 32 n, thirtytwo_le_mulToom6 := by lia })
     c (fun n => operandsW n n) (scaled (A := A) 256 2560 64) (log := log)
   let b := { b with mulToom6 := max 32 toom6, thirtytwo_le_mulToom6 := by lia }
+  IO.println "mulToom8: one step of Toom-8 against the methods below it"
+  let toom8 ← tune "Toom-8" (toomW (A := A) b.toConfig)
+    (fun n => toomW { b.toConfig with mulToom8 := max 64 n, sixtyfour_le_mulToom8 := by lia })
+    c (fun n => operandsW n n) (scaled (A := A) 768 4096 128) (log := log)
+  let b := { b with mulToom8 := max 64 toom8, sixtyfour_le_mulToom8 := by lia }
   IO.println "mulFFT: the FFT against the Toom methods"
   let m := noSplit { b with mulFFTUnbal := never, mulFFTMin := 0 }
   let fft ← tune "the FFT" (mulW (A := A) { m with mulFFT := never })
@@ -165,7 +171,9 @@ public def tuneMul (base : Dispatch.MulConfig) (log : Bool) : IO Dispatch.MulCon
 
 /-! ## Squares -/
 
-/-- The thresholds of squares, from `base`: Karatsuba's, Toom-3, Toom-4, Toom-6 and the FFT. -/
+/--
+The thresholds of squares, from `base`: Karatsuba's, Toom-3, Toom-4, Toom-6, Toom-8 and the FFT.
+-/
 public def tuneSqr (base : Dispatch.MulConfig) (log : Bool) : IO Dispatch.MulConfig := do
   let c := checkA (A := A)
   IO.println "sqrKaratsuba: one Karatsuba square against the base case"
@@ -175,7 +183,9 @@ public def tuneSqr (base : Dispatch.MulConfig) (log : Bool) : IO Dispatch.MulCon
     (fun n => sqrKaratsubaW
       { base.toConfig with sqrKaratsuba := max 4 n, four_le_sqrKaratsuba := by lia })
     c (fun n => operandsW n n) (scaled (A := A) 16 400 8) (log := log)
-  let b := { base with sqrKaratsuba := max 4 kar, four_le_sqrKaratsuba := by lia }
+  let b := { base with
+    sqrKaratsuba := max 4 kar, four_le_sqrKaratsuba := (by lia),
+    sqrToom8 := never, sixtyfour_le_sqrToom8 := by decide }
   IO.println "sqrToom3: one Toom-3 square against Karatsuba squaring"
   let t := { b.toConfig with
     sqrToom4 := never, thirtytwo_le_sqrToom4 := (by decide),
@@ -200,6 +210,11 @@ public def tuneSqr (base : Dispatch.MulConfig) (log : Bool) : IO Dispatch.MulCon
     c (fun n => operandsW n n) (range b.sqrToom3 (4 * b.sqrToom3 + 1) (max 1 (b.sqrToom3 / 12)))
     (log := log)
   let b := { b with sqrToom6 := max 32 toom6, thirtytwo_le_sqrToom6 := by lia }
+  IO.println "sqrToom8: one Toom-8 square against the squares below it"
+  let toom8 ← tune "Toom-8 squaring" (sqrToomW (A := A) b.toConfig)
+    (fun n => sqrToomW { b.toConfig with sqrToom8 := max 64 n, sixtyfour_le_sqrToom8 := by lia })
+    c (fun n => operandsW n n) (scaled (A := A) 1024 5120 128) (log := log)
+  let b := { b with sqrToom8 := max 64 toom8, sixtyfour_le_sqrToom8 := by lia }
   IO.println "sqrFFT: the FFT square against the Toom squares"
   let fft ← tune "FFT squaring" (sqrW (A := A) { b with sqrFFT := never })
     (fun n => sqrW { b with sqrFFT := n }) c (fun n => operandsW n n)
