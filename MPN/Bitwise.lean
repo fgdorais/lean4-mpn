@@ -25,11 +25,6 @@ variable {A L : Type} [LA : LimbArray A L] [R : WordArray A L] [F : WordFolds A 
 
 /-! ## Base-two logarithm -/
 
-omit F in
-public theorem pos_of_ne {j : USize} (hj : ¬j = 0) : 0 < j := by
-  have : j.toNat ≠ 0 := fun e => hj (USize.toNat_inj.1 (by rw [e]; rfl))
-  rw [USize.lt_iff_toNat_lt]; simp; lia
-
 /-- `Nat.log2` of limbs `o` to `o + j - 1` of `a`, from the top nonzero limb down. -/
 @[expose, specialize] public def log2W (a : A) (o j : USize) (h : LoopBound a o j) : Nat :=
   if hj : j = 0 then 0

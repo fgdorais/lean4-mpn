@@ -274,6 +274,14 @@ public def divQLimbsWith (c : Dispatch.DivConfig) (u v : UInt32Array.Slice) : UI
   MPN.Div.divQG ops32B divBase32 id id c
     div32RecipU div2RowsU u.array u.start u.size v.array v.start v.size
 
+/--
+The remainder of `divModLimbsWith`, without the quotient below `c.divDC` limbs, in the array of the
+division itself (`main`'s `Div.divRG`).
+-/
+public def modLimbsWith (c : Dispatch.DivConfig) (u v : UInt32Array.Slice) : UInt32Array :=
+  MPN.Div.divRG ops32B divBase32 id id c
+    div32RecipU div2RowsU u.array u.start u.size v.array v.start v.size
+
 /-- The top limb of a slice, as a limb of its array. -/
 private theorem top_get (v : UInt32Array.Slice) (hn : 2 ≤ v.size)
     (hvt : v[v.size - 1]'(by lia) ≠ 0) :
@@ -301,12 +309,23 @@ public theorem toNat_divQLimbsWith (c : Dispatch.DivConfig) (u v : UInt32Array.S
   rw [toNat_array_eq_valAt]
   exact h
 
+public theorem toNat_modLimbsWith (c : Dispatch.DivConfig) (u v : UInt32Array.Slice)
+    (hn : 2 ≤ v.size) (hvt : v[v.size - 1]'(by lia) ≠ 0) :
+    toNat (modLimbsWith c u v) = toNat u % toNat v := by
+  have h := MPN.Div.divRG_spec driverOK c div32RecipU div2RowsU u.array u.start u.size v.array
+    v.start v.size hn (top_get v hn hvt)
+  rw [toNat_array_eq_valAt]
+  exact h
+
 /-- `divModLimbsWith` with the thresholds of `config`. -/
 def divModLimbs (u v : UInt32Array.Slice) : UInt32Array × UInt32Array :=
   divModLimbsWith config.toDivConfig u v
 
 /-- `divQLimbsWith` with the thresholds of `config`. -/
 def divLimbsQ (u v : UInt32Array.Slice) : UInt32Array := divQLimbsWith config.toDivConfig u v
+
+/-- `modLimbsWith` with the thresholds of `config`. -/
+def modLimbs (u v : UInt32Array.Slice) : UInt32Array := modLimbsWith config.toDivConfig u v
 
 /-! ## Division -/
 
@@ -503,8 +522,12 @@ without the remainder of its last block from `config.divQMu` limbs of divisor (`
 -/
 public def div (a b : UInt32Array.Slice) : UInt32Array := divSlow a b
 
-/-- The remainder of dividing two numbers, with `a % 0 = a`. -/
-public def mod (a b : UInt32Array.Slice) : UInt32Array := (divMod a b).2
+/--
+The remainder of dividing two numbers, with `a % 0 = a`: `divMod` without the quotient, which for a
+divisor of at least three limbs below `config.divDC` the division does not write (`modLimbs`).
+-/
+public def mod (a b : UInt32Array.Slice) : UInt32Array :=
+  if 3 ≤ topSize b then trim (modLimbs a (b.slice 0 (topSize b))) else (divMod a b).2
 
 /-- `divMod` divides, with `Nat`'s conventions for a zero divisor. -/
 public theorem toNat_divMod (a b : UInt32Array.Slice) :
@@ -518,13 +541,23 @@ public theorem toNat_divMod (a b : UInt32Array.Slice) :
   exact (toNat_divModSlow a b).1
 
 /-- The remainder is `Nat`'s remainder. -/
-@[simp] public theorem toNat_mod (a b : UInt32Array.Slice) : toNat (mod a b) = toNat a % toNat b :=
-  (toNat_divMod a b).2
+@[simp] public theorem toNat_mod (a b : UInt32Array.Slice) :
+    toNat (mod a b) = toNat a % toNat b := by
+  by_cases h₃ : 3 ≤ topSize b
+  · have hs := toNat_modLimbsWith config.toDivConfig a (b.slice 0 (topSize b))
+      (by have := topSize_le b; simp; lia) (top_slice_topSize_ne_zero b (by lia))
+    rw [toNat_slice_topSize b] at hs
+    rw [mod, ite_eq_left h₃, toNat_trim]
+    exact hs
+  · rw [mod, ite_eq_right h₃]
+    exact (toNat_divMod a b).2
 
 public theorem isTrimmed_div (a b : UInt32Array.Slice) : isTrimmed (div a b) = true :=
   isTrimmed_divSlow a b
 
-public theorem isTrimmed_mod (a b : UInt32Array.Slice) : isTrimmed (mod a b) = true :=
-  isTrimmed_divModSlow_snd a b
+public theorem isTrimmed_mod (a b : UInt32Array.Slice) : isTrimmed (mod a b) = true := by
+  by_cases h₃ : 3 ≤ topSize b
+  · rw [mod, ite_eq_left h₃]; exact isTrimmed_trim _
+  · rw [mod, ite_eq_right h₃]; exact isTrimmed_divModSlow_snd a b
 
 end MPN.W32

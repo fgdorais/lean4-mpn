@@ -398,12 +398,14 @@ def dcCheck (x y : Nat) : Bool :=
   if 2 ≤ v.size then
     let u : UInt32Array.Slice := ofNat x
     [({ divDC := 4, divMu := 1000000, divQMu := 1000000 } : Dispatch.DivConfig),
-        { divDC := 4, divMu := 4, divQMu := 4 }].all fun c =>
+        { divDC := 4, divMu := 4, divQMu := 4 },
+        { divDC := 1000000, divMu := 1000000, divQMu := 1000000 }].all fun c =>
       let p := divModLimbsWith c u v
-      toNat p.1 == x / y && toNat p.2 == x % y && toNat (divQLimbsWith c u v) == x / y
+      toNat p.1 == x / y && toNat p.2 == x % y && toNat (divQLimbsWith c u v) == x / y &&
+        toNat (modLimbsWith c u v) == x % y
   else true
 
-#guard [4, 5, 6, 7, 8, 9, 13, 16, 17, 31, 32, 33, 64].all fun n =>
+#guard [2, 3, 4, 5, 6, 7, 8, 9, 13, 16, 17, 31, 32, 33, 64].all fun n =>
   [0, 1, 2, n - 1, n, n + 1, 2 * n, 3 * n + 5].all fun k =>
     dcCheck (sample1 (32 * (n + k)) 47) (sample1 (32 * n) 53) &&
       dcCheck (2 ^ (32 * (n + k)) - 1) (2 ^ (32 * n) - 1) &&

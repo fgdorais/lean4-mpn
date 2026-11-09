@@ -17,6 +17,10 @@ division by blocks: `a` and `b` are shifted left by the `s` bits that set the to
 into a new array of `m + 1` limbs, which `divLoop2In` divides in place, and `b` into a new array
 unless `s = 0`. The quotient and the remainder, shifted back, are copied out of the array of the
 division into new arrays of `m + 1 - n` and `n` limbs.
+
+`divQN` copies out the quotient alone, and `modN` copies nothing: it shifts the remainder back in
+place (`rshDown`) and drops the quotient limbs above it (`popTo`), so that the array of the
+division becomes the remainder.
 -/
 
 namespace MPN.Schoolbook
@@ -122,28 +126,65 @@ per pass from `t₂` limbs.
 @[inline, expose] public def resultsN (w : A) (n k : USize) (s : Nat) : A × A :=
   if h : LoopBound w 0 n then (quotN w n k, shrNew w 0 n h s) else (w, w)
 
+/-- `x` without its limbs from `k` up, by `pop`, in place when `x` is held once. -/
+@[expose, specialize] public def popTo (k : Nat) (x : A) : A :=
+  if k < LA.size x then popTo k (R.pop x) else x
+termination_by LA.size x
+decreasing_by rw [R.size_pop]; lia
+
 /--
-`divRemN` with the shift `s` that sets the top bit of `b`: `a` copied if `s = 0`, else `a` and `b`
-shifted left by `s` bits.
+The remainder of the division in `w`, limbs `0` to `n - 1`, shifted back by `s` bits in place
+(`rshDown`), and the quotient above dropped by `popTo`: no new array.
 -/
-@[inline, expose] public def divRemS (t t₂ : USize) (a : A) (ao m : USize) (b : A) (bo n : USize)
-    (ha : LoopBound a ao m) (hb : LoopBound b bo n) (hn : 2 ≤ n.toNat) (_hnm : n.toNat ≤ m.toNat)
-    (hU : m.toNat + 1 < USize.size) (s : Nat) : A × A :=
-  let k := m + 1 - n
-  if s = 0 then resultsN (loopN A t t₂ (shlTop a ao m ha hU s) b bo n hb hn k) n k s
+@[inline, expose] public def remN (w : A) (n : USize) (s : Nat) : A :=
+  if h : s ≠ 0 ∧ LoopBound w 0 n then
+    popTo n.toNat (rshDown A (R.ofUSize s.toUSize) w 0 n h.2 R.zero)
+  else popTo n.toNat w
+
+/-- The shift `w - 1 - ⌊log₂ T⌋` that sets the top bit of the top limb `T` of `b`. -/
+@[inline, expose] public def shiftN (b : A) (bo n : USize) (hb : LoopBound b bo n)
+    (hn : 2 ≤ n.toNat) : Nat :=
+  LA.w - 1 - R.log2 (R.uget b (bo + (n - 1)) (hb.uset_bound (usub_lt (by simp) (by simp; lia))))
+
+variable (A) in
+/--
+The division in place with the shift `s` that sets the top bit of `b`: `a` copied if `s = 0`, else
+`a` and `b` shifted left by `s` bits, then divided by `loopN`. The array holds the quotient in
+limbs `n` to `m` and the remainder, shifted left by `s` bits, in limbs `0` to `n - 1`.
+-/
+@[inline, expose] public def workS (t t₂ : USize) (a : A) (ao m : USize) (b : A) (bo n : USize)
+    (ha : LoopBound a ao m) (hb : LoopBound b bo n) (hn : 2 ≤ n.toNat)
+    (hU : m.toNat + 1 < USize.size) (s : Nat) : A :=
+  if s = 0 then loopN A t t₂ (shlTop a ao m ha hU s) b bo n hb hn (m + 1 - n)
   else
-    resultsN (loopN A t t₂ (shlTop a ao m ha hU s) (shlFit b bo n hb s) 0 n
-      ⟨by rw [size_shlFit]; simp, by simp [n.toNat_lt_size]⟩ hn k) n k s
+    loopN A t t₂ (shlTop a ao m ha hU s) (shlFit b bo n hb s) 0 n
+      ⟨by rw [size_shlFit]; simp, by simp [n.toNat_lt_size]⟩ hn (m + 1 - n)
 
 /--
 `a / b` and `a % b`, for `a` of `m` limbs from `ao` and `b` of `2 ≤ n ≤ m` limbs from `bo` with a
 nonzero top limb: the quotient in `m + 1 - n` limbs and the remainder in `n` limbs.
 -/
 @[expose] public def divRemN (t t₂ : USize) (a : A) (ao m : USize) (b : A) (bo n : USize)
-    (ha : LoopBound a ao m) (hb : LoopBound b bo n) (hn : 2 ≤ n.toNat) (hnm : n.toNat ≤ m.toNat)
+    (ha : LoopBound a ao m) (hb : LoopBound b bo n) (hn : 2 ≤ n.toNat) (_hnm : n.toNat ≤ m.toNat)
     (hU : m.toNat + 1 < USize.size) : A × A :=
-  divRemS t t₂ a ao m b bo n ha hb hn hnm hU
-    (LA.w - 1 - R.log2 (R.uget b (bo + (n - 1)) (hb.uset_bound (usub_lt (by simp) (by simp; lia)))))
+  let s := shiftN b bo n hb hn
+  resultsN (workS A t t₂ a ao m b bo n ha hb hn hU s) n (m + 1 - n) s
+
+/-- `a / b` as in `divRemN`, without the remainder. -/
+@[expose] public def divQN (t t₂ : USize) (a : A) (ao m : USize) (b : A) (bo n : USize)
+    (ha : LoopBound a ao m) (hb : LoopBound b bo n) (hn : 2 ≤ n.toNat) (_hnm : n.toNat ≤ m.toNat)
+    (hU : m.toNat + 1 < USize.size) : A :=
+  quotN (workS A t t₂ a ao m b bo n ha hb hn hU (shiftN b bo n hb hn)) n (m + 1 - n)
+
+/--
+`a % b` as in `divRemN`, without the quotient, in the array of the division itself (`remN`), like
+GMP's `mpn_tdiv_qr` with its remainder shifted back in place.
+-/
+@[expose] public def modN (t t₂ : USize) (a : A) (ao m : USize) (b : A) (bo n : USize)
+    (ha : LoopBound a ao m) (hb : LoopBound b bo n) (hn : 2 ≤ n.toNat) (_hnm : n.toNat ≤ m.toNat)
+    (hU : m.toNat + 1 < USize.size) : A :=
+  let s := shiftN b bo n hb hn
+  remN (workS A t t₂ a ao m b bo n ha hb hn hU s) n s
 
 /-! ## Proofs -/
 
@@ -292,19 +333,18 @@ public theorem loopN_spec (t t₂ : USize) (w v : A) (vs n : USize) (hv : LoopBo
 
 /--
 The division after the normalization: if `w` holds `X 2ˢ` in `k + n` limbs and `v` holds `Y 2ˢ`
-in `n` limbs, with `X < Y βᵏ`, then the quotient is `X / Y` and the remainder `X % Y`.
+in `n` limbs, with `X < Y βᵏ`, then the array of `loopN` holds the quotient `X / Y` in limbs `n` to
+`n + k - 1` and `(X % Y) 2ˢ` in limbs `0` to `n - 1`.
 -/
-public theorem coreN_spec (t t₂ : USize) (w v : A) (vs n k : USize) (hv : LoopBound v vs n)
-    (hn : 2 ≤ n.toNat) (s : Nat) (hs : s < LA.w) (X Y : Nat)
+public theorem coreW_spec (t t₂ : USize) (w v : A) (vs n k : USize) (hv : LoopBound v vs n)
+    (hn : 2 ≤ n.toNat) (s : Nat) (X Y : Nat)
     (hsz : LA.size w = k.toNat + n.toNat) (hU : LA.size w < USize.size)
     (hV : LimbArray.valAt v vs.toNat n.toNat = Y * 2 ^ s) (hY : 0 < Y)
     (hW : LimbArray.valAt w 0 (k.toNat + n.toNat) = X * 2 ^ s)
     (hX : X < Y * 2 ^ (LA.w * k.toNat)) :
-    LA.size (resultsN (loopN A t t₂ w v vs n hv hn k) n k s).1 = k.toNat ∧
-      LimbArray.valAt (resultsN (loopN A t t₂ w v vs n hv hn k) n k s).1 0 k.toNat = X / Y ∧
-      LA.size (resultsN (loopN A t t₂ w v vs n hv hn k) n k s).2 = n.toNat ∧
-      LimbArray.valAt (resultsN (loopN A t t₂ w v vs n hv hn k) n k s).2 0 n.toNat =
-        X % Y := by
+    LA.size (loopN A t t₂ w v vs n hv hn k) = n.toNat + k.toNat ∧
+      LimbArray.valAt (loopN A t t₂ w v vs n hv hn k) n.toNat k.toNat = X / Y ∧
+      LimbArray.valAt (loopN A t t₂ w v vs n hv hn k) 0 n.toNat = X % Y * 2 ^ s := by
   have hS := Nat.two_pow_pos s
   have hVpos : 0 < Y * 2 ^ s := Nat.mul_pos hY hS
   obtain ⟨l₁, l₂, l₃⟩ := loopN_spec t t₂ w v vs n hv hn k (by lia) hU (by rw [hV]; exact hVpos)
@@ -313,14 +353,61 @@ public theorem coreN_spec (t t₂ : USize) (w v : A) (vs n k : USize) (hv : Loop
       exact Nat.mul_lt_mul_of_pos_right hX hS)
   rw [hV, hW] at l₂
   rw [hV] at l₃
-  obtain ⟨r₁, r₂, r₃, r₄⟩ := resultsN_spec (loopN A t t₂ w v vs n hv hn k) n k s hs
-    (by rw [l₁, hsz, Nat.add_comm])
   have hQ := Nat.mul_div_mul_right X Y hS
   have hR := Nat.mul_mod_mul_right (2 ^ s) X Y
   rw [← l₂, Nat.mul_add_div hVpos, Nat.div_eq_of_lt l₃, Nat.add_zero] at hQ
   rw [← l₂, Nat.mul_add_mod, Nat.mod_eq_of_lt l₃] at hR
-  refine ⟨r₁, by rw [r₂, hQ], r₃, ?_⟩
-  rw [r₄, hR, Nat.mul_div_cancel _ hS]
+  exact ⟨by rw [l₁, hsz, Nat.add_comm], hQ, hR⟩
+
+omit F in
+/-- `popTo k` keeps the first `k` limbs, and no more. -/
+public theorem popTo_spec (k : Nat) (x : A) :
+    LA.size (popTo k x) = min k (LA.size x) ∧
+      ∀ i, i < k → LA.get (popTo k x) i = LA.get x i := by
+  induction x using popTo.induct (R := R) k with
+  | case1 x h ih =>
+    rw [popTo, ite_eq_left h]
+    obtain ⟨i₁, i₂⟩ := ih
+    refine ⟨by rw [i₁, R.size_pop]; lia, fun i hi => ?_⟩
+    rw [i₂ i hi]
+    rcases Nat.lt_or_ge i (LA.size x - 1) with h' | h'
+    · exact R.get_pop x i h'
+    · -- `i` is past the limbs of `pop x`, which `k` limbs reach only if `x` has them.
+      exfalso
+      have := (R.size_pop x)
+      lia
+  | case2 x h =>
+    rw [popTo, ite_eq_right h]
+    exact ⟨by lia, fun _ _ => rfl⟩
+
+omit F in
+/-- `remN` holds `⌊w / 2ˢ⌋` of limbs `0` to `n - 1` of `w`, in `n` limbs. -/
+public theorem remN_spec (w : A) (n : USize) (s : Nat) (hs : s < LA.w)
+    (hsz : n.toNat ≤ LA.size w) :
+    LA.size (remN w n s) = n.toNat ∧
+      LimbArray.valAt (remN w n s) 0 n.toNat = LimbArray.valAt w 0 n.toNat / 2 ^ s := by
+  rw [remN]
+  split
+  · rename_i h
+    have hsv := val_ofUSize_lt (R := R) hs
+    obtain ⟨d₁, -, d₃⟩ := rshDown_spec (R.ofUSize s.toUSize) (by rw [hsv]; lia)
+      (by rw [hsv]; exact hs) w 0 n h.2 R.zero (by rw [R.val_zero]; exact Nat.two_pow_pos _)
+    rw [R.val_zero, Nat.zero_mul, Nat.zero_add, hsv, USize.toNat_zero] at d₃
+    obtain ⟨p₁, p₂⟩ := popTo_spec n.toNat (rshDown A (R.ofUSize s.toUSize) w 0 n h.2 R.zero)
+    refine ⟨by rw [p₁, d₁]; lia, ?_⟩
+    rw [← d₃]
+    exact LimbArray.valAt_congr _ fun i h₁ h₂ => p₂ _ (by lia)
+  · rename_i h
+    have hs0 : s = 0 ∨ ¬LoopBound w 0 n := by
+      by_cases e : s = 0
+      · exact .inl e
+      · exact .inr fun hb => h ⟨e, hb⟩
+    obtain ⟨p₁, p₂⟩ := popTo_spec n.toNat w
+    rcases hs0 with e | hb
+    · refine ⟨by rw [p₁]; lia, ?_⟩
+      rw [e, Nat.pow_zero, Nat.div_one]
+      exact LimbArray.valAt_congr _ fun i h₁ h₂ => p₂ _ (by lia)
+    · exact absurd ⟨by simp; lia, by simp [n.toNat_lt_size]⟩ hb
 
 omit R F in
 /-- The bounds of a divisor of `n` limbs whose top limb `T ≠ 0` has `⌊log₂ T⌋ = L`. -/
@@ -343,16 +430,30 @@ public theorem top_bounds (b : A) (bo n : Nat) (hn : 1 ≤ n)
   rw [Nat.mul_add, Nat.mul_one] at h₂
   constructor <;> lia
 
-/-- `divRemN` divides: the quotient in `m + 1 - n` limbs and the remainder in `n` limbs. -/
-public theorem divRemN_spec (t t₂ : USize) (a : A) (ao m : USize) (b : A) (bo n : USize)
+omit R F in
+/-- `(m + 1 - n).toNat`, for `n ≤ m` and `m + 1` within `USize`. -/
+public theorem toNat_k {m n : USize} (hnm : n.toNat ≤ m.toNat) (hU : m.toNat + 1 < USize.size) :
+    (m + 1 - n).toNat = m.toNat + 1 - n.toNat := by
+  have hm1 : (m + 1).toNat = m.toNat + 1 :=
+    (USize.toNat_add_of_lt (a := m) (b := 1) (by rw [USize.toNat_one]; lia)).trans
+      (by rw [USize.toNat_one])
+  rw [USize.toNat_sub_of_le _ _ (USize.le_iff_toNat_le.2 (by rw [hm1]; lia)), hm1]
+
+/--
+The array of the division, `workS` with the shift `shiftN`, holds `a / b` in limbs `n` to `m` and
+`(a % b) 2ˢ` in limbs `0` to `n - 1`, for the shift `s < w`.
+-/
+public theorem workN_spec (t t₂ : USize) (a : A) (ao m : USize) (b : A) (bo n : USize)
     (ha : LoopBound a ao m) (hb : LoopBound b bo n) (hn : 2 ≤ n.toNat) (hnm : n.toNat ≤ m.toNat)
     (hU : m.toNat + 1 < USize.size) (htop : LA.val (LA.get b (bo.toNat + n.toNat - 1)) ≠ 0) :
-    LA.size (divRemN t t₂ a ao m b bo n ha hb hn hnm hU).1 = m.toNat + 1 - n.toNat ∧
-      LimbArray.valAt (divRemN t t₂ a ao m b bo n ha hb hn hnm hU).1 0 (m.toNat + 1 - n.toNat) =
+    shiftN b bo n hb hn < LA.w ∧
+      LA.size (workS A t t₂ a ao m b bo n ha hb hn hU (shiftN b bo n hb hn)) = m.toNat + 1 ∧
+      LimbArray.valAt (workS A t t₂ a ao m b bo n ha hb hn hU (shiftN b bo n hb hn)) n.toNat
+          (m.toNat + 1 - n.toNat) =
         LimbArray.valAt a ao.toNat m.toNat / LimbArray.valAt b bo.toNat n.toNat ∧
-      LA.size (divRemN t t₂ a ao m b bo n ha hb hn hnm hU).2 = n.toNat ∧
-      LimbArray.valAt (divRemN t t₂ a ao m b bo n ha hb hn hnm hU).2 0 n.toNat =
-        LimbArray.valAt a ao.toNat m.toNat % LimbArray.valAt b bo.toNat n.toNat := by
+      LimbArray.valAt (workS A t t₂ a ao m b bo n ha hb hn hU (shiftN b bo n hb hn)) 0 n.toNat =
+        LimbArray.valAt a ao.toNat m.toNat % LimbArray.valAt b bo.toNat n.toNat *
+          2 ^ shiftN b bo n hb hn := by
   have hm1 : (m + 1).toNat = m.toNat + 1 :=
     (USize.toNat_add_of_lt (a := m) (b := 1) (by rw [USize.toNat_one]; lia)).trans
       (by rw [USize.toNat_one])
@@ -388,10 +489,12 @@ public theorem divRemN_spec (t t₂ : USize) (a : A) (ao m : USize) (b : A) (bo 
     rw [e] at hA
     exact Nat.lt_of_lt_of_le hA (Nat.mul_le_mul_right _ hb₁)
   have hs : LA.w - 1 - L < LA.w := by have := LA.w_pos; lia
-  unfold divRemN
-  rw [R.uget_eq, htopI, R.log2_eq, hLd]
-  unfold divRemS
-  dsimp only
+  have hsh : shiftN b bo n hb hn = LA.w - 1 - L := by
+    unfold shiftN
+    rw [R.uget_eq, htopI, R.log2_eq, hLd]
+  rw [hsh]
+  refine ⟨hs, ?_⟩
+  unfold workS
   obtain ⟨w₁, w₂⟩ := shlTop_spec a ao m ha hU _ hs
   have hW : LimbArray.valAt (shlTop a ao m ha hU (LA.w - 1 - L)) 0 ((m + 1 - n).toNat + n.toNat) =
       LimbArray.valAt a ao.toNat m.toNat * 2 ^ (LA.w - 1 - L) := by
@@ -399,18 +502,70 @@ public theorem divRemN_spec (t t₂ : USize) (a : A) (ao m : USize) (b : A) (bo 
   split
   · -- `b` is normalized: only `a` is copied.
     rename_i hS
-    obtain ⟨r₁, r₂, r₃, r₄⟩ := coreN_spec t t₂ _ b bo n (m + 1 - n) hb hn _ hs
+    obtain ⟨r₁, r₂, r₃⟩ := coreW_spec t t₂ _ b bo n (m + 1 - n) hb hn _
       (LimbArray.valAt a ao.toNat m.toNat) (LimbArray.valAt b bo.toNat n.toNat)
       (by rw [w₁, hk]; lia) (by rw [w₁]; exact hU)
       (by rw [hS, Nat.pow_zero, Nat.mul_one]) hBpos hW hX
     rw [hk] at r₁ r₂
-    exact ⟨r₁, r₂, r₃, r₄⟩
+    exact ⟨by rw [r₁]; lia, r₂, r₃⟩
   · -- `a` and `b` shifted left by `S` bits.
-    obtain ⟨r₁, r₂, r₃, r₄⟩ := coreN_spec t t₂ _ _ 0 n (m + 1 - n) _ hn _ hs
+    obtain ⟨r₁, r₂, r₃⟩ := coreW_spec t t₂ _ _ 0 n (m + 1 - n) _ hn _
       (LimbArray.valAt a ao.toNat m.toNat) (LimbArray.valAt b bo.toNat n.toNat)
       (by rw [w₁, hk]; lia) (by rw [w₁]; exact hU)
       (by simpa using shlFit_spec b bo n hb _ hs hbS) hBpos hW hX
     rw [hk] at r₁ r₂
-    exact ⟨r₁, r₂, r₃, r₄⟩
+    exact ⟨by rw [r₁]; lia, r₂, r₃⟩
+
+/-- `divRemN` divides: the quotient in `m + 1 - n` limbs and the remainder in `n` limbs. -/
+public theorem divRemN_spec (t t₂ : USize) (a : A) (ao m : USize) (b : A) (bo n : USize)
+    (ha : LoopBound a ao m) (hb : LoopBound b bo n) (hn : 2 ≤ n.toNat) (hnm : n.toNat ≤ m.toNat)
+    (hU : m.toNat + 1 < USize.size) (htop : LA.val (LA.get b (bo.toNat + n.toNat - 1)) ≠ 0) :
+    LA.size (divRemN t t₂ a ao m b bo n ha hb hn hnm hU).1 = m.toNat + 1 - n.toNat ∧
+      LimbArray.valAt (divRemN t t₂ a ao m b bo n ha hb hn hnm hU).1 0 (m.toNat + 1 - n.toNat) =
+        LimbArray.valAt a ao.toNat m.toNat / LimbArray.valAt b bo.toNat n.toNat ∧
+      LA.size (divRemN t t₂ a ao m b bo n ha hb hn hnm hU).2 = n.toNat ∧
+      LimbArray.valAt (divRemN t t₂ a ao m b bo n ha hb hn hnm hU).2 0 n.toNat =
+        LimbArray.valAt a ao.toNat m.toNat % LimbArray.valAt b bo.toNat n.toNat := by
+  obtain ⟨hs, w₁, w₂, w₃⟩ := workN_spec t t₂ a ao m b bo n ha hb hn hnm hU htop
+  have hk := toNat_k (m := m) (n := n) hnm hU
+  unfold divRemN
+  dsimp only
+  generalize workS A t t₂ a ao m b bo n ha hb hn hU (shiftN b bo n hb hn) = W at *
+  generalize shiftN b bo n hb hn = S at *
+  obtain ⟨r₁, r₂, r₃, r₄⟩ := resultsN_spec W n (m + 1 - n) S hs (by rw [w₁, hk]; lia)
+  rw [hk] at r₁ r₂
+  refine ⟨r₁, by rw [r₂, w₂], r₃, ?_⟩
+  rw [r₄, w₃, Nat.mul_div_cancel _ (Nat.two_pow_pos _)]
+
+/-- `divQN` takes the quotient of `divRemN`. -/
+public theorem divQN_spec (t t₂ : USize) (a : A) (ao m : USize) (b : A) (bo n : USize)
+    (ha : LoopBound a ao m) (hb : LoopBound b bo n) (hn : 2 ≤ n.toNat) (hnm : n.toNat ≤ m.toNat)
+    (hU : m.toNat + 1 < USize.size) (htop : LA.val (LA.get b (bo.toNat + n.toNat - 1)) ≠ 0) :
+    LA.size (divQN t t₂ a ao m b bo n ha hb hn hnm hU) = m.toNat + 1 - n.toNat ∧
+      LimbArray.valAt (divQN t t₂ a ao m b bo n ha hb hn hnm hU) 0 (m.toNat + 1 - n.toNat) =
+        LimbArray.valAt a ao.toNat m.toNat / LimbArray.valAt b bo.toNat n.toNat := by
+  obtain ⟨-, w₁, w₂, -⟩ := workN_spec t t₂ a ao m b bo n ha hb hn hnm hU htop
+  have hk := toNat_k (m := m) (n := n) hnm hU
+  unfold divQN
+  generalize workS A t t₂ a ao m b bo n ha hb hn hU (shiftN b bo n hb hn) = W at *
+  obtain ⟨q₁, q₂⟩ := quotN_spec W n (m + 1 - n) (by rw [w₁, hk]; lia)
+  rw [hk] at q₁ q₂
+  exact ⟨q₁, by rw [q₂, w₂]⟩
+
+/-- `modN` takes the remainder of `divRemN`. -/
+public theorem modN_spec (t t₂ : USize) (a : A) (ao m : USize) (b : A) (bo n : USize)
+    (ha : LoopBound a ao m) (hb : LoopBound b bo n) (hn : 2 ≤ n.toNat) (hnm : n.toNat ≤ m.toNat)
+    (hU : m.toNat + 1 < USize.size) (htop : LA.val (LA.get b (bo.toNat + n.toNat - 1)) ≠ 0) :
+    LA.size (modN t t₂ a ao m b bo n ha hb hn hnm hU) = n.toNat ∧
+      LimbArray.valAt (modN t t₂ a ao m b bo n ha hb hn hnm hU) 0 n.toNat =
+        LimbArray.valAt a ao.toNat m.toNat % LimbArray.valAt b bo.toNat n.toNat := by
+  obtain ⟨hs, w₁, -, w₃⟩ := workN_spec t t₂ a ao m b bo n ha hb hn hnm hU htop
+  unfold modN
+  dsimp only
+  generalize workS A t t₂ a ao m b bo n ha hb hn hU (shiftN b bo n hb hn) = W at *
+  generalize shiftN b bo n hb hn = S at *
+  obtain ⟨r₁, r₂⟩ := remN_spec W n S hs (by rw [w₁]; lia)
+  refine ⟨r₁, ?_⟩
+  rw [r₂, w₃, Nat.mul_div_cancel _ (Nat.two_pow_pos _)]
 
 end MPN.Schoolbook

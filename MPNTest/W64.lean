@@ -204,12 +204,14 @@ def checkNumDiv (m n : Nat) : Bool :=
   [randomLimbs m 41, 2 ^ (64 * m) - 1].all fun x =>
     [randomLimbs n 42, 2 ^ (64 * n) - 1, 2 ^ (64 * (n - 1)) + 1, 2 ^ (64 * n - 1)].all fun y =>
       let (q, r) := MPN.W64.Num.divMod (limbs m x) (limbs n y)
-      q.toNat == x / y && r.toNat == x % y && (MPN.W64.Num.div (limbs m x) (limbs n y)).toNat == x / y
+      q.toNat == x / y && r.toNat == x % y &&
+        (MPN.W64.Num.div (limbs m x) (limbs n y)).toNat == x / y &&
+        (MPN.W64.Num.mod (limbs m x) (limbs n y)).toNat == x % y
 
 -- Below `divDC`, at it, and recursing: digits of `⌊n / 2⌋` limbs and a shorter top digit,
--- and digits that recurse once more (`1100 / 2 ≥ 512`).
-#guard [(10, 3), (300, 100), (1000, 333), (1100, 512), (2000, 1000), (700, 512),
-  (4000, 1100)].all fun (m, n) => checkNumDiv m n
+-- and digits that recurse once more (`1100 / 2 ≥ 512`); small sizes, and a shorter dividend.
+#guard [(2, 2), (3, 2), (5, 4), (8, 4), (3, 5), (10, 3), (300, 100), (1000, 333), (1100, 512),
+  (2000, 1000), (700, 512), (4000, 1100)].all fun (m, n) => checkNumDiv m n
 
 /--
 Checks `ops64B.divMu`, `ops64B.divMuW`, `ops64B.divQMuW`, `ops64B.divMuT` and `ops64B.divQMuT`,

@@ -207,4 +207,32 @@ public theorem toNat_div (a b : UInt64Array) (hb : 0 < b.toNat)
     rw [(fitTo_spec _ (a.size + 1) (by rw [e]; exact hqa)).1, e]
   · exact (toNat_divModBase a b hb hU).1
 
+/--
+`a % b`, for `0 < b`: as `divMod`, by `main`'s `Div.divRG`, which below `config.divDC` limbs of `b`
+writes no quotient and leaves the remainder in the array of the division.
+-/
+public def mod (a b : UInt64Array) : UInt64Array :=
+  let nb := MPN.W64.log2 b.toUSlice / 64 + 1
+  if 2 ≤ nb then
+    MPN.Div.divRG ops64B divBase64 id id config.toDivConfig div32RecipU div2RowsU a 0 a.size b 0 nb
+  else (divModBase a b).2
+
+public theorem toNat_mod (a b : UInt64Array) (hb : 0 < b.toNat)
+    (hU : a.size + b.size + 1 < USize.size) : (mod a b).toNat = a.toNat % b.toNat := by
+  have hL : MPN.W64.log2 b.toUSlice = _root_.Nat.log2 b.toNat := by
+    rw [log2_eq, toUSlice_toNat b (by lia)]
+  obtain ⟨hnb, hv, ht⟩ := top_log2 b hb
+  unfold mod
+  dsimp only
+  rw [hL]
+  split
+  · rename_i h2
+    have d := MPN.Div.divRG_spec driverOK config.toDivConfig div32RecipU div2RowsU a 0 a.size b
+      0 _ h2 ht
+    have hv' : LimbArray.valAt b 0 (_root_.Nat.log2 b.toNat / 64 + 1) = b.toNat := hv
+    have ha' : LimbArray.valAt a 0 a.size = a.toNat := (toNat_eq_valAt a).symm
+    rw [hv', ha'] at d
+    rw [toNat_eq_valAt]; exact d
+  · exact (toNat_divModBase a b hb hU).2
+
 end MPN.W64.Num

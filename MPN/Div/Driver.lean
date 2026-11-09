@@ -78,10 +78,10 @@ with a nonzero top limb, untrimmed.
   if h : Fits a ao m b bo n then
     if hmn : m < n then R.zeros 0
     else if n < c.divDC then
-      (Schoolbook.divRemN t t₂ a ao.toUSize m.toUSize b bo.toUSize n.toUSize h.bounds.1
+      Schoolbook.divQN t t₂ a ao.toUSize m.toUSize b bo.toUSize n.toUSize h.bounds.1
         h.bounds.2.1 (by rw [h.bounds.2.2.2.2.2.1]; exact h.1)
         (by rw [h.bounds.2.2.2.2.2.1, h.bounds.2.2.2.1]; lia)
-        (by rw [h.bounds.2.2.2.1]; exact h.bounds.2.2.2.2.2.2)).1
+        (by rw [h.bounds.2.2.2.1]; exact h.bounds.2.2.2.2.2.2)
     else
       let s := normBits A (LA.get b (bo + n - 1))
       ofα (Dispatch.divQN o c base
@@ -89,6 +89,22 @@ with a nonzero top limb, untrimmed.
           (by rw [h.bounds.2.2.2.1]; exact h.bounds.2.2.2.2.2.2) s))
         (toα (Schoolbook.shlFit b bo.toUSize n.toUSize h.bounds.2.1 s)) n (m + 1 - n))
   else ofNatW (R := R) (valAt a ao m / valAt b bo n)
+
+/--
+`a % b` as in `divRemG`, without the quotient below `c.divDC` limbs: Algorithm D in the array of
+the division itself (`Schoolbook.modN`), and from there the remainder of `divRemG`.
+-/
+@[expose] public def divRG (o : NatOps α) (base : α → α → α × α) (toα : A → α) (ofα : α → A)
+    (c : Dispatch.DivConfig) (t t₂ : USize) (a : A) (ao m : Nat) (b : A) (bo n : Nat) : A :=
+  if h : Fits a ao m b bo n then
+    if hmn : m < n then R.extract a ao (ao + m)
+    else if n < c.divDC then
+      Schoolbook.modN t t₂ a ao.toUSize m.toUSize b bo.toUSize n.toUSize h.bounds.1
+        h.bounds.2.1 (by rw [h.bounds.2.2.2.2.2.1]; exact h.1)
+        (by rw [h.bounds.2.2.2.2.2.1, h.bounds.2.2.2.1]; lia)
+        (by rw [h.bounds.2.2.2.1]; exact h.bounds.2.2.2.2.2.2)
+    else (divRemG o base toα ofα c t t₂ a ao m b bo n).2
+  else ofNatW (R := R) (valAt a ao m % valAt b bo n)
 
 /-! ## Proofs -/
 
@@ -198,6 +214,46 @@ private theorem school {a : A} {ao m : Nat} {b : A} {bo n : Nat} (t t₂ : USize
   simp only [eo, ebo, em, en] at d₁ d₂ d₃ d₄
   exact ⟨by rw [d₁]; exact d₂, by rw [d₃]; exact d₄⟩
 
+/-- `school` for `Schoolbook.divQN`. -/
+private theorem schoolQ {a : A} {ao m : Nat} {b : A} {bo n : Nat} (t t₂ : USize)
+    (h : Fits a ao m b bo n) (hnm : n ≤ m) (htop : LA.val (LA.get b (bo + n - 1)) ≠ 0) :
+    valAt (Schoolbook.divQN t t₂ a ao.toUSize m.toUSize b bo.toUSize n.toUSize h.bounds.1
+        h.bounds.2.1 (by rw [h.bounds.2.2.2.2.2.1]; exact h.1)
+        (by rw [h.bounds.2.2.2.2.2.1, h.bounds.2.2.2.1]; lia)
+        (by rw [h.bounds.2.2.2.1]; exact h.bounds.2.2.2.2.2.2)) 0
+        (LA.size (Schoolbook.divQN t t₂ a ao.toUSize m.toUSize b bo.toUSize n.toUSize
+          h.bounds.1 h.bounds.2.1 (by rw [h.bounds.2.2.2.2.2.1]; exact h.1)
+          (by rw [h.bounds.2.2.2.2.2.1, h.bounds.2.2.2.1]; lia)
+          (by rw [h.bounds.2.2.2.1]; exact h.bounds.2.2.2.2.2.2))) =
+      valAt a ao m / valAt b bo n := by
+  obtain ⟨-, -, eo, em, ebo, en, -⟩ := h.bounds
+  obtain ⟨d₁, d₂⟩ := Schoolbook.divQN_spec t t₂ a ao.toUSize m.toUSize b bo.toUSize
+    n.toUSize h.bounds.1 h.bounds.2.1 (by rw [h.bounds.2.2.2.2.2.1]; exact h.1)
+    (by rw [h.bounds.2.2.2.2.2.1, h.bounds.2.2.2.1]; lia)
+    (by rw [h.bounds.2.2.2.1]; exact h.bounds.2.2.2.2.2.2) (by rw [ebo, en]; exact htop)
+  simp only [eo, ebo, em, en] at d₁ d₂
+  rw [d₁]; exact d₂
+
+/-- `school` for `Schoolbook.modN`. -/
+private theorem schoolR {a : A} {ao m : Nat} {b : A} {bo n : Nat} (t t₂ : USize)
+    (h : Fits a ao m b bo n) (hnm : n ≤ m) (htop : LA.val (LA.get b (bo + n - 1)) ≠ 0) :
+    valAt (Schoolbook.modN t t₂ a ao.toUSize m.toUSize b bo.toUSize n.toUSize h.bounds.1
+        h.bounds.2.1 (by rw [h.bounds.2.2.2.2.2.1]; exact h.1)
+        (by rw [h.bounds.2.2.2.2.2.1, h.bounds.2.2.2.1]; lia)
+        (by rw [h.bounds.2.2.2.1]; exact h.bounds.2.2.2.2.2.2)) 0
+        (LA.size (Schoolbook.modN t t₂ a ao.toUSize m.toUSize b bo.toUSize n.toUSize
+          h.bounds.1 h.bounds.2.1 (by rw [h.bounds.2.2.2.2.2.1]; exact h.1)
+          (by rw [h.bounds.2.2.2.2.2.1, h.bounds.2.2.2.1]; lia)
+          (by rw [h.bounds.2.2.2.1]; exact h.bounds.2.2.2.2.2.2))) =
+      valAt a ao m % valAt b bo n := by
+  obtain ⟨-, -, eo, em, ebo, en, -⟩ := h.bounds
+  obtain ⟨d₁, d₂⟩ := Schoolbook.modN_spec t t₂ a ao.toUSize m.toUSize b bo.toUSize
+    n.toUSize h.bounds.1 h.bounds.2.1 (by rw [h.bounds.2.2.2.2.2.1]; exact h.1)
+    (by rw [h.bounds.2.2.2.2.2.1, h.bounds.2.2.2.1]; lia)
+    (by rw [h.bounds.2.2.2.1]; exact h.bounds.2.2.2.2.2.2) (by rw [ebo, en]; exact htop)
+  simp only [eo, ebo, em, en] at d₁ d₂
+  rw [d₁]; exact d₂
+
 /-- `divRemG` divides. -/
 public theorem divRemG_spec {o : NatOps α} {base : α → α → α × α} {toα : A → α} {ofα : α → A}
     (D : DriverOK o base toα ofα) (c : Dispatch.DivConfig) (t t₂ : USize) (a : A) (ao m : Nat)
@@ -255,11 +311,36 @@ public theorem divQG_spec {o : NatOps α} {base : α → α → α × α} {toα 
             have := Nat.mul_le_mul_left LA.w (show m ≤ n - 1 by lia); lia)) hb₁)
       rw [Nat.div_eq_of_lt hlt, R.size_zeros, valAt_zero]
     · split
-      · exact (school t t₂ h (by lia) htop).1
+      · exact schoolQ t t₂ h (by lia) htop
       · dsimp only
         obtain ⟨hU, hV, -, hB', hVn, hUV⟩ := normed_vals D a ao m b bo n h (by lia) htop
         rw [D.val_ofα]
         exact Dispatch.divQN_scaled c D.base_ok hU hV (Nat.two_pow_pos _) hB' hVn hUV
+  · rw [valAt_ofNatW]
+
+/-- `divRG` is the remainder of `divRemG`. -/
+public theorem divRG_spec {o : NatOps α} {base : α → α → α × α} {toα : A → α} {ofα : α → A}
+    (D : DriverOK o base toα ofα) (c : Dispatch.DivConfig) (t t₂ : USize) (a : A) (ao m : Nat)
+    (b : A) (bo n : Nat) (hn : 2 ≤ n) (htop : LA.val (LA.get b (bo + n - 1)) ≠ 0) :
+    valAt (divRG o base toα ofα c t t₂ a ao m b bo n) 0
+        (LA.size (divRG o base toα ofα c t t₂ a ao m b bo n)) =
+      valAt a ao m % valAt b bo n := by
+  obtain ⟨hs, hB, hb₁, -⟩ := norm_facts b bo n (by lia) htop
+  unfold divRG
+  split
+  · rename_i h
+    split
+    · rename_i hmn
+      have hlt : valAt a ao m < valAt b bo n :=
+        Nat.lt_of_lt_of_le (valAt_lt a ao m)
+          (Nat.le_trans (Nat.pow_le_pow_right (by decide) (by
+            have := Nat.mul_le_mul_left LA.w (show m ≤ n - 1 by lia); lia)) hb₁)
+      have e := extract_spec a ao m h.2.1
+      rw [Nat.mod_eq_of_lt hlt, e.1]
+      exact e.2
+    · split
+      · exact schoolR t t₂ h (by lia) htop
+      · exact (divRemG_spec D c t t₂ a ao m b bo n hn htop).2
   · rw [valAt_ofNatW]
 
 end MPN.Div

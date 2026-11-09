@@ -286,7 +286,7 @@ public theorem toNat_div (a b : UInt64Array) : (div a b).toNat = a.toNat / b.toN
 /-- `a % b`, and `a` for `b = 0`. -/
 public def mod (a b : UInt64Array) : UInt64Array :=
   if fits (a.size + b.size + 2) then
-    if Num.lt b one then norm a else norm (Num.divMod a b).2
+    if Num.lt b one then norm a else norm (Num.mod a b)
   else norm (ofNat (a.toNat % b.toNat))
 
 public theorem toNat_mod (a b : UInt64Array) : (mod a b).toNat = a.toNat % b.toNat := by
@@ -300,7 +300,7 @@ public theorem toNat_mod (a b : UInt64Array) : (mod a b).toNat = a.toNat % b.toN
       rw [show b.toNat = 0 by lia, Nat.mod_zero, toNat_norm]
     · rename_i h0
       rw [Num.lt_iff _ _ (by simp only [one, UInt64Array.size_replicate]; lia), toNat_one] at h0
-      rw [toNat_norm, (Num.toNat_divMod _ _ (by lia) (by lia)).2]
+      rw [toNat_norm, Num.toNat_mod _ _ (by lia) (by lia)]
   · rw [toNat_norm, toNat_ofNat]
 
 /-- `a 2ⁿ`. -/
