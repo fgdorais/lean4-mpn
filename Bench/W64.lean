@@ -14,9 +14,11 @@ import Bench.Harness
 Lean implements with GMP, on pseudorandom operands of 64-bit limbs. Pinning it to one core, for
 example with `taskset -c 2`, gives steadier results.
 
-Each time is the median of five trials. The last two columns are the spread of the trials of each
-side, their sample standard deviation relative to their mean, which
-tells how far to trust a difference between two runs.
+Each time is the median of five trials. The two columns after the ratio are the spread of the
+trials of each side, their sample standard deviation relative to their mean, which tells how far
+to trust a difference between two runs. A row with a GMP kernel for its operation then has the
+time of that `mpn_*` function on the same limbs, without allocating its result (`Bench.Mpn`), the
+ratio to it and its spread.
 
 `bench [--no-nat] [op…] [size…]` selects the operations and the sizes, in limbs; `--no-nat` skips
 `Nat`, for a profiler.
@@ -112,38 +114,45 @@ def run (noNat : Bool) (op : String) (n : Nat) : IO Bool := do
         MPN.WordArray.addW (UInt64Array.replicate (x.size + 1) 0) 0 x 0 x.size y 0 y.size)
         checkArr a b)
       (time (· + ·) checkNat na nb)
+      (some (time Mpn.add id a b))
   | "sub" =>
     row noNat op n
       (time (fun (x y : UInt64Array) =>
         MPN.WordArray.subW (UInt64Array.replicate x.size 0) 0 x 0 x.size y 0 y.size)
         checkArr s b)
       (time (· - ·) checkNat ns nb)
+      (some (time Mpn.sub id s b))
   | "shl" =>
     row noNat op n
       (time (fun (x _ : UInt64Array) => MPN.W64.Num.shl x 13) checkArr a a)
       (time (fun x _ => x <<< 13) checkNat na na)
+      (some (time (fun x (_ : UInt64Array) => Mpn.lshift x 13) id a a))
   | "shr" =>
     row noNat op n
       (time (fun (x _ : UInt64Array) => MPN.W64.Num.shr x 13) checkArr a a)
       (time (fun x _ => x >>> 13) checkNat na na)
+      (some (time (fun x (_ : UInt64Array) => Mpn.rshift x 13) id a a))
   | "div1" =>
     row noNat op n
       (time (fun (x _ : UInt64Array) =>
         MPN.W64.divRem1 (zr x.size) x.toUSlice 0xF123456789ABCDEF)
         checkPair a a)
       (time (fun x _ => x / 0xF123456789ABCDEF) checkNat na na)
+      (some (time (fun x (_ : UInt64Array) => Mpn.divRem1 x 0xF123456789ABCDEF) id a a))
   | "div1u" =>
     row noNat op n
       (time (fun (x _ : UInt64Array) =>
         MPN.W64.divRem1 (zr x.size) x.toUSlice 0x0123456789ABCDEF)
         checkPair a a)
       (time (fun x _ => x / 0x0123456789ABCDEF) checkNat na na)
+      (some (time (fun x (_ : UInt64Array) => Mpn.divRem1 x 0x0123456789ABCDEF) id a a))
   | "div" =>
     -- `2 n` by `n` limbs, the quotient only.
     let a2 := sample (2 * n) 4
     row noNat op n
       (time (fun (x y : UInt64Array) => MPN.W64.Num.div x y) checkArr a2 b)
       (time (· / ·) checkNat (toNat a2) nb)
+      (some (time Mpn.tdivQR id a2 b))
   | "divmod" =>
     -- `2 n` by `n` limbs, both results; `Nat` computes the quotient only.
     let a2 := sample (2 * n) 4
@@ -151,6 +160,7 @@ def run (noNat : Bool) (op : String) (n : Nat) : IO Bool := do
       (time (fun (x y : UInt64Array) => MPN.W64.Num.divMod x y)
         (fun p => checkArr p.1 + checkArr p.2) a2 b)
       (time (· / ·) checkNat (toNat a2) nb)
+      (some (time Mpn.tdivQR id a2 b))
   | "sbdiv" =>
     let a2 := sample (2 * n) 4
     row noNat op n
@@ -158,14 +168,17 @@ def run (noNat : Bool) (op : String) (n : Nat) : IO Bool := do
         MPN.W64.divRem x.toUSlice y.toUSlice)
         (fun p => checkArr p.1 + checkArr p.2) a2 b)
       (time (· / ·) checkNat (toNat a2) nb)
+      (some (time Mpn.tdivQR id a2 b))
   | "gcd" =>
     row noNat op n
       (time (fun (x y : UInt64Array) => MPN.W64.Num.gcd x y) checkArr a b)
       (time Nat.gcd checkNat na nb)
+      (some (time Mpn.gcd id a b))
   | "str" =>
     row noNat op n
       (time (fun (x _ : UInt64Array) => MPN.W64.Num.toDecimal x) (fun s => s.length.toUInt64) a a)
       (time (fun x _ => Nat.repr x) (fun s => s.length.toUInt64) na na)
+      (some (time (fun x (_ : UInt64Array) => Mpn.getStr x) id a a))
   | "parse" =>
     let str := MPN.W64.Num.toDecimal a
     row noNat op n
@@ -173,58 +186,68 @@ def run (noNat : Bool) (op : String) (n : Nat) : IO Bool := do
         (fun o => (o.map checkArr).getD (0 : UInt64)) str str)
       (time (fun (s _ : String) => s.toNat?)
         (fun o => (o.map checkNat).getD (0 : UInt64)) str str)
+        (some (time (fun (s _ : String) => Mpn.setStr s) id str str))
   | "mulmod" =>
     -- `n` by `n` limbs modulo `β^n - 1`, with `2ᵏ` pieces, `k = fftK n`; `Nat` multiplies.
     let k := MPN.W64.FFT.fftK n
     row noNat op n
       (time (fun (x y : UInt64Array) => MPN.W64.Num.mulModB x y k (n / 2 ^ k)) checkArr a b)
       (time (· * ·) checkNat na nb)
+      (some (time Mpn.mul id a b))
   | "sqrt" =>
     -- `Nat.sqrt` is Lean's Newton iteration on `Nat`, not GMP's `mpz_sqrt`.
     row noNat op n
       (time (fun (x _ : UInt64Array) => MPN.W64.sqrtRem x) (fun p => checkArr p.1 + checkArr p.2)
         a a)
       (time (fun x _ => x.sqrt) checkNat na na)
+      (some (time (fun x (_ : UInt64Array) => Mpn.sqrtRem x true) id a a))
   | "mul1" =>
     row noNat op n
       (time (fun (x _ : UInt64Array) =>
         MPN.W64.mul1 (zr x.size) x.toUSlice 7) checkPair a a)
       (time (fun x _ => x * 7) checkNat na na)
+      (some (time (fun x (_ : UInt64Array) => Mpn.mul1 x 7) id a a))
   | "addmul1" =>
     -- `b` is shared, so `addMul1` first copies it, as `Nat` allocates its result.
     row noNat op n
       (time (fun (x y : UInt64Array) => MPN.W64.addMul1 y.toUSlice x.toUSlice 7) checkPair a b)
       (time (fun x y => y + x * 7) checkNat na nb)
+      (some (time (fun x (_ : UInt64Array) => Mpn.addMul1 x 7) id a b))
   | "mul" =>
     row noNat op n
       (time (fun (x y : UInt64Array) =>
         MPN.W64.mulBasecase (zr (x.size + y.size)) x.toUSlice
           y.toUSlice) checkArr a b)
       (time (· * ·) checkNat na nb)
+      (some (time Mpn.mul id a b))
   | "kara" =>
     row noNat op n
       (time (fun (x y : UInt64Array) =>
         MPN.W64.mulKaratsuba MPN.W64.config (zr (x.size + y.size)) x.toUSlice
           y.toUSlice) checkArr a b)
       (time (· * ·) checkNat na nb)
+      (some (time Mpn.mul id a b))
   | "sqr" =>
     row noNat op n
       (time (fun (x _ : UInt64Array) =>
         MPN.W64.sqrBasecase (zr (2 * x.size)) x.toUSlice)
         checkArr a a)
       (time (fun x _ => x * x) checkNat na na)
+      (some (time (fun x (_ : UInt64Array) => Mpn.sqr x) id a a))
   | "ksqr" =>
     row noNat op n
       (time (fun (x _ : UInt64Array) =>
         MPN.W64.sqrKaratsuba MPN.W64.config (zr (2 * x.size)) x.toUSlice)
         checkArr a a)
       (time (fun x _ => x * x) checkNat na na)
+      (some (time (fun x (_ : UInt64Array) => Mpn.sqr x) id a a))
   | "toom" =>
     row noNat op n
       (time (fun (x y : UInt64Array) =>
         MPN.W64.mulToom MPN.W64.config (zr (x.size + y.size)) x.toUSlice
           y.toUSlice) checkArr a b)
       (time (· * ·) checkNat na nb)
+      (some (time Mpn.mul id a b))
   | "kara2" =>
     -- `n` by `n / 2` limbs.
     let h := sample (n / 2) 2
@@ -233,6 +256,7 @@ def run (noNat : Bool) (op : String) (n : Nat) : IO Bool := do
         MPN.W64.mulKaratsuba MPN.W64.config (zr (x.size + y.size)) x.toUSlice
           y.toUSlice) checkArr a h)
       (time (· * ·) checkNat na (toNat h))
+      (some (time Mpn.mul id a h))
   | "toom2" =>
     let h := sample (n / 2) 2
     row noNat op n
@@ -240,35 +264,41 @@ def run (noNat : Bool) (op : String) (n : Nat) : IO Bool := do
         MPN.W64.mulToom MPN.W64.config (zr (x.size + y.size)) x.toUSlice
           y.toUSlice) checkArr a h)
       (time (· * ·) checkNat na (toNat h))
+      (some (time Mpn.mul id a h))
   | "fft" =>
     row noNat op n
       (time (fun (x y : UInt64Array) =>
         MPN.W64.FFT.fftMul MPN.W64.config (zr (x.size + y.size)) x.toUSlice
           y.toUSlice (MPN.W64.FFT.fftK (x.size + y.size))) checkArr a b)
       (time (· * ·) checkNat na nb)
+      (some (time Mpn.mul id a b))
   | "fftsqr" =>
     row noNat op n
       (time (fun (x _ : UInt64Array) =>
         MPN.W64.FFT.fftSqr MPN.W64.config (zr (2 * x.size)) x.toUSlice
           (MPN.W64.FFT.fftK (2 * x.size))) checkArr a a)
       (time (fun x _ => x * x) checkNat na na)
+      (some (time (fun x (_ : UInt64Array) => Mpn.sqr x) id a a))
   | "toomsqr" =>
     row noNat op n
       (time (fun (x _ : UInt64Array) =>
         MPN.W64.sqrToom MPN.W64.config (zr (2 * x.size)) x.toUSlice)
         checkArr a a)
       (time (fun x _ => x * x) checkNat na na)
+      (some (time (fun x (_ : UInt64Array) => Mpn.sqr x) id a a))
   | "autosqr" =>
     row noNat op n
       (time (fun (x _ : UInt64Array) =>
         MPN.W64.sqr MPN.W64.config (zr (2 * x.size)) x.toUSlice) checkArr a a)
       (time (fun x _ => x * x) checkNat na na)
+      (some (time (fun x (_ : UInt64Array) => Mpn.sqr x) id a a))
   | "auto" =>
     row noNat op n
       (time (fun (x y : UInt64Array) =>
         MPN.W64.mul MPN.W64.config (zr (x.size + y.size)) x.toUSlice y.toUSlice)
         checkArr a b)
       (time (· * ·) checkNat na nb)
+      (some (time Mpn.mul id a b))
   | "fft2" =>
     let h := sample (n / 2) 2
     row noNat op n
@@ -276,6 +306,7 @@ def run (noNat : Bool) (op : String) (n : Nat) : IO Bool := do
         MPN.W64.FFT.fftMul MPN.W64.config (zr (x.size + y.size)) x.toUSlice
           y.toUSlice (MPN.W64.FFT.fftK (x.size + y.size))) checkArr a h)
       (time (· * ·) checkNat na (toNat h))
+      (some (time Mpn.mul id a h))
   | "mulref" =>
     row noNat op n (time refMul checkArr a b) (time (· * ·) checkNat na nb)
   | _ =>
@@ -291,6 +322,7 @@ def run (noNat : Bool) (op : String) (n : Nat) : IO Bool := do
           MPN.W64.mul MPN.W64.config (zr (x.size + y.size)) x.toUSlice y.toUSlice)
           checkArr a h)
         (time (· * ·) checkNat na (toNat h))
+        (some (time Mpn.mul id a h))
     else
     if op.startsWith "gcdh" then
       -- `gcdh<T>`: `gcd` with half-gcd from `T` limbs, for tuning `gcdHalf`.
@@ -298,6 +330,7 @@ def run (noNat : Bool) (op : String) (n : Nat) : IO Bool := do
       row noNat op n
         (time (fun (x y : UInt64Array) => MPN.W64.gcdWith T x y) checkArr a b)
         (time Nat.gcd checkNat na nb)
+        (some (time Mpn.gcd id a b))
     else
     if op.startsWith "fsq" then
       let k := (op.drop 3).toString.toNat!
@@ -306,6 +339,7 @@ def run (noNat : Bool) (op : String) (n : Nat) : IO Bool := do
           MPN.W64.FFT.fftSqr MPN.W64.config (zr (2 * x.size)) x.toUSlice k)
           checkArr a a)
         (time (fun x _ => x * x) checkNat na na)
+        (some (time (fun x (_ : UInt64Array) => Mpn.sqr x) id a a))
     else
     let sb := if op.startsWith "fftb" then (op.drop 4).toString.toNat?
       else if op.startsWith "toomb" then (op.drop 5).toString.toNat? else none
@@ -320,6 +354,7 @@ def run (noNat : Bool) (op : String) (n : Nat) : IO Bool := do
             MPN.W64.mulToom MPN.W64.config (zr (x.size + y.size)) x.toUSlice
               y.toUSlice) checkArr a h)
         (time (· * ·) checkNat na (toNat h))
+        (some (time Mpn.mul id a h))
     else
     -- `fft<k>`: the FFT with `2ᵏ` pieces, for tuning `fftK`.
     match (op.drop 3).toString.toNat? with
@@ -330,6 +365,7 @@ def run (noNat : Bool) (op : String) (n : Nat) : IO Bool := do
             MPN.W64.FFT.fftMul MPN.W64.config (zr (x.size + y.size)) x.toUSlice
               y.toUSlice k) checkArr a b)
           (time (· * ·) checkNat na nb)
+          (some (time Mpn.mul id a b))
       else throw <| .userError s!"unknown operation {op}"
     | none => throw <| .userError s!"unknown operation {op}"
   return true

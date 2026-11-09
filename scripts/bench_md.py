@@ -7,7 +7,8 @@ Turns the output of `lake exe bench` into the Markdown tables of BENCH.md.
     taskset -c 2 .lake/build/bin/bench > bench.txt
     scripts/bench_md.py bench.txt
 
-prints two tables, operations by size: the ratio MPN / Nat, and the time of MPN. Lines that
+prints three tables, operations by size: the ratio MPN / Nat, the time of MPN, and the ratio
+MPN / mpn for the rows with a GMP kernel. Lines that
 are not rows of the benchmark (the header, other output) are ignored, so the output of several
 runs can be concatenated. A row that appears more than once keeps the fastest time of each
 column: some processes run every trial of an operation slower than others, and the fastest of a
@@ -20,7 +21,10 @@ UNITS = {'ns': 1.0, 'µs': 1e3, 'ms': 1e6, 's': 1e9}
 
 
 def parse(lines):
-    """Rows (op, limbs, mpn ns, nat ns or None), in the order they appear."""
+    """
+    Rows (op, limbs, MPN ns, Nat ns or None, GMP's mpn ns or None), in the order they appear. The
+    mpn time, of the rows with a GMP kernel, follows the ratio and the two spreads.
+    """
     rows = []
     for line in lines:
         f = line.split()
@@ -33,19 +37,26 @@ def parse(lines):
         nat = None
         if len(f) >= 6 and f[5] in UNITS:
             nat = float(f[4]) * UNITS[f[5]]
-        rows.append((f[0], int(f[1]), mpn, nat))
+        gmp = None
+        if len(f) >= 11 and f[10] in UNITS:
+            gmp = float(f[9]) * UNITS[f[10]]
+        rows.append((f[0], int(f[1]), mpn, nat, gmp))
     return rows
+
+
+def low(x, y):
+    """The smaller of two optional times."""
+    return x if y is None else y if x is None else min(x, y)
 
 
 def merge(rows):
     """One row per (op, limbs), with the fastest time of each column, in first-seen order."""
     best = {}
-    for op, n, mpn, nat in rows:
+    for op, n, mpn, nat, gmp in rows:
         if (op, n) in best:
-            _, _, m, t = best[(op, n)]
-            mpn = min(mpn, m)
-            nat = t if nat is None else nat if t is None else min(nat, t)
-        best[(op, n)] = (op, n, mpn, nat)
+            _, _, m, t, g = best[(op, n)]
+            mpn, nat, gmp = min(mpn, m), low(nat, t), low(gmp, g)
+        best[(op, n)] = (op, n, mpn, nat, gmp)
     return list(best.values())
 
 
@@ -74,6 +85,10 @@ def main():
     print(table(rows, lambda r: f'{r[2] / r[3]:.2f}' if r[3] else ''))
     print('\nTime of MPN:\n')
     print(table(rows, lambda r: fmt_time(r[2])))
+    kernels = [r for r in rows if r[4]]
+    if kernels:
+        print('\nRatio MPN / mpn, to GMP\'s kernel without allocating the result:\n')
+        print(table(kernels, lambda r: f'{r[2] / r[4]:.2f}'))
 
 
 if __name__ == '__main__':

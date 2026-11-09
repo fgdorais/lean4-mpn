@@ -15,9 +15,11 @@ Lean implements with GMP, on pseudorandom operands from 1 to 4096 limbs. Divisio
 limbs by `n` limbs. Pinning it to one core, for example with `taskset -c 2`, gives steadier
 results.
 
-Each time is the median of five trials. The last two columns are the spread of the trials of each
-side, their sample standard deviation relative to their mean, which
-tells how far to trust a difference between two runs.
+Each time is the median of five trials. The two columns after the ratio are the spread of the
+trials of each side, their sample standard deviation relative to their mean, which tells how far
+to trust a difference between two runs. A row with a GMP kernel for its operation then has the
+time of that `mpn_*` function on the same number in 64-bit limbs, without allocating its result
+(`Bench.Mpn`), the ratio to it and its spread.
 -/
 
 open ScalarArray MPN MPN.W32
@@ -65,28 +67,35 @@ def run (noNat : Bool) (op : String) (n : Nat) : IO Bool := do
   match op with
   | "add" =>
     row noNat op n (time (fun x y => add x y) checkArr a b) (time (· + ·) checkNat na nb)
-  | "sub" => row noNat op n (time subVal checkArr s b) (time (· - ·) checkNat ns nb)
+      (timeMpn2 Mpn.add na nb)
+  | "sub" =>
+    row noNat op n (time subVal checkArr s b) (time (· - ·) checkNat ns nb)
+      (timeMpn2 Mpn.sub ns nb)
   | "mul" =>
     row noNat op n (time (fun x y => mul x y) checkArr a b) (time (· * ·) checkNat na nb)
+      (timeMpn2 Mpn.mul na nb)
   | "mul1" =>
     row noNat op n (time (fun x _ => mul1 x 7) (fun p => checkArr p.1) a a)
-      (time (fun x _ => x * 7) checkNat na na)
+      (time (fun x _ => x * 7) checkNat na na) (timeMpn1 (Mpn.mul1 · 7) na)
   | "shr" =>
     row noNat op n (time (fun (x : UInt32Array) _ => shiftRight x 37) checkArr a a)
-      (time (fun x _ => x >>> 37) checkNat na na)
+      (time (fun x _ => x >>> 37) checkNat na na) (timeMpn1 (Mpn.rshift · 37) na)
   | "div1" =>
     row noNat op n (time (fun (x : UInt32Array) _ => divRem1 x 0xF1234567)
       (fun p => checkArr p.1) a a) (time (fun x _ => x / 0xF1234567) checkNat na na)
+      (timeMpn1 (Mpn.divRem1 · 0xF1234567) na)
   | "div1u" =>
     row noNat op n (time (fun (x : UInt32Array) _ => divRem1 x 1000000000)
       (fun p => checkArr p.1) a a) (time (fun x _ => x / 1000000000) checkNat na na)
+      (timeMpn1 (Mpn.divRem1 · 1000000000) na)
   | "sqr" =>
     row noNat op n (time (fun x _ => sqr x) checkArr a a)
-      (time (fun x _ => x * x) checkNat na na)
+      (time (fun x _ => x * x) checkNat na na) (timeMpn1 Mpn.sqr na)
   | "div" =>
     -- The quotient alone on both sides: `Nat` has no single division with remainder, and
     -- `(x / y, x % y)` is two divisions.
     row noNat op n (time (fun x y => div x y) checkArr a2 b) (time (· / ·) checkNat na2 nb)
+      (timeMpn2 Mpn.tdivQR na2 nb)
   | _ => return false
   return true
 

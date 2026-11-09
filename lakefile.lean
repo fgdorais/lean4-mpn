@@ -187,11 +187,21 @@ lean_lib MPNTest where
 
 /-- What both widths' benches and tuners share: their harnesses and the shared searches. -/
 lean_lib Harness where
-  roots := #[`Tune.Harness, `Tune.Shared, `Bench.Harness]
+  roots := #[`Tune.Harness, `Tune.Shared, `Bench.Mpn, `Bench.Harness]
+
+/--
+GMP's `mpn_*` kernels for the `mpn` column of the benches (`Bench/mpn.c`, `Bench.Mpn`), from the GMP
+that Lean links into every executable for `Nat`. Only the bench executables link it.
+-/
+target mpnBench.o pkg : System.FilePath := do
+  let oFile := pkg.buildDir / "c" / "mpn.o"
+  let srcJob ← inputTextFile <| pkg.dir / "Bench" / "mpn.c"
+  buildLeanO oFile srcJob #[] #["-fPIC", "-O2"]
 
 /-- Times `MPN32` against `Nat`: `lake exe bench32 [op…] [size…]`, see `MPN32/BENCH.md`. -/
 lean_exe bench32 where
   root := `Bench.W32
+  moreLinkObjs := #[mpnBench.o]
 
 /-- Measures the thresholds of `MPN.W32.Config` on this machine: `lake exe tune32`. -/
 lean_exe tune32 where
@@ -203,6 +213,7 @@ Times `MPN64` against `Nat`: `lake exe bench64 [--no-nat] [op…] [size…]`, se
 -/
 lean_exe bench64 where
   root := `Bench.W64
+  moreLinkObjs := #[mpnBench.o]
 
 /-- Measures the thresholds of `MPN.W64.Config` on this machine: `lake exe tune64 [--verbose]`. -/
 lean_exe tune64 where
