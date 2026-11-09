@@ -8,10 +8,23 @@ two widths moved into one package is in the history of `MPN32/TODO.md`.
 
 ## Performance
 
-- [ ] **Division on 64-bit limbs** is the operation closest to 4× GMP: since `c4bc02b` (Barrett's
-  division by the top half of the divisor) `Num.div` runs at 2.9–3.7× from 1024 limbs, worst near
-  4096 where the divide-and-conquer division hands over, and `Num.divMod` at 3.6–4.0× from 4096,
-  against products at 2.5–3.3×. GMP's division is about 2.1 of its own products.
+The target on 64-bit limbs (since 2026-11-09): within 4× of GMP's kernels, the `mpn` column of the
+bench, from 16 limbs, and within 4× of `Nat` below, where allocating results is part of Lean's
+cost. Against `mpn` (`0987e74`), products are 2.0–3.3×, squares 2.0–3.7×, division 1.5–3.0× from 12
+limbs and `gcd` 1.5–2.4×; the items below that are over it come first.
+
+- [ ] **The square root** is 10–27× `mpn_sqrtrem` up to 64 limbs and 3.4–4.3× from 256 on 64-bit
+  limbs (6–45× on 32-bit limbs), a gap the `Nat` column hid, since Lean's `Nat.sqrt` is not GMP's.
+  Small sizes first: `MPN.W64.sqrtRem` goes through `GNat` (`Bridge.sqrtRem`) and Zimmermann's
+  recursion down to one limb (`sqrtBase = 1`), where GMP's base case divides by its own root.
+- [ ] **Decimal strings** are 5.7–20× `mpn_set_str` to read and 3.6–6.6× `mpn_get_str` to write on
+  64-bit limbs (`MPN.Nat`'s `ofString?` 8–31×, which also checks the string), 12–22× and 7.6–8.7× on
+  32-bit limbs; against `Nat` they look fast, since Lean's conversions work digit by digit.
+- [ ] **Subtraction on 64-bit limbs** is 4.2–4.3× `mpn_sub` from 128 limbs, where `add` is 3.4–3.6×.
+- [ ] **Division on 64-bit limbs**: since `c4bc02b` (Barrett's division by the top half of the
+  divisor) `Num.div` runs at 2.3–3.0× `mpn_tdiv_qr` from 1024 limbs (2.9–3.6× `Nat`), worst near
+  4096 where the divide-and-conquer division hands over. GMP's division is about 2.1 of its own
+  products.
 - [ ] **Quotient-only division with an approximate quotient** (GMP's `mpn_div_q` with
   `divappr`): `/` computes, through the low halves of Burnikel–Ziegler's products and Algorithm
   D's last steps, a remainder it throws away. A quotient off by at most one and then checked needs
@@ -20,12 +33,12 @@ two widths moved into one package is in the history of `MPN32/TODO.md`.
   `subMul1` 25%, so faster products help it most. Ruled out on 32-bit limbs: a carry chain under
   three operations in `subMul1` (LLVM reassociates it). Schoolbook division takes two quotient
   limbs per pass since `4143568`, on both widths.
-- [ ] **The cost of small divisions**: since `adfb500` both widths normalize by shifts in `main`'s
-  `Schoolbook.divRemN`, without copying a normalized divisor, which took 25–50% off `2 n / n` from
-  2 to 8 limbs. On 64-bit limbs `/` is now 1.3–1.8 times `Nat` from 2 to 8 limbs and 2.2–2.3
-  times at 16 and 32, where the loop, not its fixed cost, is the gap; what is left of the fixed
-  cost is three or four new arrays per division, and on 64-bit limbs the slice structures of
-  `Num.divModBase`.
+- [ ] **The cost of small divisions**: both widths normalize by shifts in `main`'s
+  `Schoolbook.workS`, without copying a normalized divisor (`adfb500`), `/` copies out the quotient
+  alone and `%` keeps the remainder in the array of the division (`db395d1`), and `%` by a word
+  writes no quotient (`6d99d39`). On 64-bit limbs `MPN.Nat`'s `/` is 1.3–1.7× `Nat` from 2 to 8
+  limbs and `%` 1.1–1.6×; what is left of the fixed cost is the array of the division, the shifted
+  divisor and the result, and on 64-bit limbs the slice structures of `Num.divModBase`.
 - [ ] **Toom-3's evaluations and interpolation in fused passes**, as Toom-4's already are
   (`MPN.Toom.Kernels`): each operand takes ten passes for its three values and the interpolation
   fourteen, each with its own array. A one-pass prototype of the evaluations was 2.7× faster than
@@ -76,13 +89,6 @@ two widths moved into one package is in the history of `MPN32/TODO.md`.
   dispatcher: on 32-bit limbs `tune32` (2026-11-01) put `mulToom6` at 1024 below `mulToom4` at
   1152, and its whole set was within ±2% of the defaults end to end, so the defaults stayed. Check
   a tuned set end to end (`lake build -R -K …`, then the bench with `--no-nat`) before adopting it.
-
-## Tooling
-
-- [ ] **A raw GMP baseline**: the `Nat` column is Lean's wrapper around GMP, which copies the
-  operands and the result and allocates twice per operation, so below about 64 limbs it measures
-  mostly that overhead. Calling `mpn_*` directly needs C in the bench executables (never in the
-  libraries, which call no GMP).
 
 ## Proof engineering
 
