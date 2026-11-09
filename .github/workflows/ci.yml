@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ "main", "unified" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "main", "unified" ]
+    branches: [ "main" ]
   workflow_dispatch:
 
 concurrency:
@@ -38,8 +38,8 @@ jobs:
         run: lake build --wfail tune32 bench32 tune64 bench64
 
   # The portability rule, by building: `MPN32` and the shared `MPN` on other systems and
-  # architectures, with the tests of `MPN32`, whose `#guard`s run its compiled code there.
-  # `MPN64` is not built.
+  # architectures, with the tests of `MPN32`, whose `#guard`s run its compiled code there. Then
+  # the whole package with all the tests, `MPN64` (`MPN.Default`) and its C included.
   portable:
     strategy:
       fail-fast: false
@@ -57,3 +57,11 @@ jobs:
           auto-config: false
           build: true
           build-args: "--wfail MPN MPN32 MPN32Base MPNTest.W32"
+
+      - name: build and test the rest
+        uses: leanprover/lean-action@f061402b660e0c34644504b324e830f2991d4865 # v1.6.1
+        with:
+          auto-config: false
+          build: true
+          build-args: "--wfail"
+          test: true
