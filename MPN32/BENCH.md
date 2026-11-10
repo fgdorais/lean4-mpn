@@ -216,6 +216,7 @@ above; ratios before `15534f8` for `MPN.Nat` rows were inflated by the hashing c
 
 | date | commit | change | effect |
 |---|---|---|---|
+| 2026-11-10 | `264533d` | The digits of a long decimal string as an array by one `String.foldl` (`DecChunks.digitArray`), instead of a list, filtered, then converted | From two alternating runs against `9987274`: `bofstr` −27% to −32% at 1024 limbs, −17% to −20% at 4096 and 8192, −14% at 16384 |
 | 2026-11-10 | `9987274` | The square root of a word by `main`'s `WordArray.sqrt2W` on its two 32-bit halves, instead of Newton's iteration on `MPN.Nat` | From three alternating runs against `53e387d`: `bsqrt` at 1 limb (a word) 126–157 → 34 ns (2.4× `mpn_sqrtrem`, from 9–11×); unchanged from 2 limbs |
 | 2026-11-09 | `81dfc27` | Decimal strings read by bytes (`main`'s `DecChunks.readB`) and checked by bytes (`isNatB`, equal to `String.isNat`) | From three alternating runs against `908dbdf`: `bofstr` −26% to −31% up to 64 limbs, −17% at 256, −1% at 1024 |
 | 2026-11-09 | `d023db1` | Decimal digits by division by `10⁹` in place (`main`'s `WordArray.divLoopIn`, the hardware step), instead of `divRem1U` into a new array per chunk | From three alternating runs against `d2218e2`: `btostr` −33% to −39% from 4 to 64 limbs, −21% at 256, −16% at 1024 |
