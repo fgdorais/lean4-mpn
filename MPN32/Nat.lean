@@ -766,16 +766,34 @@ private theorem toNat_sqrtZimmermann (T : Nat) (x : MPN.W32.Nat) (hx : x.toNat �
     simp only [bridge32_o, ops32_val]; exact sqrtBase_spec N) x hx
 
 /--
-`⌊√n⌋`: by Newton's iteration (`sqrtNewton`) for roots below `Z` limbs, and from there by
-Zimmermann's recursion (`sqrtZimmermann`), with Newton's iteration for roots of up to `T` limbs.
+`⌊√n⌋`: on a word by `main`'s `WordArray.sqrt2W` on its two 32-bit halves, by Newton's iteration
+(`sqrtNewton`) for roots below `Z` limbs, and from there by Zimmermann's recursion
+(`sqrtZimmermann`), with Newton's iteration for roots of up to `T` limbs.
 -/
 public def sqrtWith (Z T : Nat) (n : MPN.W32.Nat) : MPN.W32.Nat :=
-  Dispatch.sqrtBy (fun a => 2 * Z ≤ a.size) (fun a h => sqrtZimmermann T (large a h)) n
+  match n with
+  | .small w => .small (WordArray.sqrt2W UInt32Array (w >>> 32).toUInt32 w.toUInt32).toUInt64
+  | .large a h =>
+    Dispatch.sqrtBy (fun a => 2 * Z ≤ a.size) (fun a h => sqrtZimmermann T (large a h)) (.large a h)
 
 @[simp] public theorem toNat_sqrtWith (Z T : Nat) (n : MPN.W32.Nat) :
-    (sqrtWith Z T n).toNat = _root_.Nat.sqrt n.toNat :=
-  Dispatch.toNat_sqrtBy _ _ (fun a h _ => toNat_sqrtZimmermann _ _ (by
-    simp only [GNat.toNat]; have := h.2; lia)) n
+    (sqrtWith Z T n).toNat = _root_.Nat.sqrt n.toNat := by
+  cases n with
+  | small w =>
+    have hv := WordArray.val_sqrt2W (A := UInt32Array) (w >>> 32).toUInt32 w.toUInt32
+    show (WordArray.sqrt2W UInt32Array (w >>> 32).toUInt32 w.toUInt32).toUInt64.toNat =
+      _root_.Nat.sqrt w.toNat
+    rw [UInt32.toNat_toUInt64]
+    have e : ((w >>> 32).toUInt32).toNat * 2 ^ 32 + (w.toUInt32).toNat = w.toNat := by
+      have := w.toNat_lt
+      rw [UInt64.toNat_toUInt32, UInt64.toNat_toUInt32, UInt64.toNat_shiftRight]
+      simp only [UInt64.reduceToNat, Nat.reduceMod, Nat.shiftRight_eq_div_pow]
+      rw [Nat.mod_eq_of_lt (Nat.div_lt_of_lt_mul (by simpa using this))]
+      lia
+    exact hv.trans (congrArg _root_.Nat.sqrt e)
+  | large a h =>
+    exact Dispatch.toNat_sqrtBy _ _ (fun a h _ => toNat_sqrtZimmermann _ _ (by
+      simp only [GNat.toNat]; have := h.2; lia)) _
 
 /-- `sqrtWith` from roots of `config.sqrtZimmermann` limbs, down to `config.sqrtBase`. -/
 public def sqrt (n : MPN.W32.Nat) : MPN.W32.Nat := sqrtWith config.sqrtZimmermann config.sqrtBase n
