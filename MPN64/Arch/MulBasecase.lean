@@ -6,6 +6,7 @@ module
 
 public import MPN64.Arch.UIntArray
 public import MPN.MulLimbW
+public import ScalarArray.InPlaceSyntax
 
 /-!
 # Schoolbook multiplication
@@ -25,8 +26,8 @@ both on the first `min r.size a.size` limbs, and
 `mulBasecase` writes the first row with `mul1`, then adds the rows two at a time, like GMP's
 `mpn_addmul_2`: one pass over `a` adds `a (b[i] + β b[i + 1])` (`addMul2Loop`), with two carries,
 so that each limb of the result is read and written once for two products of limbs. The pass runs
-on lean4-scalar-arrays' `foldlInPlaceRangeWith2AccThen`, which keeps both carries unboxed; an odd
-last row is a pass of `addMul1Loop`.
+as an in-place program in lean4-scalar-arrays' experimental `inplace` notation, which keeps both
+carries unboxed in the loop; an odd last row is a pass of `addMul1Loop`.
 -/
 
 open ScalarArray UInt64Array
@@ -531,24 +532,52 @@ private theorem MulBound.toNat_top₂ {arr : UInt64Array} {rs : USize} {a b : US
     by rw [size_uset, size_uset, hs]⟩
 
 /--
-Rows `i` and `i + 1` of `a * b` added to the limbs of `arr` from `rs + i` on in one pass of
-`foldlInPlaceRangeWith2AccThen`, whose two carries stay unboxed, and the carries stored above
-them by the continuation.
+Rows `i` and `i + 1` of `a * b` added to the limbs of `arr` from `rs + i` on in one pass, and the
+carries stored above them, as an `inplace` program. The loop hands its two carries to the stores
+unboxed (`forIn2Bind`).
 -/
 @[inline] def mulRow2K (arr : UInt64Array) (rs : USize) (a b : USlice)
     (hr : MulBound arr rs a.size.toNat b.size.toNat) (i : USize) (h : i < b.size)
     (h' : i + 1 < b.size) : {arr' : UInt64Array // arr'.size = arr.size} :=
-  have hb := hr.row h
+  have hw : (rs + i).toNat + a.size.toNat ≤ arr.size := (hr.row h).1
+  have ht := hr.toNat_top h
+  have ht₂ := hr.toNat_top₂ h h'
+  have hi := USize.lt_iff_toNat_lt.1 h'
+  have hi₁ := USize.toNat_add_one_of_lt h
   let x₀ := b[i]'h
   let x₁ := b[i + 1]'h'
-  if h₀ : (0 : USize) < a.size then
-    arr.foldlInPlaceRangeWith2AccThen (rs + i + 0) (a.size - 0) (by
-        have h₀' := USize.lt_iff_toNat_lt.1 h₀
-        rw [hb.toNat_add h₀, USize.toNat_sub_of_le _ _ (USize.le_of_lt h₀)]; lia) 0 0
-      (fun k hk z c₀ c₁ => addMul2Step a a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _))
-        x₀ x₁ (0 + k) (toNat_shift h₀ hk).2 z (c₀, c₁))
-      (fun arr' hs c₀ c₁ => storeCarries arr rs a b hr i h h' arr' hs c₀ c₁)
-  else storeCarries arr rs a b hr i h h' arr rfl 0 0
+  ⟨(inplace arr do
+      for k in 0...a.size with (c₀ := (0 : UInt64)) (c₁ := (0 : UInt64)) do
+        let z ← arr[rs + i + k]
+        let (w, d₀, d₁) := addMul2Word z (a[k]'(USize.lt_iff_toNat_lt.2 (by assumption))) x₀ x₁ c₀ c₁
+        arr[rs + i + k] := w
+        c₀ := d₀
+        c₁ := d₁
+      arr[rs + i + a.size] := c₀
+      arr[rs + i + a.size + 1] := c₁).2, by simp⟩
+
+/-- The loop of `mulRow2K`'s program is `foldUInPlace` of `addMul2Step`. -/
+private theorem run_addMul2 {N : Nat} (a : USlice) (x₀ x₁ : UInt64) (off : USize)
+    (hw : off.toNat + a.size.toNat ≤ N) (arr : UInt64Array) (hr : LoopBound arr off a.size)
+    (j : USize) (hlo : (0 : USize).toNat ≤ j.toNat) (c : UInt64 × UInt64) (hs : arr.size = N) :
+    (InPlace.forIn2From 0 a.size j hlo c.1 c.2 fun k _ hj c₀ c₁ =>
+        InPlace.readThen (off + k) (InPlaceSyntax.toNat_add_lt_of_window hw hj) fun z =>
+          (InPlace.write (off + k) (InPlaceSyntax.toNat_add_lt_of_window hw hj)
+              (addMul2Word z (a[k]'(USize.lt_iff_toNat_lt.2 hj)) x₀ x₁ c₀ c₁).1) >>= fun _ =>
+            pure ((addMul2Word z (a[k]'(USize.lt_iff_toNat_lt.2 hj)) x₀ x₁ c₀ c₁).2.1,
+              (addMul2Word z (a[k]'(USize.lt_iff_toNat_lt.2 hj)) x₀ x₁ c₀ c₁).2.2)).run arr hs =
+      ((foldUInPlace a.size (addMul2Step a a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _)) x₀ x₁)
+          arr off hr j c).2,
+        (foldUInPlace a.size (addMul2Step a a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _)) x₀ x₁)
+          arr off hr j c).1) := by
+  induction arr, hr, j, c using foldUInPlace.induct a.size
+    (addMul2Step a a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _)) x₀ x₁) off with
+  | case1 arr hr j c h p ih =>
+    rw [InPlace.forIn2From_eq, dite_eq_left_of_eq_true (eq_true h), foldUInPlace_lt _ _ _ _ _ _ _ h]
+    simp only [InPlace.run_bind, InPlace.run_readThen, InPlace.run_write, InPlace.run_pure]
+    exact ih _ _
+  | case2 arr hr j c h =>
+    rw [InPlace.forIn2From_eq, dite_eq_right_of_eq_false (eq_false h), foldUInPlace_ge _ _ _ _ _ _ _ h, InPlace.run_pure]
 
 private theorem mulRow2K_eq (arr : UInt64Array) (rs : USize) (a b : USlice)
     (hr : MulBound arr rs a.size.toNat b.size.toNat) (i : USize) (h : i < b.size)
@@ -562,14 +591,13 @@ private theorem mulRow2K_eq (arr : UInt64Array) (rs : USize) (a b : USlice)
           (b[i]'h) (b[i + 1]'h') 0 (0, 0)).2.1
         (addMul2Loop arr (rs + i) a a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _)) (hr.row h)
           (b[i]'h) (b[i + 1]'h') 0 (0, 0)).2.2).1 := by
-  have e : mulRow2K arr rs a b hr i h h' =
-      foldUInPlaceThen a.size (addMul2Step a a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _))
-        (b[i]'h) (b[i + 1]'h')) arr (rs + i) (hr.row h) 0 (0, 0)
-        (fun arr' hs c => storeCarries arr rs a b hr i h h' arr' hs c.1 c.2) := by
-    rw [foldUInPlaceThen_eq_lib]
-    simp only [mulRow2K, foldUInPlaceThenLib, foldlInPlaceRangeWith2AccThen_eq]
-  rw [e, foldUInPlaceThen_eq]
-  simp only [addMul2Loop_eq_fold]
+  have e := run_addMul2 a (b[i]'h) (b[i + 1]'h') (rs + i) (hr.row h).1 arr (hr.row h) 0
+    (Nat.le_refl _) (0, 0) rfl
+  simp only at e
+  simp only [mulRow2K, runInPlace_eq, InPlace.forIn2Bind_eq, InPlace.forIn2_eq, InPlace.bind_eq,
+    InPlace.pure_eq, InPlace.run_bind, InPlace.run_write, InPlace.run_pure, e, storeCarries,
+    addMul2Loop_eq_fold]
+  rfl
 
 /--
 `mulBasecaseLoop` two rows at a time by `mulRow2K`, and the last row by `mulRowK` when the rows
