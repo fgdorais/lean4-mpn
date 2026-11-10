@@ -237,12 +237,12 @@ variable (A) in
 variable (A) in
 /-- `x - y` with a borrow. -/
 @[inline, expose] public def subStep (N : USize) (j : USize) (_ : j < N) (x y c : L) : L × L :=
-  (R.sub (R.sub x y) c, R.subh (R.subh R.zero x y) (R.sub x y) c)
+  R.subC x y c
 
 variable (A) in
 /-- `-y` with a borrow. -/
 @[inline, expose] public def negStep (N : USize) (j : USize) (_ : j < N) (_ y c : L) : L × L :=
-  (R.sub (R.sub R.zero y) c, R.subh (R.subh R.zero R.zero y) (R.sub R.zero y) c)
+  R.subC R.zero y c
 
 variable (A) in
 /-- `x` minus a borrow. -/
@@ -269,7 +269,7 @@ private theorem subStep_law (N : USize) : ∀ j h x y c, True →
       0 * LA.val x + 1 * LA.val y + LA.val c = 1 * LA.val x + 0 * LA.val y +
       2 ^ LA.w * LA.val (subStep A N j h x y c).2 + (fun _ => 0) c := by
   intro j h x y c _
-  have := sub_step (A := A) x y c
+  have := R.val_subC x y c
   simp only [subStep]
   lia
 
@@ -278,7 +278,7 @@ private theorem negStep_law (N : USize) : ∀ j h x y c, True →
       0 * LA.val x + 1 * LA.val y + LA.val c = 0 * LA.val x + 0 * LA.val y +
       2 ^ LA.w * LA.val (negStep A N j h x y c).2 + (fun _ => 0) c := by
   intro j h x y c _
-  have := sub_step (A := A) R.zero y c
+  have := R.val_subC R.zero y c
   simp only [negStep, R.val_zero] at this ⊢
   lia
 
