@@ -123,14 +123,14 @@ The number that a string of decimal digits denotes, like `String.toNat?`: from `
 digits by divide and conquer (`NatOps.fromDec`), and below by chunks of nineteen digits.
 -/
 public def ofDecimalWith (parseDC : Nat) (s : String) : Option UInt64Array :=
-  if isNatFast s then some (DecChunks.ofDecimalWith ops64 id id parseDC parseBaseSize s) else none
+  if isNatB s then some (DecChunks.ofDecimalWith ops64 id id parseDC parseBaseSize s) else none
 
 public theorem ofDecimalWith_eq (parseDC : Nat) (s : String) :
     (ofDecimalWith parseDC s).map UInt64Array.toNat = s.toNat? := by
   by_cases h : s.isNat = true
-  · rw [ofDecimalWith, isNatFast_eq, ite_eq_left h, Option.map_some,
+  · rw [ofDecimalWith, isNatB_eq, ite_eq_left h, Option.map_some,
       DecChunks.ofDecimalWith_spec _ _ _ hto hof _ _ s h, decVA_eq]
-  · rw [ofDecimalWith, isNatFast_eq, ite_eq_right h, String.toNat?_eq_none (by simpa using h),
+  · rw [ofDecimalWith, isNatB_eq, ite_eq_right h, String.toNat?_eq_none (by simpa using h),
       Option.map_none]
 
 /-- The decimal digits of `a`, like `Nat.repr a.toNat`. -/

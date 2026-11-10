@@ -424,6 +424,110 @@ public theorem vA_finish_foldl (l : List Char) (hl : ∀ c ∈ l, c.isDigit = tr
   rw [List.nil_append] at h
   exact vA_finish _ _ h
 
+/-! ## Decimal to limbs, by bytes
+
+A string that `String.isNat` accepts is made of digits and `_`, characters of one byte each in
+UTF-8, so that its bytes are its characters: `readB` reads them with `String.getUTF8Byte`, with the
+limbs so far, the chunk and its digits in the arguments of the loop instead of a state.
+-/
+
+/-- An ASCII character is one byte of UTF-8, its value. -/
+private theorem utf8Encode_ascii (l : List Char) (h : ∀ c ∈ l, c.val ≤ 127) :
+    l.utf8Encode = (l.map fun c => c.val.toUInt8).toByteArray := by
+  rw [List.utf8Encode]
+  congr 1
+  induction l with
+  | nil => rfl
+  | cons c cs ih =>
+    rw [List.flatMap_cons, List.map_cons,
+      String.utf8EncodeChar_eq_singleton (Char.utf8Size_eq_one_iff.2 (h c (by simp))),
+      ih (fun d hd => h d (by simp [hd])), List.singleton_append]
+
+/-- The bytes of a string of ASCII characters are its characters. -/
+private theorem bytes_ascii (s : String) (h : ∀ c ∈ s.toList, c.val ≤ 127) :
+    s.utf8ByteSize = s.toList.length ∧
+      ∀ i (hi : i < s.toList.length) hb,
+        s.getUTF8Byte ⟨i⟩ hb = (s.toList[i]'hi).val.toUInt8 := by
+  have hb : s.toByteArray = (s.toList.map fun c => c.val.toUInt8).toByteArray := by
+    rw [← String.utf8Encode_toList, utf8Encode_ascii _ h]
+  refine ⟨?_, fun i hi _ => ?_⟩
+  · show s.toByteArray.size = _
+    rw [hb, List.size_toByteArray, List.length_map]
+  · rw [String.getUTF8Byte_eq_getElem]
+    simp only [hb, List.getElem_toByteArray, List.getElem_map]
+
+/-- The byte of an ASCII character, as a word, is its value. -/
+private theorem toUInt32_byte (c : Char) (h : c.val ≤ 127) : c.val.toUInt8.toUInt32 = c.val := by
+  apply UInt32.toNat_inj.1
+  rw [UInt8.toNat_toUInt32, UInt32.toNat_toUInt8,
+    Nat.mod_eq_of_lt (by have := UInt32.le_iff_toNat_le.1 h; simp at this; lia)]
+
+/-- The byte of an ASCII character is `95` exactly for `_`. -/
+private theorem byte_eq_95 (c : Char) (h : c.val ≤ 127) : c.val.toUInt8 = 95 ↔ c = '_' := by
+  constructor
+  · intro hb
+    apply Char.ext
+    rw [← toUInt32_byte c h, hb]
+    rfl
+  · rintro rfl; rfl
+
+/-- Reads the bytes of `s` from `i`, as `step` reads characters, then `finish`. -/
+@[expose, specialize] public def readB (s : String) (i : Nat) (acc : A) (c : L) (n : UInt32) : A :=
+  if h : i < s.utf8ByteSize then
+    let b := s.getUTF8Byte ⟨i⟩ h
+    if b = 95 then readB s (i + 1) acc c n
+    else
+      let v := O.push c (b.toUInt32 - 48)
+      if n + 1 = O.kU then readB s (i + 1) (O.mulAdd acc O.base v) O.chunk0 0
+      else readB s (i + 1) acc v (n + 1)
+  else finish (O.mkSt acc c n)
+termination_by s.utf8ByteSize - i
+
+private theorem readB_eq (s : String) (h : ∀ c ∈ s.toList, c.val ≤ 127) (i : Nat) (acc : A)
+    (c : L) (n : UInt32) :
+    readB s i acc c n = finish ((s.toList.drop i).foldl step (O.mkSt acc c n)) := by
+  obtain ⟨hsz, hbyte⟩ := bytes_ascii s h
+  induction i, acc, c, n using readB.induct (O := O) s with
+  | case1 i acc c n hi b hb ih =>
+    rw [readB, dite_eq_left hi]
+    simp only [b] at hb ih ⊢
+    rw [ite_eq_left hb, ih]
+    have hi' : i < s.toList.length := hsz ▸ hi
+    rw [List.drop_eq_getElem_cons hi', List.foldl_cons]
+    congr 2
+    have hc := hbyte i hi' hi
+    rw [hc] at hb
+    have hv := h _ (List.getElem_mem hi')
+    simp [step, (byte_eq_95 _ hv).1 hb]
+  | case2 i acc c n hi b hb v hk ih =>
+    rw [readB, dite_eq_left hi]
+    simp only [b, v] at hb hk ih ⊢
+    rw [ite_eq_right hb, ite_eq_left hk, ih]
+    have hi' : i < s.toList.length := hsz ▸ hi
+    rw [List.drop_eq_getElem_cons hi', List.foldl_cons]
+    have hc := hbyte i hi' hi
+    have hv := h _ (List.getElem_mem hi')
+    rw [hc] at hb ⊢
+    have hu : s.toList[i] ≠ '_' := fun e => hb ((byte_eq_95 _ hv).2 e)
+    rw [toUInt32_byte _ hv]
+    simp only [step, hu, ↓reduceIte, O.chunk_mkSt, O.count_mkSt, O.acc_mkSt, hk]
+  | case3 i acc c n hi b hb v hk ih =>
+    rw [readB, dite_eq_left hi]
+    simp only [b, v] at hb hk ih ⊢
+    rw [ite_eq_right hb, ite_eq_right hk, ih]
+    have hi' : i < s.toList.length := hsz ▸ hi
+    rw [List.drop_eq_getElem_cons hi', List.foldl_cons]
+    have hc := hbyte i hi' hi
+    have hv := h _ (List.getElem_mem hi')
+    rw [hc] at hb ⊢
+    have hu : s.toList[i] ≠ '_' := fun e => hb ((byte_eq_95 _ hv).2 e)
+    rw [toUInt32_byte _ hv]
+    simp only [step, hu, ↓reduceIte, O.chunk_mkSt, O.count_mkSt, O.acc_mkSt, hk]
+  | case4 i acc c n hi =>
+    rw [readB, dite_eq_right hi]
+    have : s.toList.length ≤ i := by rw [← hsz]; lia
+    rw [List.drop_eq_nil_of_le this, List.foldl_nil]
+
 /-! ## Divide and conquer
 
 Long numbers go through the base-generic divide and conquer of `MPN.Generic.Radix`
@@ -486,7 +590,7 @@ divide and conquer (`NatOps.fromDec`, by chunks below `T` digits), and below by 
 @[expose, specialize] public def ofDecimalWith (parseDC T : Nat) (s : String) : A :=
   if O.k * parseDC ≤ s.length then
     toA (o.fromDec (parseBase ofA) T (s.toList.filter (· != '_')).toArray)
-  else finish (s.foldl step (init A))
+  else readB s 0 O.empty O.chunk0 0
 
 public theorem ofDecimalWith_spec (hto : ∀ x, vA (toA x) = o.val x)
     (hof : ∀ a, o.val (ofA a) = vA a) (parseDC T : Nat) (s : String) (h : s.isNat = true) :
@@ -502,8 +606,14 @@ public theorem ofDecimalWith_spec (hto : ∀ x, vA (toA x) = o.val x)
       · exact absurd h' hc.2
     rw [hto, o.fromDec_spec (parseBase ofA) T _
       (fun st ln _ => parseBase_spec o ofA hof _ hd st ln), List.toList_toArray]
-  · rw [String.foldl_eq_foldl_toList]
-    exact (vA_finish_foldl _ (String.isNat_iff.1 h).2.1).symm
+  · have hd := (String.isNat_iff.1 h).2.1
+    have ha : ∀ c ∈ s.toList, c.val ≤ 127 := fun c hc => by
+      rcases hd c hc with h' | rfl
+      · simp only [Char.isDigit, Bool.and_eq_true, decide_eq_true_eq] at h'
+        exact UInt32.le_iff_toNat_le.2 (by have := UInt32.le_iff_toNat_le.1 h'.2; simp at this ⊢; lia)
+      · decide
+    rw [readB_eq s ha, List.drop_zero]
+    exact (vA_finish_foldl _ hd).symm
 
 end DC
 
