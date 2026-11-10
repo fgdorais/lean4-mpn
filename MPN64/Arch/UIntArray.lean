@@ -790,7 +790,7 @@ public instance wordArray64 : MPN.WordArray UInt64Array UInt64 where
   unB h := h
   b0 := 0
   addC x y c := (x + y + c, UInt64.addh (UInt64.addh 0 x y) (x + y) c)
-  subC x y c := (x - y - c, UInt64.subh (UInt64.subh 0 x y) (x - y) c)
+  subC x y c := (x - y - c, UInt64.subb (UInt64.subb 0 x y) (x - y) c)
   addDiffC v x y z c := (v + x + c - 2 - y - z, UInt64.addDiffh v x y z c)
   copyIn d o s so n := s.copySlice so d o n
   subMul2B := subMul2W
@@ -854,9 +854,9 @@ public instance wordArray64 : MPN.WordArray UInt64Array UInt64 where
     rw [decide_eq_true_iff, UInt64.lt_iff_toNat_lt]
   val_subC x y c := by
     show (x - y - c).toNat + y.toNat + c.toNat =
-      x.toNat + 2 ^ 64 * (UInt64.subh (UInt64.subh 0 x y) (x - y) c).toNat
+      x.toNat + 2 ^ 64 * (UInt64.subb (UInt64.subb 0 x y) (x - y) c).toNat
     have := x.toNat_lt; have := y.toNat_lt; have := c.toNat_lt
-    simp only [UInt64.toNat_subh, UInt64.toNat_sub, UInt64.toNat_zero]
+    simp only [UInt64.toNat_subb, UInt64.toNat_sub, UInt64.toNat_zero]
     generalize x.toNat = x at *
     generalize y.toNat = y at *
     generalize c.toNat = c at *

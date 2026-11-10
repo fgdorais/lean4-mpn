@@ -67,6 +67,21 @@ public theorem UInt64.toNat_subh (b x y : UInt64) :
     rw [hd, hq]
     lia
 
+/--
+`subh` written in C as `b + (x < y)`: a compare and an add with carry. On the chain of a
+subtraction's borrow (`subC`) the double-width form of `subh` compiles to one more operation, a
+negation; inside the longer expressions of the multiply-subtract and the linear combinations of the
+gcd, `subh`'s form compiles better.
+-/
+@[extern c inline "#1 + (uint64_t)((#2) < (#3))"]
+public def UInt64.subb (b x y : UInt64) : UInt64 :=
+  let t := (2 ^ 128 + x.toNat - y.toNat) % 2 ^ 128
+  b - (t >>> 64).toUInt64
+
+public theorem UInt64.toNat_subb (b x y : UInt64) :
+    (UInt64.subb b x y).toNat = (b.toNat + if x.toNat < y.toNat then 1 else 0) % 2 ^ 64 :=
+  UInt64.toNat_subh b x y
+
 /-- The high word of `x * y`. -/
 @[extern c inline "(uint64_t)(((__uint128_t)(#1) * (__uint128_t)(#2)) >> 64)"]
 public def UInt64.mulh (x y : UInt64) : UInt64 :=
