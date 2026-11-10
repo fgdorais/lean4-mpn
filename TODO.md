@@ -19,11 +19,12 @@ limbs and `gcd` 1.5–2.4×; the items below that are over it come first.
   words are done in words (`sqrtRem2`); what is left is the recursion itself, a general division
   and about ten operations on new arrays per level, where GMP's `mpn_dc_sqrtrem` works in place in
   one buffer: porting that, with the in-place division of `Schoolbook.workS`, is the next step.
-- [ ] **Decimal strings** are 4.7–10× `mpn_set_str` to read and 2.5–4.1× `mpn_get_str` to write on
-  64-bit limbs from 16 limbs (`908dbdf`); `String.isNat`'s iterator is gone (`isNatFast`) and the
-  digits are written from words, by division in place. Reading still goes character by character
-  through `String.foldl` and a state cell; reading the UTF-8 bytes 19 at a time into a word, with
-  one multiply-add per chunk, should halve it or better.
+- [ ] **Decimal strings** are 3.8–7.4× `mpn_set_str` to read and 2.5–4.1× `mpn_get_str` to write on
+  64-bit limbs from 4 limbs (`81dfc27`): both read and check the UTF-8 bytes (`readB`, `isNatB`) and
+  write from words, dividing in place. Reading still makes two passes, the check and the digits,
+  about 1.5 ns per byte each, which one loop could do together, and a new array per chunk of 19
+  digits (`mulAddA`), which a multiplication in place would avoid (it needs a `push` in
+  `WordArray`); from 256 limbs the quadratic base case dominates.
 - [ ] **Subtraction on 64-bit limbs** is 4.2–4.3× `mpn_sub` from 128 limbs, where `add` is 3.4–3.6×.
 - [ ] **Division on 64-bit limbs**: since `c4bc02b` (Barrett's division by the top half of the
   divisor) `Num.div` runs at 2.3–3.0× `mpn_tdiv_qr` from 1024 limbs (2.9–3.6× `Nat`), worst near
