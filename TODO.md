@@ -16,11 +16,11 @@ operations are within 4× of `Nat` there. Against `mpn` (`0987e74`, `599df9a`), 
 2.0–3.3×, squares 2.0–3.7×, division 1.5–3.0×, `gcd` 1.5–2.4× and the square root 2.3–3.0× from 256
 limbs; subtraction is 3.3–3.4× since `2b3324c`. The items over the target come first.
 
-- [ ] **Reading decimal strings** from 1024 limbs is 5.1–5.4× `mpn_set_str` (3.8–4.2× at 256): the
-  quadratic base case runs up to `parseDC = 1536` limbs, and the divide and conquer above it
-  (`NatOps.fromDec`) is slower than GMP's subquadratic `mpn_set_str`; both the crossover and the
-  products of the divide and conquer are to look at.
-
+- [ ] **Reading decimal strings** from 256 limbs is 4.2–4.9× `mpn_set_str` (`2a87ccd`), a little
+  over the target: the digits are an array by one fold (`digitArray`) and divide and conquer starts
+  at `parseDC = 1024`. What is left is mostly the products of the divide and conquer and the
+  quadratic base case's new array per chunk (`mulAddA`, in place it needs a `push` in `WordArray`
+  and a fold); its leaves still read characters into a state cell (`parseBase`, `step`).
 - [ ] **Products and squares on an Apple M2** are a little over the target from about 3000 limbs
   (`6c9fe8e`, with the Zen 3 defaults): products 4.0–4.3× `mpn_mul` from 4096 to 16384 limbs (Toom-8
   at 4096, the FFT from 6144), squares 4.0–4.8× from 3072 (the Toom squares up to 4096). The M2's
