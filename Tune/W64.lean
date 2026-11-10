@@ -196,7 +196,8 @@ public def main (args : List String) : IO UInt32 := do
     ("divDC", cfg.divDC), ("divMu", cfg.divMu), ("divQMu", cfg.divQMu),
     ("div1Recip", cfg.div1Recip), ("div1Unnorm", cfg.div1Unnorm), ("div32Recip", cfg.div32Recip),
     ("gcdHalf", cfg.gcdHalf), ("strDC", cfg.strDC), ("parseDC", cfg.parseDC),
-    ("sqrtZimmermann", cfg.sqrtZimmermann), ("sqrtBase", cfg.sqrtBase)]
+    ("sqrtZimmermann", cfg.sqrtZimmermann), ("sqrtBase", cfg.sqrtBase),
+    ("sqrtRemRenorm", cfg.sqrtRemRenorm)]
   IO.println "To compile these into the library, add to its `require` in lakefile.toml:"
   IO.println s!"  options = \{ {", ".intercalate (opts.map fun (k, v) => s!"w64_{k} = \"{v}\"")} }"
   IO.println "or build this package with:"

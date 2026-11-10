@@ -37,7 +37,7 @@ changing the options, build once with `-R` to reconfigure.
   `mulToom6`, `mulToom8`, `mulFFT`, `mulFFTUnbal`, `mulFFTMin`, `mulUnbalanced`, `mulChunkMax`,
   `sqrKaratsuba`, `sqrToom3`, `sqrToom4`, `sqrToom6`, `sqrToom8`, `sqrFFT`, `divDC`, `divMu`,
   `divQMu`, `div1Recip`, `div1Unnorm`, `div32Recip`, `div2Rows`, `sqrtZimmermann`, `sqrtBase`,
-  `gcdHalf`, `strDC`, `parseDC`.
+  `sqrtRemRenorm`, `gcdHalf`, `strDC`, `parseDC`.
 -/
 
 /--
@@ -124,6 +124,7 @@ def thresholdOptions64 : Array LeanOption :=
     opt `div2Rows (get_config? w64_div2Rows) ++
     opt `sqrtZimmermann (get_config? w64_sqrtZimmermann) ++
     opt `sqrtBase (get_config? w64_sqrtBase) ++
+    opt `sqrtRemRenorm (get_config? w64_sqrtRemRenorm) ++
     opt `gcdHalf (get_config? w64_gcdHalf) ++
     opt `strDC (get_config? w64_strDC) ++
     opt `parseDC (get_config? w64_parseDC)

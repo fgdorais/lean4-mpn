@@ -96,6 +96,13 @@ public structure Config extends Dispatch.MulConfig, Dispatch.DivConfig, Dispatch
   div2Rows : Nat := 16
   sqrtZimmermann := 1
   sqrtBase := 1
+  /--
+  The size of the root, in limbs, from which the square root with its remainder takes the remainder
+  of Zimmermann's recursion, renormalized by a product by a word, instead of `x - s²`, when the
+  operand needs a shift (`Bridge.sqrtRemZ`); as measured on Zen 3, where the passes of the
+  renormalization cost more than the square below it.
+  -/
+  sqrtRemRenorm : Nat := 40
   /-- The size of the smaller number from which the greatest common divisor uses half-gcd. -/
   gcdHalf : Nat := 1536
   /-- The size from which decimal strings are written by divide and conquer. -/

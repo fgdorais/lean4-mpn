@@ -140,6 +140,115 @@ public theorem toNat_sqrtZ (base : α → α × α) (T : Nat)
     (by rw [hNv, hBn]; exact h₁) (by rw [hNv, hBn]; exact h₂)
   rw [GNat.toNat_shiftRight, b.toNat_ofO, i₃, hNv, sqrt_mul_four_pow]
 
+/--
+`(⌊√x⌋, x - ⌊√x⌋²)` for `x ≠ 0` as `sqrtZ`, with the remainder from the recursion's: when `c = 0`,
+`N = x` and the recursion's remainder is `x`'s; otherwise, with `S = s 2ᶜ + s₀` the root of
+`N = x 4ᶜ` and `R = N - S²`, `x - s² = (R + 2 s s₀ 2ᶜ + s₀²) / 4ᶜ`, a product by `s₀ < 2ᶜ` instead
+of the square of the root, as in GMP's `mpn_sqrtrem`, for roots of `RT` limbs or more, and
+`x - s²` below, where the square costs less than the passes of the other.
+-/
+@[inline] public def sqrtRemZ (base : α → α × α) (T RT : Nat) (x : GNat A) :
+    GNat A × GNat A :=
+  let L := GNat.log2 x
+  let n := L / (2 * b.w) + 1
+  let c := (2 * b.w * n - 1 - L) / 2
+  let p := b.o.sqrtRemAux base T (b.toO (GNat.shiftLeft x (2 * c)).limbs) n
+  let S := b.ofO p.1
+  let R := b.ofO p.2
+  if c = 0 then (S, R)
+  else
+    let s := GNat.shiftRight S c
+    if n < RT then (s, GNat.sub x (GNat.sqr s))
+    else
+      let s₀ := GNat.sub S (GNat.shiftLeft s c)
+      (s, GNat.shiftRight (GNat.add (GNat.add R (GNat.shiftLeft (GNat.mul s s₀) (c + 1)))
+        (GNat.sqr s₀)) (2 * c))
+
+/-- The remainder of a root, renormalized: `(R + 2 s s₀ 2ᶜ + s₀²) / 4ᶜ = x - s²`. -/
+private theorem rem_renorm (x c S R : Nat) (hS : S * S ≤ x * 2 ^ (2 * c))
+    (hR : R = x * 2 ^ (2 * c) - S * S) :
+    (R + S / 2 ^ c * (S - S / 2 ^ c * 2 ^ c) * 2 ^ (c + 1) +
+        (S - S / 2 ^ c * 2 ^ c) * (S - S / 2 ^ c * 2 ^ c)) / 2 ^ (2 * c) =
+      x - S / 2 ^ c * (S / 2 ^ c) := by
+  have hd := Nat.div_add_mod S (2 ^ c)
+  have hm : S - S / 2 ^ c * 2 ^ c = S % 2 ^ c := by
+    rw [Nat.mul_comm]; lia
+  rw [hm]
+  have hP : 2 ^ (2 * c) = 2 ^ c * 2 ^ c := by rw [← Nat.pow_add]; congr 1; lia
+  have hP1 : 2 ^ (c + 1) = 2 * 2 ^ c := by rw [Nat.pow_succ]; lia
+  rw [hP, hP1]
+  rw [hP] at hS hR
+  have hP0 : 0 < 2 ^ c := Nat.two_pow_pos c
+  generalize S / 2 ^ c = s at *
+  generalize S % 2 ^ c = s₀ at *
+  generalize 2 ^ c = P at *
+  subst hd hR
+  -- `R + 2 s s₀ P + s₀² = (x - s²) P²`.
+  have e : x * (P * P) - (P * s + s₀) * (P * s + s₀) + s * s₀ * (2 * P) + s₀ * s₀ =
+      (x - s * s) * (P * P) := by
+    have h1 : (P * s + s₀) * (P * s + s₀) = s * s * (P * P) + s * s₀ * (2 * P) + s₀ * s₀ := by
+      grind
+    rw [h1] at hS ⊢
+    have h2 : (x - s * s) * (P * P) = x * (P * P) - s * s * (P * P) := Nat.sub_mul ..
+    lia
+  rw [e]
+  exact Nat.mul_div_cancel _ (Nat.mul_pos hP0 hP0)
+
+public theorem toNat_sqrtRemZ (base : α → α × α) (T RT : Nat)
+    (hbase : ∀ N n, 1 ≤ n → (n ≤ T ∨ n ≤ 1) → b.o.val N < b.o.B ^ (2 * n) →
+      b.o.B ^ (2 * n) ≤ 4 * b.o.val N →
+      b.o.val (base N).1 = _root_.Nat.sqrt (b.o.val N) ∧
+        b.o.val (base N).2 = b.o.val N - _root_.Nat.sqrt (b.o.val N) * _root_.Nat.sqrt (b.o.val N))
+    (x : GNat A) (hx : x.toNat ≠ 0) :
+    (b.sqrtRemZ base T RT x).1.toNat = _root_.Nat.sqrt x.toNat ∧
+      (b.sqrtRemZ base T RT x).2.toNat =
+        x.toNat - _root_.Nat.sqrt x.toNat * _root_.Nat.sqrt x.toNat := by
+  obtain ⟨h₁, h₂⟩ := sqrtZ_bounds b.w x.toNat b.one_le_w hx
+  have hB2 : 2 ∣ b.o.B := ⟨2 ^ (b.w - 1), by
+    rw [b.B_eq, ← Nat.pow_succ']; congr 1; have := b.one_le_w; lia⟩
+  unfold sqrtRemZ
+  dsimp only
+  rw [GNat.log2_eq]
+  generalize x.toNat.log2 / (2 * b.w) + 1 = n at h₁ h₂ ⊢
+  generalize (2 * b.w * n - 1 - x.toNat.log2) / 2 = c at h₁ h₂ ⊢
+  have hNv : b.o.val (b.toO (GNat.shiftLeft x (2 * c)).limbs) = x.toNat * 2 ^ (2 * c) := by
+    rw [b.val_toO, GNat.val_limbs, GNat.toNat_shiftLeft]
+  have hBn : b.o.B ^ (2 * n) = 2 ^ (2 * b.w * n) := by
+    rw [b.B_eq, ← Nat.pow_mul]; congr 1; lia
+  have hn : 1 ≤ n := by
+    refine Nat.pos_of_ne_zero fun h => ?_
+    rw [h] at h₁
+    have := Nat.le_mul_of_pos_right x.toNat (Nat.two_pow_pos (2 * c))
+    simp at h₁; lia
+  obtain ⟨i₃, i₄⟩ := b.o.sqrtRemAux_spec base T hbase hB2 n _ hn
+    (by rw [hNv, hBn]; exact h₁) (by rw [hNv, hBn]; exact h₂)
+  rw [hNv] at i₃ i₄
+  generalize b.o.sqrtRemAux base T (b.toO (GNat.shiftLeft x (2 * c)).limbs) n = p at i₃ i₄
+  have hS : (b.ofO p.1).toNat = _root_.Nat.sqrt (x.toNat * 2 ^ (2 * c)) := by
+    rw [b.toNat_ofO, i₃]
+  have hR : (b.ofO p.2).toNat =
+      x.toNat * 2 ^ (2 * c) - _root_.Nat.sqrt (x.toNat * 2 ^ (2 * c)) *
+        _root_.Nat.sqrt (x.toNat * 2 ^ (2 * c)) := by
+    rw [b.toNat_ofO, i₄]
+  generalize b.ofO p.1 = S at hS ⊢
+  generalize b.ofO p.2 = R at hR ⊢
+  split
+  · rename_i hc
+    subst hc
+    simp only [Nat.mul_zero, Nat.pow_zero, Nat.mul_one] at hS hR
+    exact ⟨hS, hR⟩
+  · have hroot := sqrt_mul_four_pow x.toNat c
+    split
+    · simp only [GNat.toNat_shiftRight, GNat.toNat_sub, GNat.toNat_sqr, hS, hroot, and_self]
+    simp only [GNat.toNat_shiftRight, GNat.toNat_add, GNat.toNat_shiftLeft, GNat.toNat_mul,
+      GNat.toNat_sub, GNat.toNat_sqr, hS, hR]
+    rw [hroot]
+    refine ⟨rfl, ?_⟩
+    have h := rem_renorm x.toNat c (_root_.Nat.sqrt (x.toNat * 2 ^ (2 * c))) _
+      (Nat.sqrt_le _) rfl
+    rw [hroot] at h
+    rw [← h]
+
 /-- `(⌊√x⌋, x - ⌊√x⌋²)` from a square root `sqrt`. -/
 @[inline] public def sqrtRem (sqrt : GNat A → GNat A) (x : GNat A) : GNat A × GNat A :=
   let s := sqrt x

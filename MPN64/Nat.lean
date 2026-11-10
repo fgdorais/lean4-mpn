@@ -584,19 +584,25 @@ private theorem sqrtBaseN_spec (N : UInt64Array) :
       (by simp only [decide_eq_true_eq] at h; lia : 64 * N.size ≤ 64 * 2))) N
 
 /--
-`⌊√n⌋`: on words by `Nat.sqrt`, by Newton's iteration (`sqrtNewton`) for roots below `Z` limbs,
+`⌊√n⌋`: on two words by `sqrt2`, by Newton's iteration (`sqrtNewton`) for roots below `Z` limbs,
 and from there, and on two limbs, by Zimmermann's recursion (`Bridge.sqrtZ`), with Newton's
 iteration for roots of up to `T` limbs (`sqrtBaseN`).
 -/
 public def sqrtWith (Z T : Nat) (n : MPN.W64.Nat) : MPN.W64.Nat :=
-  Dispatch.sqrtBy (fun a => a.size ≤ 2 ∨ 2 * Z ≤ a.size)
-    (fun a h => Limbs64.bridge64.sqrtZ sqrtBaseN T (large a h)) n
+  if Limbs64.fits2 n then .small (sqrt2 (Limbs64.hi n) (Limbs64.lo n))
+  else
+    Dispatch.sqrtBy (fun a => a.size ≤ 2 ∨ 2 * Z ≤ a.size)
+      (fun a h => Limbs64.bridge64.sqrtZ sqrtBaseN T (large a h)) n
 
 @[simp] public theorem toNat_sqrtWith (Z T : Nat) (n : MPN.W64.Nat) :
-    (sqrtWith Z T n).toNat = _root_.Nat.sqrt n.toNat :=
-  Dispatch.toNat_sqrtBy _ _ (fun a h _ => Limbs64.bridge64.toNat_sqrtZ sqrtBaseN T
-    (fun N _ _ _ _ _ => sqrtBaseN_spec N) _ (by
-      show NatLimbs.val a ≠ 0; have := h.2; lia)) n
+    (sqrtWith Z T n).toNat = _root_.Nat.sqrt n.toNat := by
+  unfold sqrtWith
+  split
+  · rename_i hf
+    rw [GNat.toNat_small, toNat_sqrt2, Limbs64.val_two n hf]
+  · exact Dispatch.toNat_sqrtBy _ _ (fun a h _ => Limbs64.bridge64.toNat_sqrtZ sqrtBaseN T
+      (fun N _ _ _ _ _ => sqrtBaseN_spec N) _ (by
+        show NatLimbs.val a ≠ 0; have := h.2; lia)) n
 
 /-- `sqrtWith` from roots of `config.sqrtZimmermann` limbs, down to `config.sqrtBase`. -/
 public def sqrt (n : MPN.W64.Nat) : MPN.W64.Nat := sqrtWith config.sqrtZimmermann config.sqrtBase n
@@ -624,17 +630,47 @@ public def Num.gcd (a b : UInt64Array) : UInt64Array := gcdWith config.gcdHalf a
   toNat_gcdWith ..
 
 /--
+`sqrtRem` on `MPN.Nat`: on two words by `sqrtRem2`, else by Zimmermann's recursion with the remainder
+from the recursion's (`Bridge.sqrtRemZ`).
+-/
+def sqrtRemN (x : MPN.W64.Nat) : MPN.W64.Nat × MPN.W64.Nat :=
+  if Limbs64.fits2 x then
+    let p := sqrtRem2 (Limbs64.hi x) (Limbs64.lo x)
+    (.small p.1, GNat.wideOf p.2.1 p.2.2)
+  else
+    match x with
+    | .small w => Bridge.sqrtRem (Nat.sqrtWith 1 1) (.small w)
+    | .large a h => Limbs64.bridge64.sqrtRemZ Nat.sqrtBaseN 1 config.sqrtRemRenorm (.large a h)
+
+private theorem toNat_sqrtRemN (x : MPN.W64.Nat) :
+    (sqrtRemN x).1.toNat = _root_.Nat.sqrt x.toNat ∧
+      (sqrtRemN x).2.toNat = x.toNat - _root_.Nat.sqrt x.toNat * _root_.Nat.sqrt x.toNat := by
+  unfold sqrtRemN
+  split
+  · rename_i hf
+    obtain ⟨h₁, h₂⟩ := sqrtRem2_spec (Limbs64.hi x) (Limbs64.lo x)
+    rw [Limbs64.val_two x hf] at h₁ h₂
+    exact ⟨by dsimp only; rw [GNat.toNat_small, h₁], by dsimp only; rw [GNat.toNat_wideOf, h₂]⟩
+  · cases x with
+    | small w =>
+      exact Bridge.toNat_sqrtRem (Nat.sqrtWith 1 1) (Nat.toNat_sqrtWith 1 1) _
+    | large a h =>
+      exact Limbs64.bridge64.toNat_sqrtRemZ Nat.sqrtBaseN 1 config.sqrtRemRenorm
+        (fun N _ _ _ _ _ => Nat.sqrtBaseN_spec N)
+        _ (by show NatLimbs.val a ≠ 0; have := h.2; lia)
+
+/--
 `(⌊√a⌋, a - ⌊√a⌋²)` on arrays, like GMP's `mpn_sqrtrem`: by Zimmermann's recursion down to roots
-of one limb (`Nat.sqrtWith 1 1`).
+of one limb, with the remainder from the recursion's (`Bridge.sqrtRemZ`).
 -/
 public def sqrtRem (a : UInt64Array) : UInt64Array × UInt64Array :=
-  let p := Bridge.sqrtRem (Nat.sqrtWith 1 1) (Limbs64.toGNat a)
+  let p := sqrtRemN (Limbs64.toGNat a)
   (p.1.limbs, p.2.limbs)
 
 public theorem toNat_sqrtRem (a : UInt64Array) :
     (sqrtRem a).1.toNat = _root_.Nat.sqrt a.toNat ∧
       (sqrtRem a).2.toNat = a.toNat - _root_.Nat.sqrt a.toNat * _root_.Nat.sqrt a.toNat := by
-  have h := Bridge.toNat_sqrtRem (Nat.sqrtWith 1 1) (Nat.toNat_sqrtWith 1 1) (Limbs64.toGNat a)
+  have h := toNat_sqrtRemN (Limbs64.toGNat a)
   rw [Limbs64.toNat_toGNat] at h
   simp only [sqrtRem]
   rw [show ∀ x : MPN.W64.Nat, x.limbs.toNat = x.toNat from GNat.val_limbs]
