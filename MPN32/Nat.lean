@@ -659,7 +659,8 @@ The number that a string of decimal digits denotes, like `String.toNat?`, with t
 divide and conquer `parseDC` (`ofDecimalWith`).
 -/
 public def ofStringWith (parseDC : _root_.Nat) (s : String) : Option MPN.W32.Nat :=
-  if h : s.isNat then some (ofLimbs (ofDecimalWith parseDC s) (ofDecimalWith_spec parseDC s h).1)
+  if h : isNatFast s then
+    some (ofLimbs (ofDecimalWith parseDC s) (ofDecimalWith_spec parseDC s (isNatFast_eq s ▸ h)).1)
   else none
 
 public theorem ofStringWith_eq (parseDC : _root_.Nat) (s : String) :
@@ -667,9 +668,11 @@ public theorem ofStringWith_eq (parseDC : _root_.Nat) (s : String) :
   unfold ofStringWith
   split
   · rename_i h
+    rw [isNatFast_eq] at h
     rw [(ofDecimalWith_spec parseDC s h).2, Option.map_some, Option.some.injEq, ← toNat_inj,
       toNat_ofLimbs, toNat_ofNat]
   · rename_i h
+    rw [isNatFast_eq] at h
     rw [String.toNat?_eq_none (by simpa using h), Option.map_none]
 
 /-! ## The bridge to `ops32` and square roots by Zimmermann's recursion -/

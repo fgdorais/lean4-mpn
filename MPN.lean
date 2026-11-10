@@ -11,6 +11,7 @@ public import MPN.FFT.Roots
 public import MPN.FFT.Algebra
 public import MPN.LimbArray
 public import MPN.Log2
+public import MPN.IsNat
 public import MPN.WordH
 public import MPN.ConfigOptions
 public import MPN.WordArray

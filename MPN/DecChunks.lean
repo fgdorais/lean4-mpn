@@ -6,7 +6,9 @@ module
 
 public import MPN.LimbArray
 public import MPN.Generic.Radix
+public import MPN.IsNat
 import Std.Data.String.ToNat
+import all Init.Data.Repr
 
 /-!
 # Decimal strings by chunks
@@ -71,6 +73,9 @@ public class DecOps (A : Type) (L : outParam Type) [LA : LimbArray A L] where
   /-- `a m + v`, for `v < m`. -/
   mulAdd : A → L → L → A
   vA_mulAdd : ∀ a m v, LA.val v < LA.val m → vA (mulAdd a m v) = vA a * LA.val m + LA.val v
+  /-- A chunk as a word, for writing its digits. -/
+  chunkWord : L → UInt64
+  toNat_chunkWord : ∀ x, (chunkWord x).toNat = LA.val x
   /-- The chunk `0`. -/
   chunk0 : L
   val_chunk0 : LA.val chunk0 = 0
@@ -104,6 +109,43 @@ public theorem toList_pushDigits (s : String) (k d : Nat) :
   induction k generalizing d with
   | zero => simp [pushDigits, padDigits]
   | succ k ih => rw [pushDigits, String.toList_push, ih, padDigits, List.append_assoc]
+
+/-- The character of a decimal digit `d < 10`, built directly: `'0' + d`. -/
+@[inline, expose] public def digitW (d : UInt64) (h : d < 10) : Char :=
+  ⟨48 + d.toUInt32, by
+    have h' : d.toNat < 10 := UInt64.lt_iff_toNat_lt.1 h
+    left
+    rw [UInt32.toNat_add, UInt64.toNat_toUInt32]
+    simp only [UInt32.reduceToNat]
+    rw [Nat.mod_eq_of_lt (by lia), Nat.mod_eq_of_lt (by lia)]
+    lia⟩
+
+/-- `pushDigits` on a word: its digits by word arithmetic, each the character `48 + d`. -/
+@[expose] public def pushDigitsW (s : String) : Nat → UInt64 → String
+  | 0, _ => s
+  | k + 1, d => (pushDigitsW s k (d / 10)).push (digitW (d % 10) (UInt64.mod_lt _ (by decide)))
+
+private theorem digitChar_eq : ∀ x, x < 10 → Char.ofNat (48 + x) = Nat.digitChar x := by
+  intro x hx
+  match x, hx with
+  | 0, _ | 1, _ | 2, _ | 3, _ | 4, _ | 5, _ | 6, _ | 7, _ | 8, _ | 9, _ => simp [Nat.digitChar]
+
+private theorem digitW_eq (d : UInt64) (h : d < 10) : digitW d h = Nat.digitChar d.toNat := by
+  have h' : d.toNat < 10 := UInt64.lt_iff_toNat_lt.1 h
+  rw [← digitChar_eq _ h', ← Char.ofNat_toNat (digitW d h)]
+  congr 1
+  show (48 + d.toUInt32).toNat = 48 + d.toNat
+  rw [UInt32.toNat_add, UInt64.toNat_toUInt32]
+  simp only [UInt32.reduceToNat]
+  rw [Nat.mod_eq_of_lt (by lia), Nat.mod_eq_of_lt (by lia)]
+
+public theorem pushDigitsW_eq (s : String) (k : Nat) (d : UInt64) :
+    pushDigitsW s k d = pushDigits s k d.toNat := by
+  induction k generalizing d with
+  | zero => rfl
+  | succ k ih =>
+    rw [pushDigitsW, pushDigits, ih, digitW_eq, UInt64.toNat_div, UInt64.toNat_mod]
+    simp only [UInt64.reduceToNat]
 
 /-! ## Limbs to decimal -/
 
@@ -176,6 +218,29 @@ private theorem chunksLoop_spec (a : A) (acc : List Nat) (hacc : ∀ d ∈ acc, 
         exact ⟨_, _, rfl, by rw [hr]; have := Nat.div_add_mod (vA a) (10 ^ O.k); lia⟩
       · exact ih₃ (by rw [hq]; lia)
 
+/-- `chunksLoop` with the chunks as words (`chunkWord`), which stay unboxed. -/
+@[expose, specialize] public def chunksLoopW (a : A) (acc : List UInt64) : List UInt64 :=
+  if _hz : O.isZero a = true then acc
+  else
+    let p := O.divRem a
+    chunksLoopW p.1 (O.chunkWord p.2 :: acc)
+termination_by vA a
+decreasing_by
+  rw [(O.divRem_spec a).1]
+  rw [O.isZero_iff] at _hz
+  exact Nat.div_lt_self (by lia) (Nat.one_lt_pow (by have := O.one_le_k; lia) (by decide))
+
+private theorem chunksLoopW_eq (a : A) (acc : List UInt64) :
+    (chunksLoopW a acc).map UInt64.toNat = chunksLoop a (acc.map UInt64.toNat) := by
+  induction a, acc using chunksLoopW.induct (O := O) with
+  | case1 a acc hz =>
+    rw [chunksLoopW, dite_eq_left_of_eq_true (eq_true hz), chunksLoop,
+      dite_eq_left_of_eq_true (eq_true hz)]
+  | case2 a acc hz p ih =>
+    rw [chunksLoopW, dite_eq_right hz, chunksLoop, dite_eq_right hz]
+    simp only [p] at ih ⊢
+    rw [ih, List.map_cons, O.toNat_chunkWord]
+
 variable (A) in
 /-- Writes the top chunk `c` as it is and each other chunk with `k` digits. -/
 @[expose] public def renderChunks : List Nat → String
@@ -193,11 +258,32 @@ private theorem toList_foldl_pushDigits (cs : List Nat) (s : String) (v : Nat) (
     · rw [toList_pushDigits, hs, toDigits_pow_mul_add O.k hv (hcs d (by simp))]
     · exact fun d' hd' => hcs d' (by simp [hd'])
 
+variable (A) in
+/-- `renderChunks` on words, by `pushDigitsW`. -/
+@[expose] public def renderChunksW : List UInt64 → String
+  | [] => "0"
+  | c :: cs => cs.foldl (fun s d => pushDigitsW s O.k d) (Nat.repr c.toNat)
+
+private theorem renderChunksW_eq (l : List UInt64) :
+    renderChunksW A l = renderChunks A (l.map UInt64.toNat) := by
+  cases l with
+  | nil => rfl
+  | cons c cs =>
+    rw [renderChunksW, List.map_cons, renderChunks, List.foldl_map]
+    congr 1
+    funext s d
+    exact pushDigitsW_eq s O.k d
+
 /-- The decimal digits of `a`, like `Nat.repr`, by chunks of `k` digits. -/
-@[expose, specialize] public def toDecimal (a : A) : String := renderChunks A (chunksLoop a [])
+@[expose, specialize] public def toDecimal (a : A) : String := renderChunksW A (chunksLoopW a [])
+
+private theorem toDecimal_eq_nat (a : A) :
+    toDecimal a = renderChunks A (chunksLoop a []) := by
+  rw [toDecimal, renderChunksW_eq, chunksLoopW_eq]
+  rfl
 
 public theorem toDecimal_eq (a : A) : toDecimal a = Nat.repr (vA a) := by
-  rw [← String.toList_inj, Nat.toList_repr, toDecimal]
+  rw [← String.toList_inj, Nat.toList_repr, toDecimal_eq_nat]
   by_cases hz : O.isZero a = true
   · rw [chunksLoop, dite_eq_left_of_eq_true (eq_true hz)]
     rw [O.isZero_iff] at hz

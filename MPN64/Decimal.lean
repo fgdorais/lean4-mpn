@@ -57,6 +57,8 @@ public instance dec64 : DecOps UInt64Array UInt64 where
   divRem_spec a := WordArray.divRem1A_spec 1 div1RecipU div1UnnormU a _ (by decide)
   mulAdd := WordArray.mulAddA 1
   vA_mulAdd a m v _ := WordArray.mulAddA_spec 1 a m v
+  chunkWord x := x
+  toNat_chunkWord _ := rfl
   chunk0 := 0
   val_chunk0 := rfl
   push c d := c * 10 + d.toUInt64
@@ -121,14 +123,15 @@ The number that a string of decimal digits denotes, like `String.toNat?`: from `
 digits by divide and conquer (`NatOps.fromDec`), and below by chunks of nineteen digits.
 -/
 public def ofDecimalWith (parseDC : Nat) (s : String) : Option UInt64Array :=
-  if s.isNat then some (DecChunks.ofDecimalWith ops64 id id parseDC parseBaseSize s) else none
+  if isNatFast s then some (DecChunks.ofDecimalWith ops64 id id parseDC parseBaseSize s) else none
 
 public theorem ofDecimalWith_eq (parseDC : Nat) (s : String) :
     (ofDecimalWith parseDC s).map UInt64Array.toNat = s.toNat? := by
   by_cases h : s.isNat = true
-  · rw [ofDecimalWith, ite_eq_left h, Option.map_some,
+  · rw [ofDecimalWith, isNatFast_eq, ite_eq_left h, Option.map_some,
       DecChunks.ofDecimalWith_spec _ _ _ hto hof _ _ s h, decVA_eq]
-  · rw [ofDecimalWith, ite_eq_right h, String.toNat?_eq_none (by simpa using h), Option.map_none]
+  · rw [ofDecimalWith, isNatFast_eq, ite_eq_right h, String.toNat?_eq_none (by simpa using h),
+      Option.map_none]
 
 /-- The decimal digits of `a`, like `Nat.repr a.toNat`. -/
 public def Num.toDecimal (a : UInt64Array) : String := toDecimalWith config.strDC a

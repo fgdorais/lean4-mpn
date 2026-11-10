@@ -517,7 +517,8 @@ def decimalValues : List Nat :=
     (MPN.W32.Nat.ofString? (toString a)).map (·.toNat) == some a
 
 #guard ["", "_", "_1", "1_", "1__0", "abc", "12a", "-1", " 1", "000", "007", "1_000",
-    "18446744073709551616", "18_446_744_073_709_551_615", "123456789012345678901234567890"].all
+    "18446744073709551616", "18_446_744_073_709_551_615", "123456789012345678901234567890",
+    "1é", "١٢", "12٣"].all
   fun s => (MPN.W32.Nat.ofString? s).map (·.toNat) == s.toNat?
 
 -- Division by two limbs (`divRem2`): edge cases of the divisor and of the dividend.

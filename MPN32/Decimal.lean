@@ -63,6 +63,8 @@ public instance dec32 : DecOps UInt32Array UInt32 where
   divRem_spec a := WordArray.divRem1A_spec 0 div1RecipU div1UnnormU a _ (by decide)
   mulAdd := WordArray.mulAddA 0
   vA_mulAdd a m v _ := WordArray.mulAddA_spec 0 a m v
+  chunkWord x := x.toUInt64
+  toNat_chunkWord x := UInt32.toNat_toUInt64 x
   chunk0 := 0
   val_chunk0 := rfl
   push c d := c * 10 + d

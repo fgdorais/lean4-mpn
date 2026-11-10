@@ -6,6 +6,7 @@ module
 
 public import MPN.Generic.Sqrt
 public import MPN.Log2
+public import MPN.IsNat
 import Std.Data.String.ToNat
 import all Init.Data.Repr
 import all Init.Data.UInt.Log2
@@ -802,15 +803,19 @@ public theorem repr_eq (x : GNat A) : x.repr = _root_.Nat.repr x.toNat := by
 
 /-- The number that a string of decimal digits denotes, like `String.toNat?`. -/
 @[expose, specialize] public def ofString? (s : String) : Option (GNat A) :=
-  if h : s.isNat then some (ofLimbs (C.ofDecimal s) (C.ofDecimal_spec s h).1) else none
+  if h : isNatFast s then
+    some (ofLimbs (C.ofDecimal s) (C.ofDecimal_spec s (isNatFast_eq s ▸ h)).1)
+  else none
 
 public theorem ofString?_eq (s : String) : (ofString? s : Option (GNat A)) = s.toNat?.map ofNat := by
   unfold ofString?
   split
   · rename_i h
+    rw [isNatFast_eq] at h
     rw [(C.ofDecimal_spec s h).2, Option.map_some, Option.some.injEq, ← toNat_inj, toNat_ofLimbs,
       toNat_ofNat]
   · rename_i h
+    rw [isNatFast_eq] at h
     rw [String.toNat?_eq_none (by simpa using h), Option.map_none]
 
 /-! ## Instances -/
