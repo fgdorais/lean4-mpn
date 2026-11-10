@@ -76,8 +76,22 @@ def sizes : List Nat := [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192,
 /-- `n` zero limbs, as a slice: the result buffer of an operation. -/
 def zr (n : Nat) : UInt64Array.USlice := (UInt64Array.replicate n 0).toUSlice
 
+/--
+The value of limbs `lo` to `lo + n - 1` of `a`, by halves: each shift and sum is on numbers of half
+the size, `O(M(n) log n)` on `Nat`, where a fold over the limbs, `n 2⁶⁴ + d` at each limb, copies
+the whole number at each step and is quadratic, which made the setup of a large row take most of
+its run.
+-/
+def toNatAt (a : UInt64Array) (lo n : Nat) : Nat :=
+  if h : n ≤ 16 then
+    (List.range n).foldr (fun i v => v * 2 ^ 64 + a[lo + i]!.toNat) 0
+  else
+    toNatAt a lo (n / 2) + (toNatAt a (lo + n / 2) (n - n / 2) <<< (64 * (n / 2)))
+termination_by n
+decreasing_by all_goals lia
+
 /-- The value of an array of limbs. -/
-def toNat (a : UInt64Array) : Nat := a.foldr (fun d n => n * 2 ^ 64 + d.toNat) 0
+def toNat (a : UInt64Array) : Nat := toNatAt a 0 a.size
 
 /-- The width's operations, then those of `bigRow`. -/
 def ops : List String :=
