@@ -9,23 +9,38 @@ two widths moved into one package is in the history of `MPN32/TODO.md`.
 ## Performance
 
 The target on 64-bit limbs (since 2026-11-09): within 4× of GMP's kernels, the `mpn` column of the
-bench, from 16 limbs, and within 4× of `Nat` below, where allocating results is part of Lean's
-cost. Against `mpn` (`0987e74`), products are 2.0–3.3×, squares 2.0–3.7×, division 1.5–3.0× from 12
-limbs and `gcd` 1.5–2.4×; the items below that are over it come first.
+bench, from 256 limbs (16,384 bits), and within 4× of `Nat` below. Below 256 limbs the gaps to
+`mpn` are fixed costs, mostly the allocation of results and, in the square root's recursion, of
+every step, which call for different work than the algorithms and kernels of large numbers; all
+operations are within 4× of `Nat` there. Against `mpn` (`0987e74`, `599df9a`), products are
+2.0–3.3×, squares 2.0–3.7×, division 1.5–3.0×, `gcd` 1.5–2.4× and the square root 2.3–3.0× from 256
+limbs; the items over the target come first.
 
-- [ ] **The square root** is 9–24× `mpn_sqrtrem` from 4 to 64 limbs on 64-bit limbs and within 4×
-  from about 200 (`908dbdf`), 6–35× on 32-bit limbs, a gap the `Nat` column hid, since Lean's
-  `Nat.sqrt` is not GMP's. The remainder now comes from the recursion (`Bridge.sqrtRemZ`) and two
-  words are done in words (`sqrtRem2`); what is left is the recursion itself, a general division
-  and about ten operations on new arrays per level, where GMP's `mpn_dc_sqrtrem` works in place in
-  one buffer: porting that, with the in-place division of `Schoolbook.workS`, is the next step.
-- [ ] **Decimal strings** are 3.8–7.4× `mpn_set_str` to read and 2.5–4.1× `mpn_get_str` to write on
-  64-bit limbs from 4 limbs (`81dfc27`): both read and check the UTF-8 bytes (`readB`, `isNatB`) and
+- [ ] **Subtraction on 64-bit limbs** is 4.2–4.3× `mpn_sub` from 128 limbs (`bsub` 4.1–4.45×), where
+  `add` is 3.4–3.6×: its loop, not its fixed cost.
+- [ ] **Reading decimal strings** from 1024 limbs is 5.1–5.4× `mpn_set_str` (3.8–4.2× at 256): the
+  quadratic base case runs up to `parseDC = 1536` limbs, and the divide and conquer above it
+  (`NatOps.fromDec`) is slower than GMP's subquadratic `mpn_set_str`; both the crossover and the
+  products of the divide and conquer are to look at.
+
+Below 256 limbs, under the target's 4× of `Nat` but far from `mpn`:
+
+- [ ] **The square root** is 9–24× `mpn_sqrtrem` from 4 to 64 limbs on 64-bit limbs (`908dbdf`),
+  6–35× on 32-bit limbs, a gap the `Nat` column hid, since Lean's `Nat.sqrt` is not GMP's. The
+  remainder comes from the recursion (`Bridge.sqrtRemZ`) and two words are done in words
+  (`sqrtRem2`); what is left is the recursion itself. Measured per level (2026-11-09): the
+  division, the square and the linear operations of a level are 4–7× GMP's at these sizes, mostly
+  their fixed costs, and about half of the time is outside them (the generic layer's closures, the
+  conversions, joins, extracts and trims). A port of GMP's in-place `mpn_dc_sqrtrem`, with the
+  in-place division of `Schoolbook.workS` and kernels into one scratch buffer, would come to about
+  4.3× at 16 limbs and 3× at 64 by that measurement; the recursion on arrays with the `Num`
+  operations directly, without the generic layer, perhaps 1.5–1.8×.
+- [ ] **Decimal strings** below 256 limbs are 3.3–7.4× `mpn_set_str` to read and 2.5–4.1×
+  `mpn_get_str` to write (`81dfc27`): both read and check the UTF-8 bytes (`readB`, `isNatB`) and
   write from words, dividing in place. Reading still makes two passes, the check and the digits,
   about 1.5 ns per byte each, which one loop could do together, and a new array per chunk of 19
   digits (`mulAddA`), which a multiplication in place would avoid (it needs a `push` in
-  `WordArray`); from 256 limbs the quadratic base case dominates.
-- [ ] **Subtraction on 64-bit limbs** is 4.2–4.3× `mpn_sub` from 128 limbs, where `add` is 3.4–3.6×.
+  `WordArray`).
 - [ ] **Division on 64-bit limbs**: since `c4bc02b` (Barrett's division by the top half of the
   divisor) `Num.div` runs at 2.3–3.0× `mpn_tdiv_qr` from 1024 limbs (2.9–3.6× `Nat`), worst near
   4096 where the divide-and-conquer division hands over. GMP's division is about 2.1 of its own
