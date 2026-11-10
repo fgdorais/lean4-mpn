@@ -584,12 +584,36 @@ private theorem parseBase_spec (hof : ∀ a, o.val (ofA a) = vA a) (arr : Array 
   exact absurd this (by decide)
 
 /--
+The characters of `s` but `_`, as an array, by one fold over the string: no list of its
+characters, filtered and then converted.
+-/
+@[expose] public def digitArray (s : String) : Array Char :=
+  s.foldl (fun a c => if c = '_' then a else a.push c) (Array.mkEmpty s.utf8ByteSize)
+
+omit [DecOps A L] in
+public theorem digitArray_eq (s : String) :
+    digitArray s = (s.toList.filter (· != '_')).toArray := by
+  rw [digitArray, String.foldl_eq_foldl_toList]
+  suffices h : ∀ (l : List Char) (a : Array Char),
+      l.foldl (fun a c => if c = '_' then a else a.push c) a = a ++ (l.filter (· != '_')).toArray by
+    rw [h]; simp
+  intro l
+  induction l with
+  | nil => intro a; simp
+  | cons c cs ih =>
+    intro a
+    rw [List.foldl_cons, ih, List.filter_cons]
+    by_cases hc : c = '_'
+    · simp [hc]
+    · simp [hc]
+
+/--
 The limbs of a string of decimal digits that `String.isNat` accepts: from `k parseDC` digits by
 divide and conquer (`NatOps.fromDec`, by chunks below `T` digits), and below by chunks.
 -/
 @[expose, specialize] public def ofDecimalWith (parseDC T : Nat) (s : String) : A :=
   if O.k * parseDC ≤ s.length then
-    toA (o.fromDec (parseBase ofA) T (s.toList.filter (· != '_')).toArray)
+    toA (o.fromDec (parseBase ofA) T (digitArray s))
   else readB s 0 O.empty O.chunk0 0
 
 public theorem ofDecimalWith_spec (hto : ∀ x, vA (toA x) = o.val x)
@@ -598,7 +622,8 @@ public theorem ofDecimalWith_spec (hto : ∀ x, vA (toA x) = o.val x)
   rw [String.toNat?_eq_some_ofDigitChars h, Option.some.injEq]
   unfold ofDecimalWith
   split
-  · have hd : ∀ c ∈ (s.toList.filter (· != '_')).toArray.toList, c.isDigit = true := by
+  · rw [digitArray_eq]
+    have hd : ∀ c ∈ (s.toList.filter (· != '_')).toArray.toList, c.isDigit = true := by
       intro c hc
       simp only [List.mem_filter, bne_iff_ne, ne_eq] at hc
       rcases (String.isNat_iff.1 h).2.1 c hc.1 with h' | h'

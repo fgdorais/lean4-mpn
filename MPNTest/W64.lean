@@ -310,6 +310,17 @@ def checkDec (x : Nat) : Bool :=
     (MPN.W64.Num.ofDecimal? (Nat.repr x)).map (·.toNat) == some x &&
     (MPN.W64.ofDecimalWith 1 (Nat.repr x)).map (·.toNat) == some x
 
+/-- The digits of `x` with `_` after every third one from the left, as `String.toNat?` allows. -/
+def withUnderscores (x : Nat) : String :=
+  String.ofList ((Nat.repr x).toList.zipIdx.flatMap fun (c, i) =>
+    if i % 3 = 2 ∧ i + 1 < (Nat.repr x).length then [c, '_'] else [c])
+
+-- Divide and conquer (`parseDC = 1`) on digits with separators, which it drops first.
+#guard [10 ^ 40 + 7, randomLimbs 50 23, 2 ^ 6400 - 1].all fun x =>
+  let s := withUnderscores x
+  s.contains '_' && (MPN.W64.ofDecimalWith 1 s).map (·.toNat) == some x &&
+    (MPN.W64.Num.ofDecimal? s).map (·.toNat) == some x
+
 #guard [0, 1, 9, 10, 10 ^ 19 - 1, 10 ^ 19, 10 ^ 19 + 1, 2 ^ 64 - 1, 2 ^ 64, 10 ^ 38,
   10 ^ 38 - 1, 3 * 10 ^ 57 + 7].all checkDec
 #guard [1, 2, 3, 5, 17, 40, 100].all fun n =>
