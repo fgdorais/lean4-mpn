@@ -14,10 +14,8 @@ bench, from 256 limbs (16,384 bits), and within 4× of `Nat` below. Below 256 li
 every step, which call for different work than the algorithms and kernels of large numbers; all
 operations are within 4× of `Nat` there. Against `mpn` (`0987e74`, `599df9a`), products are
 2.0–3.3×, squares 2.0–3.7×, division 1.5–3.0×, `gcd` 1.5–2.4× and the square root 2.3–3.0× from 256
-limbs; the items over the target come first.
+limbs; subtraction is 3.3–3.4× since `2b3324c`. The items over the target come first.
 
-- [ ] **Subtraction on 64-bit limbs** is 4.2–4.3× `mpn_sub` from 128 limbs (`bsub` 4.1–4.45×), where
-  `add` is 3.4–3.6×: its loop, not its fixed cost.
 - [ ] **Reading decimal strings** from 1024 limbs is 5.1–5.4× `mpn_set_str` (3.8–4.2× at 256): the
   quadratic base case runs up to `parseDC = 1536` limbs, and the divide and conquer above it
   (`NatOps.fromDec`) is slower than GMP's subquadratic `mpn_set_str`; both the crossover and the
