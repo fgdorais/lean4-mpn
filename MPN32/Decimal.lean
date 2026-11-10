@@ -59,8 +59,8 @@ public instance dec32 : DecOps UInt32Array UInt32 where
   vA_empty := by rw [decVA_eq, toNat_toSlice]; simp
   isZero := WordArray.isZeroA
   isZero_iff := WordArray.isZeroA_iff
-  divRem a := WordArray.divRem1A 0 div1RecipU div1UnnormU a chunkBase
-  divRem_spec a := WordArray.divRem1A_spec 0 div1RecipU div1UnnormU a _ (by decide)
+  divRem a := WordArray.divRem1InA 0 div1RecipU a chunkBase
+  divRem_spec a := WordArray.divRem1InA_spec 0 div1RecipU a _ (by decide)
   mulAdd := WordArray.mulAddA 0
   vA_mulAdd a m v _ := WordArray.mulAddA_spec 0 a m v
   chunkWord x := x.toUInt64

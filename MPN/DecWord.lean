@@ -82,6 +82,44 @@ public theorem divRem1A_spec (k : Nat) (t tu : USize) (a : A) (d : L) (hd : 0 < 
     · exact Nat.lt_of_lt_of_le (Nat.mod_lt _ hd) (Nat.le_of_lt (LA.val_lt d))
 
 omit F in
+/--
+`divRem1A` in place: the quotient written over `a` (`divRem1In`) and trimmed to `k` limbs, which
+takes no new array when `a` is held once, as by `chunksLoop` on its own quotients.
+-/
+@[inline, expose] public def divRem1InA (k : Nat) (t : USize) (a : A) (d : L) : A × L :=
+  if h : fitsU (LA.size a) then
+    let p := divRem1In A t a 0 (LA.size a).toUSize (full_bound a (lt_of_fitsU h)) d
+    (trimTo k p.1, p.2)
+  else
+    (trimTo k (ofNatW (R := R) (valAt a 0 (LA.size a) / LA.val d)),
+      limbOf A (valAt a 0 (LA.size a) % LA.val d))
+
+omit F in
+public theorem divRem1InA_spec (k : Nat) (t : USize) (a : A) (d : L) (hd : 0 < LA.val d) :
+    valAt (divRem1InA k t a d).1 0 (LA.size (divRem1InA k t a d).1) =
+        valAt a 0 (LA.size a) / LA.val d ∧
+      LA.val (divRem1InA k t a d).2 = valAt a 0 (LA.size a) % LA.val d := by
+  unfold divRem1InA
+  split
+  · rename_i h
+    have hU := lt_of_fitsU h
+    have e := toNat_toUSize_of_lt hU
+    obtain ⟨d₁, d₃, d₄⟩ := divRem1In_spec t a 0 (LA.size a).toUSize (full_bound a hU) d hd
+    simp only [USize.toNat_zero, e] at d₃
+    dsimp only
+    rw [valAt_trimTo, d₁]
+    generalize divRem1In A t a 0 (LA.size a).toUSize (full_bound a hU) d = q at d₁ d₃ d₄ ⊢
+    have hq : valAt a 0 (LA.size a) / LA.val d = valAt q.1 0 (LA.size a) := by
+      rw [← d₃, Nat.mul_add_div hd, Nat.div_eq_of_lt d₄, Nat.add_zero]
+    have hr : valAt a 0 (LA.size a) % LA.val d = LA.val q.2 := by
+      rw [← d₃, Nat.mul_add_mod, Nat.mod_eq_of_lt d₄]
+    exact ⟨hq.symm, hr.symm⟩
+  · dsimp only
+    rw [valAt_trimTo, valAt_ofNatW, val_limbOf, Nat.mod_eq_of_lt]
+    · exact ⟨rfl, rfl⟩
+    · exact Nat.lt_of_lt_of_le (Nat.mod_lt _ hd) (Nat.le_of_lt (LA.val_lt d))
+
+omit F in
 /-- `a % d`, by `mod1W` with the thresholds `t` and `tu`, without the quotient. -/
 @[inline, expose] public def mod1A (t tu : USize) (a : A) (d : L) : L :=
   if h : fitsU (LA.size a) then

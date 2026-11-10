@@ -405,6 +405,173 @@ public theorem modLoop_spec (step : L → L → L × L) (d : L)
       lia
     rw [this, Nat.add_mul_mod_self_left]
 
+/-! ## The loop in place -/
+
+variable (A) in
+/--
+`div21` checked at each step: `divStep` when its remainder is not below `d`, so that every step
+divides, without the second pass of `divRem1W`, for a loop that overwrites its dividend.
+-/
+@[inline, expose] public def div21Safe (v d c x : L) : L × L :=
+  let p := div21 A v d c x
+  if R.ltB p.2 d then p else divStep A d c x
+
+public theorem div21Safe_spec (v d c x : L) (h : LA.val c < LA.val d) :
+    LA.val (div21Safe A v d c x).2 < LA.val d ∧
+      LA.val d * LA.val (div21Safe A v d c x).1 + LA.val (div21Safe A v d c x).2 =
+        LA.val c * 2 ^ LA.w + LA.val x := by
+  unfold div21Safe
+  dsimp only
+  split
+  · rename_i hlt
+    have hlt' := (R.ltB_iff ..).1 hlt
+    exact ⟨hlt', (div21_spec v d c x hlt').2⟩
+  · exact divStep_spec d c x h
+
+variable (A) in
+/--
+`divLoop` in place: each step writes its quotient limb into the limb of `a` that it reads, from
+limb `ao + j - 1` down, so that `a`, held once, becomes the quotient without a new array.
+-/
+@[expose, specialize]
+public def divLoopIn (step : L → L → L × L) (a : A) (ao j : USize) (ha : LoopBound a ao j)
+    (c : L) : A × L :=
+  if hj : j = 0 then (a, c)
+  else
+    have hm := pos_of_ne hj
+    let p := step c (R.uget a (ao + (j - 1)) (ha.uset_bound (pred_lt' hm)))
+    divLoopIn step (R.uset a (ao + (j - 1)) p.1 (ha.uset_bound (pred_lt' hm))) ao (j - 1)
+      ((bound_pred ha hm).of_uset ..) p.2
+termination_by j.toNat
+decreasing_by
+  have := toNat_pred' (pos_of_ne hj)
+  have := USize.lt_iff_toNat_lt.1 (pos_of_ne hj)
+  lia
+
+/-- `divLoopIn` divides, with steps that divide and keep a remainder below `d`. -/
+public theorem divLoopIn_spec (step : L → L → L × L) (d : L)
+    (hs : ∀ c x, LA.val c < LA.val d → LA.val (step c x).2 < LA.val d ∧
+      LA.val d * LA.val (step c x).1 + LA.val (step c x).2 = LA.val c * 2 ^ LA.w + LA.val x)
+    (a : A) (ao j : USize) (ha : LoopBound a ao j) (c : L) (hc : LA.val c < LA.val d) :
+    LA.size (divLoopIn A step a ao j ha c).1 = LA.size a ∧
+      (∀ i, (i < ao.toNat ∨ ao.toNat + j.toNat ≤ i) →
+        LA.get (divLoopIn A step a ao j ha c).1 i = LA.get a i) ∧
+      LA.val d * LimbArray.valAt (divLoopIn A step a ao j ha c).1 ao.toNat j.toNat +
+          LA.val (divLoopIn A step a ao j ha c).2 =
+        LA.val c * 2 ^ (LA.w * j.toNat) + LimbArray.valAt a ao.toNat j.toNat ∧
+      LA.val (divLoopIn A step a ao j ha c).2 < LA.val d := by
+  induction a, j, ha, c using divLoopIn.induct A (R := R) step ao with
+  | case1 a ha c =>
+    rw [divLoopIn, dite_eq_left rfl]
+    exact ⟨rfl, fun _ _ => rfl, by simp, hc⟩
+  | case2 a j ha c hj hm p ih =>
+    rw [divLoopIn, dite_eq_right hj]
+    have hp := toNat_pred' hm
+    have hj₀ := USize.lt_iff_toNat_lt.1 hm
+    have hi := ha.toNat_add (pred_lt' hm)
+    rw [hp] at hi
+    obtain ⟨hp₁, hp₂⟩ := hs c (R.uget a (ao + (j - 1)) (ha.uset_bound (pred_lt' hm))) hc
+    obtain ⟨i₁, i₂, i₃, i₄⟩ := ih hp₁
+    rw [hp] at i₂ i₃
+    refine ⟨by rw [i₁, R.size_uset], fun i hi' => ?_, ?_, i₄⟩
+    · rw [i₂ i (by lia), R.get_uset, hi]
+      simp only [show ¬(ao.toNat + (j.toNat - 1) = i) by simp at hj₀; lia, ↓reduceIte]
+    · have htop := i₂ (ao.toNat + (j.toNat - 1)) (.inr (Nat.le_refl _))
+      rw [R.get_uset, hi] at htop
+      simp only [↓reduceIte] at htop
+      rw [valAt_uset_of _ _ _ _ _ _ (by rw [hi]; lia)] at i₃
+      have hx : R.uget a (ao + (j - 1)) (ha.uset_bound (pred_lt' hm)) =
+          LA.get a (ao.toNat + (j.toNat - 1)) := by rw [R.uget_eq, hi]
+      have e : LA.val d * LA.val p.1 + LA.val p.2 =
+          LA.val c * 2 ^ LA.w + LA.val (LA.get a (ao.toNat + (j.toNat - 1))) := by
+        rw [← hx]; exact hp₂
+      clear hp₂
+      obtain ⟨k, hk⟩ : ∃ k, j.toNat = k + 1 := ⟨j.toNat - 1, by simp at hj₀; lia⟩
+      rw [hk, Nat.add_sub_cancel] at i₃ htop e
+      rw [hk, LimbArray.valAt_add, LimbArray.valAt_one, LimbArray.valAt_add a ao.toNat k 1,
+        LimbArray.valAt_one, htop, Nat.mul_succ, Nat.pow_add]
+      generalize divLoopIn A step _ ao (j - 1) _ p.2 = q at *
+      generalize LimbArray.valAt q.1 ao.toNat k = Q at *
+      generalize LimbArray.valAt a ao.toNat k = X at *
+      generalize 2 ^ (LA.w * k) = P at *
+      generalize LA.val (LA.get a (ao.toNat + k)) = x at *
+      generalize LA.val p.1 = q₁ at *
+      generalize LA.val p.2 = r₁ at *
+      generalize LA.val q.2 = F at *
+      generalize 2 ^ LA.w = B at *
+      grind
+
+variable (A) in
+/--
+`divLoopIn` with the steps of `div21Safe`, each branch calling the loop itself: a step returning
+the pair of either branch of `div21Safe` would box it, an allocation per limb.
+-/
+@[expose, specialize]
+public def divLoopInR (v d : L) (a : A) (ao j : USize) (ha : LoopBound a ao j) (c : L) : A × L :=
+  if hj : j = 0 then (a, c)
+  else
+    have hm := pos_of_ne hj
+    let x := R.uget a (ao + (j - 1)) (ha.uset_bound (pred_lt' hm))
+    let p := div21 A v d c x
+    if R.ltB p.2 d then
+      divLoopInR v d (R.uset a (ao + (j - 1)) p.1 (ha.uset_bound (pred_lt' hm))) ao (j - 1)
+        ((bound_pred ha hm).of_uset ..) p.2
+    else
+      let p' := divStep A d c x
+      divLoopInR v d (R.uset a (ao + (j - 1)) p'.1 (ha.uset_bound (pred_lt' hm))) ao (j - 1)
+        ((bound_pred ha hm).of_uset ..) p'.2
+termination_by j.toNat
+decreasing_by
+  all_goals
+    have := toNat_pred' (pos_of_ne hj)
+    have := USize.lt_iff_toNat_lt.1 (pos_of_ne hj)
+    lia
+
+public theorem divLoopInR_eq (v d : L) (a : A) (ao j : USize) (ha : LoopBound a ao j) (c : L) :
+    divLoopInR A v d a ao j ha c = divLoopIn A (div21Safe A v d) a ao j ha c := by
+  induction a, j, ha, c using divLoopInR.induct A (R := R) v d ao with
+  | case1 a ha c => rw [divLoopInR, divLoopIn, dite_eq_left rfl, dite_eq_left rfl]
+  | case2 a j ha c hj hm x p hlt ih =>
+    rw [divLoopInR, divLoopIn, dite_eq_right hj, dite_eq_right hj]
+    simp only [x, p] at hlt ih ⊢
+    rw [ite_eq_left hlt, ih]
+    simp only [div21Safe, ite_eq_left hlt]
+  | case3 a j ha c hj hm x p hlt p' ih =>
+    rw [divLoopInR, divLoopIn, dite_eq_right hj, dite_eq_right hj]
+    simp only [x, p, p'] at hlt ih ⊢
+    rw [ite_eq_right hlt, ih]
+    simp only [div21Safe, ite_eq_right hlt]
+
+variable (A) in
+/--
+`a / d` and `a % d` in place, for limbs `ao` to `ao + n - 1` of `a`, written over them: from `t`
+limbs and for a normalized `d` by the steps with the reciprocal, each checked (`div21Safe`), and
+otherwise by `divStep`. It requires `0 < d`.
+-/
+@[inline, expose] public def divRem1In (t : USize) (a : A) (ao n : USize) (ha : LoopBound a ao n)
+    (d : L) : A × L :=
+  if isNorm A d && decide (t ≤ n) then divLoopInR A (recip21 A d) d a ao n ha R.zero
+  else divLoopIn A (divStep A d) a ao n ha R.zero
+
+public theorem divRem1In_spec (t : USize) (a : A) (ao n : USize) (ha : LoopBound a ao n) (d : L)
+    (hd : 0 < LA.val d) :
+    LA.size (divRem1In A t a ao n ha d).1 = LA.size a ∧
+      LA.val d * LimbArray.valAt (divRem1In A t a ao n ha d).1 ao.toNat n.toNat +
+          LA.val (divRem1In A t a ao n ha d).2 = LimbArray.valAt a ao.toNat n.toNat ∧
+      LA.val (divRem1In A t a ao n ha d).2 < LA.val d := by
+  have hz : LA.val (R.zero : L) < LA.val d := by rw [R.val_zero]; exact hd
+  unfold divRem1In
+  split
+  · rw [divLoopInR_eq]
+    obtain ⟨h₁, -, h₃, h₄⟩ := divLoopIn_spec _ d (fun c x h => div21Safe_spec _ d c x h) a ao n ha
+      _ hz
+    rw [R.val_zero, Nat.zero_mul, Nat.zero_add] at h₃
+    exact ⟨h₁, h₃, h₄⟩
+  · obtain ⟨h₁, -, h₃, h₄⟩ := divLoopIn_spec _ d (fun c x h => divStep_spec d c x h) a ao n ha
+      _ hz
+    rw [R.val_zero, Nat.zero_mul, Nat.zero_add] at h₃
+    exact ⟨h₁, h₃, h₄⟩
+
 /-! ## The loop on a shifted dividend -/
 
 variable (A) in

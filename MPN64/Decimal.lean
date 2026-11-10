@@ -53,8 +53,8 @@ public instance dec64 : DecOps UInt64Array UInt64 where
   vA_empty := by rw [decVA_eq]; simp [toNat_eq_valAt]
   isZero := WordArray.isZeroA
   isZero_iff := WordArray.isZeroA_iff
-  divRem a := WordArray.divRem1A 1 div1RecipU div1UnnormU a 10000000000000000000
-  divRem_spec a := WordArray.divRem1A_spec 1 div1RecipU div1UnnormU a _ (by decide)
+  divRem a := WordArray.divRem1InA 1 div1RecipU a 10000000000000000000
+  divRem_spec a := WordArray.divRem1InA_spec 1 div1RecipU a _ (by decide)
   mulAdd := WordArray.mulAddA 1
   vA_mulAdd a m v _ := WordArray.mulAddA_spec 1 a m v
   chunkWord x := x
