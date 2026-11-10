@@ -13,13 +13,17 @@ bench, from 16 limbs, and within 4× of `Nat` below, where allocating results is
 cost. Against `mpn` (`0987e74`), products are 2.0–3.3×, squares 2.0–3.7×, division 1.5–3.0× from 12
 limbs and `gcd` 1.5–2.4×; the items below that are over it come first.
 
-- [ ] **The square root** is 10–27× `mpn_sqrtrem` up to 64 limbs and 3.4–4.3× from 256 on 64-bit
-  limbs (6–45× on 32-bit limbs), a gap the `Nat` column hid, since Lean's `Nat.sqrt` is not GMP's.
-  Small sizes first: `MPN.W64.sqrtRem` goes through `GNat` (`Bridge.sqrtRem`) and Zimmermann's
-  recursion down to one limb (`sqrtBase = 1`), where GMP's base case divides by its own root.
-- [ ] **Decimal strings** are 5.7–20× `mpn_set_str` to read and 3.6–6.6× `mpn_get_str` to write on
-  64-bit limbs (`MPN.Nat`'s `ofString?` 8–31×, which also checks the string), 12–22× and 7.6–8.7× on
-  32-bit limbs; against `Nat` they look fast, since Lean's conversions work digit by digit.
+- [ ] **The square root** is 9–24× `mpn_sqrtrem` from 4 to 64 limbs on 64-bit limbs and within 4×
+  from about 200 (`908dbdf`), 6–35× on 32-bit limbs, a gap the `Nat` column hid, since Lean's
+  `Nat.sqrt` is not GMP's. The remainder now comes from the recursion (`Bridge.sqrtRemZ`) and two
+  words are done in words (`sqrtRem2`); what is left is the recursion itself, a general division
+  and about ten operations on new arrays per level, where GMP's `mpn_dc_sqrtrem` works in place in
+  one buffer: porting that, with the in-place division of `Schoolbook.workS`, is the next step.
+- [ ] **Decimal strings** are 4.7–10× `mpn_set_str` to read and 2.5–4.1× `mpn_get_str` to write on
+  64-bit limbs from 16 limbs (`908dbdf`); `String.isNat`'s iterator is gone (`isNatFast`) and the
+  digits are written from words, by division in place. Reading still goes character by character
+  through `String.foldl` and a state cell; reading the UTF-8 bytes 19 at a time into a word, with
+  one multiply-add per chunk, should halve it or better.
 - [ ] **Subtraction on 64-bit limbs** is 4.2–4.3× `mpn_sub` from 128 limbs, where `add` is 3.4–3.6×.
 - [ ] **Division on 64-bit limbs**: since `c4bc02b` (Barrett's division by the top half of the
   divisor) `Num.div` runs at 2.3–3.0× `mpn_tdiv_qr` from 1024 limbs (2.9–3.6× `Nat`), worst near
