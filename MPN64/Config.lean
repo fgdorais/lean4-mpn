@@ -108,9 +108,10 @@ public structure Config extends Dispatch.MulConfig, Dispatch.DivConfig, Dispatch
   /-- The size from which decimal strings are written by divide and conquer. -/
   strDC : Nat := 44
   /--
-  The size of the result, in limbs, from which decimal strings are read by divide and conquer.
+  The size of the result, in limbs, from which decimal strings are read by divide and conquer, as
+  measured on Zen 3 (`tune64`, since `264533d`; the two are within 1–3% from 704 to 1024 limbs).
   -/
-  parseDC : Nat := 1536
+  parseDC : Nat := 1024
   deriving Repr
 
 /-- The thresholds of the Karatsuba and Toom methods of `MPN.Toom`, a projection. -/
