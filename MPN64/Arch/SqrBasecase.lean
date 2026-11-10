@@ -370,6 +370,285 @@ private theorem sqrRowsLoop_spec (arr : UInt64Array) (rs : USize) (a : USlice)
       show a.size.toNat + i.toNat = 2 * a.size.toNat - 1 by lia]
     simp
 
+/-! ### Two rows per pass -/
+
+private theorem ite_ne {α : Type} {k m : Nat} (x y : α) (h : k ≠ m) :
+    (if k = m then x else y) = y := by simp [h]
+
+private theorem ite_eq' {α : Type} {k m : Nat} (x y : α) (h : k = m) :
+    (if k = m then x else y) = x := by simp [h]
+
+/-- The facts that bound the indices of `sqrRow2K`. -/
+private theorem sqr2_facts {arr : UInt64Array} {rs : USize} {a : USlice}
+    (hr : MulBound arr rs a.size.toNat a.size.toNat) {i : USize} (hi' : i.toNat < a.size.toNat)
+    (h : i + 1 + 1 < a.size) :
+    (rs + i).toNat + a.size.toNat ≤ arr.size ∧ (i + 1).toNat < a.size.toNat ∧
+      (i + 1).toNat = i.toNat + 1 ∧ (i + 1 + 1).toNat = i.toNat + 2 ∧
+      i.toNat + 2 < a.size.toNat ∧ (rs + i).toNat = rs.toNat + i.toNat ∧
+      (rs + i + a.size).toNat = rs.toNat + i.toNat + a.size.toNat ∧
+      (rs + i + a.size + 1).toNat = rs.toNat + i.toNat + a.size.toNat + 1 ∧
+      rs.toNat + a.size.toNat + a.size.toNat ≤ arr.size ∧
+      rs.toNat + a.size.toNat + a.size.toNat < USize.size := by
+  have h₁ := hr.toNat_one hi'
+  have h₂ := USize.lt_iff_toNat_lt.1 h
+  have hm := hr
+  rw [MulBound] at hm
+  rw [USize.toNat_add_of_lt (by rw [USize.toNat_one]; lia), USize.toNat_one, h₁] at h₂
+  have hrow := hr.toNat_add (i := i) (by lia)
+  have htop : (rs + i + a.size).toNat = rs.toNat + i.toNat + a.size.toNat := by
+    rw [USize.toNat_add_of_lt (by rw [hrow]; lia), hrow]
+  refine ⟨by rw [hrow]; lia, by rw [h₁]; lia, h₁, ?_, by lia, hrow, htop, ?_, hm.1, hm.2⟩
+  · rw [USize.toNat_add_of_lt (by rw [USize.toNat_one, h₁]; lia), USize.toNat_one, h₁]
+  · rw [USize.toNat_add_of_lt (by rw [USize.toNat_one, htop]; lia), USize.toNat_one, htop]
+
+private theorem sqr2_first {arr : UInt64Array} {rs : USize} {a : USlice}
+    (hr : MulBound arr rs a.size.toNat a.size.toNat) {i : USize} (hi' : i.toNat < a.size.toNat)
+    (h : i + 1 + 1 < a.size) : (rs + i + (i + 1)).toNat < arr.size := by
+  obtain ⟨-, -, hI₁, -, hI, hrow, -, -, hm1, hm2⟩ := sqr2_facts hr hi' h
+  rw [USize.toNat_add_of_lt (by rw [hrow, hI₁]; lia), hrow, hI₁]; lia
+
+private theorem sqr2_top {arr : UInt64Array} {rs : USize} {a : USlice}
+    (hr : MulBound arr rs a.size.toNat a.size.toNat) {i : USize} (hi' : i.toNat < a.size.toNat)
+    (h : i + 1 + 1 < a.size) (arr' : UInt64Array) (hs : arr'.size = arr.size) :
+    (rs + i + a.size).toNat < arr'.size := by
+  obtain ⟨-, -, -, -, hI, -, htop, -, hm1, -⟩ := sqr2_facts hr hi' h
+  rw [hs, htop]; lia
+
+private theorem sqr2_top₁ {arr : UInt64Array} {rs : USize} {a : USlice}
+    (hr : MulBound arr rs a.size.toNat a.size.toNat) {i : USize} (hi' : i.toNat < a.size.toNat)
+    (h : i + 1 + 1 < a.size) (arr' : UInt64Array) (hs : arr'.size = arr.size) :
+    (rs + i + a.size + 1).toNat < arr'.size := by
+  obtain ⟨-, -, -, -, hI, -, -, htop1, hm1, -⟩ := sqr2_facts hr hi' h
+  rw [hs, htop1]; lia
+
+/--
+Rows `i` and `i + 1` of the cross products in one pass, like GMP's `mpn_addmul_2`, as an
+in-place program run by `InPlace.runForIn2Then`: row `i`'s first product `aᵢ aᵢ₊₁` alone into limb `rs + 2 i + 1`, then
+`aᵢ + β aᵢ₊₁` times the limbs of `a` from `i + 2` on, from limb `rs + 2 i + 2` on, with both
+carries unboxed, and the carries into the two limbs above, by the continuation. (In the `inplace`
+notation, the program's result pair costs 14–15% of the squares from 16 to 88 limbs.)
+-/
+@[inline] def sqrRow2K (arr : UInt64Array) (rs : USize) (a : USlice)
+    (hr : MulBound arr rs a.size.toNat a.size.toNat) (i : USize) (hi' : i.toNat < a.size.toNat)
+    (h : i + 1 + 1 < a.size) : {arr' : UInt64Array // arr'.size = arr.size} :=
+  have hf := sqr2_facts hr hi' h
+  let x₀ := a[i]'(USize.lt_iff_toNat_lt.2 hi')
+  let x₁ := a[i + 1]'(USize.lt_iff_toNat_lt.2 hf.2.1)
+  have hw := hf.1
+  have hb₁ := sqr2_first hr hi' h
+  let W := addMul2Word (arr.uget (rs + i + (i + 1)) hb₁) x₁ x₀ 0 0 0
+  InPlace.runForIn2Then (arr.uset (rs + i + (i + 1)) W.1 hb₁) (size_uset ..) (i + 1 + 1) a.size
+    W.2.1 W.2.2
+    (fun k _ hj c₀ c₁ =>
+      InPlace.readThen (rs + i + k) (InPlaceSyntax.toNat_add_lt_of_window hw hj) fun z =>
+        InPlace.write (rs + i + k) (InPlaceSyntax.toNat_add_lt_of_window hw hj)
+            (addMul2Word z (a[k]'(USize.lt_iff_toNat_lt.2 hj)) x₀ x₁ c₀ c₁).1 >>= fun _ =>
+          pure ((addMul2Word z (a[k]'(USize.lt_iff_toNat_lt.2 hj)) x₀ x₁ c₀ c₁).2.1,
+            (addMul2Word z (a[k]'(USize.lt_iff_toNat_lt.2 hj)) x₀ x₁ c₀ c₁).2.2))
+    fun c₀ c₁ arr' hs =>
+      ⟨(arr'.uset (rs + i + a.size) c₀ (sqr2_top hr hi' h arr' hs)).uset
+        (rs + i + a.size + 1) c₁ (by
+          rw [size_uset]; exact sqr2_top₁ hr hi' h arr' hs),
+        by rw [size_uset, size_uset, hs]⟩
+
+private theorem sqrRow2K_spec (arr : UInt64Array) (rs : USize) (a : USlice)
+    (hr : MulBound arr rs a.size.toNat a.size.toNat) (i : USize) (hi' : i.toNat < a.size.toNat)
+    (h : i + 1 + 1 < a.size) :
+    (sqrRow2K arr rs a hr i hi' h).1.size = arr.size ∧
+      (∀ k, (k < rs.toNat + 2 * i.toNat + 1 ∨ rs.toNat + i.toNat + a.size.toNat + 2 ≤ k) →
+        (sqrRow2K arr rs a hr i hi' h).1[k]! = arr[k]!) ∧
+      (sqrRow2K arr rs a hr i hi' h).1.valAt (rs.toNat + 2 * i.toNat + 1)
+          (a.size.toNat - i.toNat + 1) =
+        arr.valAt (rs.toNat + 2 * i.toNat + 1) (a.size.toNat - i.toNat - 1) +
+          crossSum a i.toNat 2 := by
+  obtain ⟨hw, h1, hI₁, hI₂, hI, hrow, htop, htop1, hm1, hm2⟩ := sqr2_facts hr hi' h
+  have lb : ∀ arr' : UInt64Array, arr'.size = arr.size → LoopBound arr' (rs + i) a.size :=
+    fun arr' hs => by rw [LoopBound, hs, hrow]; constructor <;> lia
+  have e := fun arr' hs c => run_addMul2Loop a (a[i]'(USize.lt_iff_toNat_lt.2 hi'))
+    (a[i + 1]'(USize.lt_iff_toNat_lt.2 h1)) (rs + i) (i + 1 + 1) hw arr' (lb arr' hs) (i + 1 + 1)
+    (Nat.le_refl _) c hs
+  simp only [sqrRow2K, InPlace.runForIn2Then_eq, InPlace.forIn2_eq, e]
+  have hfirst : (rs + i + (i + 1)).toNat = rs.toNat + 2 * i.toNat + 1 := by
+    rw [USize.toNat_add_of_lt (by rw [hrow, hI₁]; lia), hrow, hI₁]; lia
+  have hb₁ := sqr2_first hr hi' h
+  have hz' : arr[(rs + i + (i + 1)).toNat]! = arr.uget (rs + i + (i + 1)) hb₁ :=
+    (uget_eq_getElem! ..).symm
+  obtain ⟨z, hz⟩ : ∃ z, z = arr.uget (rs + i + (i + 1)) hb₁ := ⟨_, rfl⟩
+  rw [← hz] at hz'
+  simp only [← hz]
+  have hW := addMul2_word z (a[i + 1]'(USize.lt_iff_toNat_lt.2 h1))
+    (a[i]'(USize.lt_iff_toNat_lt.2 hi')) 0 0 0
+  obtain ⟨W, hWe⟩ : ∃ W, W = addMul2Word z (a[i + 1]'(USize.lt_iff_toNat_lt.2 h1))
+    (a[i]'(USize.lt_iff_toNat_lt.2 hi')) 0 0 0 := ⟨_, rfl⟩
+  rw [← hWe] at hW
+  simp only [← hWe]
+  have hA₁ : ∀ k, (arr.uset (rs + i + (i + 1)) W.1 hb₁)[k]! =
+      if (rs + i + (i + 1)).toNat = k then W.1 else arr[k]! := fun k => getElem!_uset ..
+  obtain ⟨q₁, q₂, q₃⟩ := addMul2Loop_spec (arr.uset (rs + i + (i + 1)) W.1 hb₁) (rs + i) a
+    a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _)) (lb _ (size_uset ..))
+    (a[i]'(USize.lt_iff_toNat_lt.2 hi')) (a[i + 1]'(USize.lt_iff_toNat_lt.2 h1)) (i + 1 + 1) W.2
+  simp only [hrow, hI₂] at q₂ q₃
+  obtain ⟨Q, hQ⟩ : ∃ Q, Q = addMul2Loop (arr.uset (rs + i + (i + 1)) W.1 hb₁) (rs + i) a
+      a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _)) (lb _ (size_uset ..))
+      (a[i]'(USize.lt_iff_toNat_lt.2 hi')) (a[i + 1]'(USize.lt_iff_toNat_lt.2 h1)) (i + 1 + 1)
+      W.2 := ⟨_, rfl⟩
+  rw [← hQ] at q₁ q₂ q₃
+  simp only [← hQ]
+  rw [size_uset] at q₁
+  have hQ₁ : (rs + i + a.size).toNat < Q.1.size := by rw [q₁, htop]; lia
+  have hQ₂ : (rs + i + a.size + 1).toNat < (Q.1.uset (rs + i + a.size) Q.2.1 hQ₁).size := by
+    rw [size_uset, q₁, htop1]; lia
+  have hgp : ∀ k, ((Q.1.uset (rs + i + a.size) Q.2.1 hQ₁).uset (rs + i + a.size + 1)
+      Q.2.2 hQ₂)[k]! = if k = rs.toNat + i.toNat + a.size.toNat + 1 then Q.2.2 else
+        if k = rs.toNat + i.toNat + a.size.toNat then Q.2.1 else Q.1[k]! := by
+    intro k
+    rw [getElem!_uset, getElem!_uset, htop, htop1]
+    by_cases e₁ : k = rs.toNat + i.toNat + a.size.toNat + 1
+    · simp [e₁]
+    · by_cases e₂ : k = rs.toNat + i.toNat + a.size.toNat
+      · simp [e₂]
+      · simp only [e₁, e₂, ↓reduceIte, show ¬ rs.toNat + i.toNat + a.size.toNat + 1 = k by lia,
+          show ¬ rs.toNat + i.toNat + a.size.toNat = k by lia]
+  refine ⟨by rw [size_uset, size_uset, q₁], fun k hk => ?_, ?_⟩
+  · rw [hgp, ite_ne _ _ (by lia), ite_ne _ _ (by lia), q₂ k (by lia), hA₁, hfirst,
+      ite_ne _ _ (by lia)]
+  · -- The window: the first limb, the pass, and the two carries.
+    generalize ((Q.1.uset (rs + i + a.size) Q.2.1 hQ₁).uset (rs + i + a.size + 1)
+      Q.2.2 hQ₂) = P at hgp ⊢
+    have hp₀ : P[rs.toNat + 2 * i.toNat + 1]! = W.1 := by
+      rw [hgp, ite_ne _ _ (by lia), ite_ne _ _ (by lia), q₂ _ (.inl (by lia)), hA₁, hfirst,
+        ite_eq' _ _ rfl]
+    have hpt : P.valAt (rs.toNat + i.toNat + a.size.toNat) 2 =
+        Q.2.1.toNat + 2 ^ 64 * Q.2.2.toNat := by
+      rw [UInt64Array.valAt_succ, UInt64Array.valAt_one, hgp, hgp, ite_ne _ _ (by lia),
+        ite_eq' _ _ rfl, ite_eq' _ _ rfl]
+    have hmid : P.valAt (rs.toNat + i.toNat + (i.toNat + 2)) (a.size.toNat - (i.toNat + 2)) =
+        Q.1.valAt (rs.toNat + i.toNat + (i.toNat + 2)) (a.size.toNat - (i.toNat + 2)) :=
+      UInt64Array.valAt_congr _ fun k _ hk => by rw [hgp, ite_ne _ _ (by lia), ite_ne _ _ (by lia)]
+    have hmid₁ : (arr.uset (rs + i + (i + 1)) W.1 hb₁).valAt
+        (rs.toNat + i.toNat + (i.toNat + 2)) (a.size.toNat - (i.toNat + 2)) =
+        arr.valAt (rs.toNat + i.toNat + (i.toNat + 2)) (a.size.toNat - (i.toNat + 2)) :=
+      UInt64Array.valAt_congr _ fun k _ hk => by rw [hA₁, hfirst, ite_ne _ _ (by lia)]
+    rw [show a.size.toNat - i.toNat + 1 = 1 + (a.size.toNat - (i.toNat + 2) + 2) by lia,
+      UInt64Array.valAt_add, UInt64Array.valAt_add _ _ (a.size.toNat - (i.toNat + 2)) 2,
+      UInt64Array.valAt_one, hp₀,
+      show rs.toNat + 2 * i.toNat + 1 + 1 = rs.toNat + i.toNat + (i.toNat + 2) by lia, hmid,
+      show rs.toNat + i.toNat + (i.toNat + 2) + (a.size.toNat - (i.toNat + 2)) =
+        rs.toNat + i.toNat + a.size.toNat by lia, hpt,
+      show a.size.toNat - i.toNat - 1 = 1 + (a.size.toNat - (i.toNat + 2)) by lia,
+      UInt64Array.valAt_add, UInt64Array.valAt_one, ← hfirst, hz', hfirst,
+      show rs.toNat + 2 * i.toNat + 1 + 1 = rs.toNat + i.toNat + (i.toNat + 2) by lia]
+    rw [hmid₁] at q₃
+    -- The cross products of rows `i` and `i + 1`.
+    have hx₀ : (a[i]'(USize.lt_iff_toNat_lt.2 hi')).toNat = sqLimb a i.toNat := by
+      rw [USlice.getElem_eq_getElem!, sqLimb]
+    have hx₁ : (a[i + 1]'(USize.lt_iff_toNat_lt.2 h1)).toNat = sqLimb a (i.toNat + 1) := by
+      rw [USlice.getElem_eq_getElem!, sqLimb, hI₁]
+    have hT : a.array.valAt (a.start.toNat + (i.toNat + 2)) (a.size.toNat - (i.toNat + 2)) =
+        sqTail a (i.toNat + 2) := by rw [sqTail]
+    rw [hx₀, hx₁, hT] at q₃
+    rw [hx₀, hx₁] at hW
+    simp only [UInt64.toNat_zero, Nat.mul_zero, Nat.add_zero] at hW
+    simp only [crossSum, Nat.mul_zero, Nat.add_zero]
+    rw [sqTail_succ a (i.toNat + 1) (by lia)]
+    clear hQ hWe hz e lb hA₁ hgp
+    generalize Q.1.valAt _ _ = R at *
+    generalize arr.valAt _ _ = R₀ at *
+    generalize sqTail a (i.toNat + 2) = T at *
+    generalize sqLimb a i.toNat = x₀ at *
+    generalize sqLimb a (i.toNat + 1) = x₁ at *
+    generalize 2 ^ (64 * (a.size.toNat - (i.toNat + 2))) = M at *
+    generalize W.1.toNat = w at *
+    generalize W.2.1.toNat = e₀ at *
+    generalize W.2.2.toNat = e₁ at *
+    generalize Q.2.1.toNat = c₀ at *
+    generalize Q.2.2.toNat = c₁ at *
+    generalize z.toNat = z' at *
+    grind
+
+/--
+`sqrRowsLoop` two rows at a time by `sqrRow2K`, and the last row by `sqrRowK` when only one row
+with cross products is left.
+-/
+def sqrRowsLoop2 (arr : UInt64Array) (rs : USize) (a : USlice)
+    (hr : MulBound arr rs a.size.toNat a.size.toNat) (i : USize) (hi : i.toNat ≤ a.size.toNat) :
+    UInt64Array :=
+  if h : i + 1 < a.size then
+    have hi' : i.toNat < a.size.toNat := by
+      have := USize.lt_iff_toNat_lt.1 h
+      rw [USize.toNat_add_of_lt (by rw [USize.toNat_one]; lia), USize.toNat_one] at this
+      lia
+    if h' : i + 1 + 1 < a.size then
+      let p := sqrRow2K arr rs a hr i hi' h'
+      sqrRowsLoop2 p.1 rs a (by simp only [MulBound, p.2]; exact hr) (i + 1 + 1)
+        (by have := (sqr2_facts hr hi' h').2.2.2; lia)
+    else
+      (sqrRowK arr rs a hr i hi h hi').1
+  else
+    arr
+termination_by a.size.toNat - i.toNat
+decreasing_by
+  have := (sqr2_facts hr hi' h').2.2.2
+  lia
+
+private theorem sqrRowsLoop2_spec (arr : UInt64Array) (rs : USize) (a : USlice)
+    (hr : MulBound arr rs a.size.toNat a.size.toNat) (i : USize) (hi : i.toNat ≤ a.size.toNat) :
+    (sqrRowsLoop2 arr rs a hr i hi).size = arr.size ∧
+      (∀ k, (k < rs.toNat + 2 * i.toNat + 1 ∨ rs.toNat + 2 * a.size.toNat ≤ k) →
+        (sqrRowsLoop2 arr rs a hr i hi)[k]! = arr[k]!) ∧
+      (i.toNat + 1 ≤ a.size.toNat →
+        (sqrRowsLoop2 arr rs a hr i hi).valAt rs.toNat (2 * a.size.toNat - 1) =
+          arr.valAt rs.toNat (a.size.toNat + i.toNat) +
+            2 ^ (64 * (2 * i.toNat + 1)) * crossSum a i.toNat (a.size.toNat - i.toNat)) := by
+  induction arr, hr, i, hi using sqrRowsLoop2.induct rs a with
+  | case1 arr hr i hi h hi' h' p ih =>
+    rw [sqrRowsLoop2]
+    simp only [h, h', ↓reduceDIte]
+    obtain ⟨-, -, -, hI₂, hI, -⟩ := sqr2_facts hr hi' h'
+    obtain ⟨p₁, p₂, p₃⟩ := sqrRow2K_spec arr rs a hr i hi' h'
+    simp only [show p = sqrRow2K arr rs a hr i hi' h' from rfl] at ih
+    obtain ⟨ih₁, ih₂, ih₃⟩ := ih
+    rw [hI₂] at ih₂ ih₃
+    generalize sqrRowsLoop2 (sqrRow2K arr rs a hr i hi' h').1 rs a _ (i + 1 + 1) _ = X at ih₁ ih₂ ih₃ ⊢
+    generalize (sqrRow2K arr rs a hr i hi' h').1 = P at p₁ p₂ p₃ ih₁ ih₂ ih₃
+    refine ⟨ih₁.trans p₁, fun k hk => by rw [ih₂ k (by lia), p₂ k (by lia)], fun _ => ?_⟩
+    rw [ih₃ (by lia)]
+    have hlow : P.valAt rs.toNat (2 * i.toNat + 1) = arr.valAt rs.toNat (2 * i.toNat + 1) :=
+      UInt64Array.valAt_congr _ fun k _ hk => p₂ k (.inl (by lia))
+    rw [show a.size.toNat + (i.toNat + 2) = 2 * i.toNat + 1 + (a.size.toNat - i.toNat + 1) by lia,
+      UInt64Array.valAt_add P rs.toNat (2 * i.toNat + 1), hlow, ← Nat.add_assoc, p₃,
+      show a.size.toNat + i.toNat = 2 * i.toNat + 1 + (a.size.toNat - i.toNat - 1) by lia,
+      UInt64Array.valAt_add arr rs.toNat (2 * i.toNat + 1), ← Nat.add_assoc,
+      show a.size.toNat - i.toNat = a.size.toNat - (i.toNat + 2) + 1 + 1 by lia]
+    simp only [crossSum, Nat.mul_zero, Nat.add_zero]
+    rw [show i.toNat + 1 + 1 = i.toNat + 2 by lia,
+      show 64 * (2 * (i.toNat + 2) + 1) = 64 * (2 * i.toNat + 1) + 128 + 128 by lia,
+      Nat.pow_add, Nat.pow_add]
+    generalize crossSum a (i.toNat + 2) _ = C
+    generalize arr.valAt _ (a.size.toNat - i.toNat - 1) = R
+    generalize arr.valAt rs.toNat (2 * i.toNat + 1) = L
+    generalize sqLimb a i.toNat * sqTail a (i.toNat + 1) = u
+    generalize sqLimb a (i.toNat + 1) * sqTail a (i.toNat + 2) = v
+    generalize 2 ^ (64 * (2 * i.toNat + 1)) = M
+    grind
+  | case2 arr hr i hi h hi' h' =>
+    rw [sqrRowsLoop2]
+    simp only [h, h', ↓reduceDIte]
+    -- The last row: one step of `sqrRowsLoop`, after which it stops.
+    have e : (sqrRowK arr rs a hr i hi h hi').1 = sqrRowsLoop arr rs a hr i hi := by
+      rw [sqrRowsLoop]
+      simp only [h, ↓reduceDIte]
+      rw [sqrRowsLoop]
+      simp only [h', ↓reduceDIte]
+    rw [e]
+    exact sqrRowsLoop_spec arr rs a hr i hi
+  | case3 arr hr i hi h =>
+    rw [sqrRowsLoop2]
+    simp only [h, ↓reduceDIte]
+    have := sqrRowsLoop_spec arr rs a hr i hi
+    rw [show sqrRowsLoop arr rs a hr i hi = arr by rw [sqrRowsLoop]; simp [h]] at this
+    exact ⟨trivial, fun _ _ => trivial, this.2.2⟩
+
 /-! ## The square -/
 
 /-! ### Row 0 -/
@@ -440,14 +719,14 @@ private theorem sqr_top {arr : UInt64Array} {rs : USize} {a : USlice}
     lia
   rw [USize.toNat_add_of_lt (by rw [h₁]; lia), h₁]
 
-/-- Rows 1 on, and the top limb cleared: the cross products, from row 0's. -/
+/-- Rows 1 on, two at a time, and the top limb cleared: the cross products, from row 0's. -/
 def sqrCross (arr : UInt64Array) (rs : USize) (a : USlice)
     (hb : MulBound arr rs a.size.toNat a.size.toNat) (ha : 0 < a.size) : UInt64Array :=
-  (sqrRowsLoop arr rs a hb 1 (by
+  (sqrRowsLoop2 arr rs a hb 1 (by
       have := USize.lt_iff_toNat_lt.1 ha
       rw [USize.toNat_zero] at this; rw [USize.toNat_one]; lia)).uset
     (rs + (a.size + a.size - 1)) 0 (by
-      rw [(sqrRowsLoop_spec ..).1, sqr_top hb ha]
+      rw [(sqrRowsLoop2_spec ..).1, sqr_top hb ha]
       rw [MulBound] at hb
       have := USize.lt_iff_toNat_lt.1 ha; rw [USize.toNat_zero] at this
       lia)
@@ -463,7 +742,7 @@ private theorem sqrCross_spec (arr : UInt64Array) (rs : USize) (a : USlice)
   have hn := USize.lt_iff_toNat_lt.1 ha
   rw [USize.toNat_zero] at hn
   have ht := sqr_top hb ha
-  obtain ⟨h2s, h2u, h2v⟩ := sqrRowsLoop_spec arr rs a hb 1 (by rw [USize.toNat_one]; lia)
+  obtain ⟨h2s, h2u, h2v⟩ := sqrRowsLoop2_spec arr rs a hb 1 (by rw [USize.toNat_one]; lia)
   simp only [USize.toNat_one] at h2u h2v
   refine ⟨by simp [sqrCross, h2s], fun k hk => ?_, fun hpre => ?_⟩
   · simp only [sqrCross]
