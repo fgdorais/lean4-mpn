@@ -21,6 +21,14 @@ limbs; subtraction is 3.3–3.4× since `2b3324c`. The items over the target com
   (`NatOps.fromDec`) is slower than GMP's subquadratic `mpn_set_str`; both the crossover and the
   products of the divide and conquer are to look at.
 
+- [ ] **Products and squares on an Apple M2** are a little over the target from about 3000 limbs
+  (`6c9fe8e`, with the Zen 3 defaults): products 4.0–4.3× `mpn_mul` from 4096 to 16384 limbs (Toom-8
+  at 4096, the FFT from 6144), squares 4.0–4.8× from 3072 (the Toom squares up to 4096). The M2's
+  own thresholds (`tune64`) gain only 2–10%. Toom's ratio grows from 3.3× at 3072 limbs to 5.5× at
+  16384 on the M2, its leaves staying at 2.3–3.0×, so the passes of its levels are slower there.
+  In the FFT the transforms' linear loops (addition and subtraction modulo `2ᴺ + 1`, shifts) take
+  56–58% of the time on the M2 and the pointwise products 34–38%.
+
 Below 256 limbs, under the target's 4× of `Nat` but far from `mpn`:
 
 - [ ] **The square root** is 9–24× `mpn_sqrtrem` from 4 to 64 limbs on 64-bit limbs (`908dbdf`),
