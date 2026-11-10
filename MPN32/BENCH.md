@@ -216,6 +216,7 @@ above; ratios before `15534f8` for `MPN.Nat` rows were inflated by the hashing c
 
 | date | commit | change | effect |
 |---|---|---|---|
+| 2026-11-10 | `9987274` | The square root of a word by `main`'s `WordArray.sqrt2W` on its two 32-bit halves, instead of Newton's iteration on `MPN.Nat` | From three alternating runs against `53e387d`: `bsqrt` at 1 limb (a word) 126–157 → 34 ns (2.4× `mpn_sqrtrem`, from 9–11×); unchanged from 2 limbs |
 | 2026-11-09 | `81dfc27` | Decimal strings read by bytes (`main`'s `DecChunks.readB`) and checked by bytes (`isNatB`, equal to `String.isNat`) | From three alternating runs against `908dbdf`: `bofstr` −26% to −31% up to 64 limbs, −17% at 256, −1% at 1024 |
 | 2026-11-09 | `d023db1` | Decimal digits by division by `10⁹` in place (`main`'s `WordArray.divLoopIn`, the hardware step), instead of `divRem1U` into a new array per chunk | From three alternating runs against `d2218e2`: `btostr` −33% to −39% from 4 to 64 limbs, −21% at 256, −16% at 1024 |
 | 2026-11-09 | `535f0fb` | Decimal strings: `main`'s `isNatFast` (`String.isNat`'s automaton by `String.foldl`, a byte of state, proved equal to it) instead of `String.isNat`, whose slice iterator cost about 6 ns per character; the chunks written as words (`DecOps.chunkWord`), each digit built directly (`digitW`) instead of `Nat.digitChar` | From three alternating runs against `a0aeba1`: `bofstr` −26% to −38% up to 64 limbs, −25% at 256, −10% at 1024; `btostr` −8% at 4 and 16 limbs, −2% to −4% from 256 (+3% at 64, noise) |
