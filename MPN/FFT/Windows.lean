@@ -12,9 +12,9 @@ public import MPN.LimbArray
 
 The transforms of length `2ᵐ` modulo `F = 2^(w n) + 1`, on `2ᵐ` residues in consecutive windows
 of `n + 1` limbs of one array, in place, with one scratch window, for limbs of any width `w`. They
-need only three operations on windows, given with their specifications by `WinOps`: the sum and
-the difference of two residues and the product of one by a power of two, each into a third
-window. The root of unity is `2^σ` with `σ 2ᵐ = 2 w n`, so that `2^(σ 2ᵐ⁻¹) = 2^(w n) ≡ -1`.
+need only a few operations on windows, given with their specifications by `WinOps`: the sum and
+the difference of two residues, each into a third window or both in one pass into two windows,
+and the product of one by a power of two. The root of unity is `2^σ` with `σ 2ᵐ = 2 w n`, so that `2^(σ 2ᵐ⁻¹) = 2^(w n) ≡ -1`.
 
 * The forward transform, by decimation in frequency, replaces each pair `(x, y)` of the two
   halves by `(x + y, (x - y) 2^(σ j))`, then transforms each half with the root `2^(2 σ)`. It
@@ -97,6 +97,27 @@ public class WinOps (A : Type) (L : outParam Type) [LimbArray A L] where
         LimbArray.get (mulPow2 arr n d t e) i = LimbArray.get arr i) ∧
       WinOps.win (mulPow2 arr n d t e) n d =
         WinOps.win arr n t * 2 ^ e % fermatW (LimbArray.w A) n
+  /--
+  `(x + y) % F` into the window at `s` and `(x - y) % F` into the window at `d`, in one pass:
+  `addSubMod arr n s d x y`. The windows at `s` and `d` are disjoint, and each starts at or below
+  each window read, or above its end.
+  -/
+  addSubMod : A → Nat → Nat → Nat → Nat → Nat → A
+  addSubMod_spec : ∀ (arr : A) (n s d x y : Nat), LimbArray.size arr < USize.size →
+    s + n + 1 ≤ LimbArray.size arr → d + n + 1 ≤ LimbArray.size arr →
+    x + n + 1 ≤ LimbArray.size arr → y + n + 1 ≤ LimbArray.size arr → 1 ≤ n →
+    (s + n + 1 ≤ d ∨ d + n + 1 ≤ s) → (s ≤ x ∨ x + n + 1 ≤ s) → (s ≤ y ∨ y + n + 1 ≤ s) →
+    (d ≤ x ∨ x + n + 1 ≤ d) → (d ≤ y ∨ y + n + 1 ≤ d) →
+    WinOps.win arr n x < fermatW (LimbArray.w A) n →
+    WinOps.win arr n y < fermatW (LimbArray.w A) n →
+    LimbArray.size (addSubMod arr n s d x y) = LimbArray.size arr ∧
+      (∀ i, (i < s ∨ s + n + 1 ≤ i) → (i < d ∨ d + n + 1 ≤ i) →
+        LimbArray.get (addSubMod arr n s d x y) i = LimbArray.get arr i) ∧
+      WinOps.win (addSubMod arr n s d x y) n s =
+        (WinOps.win arr n x + WinOps.win arr n y) % fermatW (LimbArray.w A) n ∧
+      WinOps.win (addSubMod arr n s d x y) n d =
+        (WinOps.win arr n x + fermatW (LimbArray.w A) n - WinOps.win arr n y) %
+          fermatW (LimbArray.w A) n
 
 /-! ## Windows in blocks -/
 
@@ -122,9 +143,12 @@ variable {A L : Type} [LA : LimbArray A L] [R : WinOps A L]
 
 /-! ## Butterflies -/
 
-/-- The forward butterfly: `(x, y) ↦ (x + y, (x - y) 2ᵉ)`, through the scratch window `t`. -/
+/--
+The forward butterfly: `(x, y) ↦ (x + y, (x - y) 2ᵉ)`, the sum and the difference in one pass
+into `x` and the scratch window `t`, then `t 2ᵉ` into `y`.
+-/
 @[expose, specialize] public def fwdBfly (arr : A) (n x y t e : Nat) : A :=
-  R.mulPow2 (R.addMod (R.subMod arr n t x y) n x x y) n y t e
+  R.mulPow2 (R.addSubMod arr n x t x y) n y t e
 
 /-- Three disjoint windows of `n + 1` limbs within an array whose indices do not overflow. -/
 public abbrev Three (arr : A) (n x y t : Nat) : Prop :=
@@ -145,30 +169,25 @@ public theorem fwdBfly_spec (arr : A) (n x y t e : Nat) (h : Three arr n x y t)
   obtain ⟨hS, hx, hy, ht, hxy, hxt, hyt⟩ := h
   have hF : 0 < fermatW LA.w n := fermatW_pos LA.w n
   rw [fwdBfly]
-  obtain ⟨s₁, u₁, v₁⟩ := R.subMod_spec arr n t x y hS ht hx hy hn (by lia) (by lia) hX hY
-  generalize R.subMod arr n t x y = a₁ at *
-  have x₁ := win_of_untouched u₁ (o := x) (by lia)
-  have y₁ := win_of_untouched u₁ (o := y) (by lia)
-  obtain ⟨s₂, u₂, v₂⟩ := R.addMod_spec a₁ n x x y (by lia) (by lia) (by lia) (by lia) hn
-    (by lia) (by lia) (by rw [x₁]; exact hX) (by rw [y₁]; exact hY)
-  generalize R.addMod a₁ n x x y = a₂ at *
-  have t₂ := win_of_untouched u₂ (o := t) (by lia)
-  have y₂ := win_of_untouched u₂ (o := y) (by lia)
-  obtain ⟨s₃, u₃, v₃⟩ := R.mulPow2_spec a₂ n y t e (by lia) (by lia) (by lia) hn he heS (by lia)
-    (by rw [t₂, v₁]; exact Nat.mod_lt _ hF)
-  generalize R.mulPow2 a₂ n y t e = a₃ at *
-  have x₃ := win_of_untouched u₃ (o := x) (by lia)
-  refine ⟨by rw [s₃, s₂, s₁], fun i h₁ h₂ h₃ => by rw [u₃ i h₂, u₂ i h₁, u₁ i h₃], ?_, ?_⟩
-  · rw [x₃, v₂, x₁, y₁]
-  · rw [v₃, t₂, v₁]
+  obtain ⟨s₁, u₁, v₁, w₁⟩ := R.addSubMod_spec arr n x t x y hS hx ht hx hy hn (by lia) (by lia)
+    (by lia) (by lia) (by lia) hX hY
+  generalize R.addSubMod arr n x t x y = a₁ at *
+  obtain ⟨s₂, u₂, v₂⟩ := R.mulPow2_spec a₁ n y t e (by lia) (by lia) (by lia) hn he heS (by lia)
+    (by rw [w₁]; exact Nat.mod_lt _ hF)
+  generalize R.mulPow2 a₁ n y t e = a₂ at *
+  have x₂ := win_of_untouched u₂ (o := x) (by lia)
+  refine ⟨by rw [s₂, s₁], fun i h₁ h₂ h₃ => by rw [u₂ i h₂, u₁ i h₁ h₃], ?_, ?_⟩
+  · rw [x₂, v₁]
+  · rw [v₂, w₁]
 
 /--
-The inverse butterfly: `(x, y) ↦ (x + y, x - y)` for `j = 0`, and otherwise
-`(x - y 2ᵉ, x + y 2ᵉ)`, with `2ᵉ ≡ -2^(-σ j)`, through the scratch window `t`.
+The inverse butterfly: `(x, y) ↦ (x + y, x - y)` for `j = 0`, in one pass, and otherwise
+`(x - y 2ᵉ, x + y 2ᵉ)`, with `2ᵉ ≡ -2^(-σ j)`: `y 2ᵉ` into the scratch window `t`, then the
+difference and the sum in one pass.
 -/
 @[expose, specialize] public def invBfly (arr : A) (n x y t e : Nat) (first : Bool) : A :=
-  if first then R.addMod (R.subMod (R.mulPow2 arr n t y 0) n y x t) n x x t
-  else R.subMod (R.addMod (R.mulPow2 arr n t y e) n y x t) n x x t
+  if first then R.addSubMod arr n x y x y
+  else R.addSubMod (R.mulPow2 arr n t y e) n y x x t
 
 public theorem invBfly_spec (arr : A) (n x y t e : Nat) (first : Bool)
     (h : Three arr n x y t) (hn : 1 ≤ n) (he : e < LA.w * n) (heS : e < USize.size)
@@ -185,47 +204,24 @@ public theorem invBfly_spec (arr : A) (n x y t e : Nat) (first : Bool)
         else (win arr n x + win arr n y * 2 ^ e % fermatW LA.w n) % fermatW LA.w n) := by
   obtain ⟨hS, hx, hy, ht, hxy, hxt, hyt⟩ := h
   have hF : 0 < fermatW LA.w n := fermatW_pos LA.w n
-  have hY' : win arr n y % fermatW LA.w n = win arr n y := Nat.mod_eq_of_lt hY
-  have e0 : 0 < LA.w * n := by lia
-  obtain ⟨s₁, u₁, v₁⟩ := R.mulPow2_spec arr n t y (if first then 0 else e) hS ht hy hn
-    (by split <;> lia) (by split <;> lia) (by lia) hY
-  have hsplit : R.invBfly arr n x y t e first = if first
-      then R.addMod (R.subMod (R.mulPow2 arr n t y (if first then 0 else e)) n y x t) n x x t
-      else R.subMod (R.addMod (R.mulPow2 arr n t y (if first then 0 else e)) n y x t) n x x t := by
-    rw [invBfly]; split <;> simp_all
-  rw [hsplit]
-  generalize R.mulPow2 arr n t y (if first then 0 else e) = a₁ at *
-  have x₁ := win_of_untouched u₁ (o := x) (by lia)
-  have hT : win a₁ n t < fermatW LA.w n := by rw [v₁]; exact Nat.mod_lt _ hF
   cases first with
   | true =>
-    simp only [↓reduceIte, Nat.pow_zero, Nat.mul_one, hY'] at v₁ ⊢
-    obtain ⟨s₂, u₂, v₂⟩ := R.subMod_spec a₁ n y x t (by lia) (by lia) (by lia) (by lia) hn
-      (by lia) (by lia) (by rw [x₁]; exact hX) hT
-    generalize R.subMod a₁ n y x t = a₂ at *
-    have x₂ := win_of_untouched u₂ (o := x) (by lia)
-    have t₂ := win_of_untouched u₂ (o := t) (by lia)
-    obtain ⟨s₃, u₃, v₃⟩ := R.addMod_spec a₂ n x x t (by lia) (by lia) (by lia) (by lia) hn
-      (by lia) (by lia) (by rw [x₂, x₁]; exact hX) (by rw [t₂]; exact hT)
-    generalize R.addMod a₂ n x x t = a₃ at *
-    have y₃ := win_of_untouched u₃ (o := y) (by lia)
-    refine ⟨by rw [s₃, s₂, s₁], fun i h₁ h₂ h₃ => by rw [u₃ i h₁, u₂ i h₂, u₁ i h₃], ?_, ?_⟩
-    · rw [v₃, x₂, x₁, t₂, v₁]
-    · rw [y₃, v₂, x₁, v₁]
+    simp only [invBfly, ↓reduceIte]
+    obtain ⟨s₁, u₁, v₁, w₁⟩ := R.addSubMod_spec arr n x y x y hS hx hy hx hy hn (by lia) (by lia)
+      (by lia) (by lia) (by lia) hX hY
+    exact ⟨s₁, fun i h₁ h₂ _ => u₁ i h₁ h₂, v₁, w₁⟩
   | false =>
-    simp only [Bool.false_eq_true, ↓reduceIte] at v₁ ⊢
-    obtain ⟨s₂, u₂, v₂⟩ := R.addMod_spec a₁ n y x t (by lia) (by lia) (by lia) (by lia) hn
-      (by lia) (by lia) (by rw [x₁]; exact hX) hT
-    generalize R.addMod a₁ n y x t = a₂ at *
-    have x₂ := win_of_untouched u₂ (o := x) (by lia)
-    have t₂ := win_of_untouched u₂ (o := t) (by lia)
-    obtain ⟨s₃, u₃, v₃⟩ := R.subMod_spec a₂ n x x t (by lia) (by lia) (by lia) (by lia) hn
-      (by lia) (by lia) (by rw [x₂, x₁]; exact hX) (by rw [t₂]; exact hT)
-    generalize R.subMod a₂ n x x t = a₃ at *
-    have y₃ := win_of_untouched u₃ (o := y) (by lia)
-    refine ⟨by rw [s₃, s₂, s₁], fun i h₁ h₂ h₃ => by rw [u₃ i h₁, u₂ i h₂, u₁ i h₃], ?_, ?_⟩
-    · rw [v₃, x₂, x₁, t₂, v₁]
-    · rw [y₃, v₂, x₁, v₁]
+    simp only [invBfly, Bool.false_eq_true, ↓reduceIte]
+    obtain ⟨s₁, u₁, v₁⟩ := R.mulPow2_spec arr n t y e hS ht hy hn he heS (by lia) hY
+    generalize R.mulPow2 arr n t y e = a₁ at *
+    have x₁ := win_of_untouched u₁ (o := x) (by lia)
+    have hT : win a₁ n t < fermatW LA.w n := by rw [v₁]; exact Nat.mod_lt _ hF
+    obtain ⟨s₂, u₂, v₂, w₂⟩ := R.addSubMod_spec a₁ n y x x t (by lia) (by lia) (by lia) (by lia)
+      (by lia) hn (by lia) (by lia) (by lia) (by lia) (by lia) (by rw [x₁]; exact hX) hT
+    generalize R.addSubMod a₁ n y x x t = a₂ at *
+    refine ⟨by rw [s₂, s₁], fun i h₁ h₂ h₃ => by rw [u₂ i h₂ h₁, u₁ i h₃], ?_, ?_⟩
+    · rw [w₂, x₁, v₁]
+    · rw [v₂, x₁, v₁]
 
 /-! ## Blocks of windows -/
 

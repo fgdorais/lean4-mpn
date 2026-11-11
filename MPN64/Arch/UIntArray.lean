@@ -990,6 +990,64 @@ public theorem foldUInPlace_main {β : Type} (n : USize)
   | case2 arr hr j b h =>
     rw [MPN.WordArray.foldUInPlace, dite_eq_right_of_eq_false (eq_false h), foldUInPlace_ge _ _ _ _ _ _ _ h]
 
+/--
+`main`'s `foldUInPlace2x2Then` as an in-place program, run by `InPlace.runForIn2Then`: each step
+reads limbs `xs + k` and `ys + k` and writes limbs `rs + k` and `ts + k`, with both accumulators
+unboxed (lean4-scalar-arrays#71 asked for this shape as a fold).
+-/
+@[inline, expose] public def foldUInPlace2x2ThenLib {β₁ β₂ γ : Type} (n : USize)
+    (f₁ : (j : USize) → j < n → UInt64 → UInt64 → β₁ → UInt64 × β₁)
+    (f₂ : (j : USize) → j < n → UInt64 → UInt64 → β₂ → UInt64 × β₂) (arr : UInt64Array)
+    (rs ts xs ys : USize) (hr : LoopBound arr rs n) (ht : LoopBound arr ts n)
+    (hx : LoopBound arr xs n) (hy : LoopBound arr ys n) (j : USize) (b₁ : β₁) (b₂ : β₂)
+    (g : (arr' : UInt64Array) → arr'.size = arr.size → β₁ → β₂ → γ) : γ :=
+  InPlace.runForIn2Then arr rfl j n b₁ b₂
+    (fun k _ hk c₁ c₂ =>
+      InPlace.readThen (xs + k) (hx.uset_bound (USize.lt_iff_toNat_lt.2 hk)) fun x =>
+        InPlace.readThen (ys + k) (hy.uset_bound (USize.lt_iff_toNat_lt.2 hk)) fun y =>
+          InPlace.write (rs + k) (hr.uset_bound (USize.lt_iff_toNat_lt.2 hk))
+              (f₁ k (USize.lt_iff_toNat_lt.2 hk) x y c₁).1 >>= fun _ =>
+            InPlace.write (ts + k) (ht.uset_bound (USize.lt_iff_toNat_lt.2 hk))
+                (f₂ k (USize.lt_iff_toNat_lt.2 hk) x y c₂).1 >>= fun _ =>
+              pure ((f₁ k (USize.lt_iff_toNat_lt.2 hk) x y c₁).2,
+                (f₂ k (USize.lt_iff_toNat_lt.2 hk) x y c₂).2))
+    fun c₁ c₂ arr' hs => g arr' hs c₁ c₂
+
+/-- The loop of `foldUInPlace2x2ThenLib` is `foldUInPlace2x2`. -/
+private theorem run_fold2x2 {β₁ β₂ : Type} (n lo : USize)
+    (f₁ : (j : USize) → j < n → UInt64 → UInt64 → β₁ → UInt64 × β₁)
+    (f₂ : (j : USize) → j < n → UInt64 → UInt64 → β₂ → UInt64 × β₂) (arr₀ : UInt64Array)
+    (rs ts xs ys : USize) (hr : LoopBound arr₀ rs n) (ht : LoopBound arr₀ ts n)
+    (hx : LoopBound arr₀ xs n) (hy : LoopBound arr₀ ys n) :
+    ∀ (arr : UInt64Array) (hs : arr.size = arr₀.size) (j : USize) (hlo : lo.toNat ≤ j.toNat)
+      (b₁ : β₁) (b₂ : β₂) hr' ht' hx' hy',
+      (InPlace.forIn2From lo n j hlo b₁ b₂ fun k _ hk c₁ c₂ =>
+        InPlace.readThen (xs + k) (hx.uset_bound (USize.lt_iff_toNat_lt.2 hk)) fun x =>
+          InPlace.readThen (ys + k) (hy.uset_bound (USize.lt_iff_toNat_lt.2 hk)) fun y =>
+            InPlace.write (rs + k) (hr.uset_bound (USize.lt_iff_toNat_lt.2 hk))
+                (f₁ k (USize.lt_iff_toNat_lt.2 hk) x y c₁).1 >>= fun _ =>
+              InPlace.write (ts + k) (ht.uset_bound (USize.lt_iff_toNat_lt.2 hk))
+                  (f₂ k (USize.lt_iff_toNat_lt.2 hk) x y c₂).1 >>= fun _ =>
+                pure ((f₁ k (USize.lt_iff_toNat_lt.2 hk) x y c₁).2,
+                  (f₂ k (USize.lt_iff_toNat_lt.2 hk) x y c₂).2)).run arr hs =
+        (((MPN.WordArray.foldUInPlace2x2 n f₁ f₂ arr rs ts xs ys hr' ht' hx' hy' j b₁ b₂).2.1,
+          (MPN.WordArray.foldUInPlace2x2 n f₁ f₂ arr rs ts xs ys hr' ht' hx' hy' j b₁ b₂).2.2),
+          (MPN.WordArray.foldUInPlace2x2 n f₁ f₂ arr rs ts xs ys hr' ht' hx' hy' j b₁ b₂).1) := by
+  intro arr hs j
+  induction hd : n.toNat - j.toNat generalizing arr j with
+  | zero =>
+    intro hlo b₁ b₂ hr' ht' hx' hy'
+    have h : ¬ j < n := fun h => by have := USize.lt_iff_toNat_lt.1 h; lia
+    rw [InPlace.forIn2From_eq, dite_eq_right_of_eq_false (eq_false h), InPlace.run_pure,
+      MPN.WordArray.foldUInPlace2x2, dite_eq_right_of_eq_false (eq_false h)]
+  | succ d ih =>
+    intro hlo b₁ b₂ hr' ht' hx' hy'
+    have h : j < n := USize.lt_iff_toNat_lt.2 (by lia)
+    rw [InPlace.forIn2From_eq, dite_eq_left_of_eq_true (eq_true h),
+      MPN.WordArray.foldUInPlace2x2, dite_eq_left_of_eq_true (eq_true h)]
+    simp only [InPlace.run_bind, InPlace.run_readThen, InPlace.run_write, InPlace.run_pure]
+    exact ih _ _ _ (by rw [USize.toNat_add_one_of_lt h]; lia) _ _ _ _ _ _ _
+
 /-- `main`'s in-place loops on `UInt64Array`, by `foldlInPlaceRangeThen` and `foldlInPlace2Then`. -/
 public instance wordFolds64 : MPN.WordFolds UInt64Array UInt64 where
   fold2Then := foldUInPlace2ThenLib
@@ -1017,6 +1075,13 @@ public instance wordFolds64 : MPN.WordFolds UInt64Array UInt64 where
       MPN.WordArray.foldUInPlaceThen]
     exact g_congr (fun arr' h c => g arr' h c.1 c.2)
       (foldUInPlace_main _ (fun j h z c => f j h z c.1 c.2) arr rs hr j (b₁, b₂)).symm _
+  fold2x2Then := foldUInPlace2x2ThenLib
+  fold2x2Then_eq := by
+    intro β₁ β₂ γ n f₁ f₂ arr rs ts xs ys hr ht hx hy j b₁ b₂ g
+    have e := run_fold2x2 n j f₁ f₂ arr rs ts xs ys hr ht hx hy arr rfl j (Nat.le_refl _) b₁ b₂
+      hr ht hx hy
+    simp only [foldUInPlace2x2ThenLib, InPlace.runForIn2Then_eq, InPlace.forIn2_eq, e,
+      MPN.WordArray.foldUInPlace2x2Then]
 
 /-- A sub-slice of a whole array, `toUSlice`. -/
 public theorem toUSlice_slice (a : UInt64Array) {i j : USize} (hij : i.toNat ≤ j.toNat)
