@@ -216,6 +216,7 @@ above; ratios before `15534f8` for `MPN.Nat` rows were inflated by the hashing c
 
 | date | commit | change | effect |
 |---|---|---|---|
+| 2026-11-10 | `971e47d` | The FFT's butterflies add and subtract in one pass (`WinOps.addSubMod`, shared with 64-bit limbs), on `WordFolds.fold2x2Then` as an in-place program of `UInt32Array` | From three alternating runs against `04211a4`, without `Nat`: `mul` −5% at 16384 and 32768 limbs, −4% at 65536; `sqr` −5% to −6% at 16384 and 32768, −3% to −5% at 65536 |
 | 2026-11-10 | `264533d` | The digits of a long decimal string as an array by one `String.foldl` (`DecChunks.digitArray`), instead of a list, filtered, then converted | From two alternating runs against `9987274`: `bofstr` −27% to −32% at 1024 limbs, −17% to −20% at 4096 and 8192, −14% at 16384 |
 | 2026-11-10 | `9987274` | The square root of a word by `main`'s `WordArray.sqrt2W` on its two 32-bit halves, instead of Newton's iteration on `MPN.Nat` | From three alternating runs against `53e387d`: `bsqrt` at 1 limb (a word) 126–157 → 34 ns (2.4× `mpn_sqrtrem`, from 9–11×); unchanged from 2 limbs |
 | 2026-11-09 | `81dfc27` | Decimal strings read by bytes (`main`'s `DecChunks.readB`) and checked by bytes (`isNatB`, equal to `String.isNat`) | From three alternating runs against `908dbdf`: `bofstr` −26% to −31% up to 64 limbs, −17% at 256, −1% at 1024 |
