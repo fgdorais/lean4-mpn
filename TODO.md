@@ -65,17 +65,17 @@ Below 256 limbs, under the target's 4× of `Nat` but far from `mpn`:
   writes no quotient (`6d99d39`). On 64-bit limbs `MPN.Nat`'s `/` is 1.3–1.7× `Nat` from 2 to 8
   limbs and `%` 1.1–1.6×; what is left of the fixed cost is the array of the division, the shifted
   divisor and the result, and on 64-bit limbs the slice structures of `Num.divModBase`.
-- [ ] **Toom-3's evaluations and interpolation in fused passes**, as Toom-4's already are
-  (`MPN.Toom.Kernels`). Since `bf95b76` each operand's three values are windows of one array and
-  their products windows of another, and since `85578e7` the first stage of the interpolation (eight
-  passes) is one pass of `ToomOps.sub3Lin`, on `WordFolds.fold3Then` with three loop variables
-  (lean4-scalar-arrays#84): −1% to −2% from 384 to 3584 limbs on 64-bit limbs, neutral on 32-bit
-  limbs. What is left: the evaluations in one pass (a prototype was 2.7× faster than the three
-  passes, about 2% of a product of 1024 to 4096 limbs on 32-bit limbs); the second stage of the
-  interpolation, passes between windows of the same array, which needs a fold that writes some
-  windows while reading others, and five loop variables to take in the shift and the exact
-  division (four is the limit); and the same for Toom-3 by 2, Toom-4 by 2 and the Toom-3 square
-  (`ONE_ARRAY` in `scripts/toom_methods.py`, `FUSE` and `genW` in `scripts/toom_interp.py`).
+- [ ] **Toom-3's interpolation in fused passes**, as Toom-4's already are (`MPN.Toom.Kernels`).
+  Since `bf95b76` each operand's three values are windows of one array and their products windows
+  of another; since `85578e7` the first stage of the interpolation (eight passes) is one pass of
+  `ToomOps.sub3Lin`, and since `3d7140e` each operand's values are one pass of `ToomOps.evals3`
+  (nine before), both on `WordFolds.fold3Then` with three loop variables (lean4-scalar-arrays#84):
+  together −3% to −4% from 384 to 504 limbs and −3% at 3584 on 64-bit limbs, neutral on 32-bit
+  limbs. What is left: the second stage of the interpolation, passes between windows of the same
+  array, which needs a fold that writes some windows while reading others, and five loop variables
+  to take in the shift and the exact division (four is the limit); and the same for Toom-3 by 2,
+  Toom-4 by 2 and the Toom-3 square (`ONE_ARRAY` in `scripts/toom_methods.py`, `FUSE` and `genW` in
+  `scripts/toom_interp.py`, `evalsW` for their shapes).
 - [ ] **A shorter dependency chain in division by a limb**, for CPUs with slow division (GMP's
   `mpn_div_qr_1n_pi1`, which keeps a partly reduced two-limb remainder and takes the quotient off
   the chain): the loop is bound by the latency of one step, about 14–15 cycles on Zen 3, and a
