@@ -965,7 +965,9 @@ private theorem foldUInPlace_main {β : Type} (n : USize)
 /--
 `main`'s `foldUInPlace2x2Then` as an in-place program, run by `InPlace.runForIn2Then`: each step
 reads limbs `xs + k` and `ys + k` and writes limbs `rs + k` and `ts + k`, with both accumulators
-unboxed (lean4-scalar-arrays#71 asked for this shape as a fold).
+unboxed (lean4-scalar-arrays#71 asked for this shape as a fold). Not in the `inplace` notation:
+there the program returns its accumulators, a boxed pair inside the result pair of `runInPlace`,
+four allocations per pass, which made FFT products 11–12% slower at 2048 limbs (2026-11-10).
 -/
 @[inline, expose] public def foldUInPlace2x2ThenLib {β₁ β₂ γ : Type} (n : USize)
     (f₁ : (j : USize) → j < n → UInt32 → UInt32 → β₁ → UInt32 × β₁)
