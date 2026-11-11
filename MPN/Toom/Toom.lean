@@ -401,14 +401,38 @@ public theorem prodsLoop_spec {N : Nat} (mul : MulFn A N) (hmul : IsMul mul) (E 
       · rw [r₂ i (by lia) (by lia), show i = j by lia, v]
 
 /--
+The values at `1, …, m` of the `p` pieces of `X` in the windows of `k + 1` limbs of one array:
+in one pass for three pieces at three points (`ToomOps.evals3`), by `evalsLoop` otherwise.
+-/
+@[expose, specialize] public def evalsW (x : A) (xo xl k p m : Nat) : A :=
+  if p = 3 ∧ m = 3 then R.evals3 x xo xl k else evalsLoop x xo xl k p m (R.zeros (m * (k + 1))) 1
+
+public theorem evalsW_spec (x : A) (xo xl k p m : Nat) (hp : 1 ≤ p)
+    (hjp : ∀ j, j ≤ m → sumRange (fun i => j ^ i) p ≤ 2 ^ 32) :
+    ∀ j, 1 ≤ j → j ≤ m → valAt (evalsW x xo xl k p m) ((j - 1) * (k + 1)) (k + 1) =
+      sumRange (fun i => piece x xo xl k i * j ^ i) p := by
+  unfold evalsW
+  split
+  · rename_i h
+    obtain ⟨rfl, rfl⟩ := h
+    intro j h₁ h₂
+    rw [(R.evals3_spec x xo xl k).2 j h₁ h₂]
+    simp only [sumRange_succ, sumRange_zero, piece, Nat.zero_mul, Nat.add_zero, Nat.sub_zero,
+      Nat.one_mul, Nat.pow_zero, Nat.pow_one, Nat.mul_one, Nat.zero_add]
+    grind
+  · have hz : ∀ i, 1 ≤ i → i ≤ m → valAt (R.zeros (m * (k + 1))) ((i - 1) * (k + 1)) (k + 1) = 0 :=
+      fun _ _ _ => valAt_eq_zero _ fun i _ _ => R.val_get_zeros _ i
+    exact (evalsLoop_spec x xo xl k p m hp hjp _ (R.zeros (m * (k + 1))) 1 rfl (Nat.le_refl _)
+      (R.size_zeros _) hz).2.2
+
+/--
 The products of the values at `1, …, m` of the `p` pieces of `x` and the `q` pieces of `y`, in the
 windows of `2 k + 2` limbs at `(j - 1) (2 k + 2)` of one new array: the values of each operand in
 the windows of one array too.
 -/
 @[expose, specialize] public def pointsW {N : Nat} (mul : MulFn A N) (x : A) (xo xl : Nat) (y : A)
     (yo yl k p q m : Nat) (h : k + 1 + (k + 1) < N) : A :=
-  prodsLoop mul (evalsLoop x xo xl k p m (R.zeros (m * (k + 1))) 1)
-    (evalsLoop y yo yl k q m (R.zeros (m * (k + 1))) 1) k m h (R.zeros (m * (k + k + 2))) 1
+  prodsLoop mul (evalsW x xo xl k p m) (evalsW y yo yl k q m) k m h (R.zeros (m * (k + k + 2))) 1
 
 public theorem pointsW_spec {N : Nat} (mul : MulFn A N) (hmul : IsMul mul) (x : A) (xo xl : Nat)
     (y : A) (yo yl k p q m : Nat) (hp : 1 ≤ p) (hq : 1 ≤ q)
@@ -419,15 +443,11 @@ public theorem pointsW_spec {N : Nat} (mul : MulFn A N) (hmul : IsMul mul) (x : 
         valAt (pointsW mul x xo xl y yo yl k p q m h) ((j - 1) * (k + k + 2)) (k + k + 2) =
           sumRange (fun i => piece x xo xl k i * j ^ i) p *
             sumRange (fun i => piece y yo yl k i * j ^ i) q := by
-  have hz (n : Nat) : ∀ i, 1 ≤ i → i ≤ m → valAt (R.zeros (m * n)) ((i - 1) * n) n = 0 :=
-    fun _ _ _ => valAt_eq_zero _ fun i _ _ => R.val_get_zeros _ i
-  obtain ⟨-, -, eA⟩ := evalsLoop_spec x xo xl k p m hp hjp _ (R.zeros (m * (k + 1))) 1 rfl
-    (Nat.le_refl _) (R.size_zeros _) (fun i h₁ h₂ => hz (k + 1) i h₁ h₂)
-  obtain ⟨-, -, eB⟩ := evalsLoop_spec y yo yl k q m hq hjq _ (R.zeros (m * (k + 1))) 1 rfl
-    (Nat.le_refl _) (R.size_zeros _) (fun i h₁ h₂ => hz (k + 1) i h₁ h₂)
   obtain ⟨r₁, -, r₃⟩ := prodsLoop_spec mul hmul _ _ k m h _ (R.zeros (m * (k + k + 2))) 1 rfl
     (Nat.le_refl _) (R.size_zeros _)
-  exact ⟨r₁, fun j h₁ h₂ => by rw [pointsW, r₃ j h₁ h₂, eA j h₁ h₂, eB j h₁ h₂]⟩
+  exact ⟨r₁, fun j h₁ h₂ => by
+    rw [pointsW, r₃ j h₁ h₂, evalsW_spec x xo xl k p m hp hjp j h₁ h₂,
+      evalsW_spec y yo yl k q m hq hjq j h₁ h₂]⟩
 
 omit R in
 /-- `2^(w (i k))` as a power of `X = 2^(w k)`. -/

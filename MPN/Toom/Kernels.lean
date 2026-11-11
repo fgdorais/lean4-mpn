@@ -998,19 +998,29 @@ public theorem sub3LinK_spec (d : A) (o₁ o₂ o₃ len : Nat) (s : A) (so sl t
     let E : Nat → Nat → Nat := fun v i => LA.val (LA.get s (so.toUSize.toNat + i)) +
       v * (if i < tl.toUSize.toNat then LA.val (LA.get s (to.toUSize.toNat + i)) else 0)
     obtain ⟨f₀, -, -, -, f₁, f₂, f₃, f₄⟩ := foldUInPlace3_spec sl.toUSize _ _ _ (E v₁) (E v₂) (E v₃)
-      (fun c => LA.val c) (fun c => LA.val c) (fun c => LA.val c)
+      (fun _ => 0) (fun _ => 0) (fun _ => 0) (fun _ => 0) (fun c => LA.val c) (fun _ => 0)
+      (fun c => LA.val c) (fun _ => 0) (fun c => LA.val c)
       (fun c => LA.val c ≤ v₁ + 1) (fun c => LA.val c ≤ v₂ + 1) (fun c => LA.val c ≤ v₃ + 1)
       (fun j h z c hc => (lin3Step_law s _ _ _ _ _ _ v₁ hw₁ hw₁' j h z c hc).1)
       (fun j h z c hc => (lin3Step_law s _ _ _ _ _ _ v₂ hw₂ hw₂' j h z c hc).1)
       (fun j h z c hc => (lin3Step_law s _ _ _ _ _ _ v₃ hw₃ hw₃' j h z c hc).1)
-      (fun j h z c hc => (lin3Step_law s _ _ _ _ _ _ v₁ hw₁ hw₁' j h z c hc).2)
-      (fun j h z c hc => (lin3Step_law s _ _ _ _ _ _ v₂ hw₂ hw₂' j h z c hc).2)
-      (fun j h z c hc => (lin3Step_law s _ _ _ _ _ _ v₃ hw₃ hw₃' j h z c hc).2)
+      (fun j h z c hc => by
+        have := (lin3Step_law s so.toUSize to.toUSize tl.toUSize sl.toUSize
+          (winOK_spec ks).2.2.2 (winOK_spec kt).2.2.2 v₁ hw₁ hw₁' j h z c hc).2
+        simp only [E, Nat.mul_zero, Nat.add_zero]; exact this)
+      (fun j h z c hc => by
+        have := (lin3Step_law s so.toUSize to.toUSize tl.toUSize sl.toUSize
+          (winOK_spec ks).2.2.2 (winOK_spec kt).2.2.2 v₂ hw₂ hw₂' j h z c hc).2
+        simp only [E, Nat.mul_zero, Nat.add_zero]; exact this)
+      (fun j h z c hc => by
+        have := (lin3Step_law s so.toUSize to.toUSize tl.toUSize sl.toUSize
+          (winOK_spec ks).2.2.2 (winOK_spec kt).2.2.2 v₃ hw₃ hw₃' j h z c hc).2
+        simp only [E, Nat.mul_zero, Nat.add_zero]; exact this)
       d o₁.toUSize o₂.toUSize o₃.toUSize _ _ _ (by rw [e₁, e₂, esl]; lia)
       (by rw [e₁, e₃, esl]; lia) (by rw [e₂, e₃, esl]; lia) 0 R.zero R.zero R.zero
       (by rw [R.val_zero]; lia) (by rw [R.val_zero]; lia) (by rw [R.val_zero]; lia)
-    simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, e₁, e₂, e₃, esl, R.val_zero]
-      at f₁ f₂ f₃ f₄
+    simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, e₁, e₂, e₃, esl, R.val_zero,
+      wsum_zero, Nat.mul_zero] at f₁ f₂ f₃ f₄
     have hE : ∀ v, wsum LA.w (E v) 0 sl = valAt s so sl + valAt s to tl * v := by
       intro v
       simp only [E]
@@ -1068,6 +1078,352 @@ public theorem sub3LinK_spec (d : A) (o₁ o₂ o₃ len : Nat) (s : A) (so sl t
     · rw [w₃.valAt_eq (by lia), w₂.valAt_eq (by lia), v₁e]
     · rw [w₃.valAt_eq (by lia), v₂e]
 
+/-! ## Three values at once -/
+
+/--
+One limb of `z + X₀ + j X₁ + j² X₂` and the carry out, at most `14` for `j ≤ 3`, where `X₁` and `X₂` are `0` past their `l₁` and
+`l₂` limbs.
+-/
+@[inline, expose] public def eval3Step (x : A) (o₀ o₁ o₂ l₁ l₂ n : USize) (h₀ : LoopBound x o₀ n)
+    (h₁ : LoopBound x o₁ l₁) (h₂ : LoopBound x o₂ l₂) (j j₂ : L) (t : USize) (h : t < n)
+    (z c : L) : L × L :=
+  let a₀ := R.uget x (o₀ + t) (h₀.uset_bound h)
+  let a₁ := if h' : t < l₁ then R.uget x (o₁ + t) (h₁.uset_bound h') else R.zero
+  let a₂ := if h' : t < l₂ then R.uget x (o₂ + t) (h₂.uset_bound h') else R.zero
+  let p := R.mulAdd2 a₁ j a₀ c
+  let q := R.mulAdd2 a₂ j₂ p.1 z
+  (q.1, R.add p.2 q.2)
+
+/-- `FFT.incrAt` from limb `j` of a window given by its `Nat` bounds. -/
+@[inline, expose] public def incrWin (d : A) (o len j : Nat) (c : L) : A :=
+  if h : winOK d o len = true then
+    (FFT.incrAt d o.toUSize len.toUSize (winOK_spec h).2.2.2 j.toUSize c).1
+  else d
+
+/-- The values at `1`, `2` and `3` of the three pieces of `X`, in one pass. -/
+public def evals3K (x : A) (xo xl k : Nat) : A :=
+  let e := R.zeros (3 * (k + 1))
+  let n := min k xl
+  let l₁ := min k (xl - k)
+  let l₂ := min k (xl - 2 * k)
+  if h : winOK e 0 (k + 1) = true ∧ winOK e (k + 1) (k + 1) = true ∧
+      winOK e (2 * (k + 1)) (k + 1) = true ∧ winOK x xo n = true ∧ winOK x (xo + k) l₁ = true ∧
+      winOK x (xo + 2 * k) l₂ = true then
+    have e₀ := winOK_spec h.1
+    have e₁ := winOK_spec h.2.1
+    have e₂ := winOK_spec h.2.2.1
+    have hx₀ := winOK_spec h.2.2.2.1
+    have hx₁ := winOK_spec h.2.2.2.2.1
+    have hx₂ := winOK_spec h.2.2.2.2.2
+    have hn : n.toUSize.toNat ≤ (k + 1).toUSize.toNat := by
+      rw [hx₀.2.2.1, e₀.2.2.1]; lia
+    F.fold3Then n.toUSize
+      (eval3Step x xo.toUSize (xo + k).toUSize (xo + 2 * k).toUSize l₁.toUSize l₂.toUSize n.toUSize
+        hx₀.2.2.2 hx₁.2.2.2 hx₂.2.2.2 R.one R.one)
+      (eval3Step x xo.toUSize (xo + k).toUSize (xo + 2 * k).toUSize l₁.toUSize l₂.toUSize n.toUSize
+        hx₀.2.2.2 hx₁.2.2.2 hx₂.2.2.2 (R.ofUSize 2) (R.ofUSize 4))
+      (eval3Step x xo.toUSize (xo + k).toUSize (xo + 2 * k).toUSize l₁.toUSize l₂.toUSize n.toUSize
+        hx₀.2.2.2 hx₁.2.2.2 hx₂.2.2.2 (R.ofUSize 3) (R.ofUSize 9))
+      e (0 : Nat).toUSize (k + 1).toUSize (2 * (k + 1)).toUSize (bound_le e₀.2.2.2 hn)
+      (bound_le e₁.2.2.2 (by rw [e₁.2.2.1]; rw [e₀.2.2.1] at hn; exact hn))
+      (bound_le e₂.2.2.2 (by rw [e₂.2.2.1]; rw [e₀.2.2.1] at hn; exact hn)) 0 R.zero R.zero R.zero
+      fun arr _ c₁ c₂ c₃ =>
+        incrWin (incrWin (incrWin arr 0 (k + 1) n c₁) (k + 1) (k + 1) n c₂) (2 * (k + 1)) (k + 1) n
+          c₃
+  else
+    let v := fun j => valAt x xo (min k xl) + j * valAt x (xo + k) (min k (xl - k)) +
+      j ^ 2 * valAt x (xo + 2 * k) (min k (xl - 2 * k))
+    let e := writeNat e 0 (k + 1) (v 1)
+    let e := writeNat e (k + 1) (k + 1) (v 2)
+    writeNat e (2 * (k + 1)) (k + 1) (v 3)
+
+omit F in
+/-- The law of `eval3Step`, with its carry at most `14`. -/
+private theorem eval3Step_law (hw : 32 ≤ LA.w) (x : A) (o₀ o₁ o₂ l₁ l₂ n : USize)
+    (h₀ : LoopBound x o₀ n) (h₁ : LoopBound x o₁ l₁) (h₂ : LoopBound x o₂ l₂) (j j₂ : L)
+    (hj : LA.val j ≤ 3) (hj₂ : LA.val j₂ ≤ 9) (t : USize) (h : t < n) (z c : L)
+    (hc : LA.val c ≤ 14) :
+    LA.val (eval3Step x o₀ o₁ o₂ l₁ l₂ n h₀ h₁ h₂ j j₂ t h z c).2 ≤ 14 ∧
+      LA.val (eval3Step x o₀ o₁ o₂ l₁ l₂ n h₀ h₁ h₂ j j₂ t h z c).1 +
+          2 ^ LA.w * LA.val (eval3Step x o₀ o₁ o₂ l₁ l₂ n h₀ h₁ h₂ j j₂ t h z c).2 =
+        LA.val z + (LA.val (LA.get x (o₀.toNat + t.toNat)) +
+          LA.val j * (if t.toNat < l₁.toNat then LA.val (LA.get x (o₁.toNat + t.toNat)) else 0) +
+          LA.val j₂ * (if t.toNat < l₂.toNat then LA.val (LA.get x (o₂.toNat + t.toNat)) else 0)) +
+          LA.val c := by
+  have hW : 16 ≤ 2 ^ LA.w :=
+    calc 16 = 2 ^ 4 := rfl
+      _ ≤ 2 ^ LA.w := Nat.pow_le_pow_right (by decide) (by lia)
+  have hx : R.uget x (o₀ + t) (h₀.uset_bound h) = LA.get x (o₀.toNat + t.toNat) := by
+    rw [R.uget_eq, h₀.toNat_add h]
+  have hy : ∀ (o l : USize) (hl : LoopBound x o l),
+      LA.val (if h' : t < l then R.uget x (o + t) (hl.uset_bound h') else R.zero) =
+        if t.toNat < l.toNat then LA.val (LA.get x (o.toNat + t.toNat)) else 0 := by
+    intro o l hl
+    by_cases h' : t < l
+    · have e := USize.lt_iff_toNat_lt.1 h'
+      simp only [h', e, ↓reduceDIte, ↓reduceIte, R.uget_eq, hl.toNat_add h']
+    · have e : ¬ t.toNat < l.toNat := fun e => h' (USize.lt_iff_toNat_lt.2 e)
+      simp only [h', e, ↓reduceDIte, ↓reduceIte, R.val_zero]
+  simp only [eval3Step]
+  rw [← hy o₁ l₁ h₁, ← hy o₂ l₂ h₂, ← hx]
+  generalize (if h' : t < l₁ then R.uget x (o₁ + t) (h₁.uset_bound h') else R.zero) = a₁
+  generalize (if h' : t < l₂ then R.uget x (o₂ + t) (h₂.uset_bound h') else R.zero) = a₂
+  generalize R.uget x (o₀ + t) (h₀.uset_bound h) = a₀
+  have m := R.val_mulAdd2 a₁ j a₀ c
+  generalize R.mulAdd2 a₁ j a₀ c = p at m ⊢
+  have m' := R.val_mulAdd2 a₂ j₂ p.1 z
+  generalize R.mulAdd2 a₂ j₂ p.1 z = q at m' ⊢
+  rw [R.val_add]
+  have l₀ := LA.val_lt a₀
+  have l₁ := LA.val_lt a₁
+  have l₂ := LA.val_lt a₂
+  have lz := LA.val_lt z
+  have lp := LA.val_lt p.1
+  generalize 2 ^ LA.w = W at *
+  generalize LA.val p.1 = lo at *
+  generalize LA.val p.2 = hi at *
+  generalize LA.val q.1 = o at *
+  generalize LA.val q.2 = hq at *
+  have b₁ : LA.val a₁ * LA.val j ≤ 3 * W := by
+    calc LA.val a₁ * LA.val j ≤ W * 3 := Nat.mul_le_mul (by lia) hj
+      _ = 3 * W := Nat.mul_comm _ _
+  have b₂ : LA.val a₂ * LA.val j₂ ≤ 9 * W := by
+    calc LA.val a₂ * LA.val j₂ ≤ W * 9 := Nat.mul_le_mul (by lia) hj₂
+      _ = 9 * W := Nat.mul_comm _ _
+  have hhi : hi < 5 := Nat.lt_of_mul_lt_mul_left (show W * hi < W * 5 by lia)
+  have hhq : hq < 11 := Nat.lt_of_mul_lt_mul_left (show W * hq < W * 11 by lia)
+  have hs : hi + hq ≤ 14 := by lia
+  rw [Nat.mod_eq_of_lt (by lia : hi + hq < W)]
+  refine ⟨hs, ?_⟩
+  rw [Nat.mul_add, Nat.mul_comm (LA.val j), Nat.mul_comm (LA.val j₂)]
+  lia
+
+omit F in
+/--
+The carry pass of a window, after a first pass over its low `n` limbs whose value and carry `c`
+make `S`, and whose high limbs are zero, gives `S` when it fits in the window.
+-/
+private theorem carry_win (X : A) (o len n S : Nat) (c : L) (hn : n ≤ len)
+    (hw : winOK X o len = true) (a₃ : valAt X o n + 2 ^ (LA.w * n) * LA.val c = S)
+    (hhigh : valAt X (o + n) (len - n) = 0) (hS : S < 2 ^ (LA.w * len)) :
+    LA.size (incrWin X o len n c) = LA.size X ∧
+      (∀ i, (i < o ∨ o + len ≤ i) → LA.get (incrWin X o len n c) i = LA.get X i) ∧
+      valAt (incrWin X o len n c) o len = S := by
+  obtain ⟨-, e₁, e₂, hb⟩ := winOK_spec hw
+  have e₄ : n.toUSize.toNat = n := by
+    rw [← e₂] at hn; simp only [winOK, Bool.and_eq_true, decide_eq_true_eq] at hw
+    exact toNat_toUSize' (by lia)
+  unfold incrWin
+  simp only [hw, ↓reduceDIte]
+  obtain ⟨b₁, b₂, b₃⟩ := FFT.incrAt_spec X o.toUSize len.toUSize (winOK_spec hw).2.2.2 n.toUSize c
+  generalize FFT.incrAt X o.toUSize len.toUSize (winOK_spec hw).2.2.2 n.toUSize c = q at b₁ b₂ b₃ ⊢
+  rw [e₁, e₂, e₄, hhigh, Nat.zero_add] at b₃
+  rw [e₁, e₂, e₄] at b₂
+  refine ⟨b₁, fun i hi => b₂ i (by lia), ?_⟩
+  have hlow : valAt q.1 o n = valAt X o n :=
+    valAt_congr _ fun i _ hi => b₂ i (.inl (by lia))
+  have hsplit : valAt q.1 o len = valAt q.1 o n + 2 ^ (LA.w * n) * valAt q.1 (o + n) (len - n) := by
+    rw [← valAt_add, Nat.add_sub_cancel' hn]
+  have hpow : 2 ^ (LA.w * len) = 2 ^ (LA.w * n) * 2 ^ (LA.w * (len - n)) := by
+    rw [← Nat.pow_add]; congr 1; rw [← Nat.mul_add, Nat.add_sub_cancel' hn]
+  rw [hsplit, hlow]
+  rw [hpow] at hS
+  generalize valAt q.1 (o + n) (len - n) = Qh at b₃ ⊢
+  generalize LA.val q.2 = c₂ at b₃
+  generalize LA.val c = c₁ at a₃ b₃
+  generalize valAt X o n = Xl at a₃ ⊢
+  generalize 2 ^ (LA.w * n) = P at *
+  generalize 2 ^ (LA.w * (len - n)) = H at *
+  -- The carry out is zero, since `S` fits.
+  have hc₂ : c₂ = 0 := by
+    rcases Nat.eq_zero_or_pos c₂ with h | h
+    · exact h
+    · exfalso
+      have : H ≤ H * c₂ := Nat.le_mul_of_pos_right _ h
+      have : P * H ≤ P * c₁ := by
+        calc P * H ≤ P * (Qh + H * c₂) := Nat.mul_le_mul_left _ (by lia)
+          _ = P * c₁ := by rw [b₃]
+      lia
+  subst hc₂
+  have : P * Qh = P * c₁ := by rw [← b₃]; simp
+  lia
+
+omit R F in
+/-- The value of three pieces at `j ≤ 3` fits in `k + 1` limbs. -/
+private theorem evals3_lt (hw : 32 ≤ LA.w) (x : A) (xo xl k j : Nat) (hj : j ≤ 3) :
+    valAt x xo (min k xl) + j * valAt x (xo + k) (min k (xl - k)) +
+      j ^ 2 * valAt x (xo + 2 * k) (min k (xl - 2 * k)) < 2 ^ (LA.w * (k + 1)) := by
+  have hW : 16 ≤ 2 ^ LA.w :=
+    calc 16 = 2 ^ 4 := rfl
+      _ ≤ 2 ^ LA.w := Nat.pow_le_pow_right (by decide) (by lia)
+  have hb : ∀ o l, l ≤ k → valAt x o l < 2 ^ (LA.w * k) := fun o l hl =>
+    Nat.lt_of_lt_of_le (valAt_lt x o l) (Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_left _ hl))
+  have a₀ := hb xo (min k xl) (Nat.min_le_left _ _)
+  have a₁ := hb (xo + k) (min k (xl - k)) (Nat.min_le_left _ _)
+  have a₂ := hb (xo + 2 * k) (min k (xl - 2 * k)) (Nat.min_le_left _ _)
+  rw [Nat.mul_succ, Nat.pow_add]
+  have hj2 : j ^ 2 ≤ 9 := by
+    calc j ^ 2 ≤ 3 ^ 2 := Nat.pow_le_pow_left hj 2
+      _ = 9 := rfl
+  generalize 2 ^ (LA.w * k) = K at *
+  generalize 2 ^ LA.w = W at *
+  have : j * valAt x (xo + k) (min k (xl - k)) ≤ 3 * K := Nat.mul_le_mul hj (by lia)
+  have : j ^ 2 * valAt x (xo + 2 * k) (min k (xl - 2 * k)) ≤ 9 * K := Nat.mul_le_mul hj2 (by lia)
+  have : 16 * K ≤ K * W := by rw [Nat.mul_comm]; exact Nat.mul_le_mul_left _ hW
+  lia
+
+public theorem evals3K_spec (hw : 32 ≤ LA.w) (x : A) (xo xl k : Nat) :
+    LA.size (evals3K x xo xl k) = 3 * (k + 1) ∧
+      ∀ j, 1 ≤ j → j ≤ 3 → valAt (evals3K x xo xl k) ((j - 1) * (k + 1)) (k + 1) =
+        valAt x xo (min k xl) + j * valAt x (xo + k) (min k (xl - k)) +
+          j ^ 2 * valAt x (xo + 2 * k) (min k (xl - 2 * k)) := by
+  have hW : 16 ≤ 2 ^ LA.w :=
+    calc 16 = 2 ^ 4 := rfl
+      _ ≤ 2 ^ LA.w := Nat.pow_le_pow_right (by decide) (by lia)
+  have hv2 : LA.val (R.ofUSize (2 : USize)) = 2 := by
+    rw [R.val_ofUSize, show (2 : USize).toNat = 2 from toNat_toUSize' (n := 2) (by decide),
+      Nat.mod_eq_of_lt (by lia)]
+  have hv3 : LA.val (R.ofUSize (3 : USize)) = 3 := by
+    rw [R.val_ofUSize, show (3 : USize).toNat = 3 from toNat_toUSize' (n := 3) (by decide),
+      Nat.mod_eq_of_lt (by lia)]
+  have hv4 : LA.val (R.ofUSize (4 : USize)) = 4 := by
+    rw [R.val_ofUSize, show (4 : USize).toNat = 4 from toNat_toUSize' (n := 4) (by decide),
+      Nat.mod_eq_of_lt (by lia)]
+  have hv9 : LA.val (R.ofUSize (9 : USize)) = 9 := by
+    rw [R.val_ofUSize, show (9 : USize).toNat = 9 from toNat_toUSize' (n := 9) (by decide),
+      Nat.mod_eq_of_lt (by lia)]
+  have hz : ∀ o l, valAt (R.zeros (3 * (k + 1))) o l = 0 :=
+    fun _ _ => valAt_eq_zero _ fun i _ _ => R.val_get_zeros _ i
+  have hsz := R.size_zeros (3 * (k + 1))
+  have hlt := evals3_lt hw x xo xl k
+  unfold evals3K
+  dsimp only
+  split
+  · rename_i hh
+    obtain ⟨-, e₀, eK, -⟩ := winOK_spec hh.1
+    obtain ⟨-, e₁, -, -⟩ := winOK_spec hh.2.1
+    obtain ⟨-, e₂, -, -⟩ := winOK_spec hh.2.2.1
+    obtain ⟨-, ex₀, en, -⟩ := winOK_spec hh.2.2.2.1
+    obtain ⟨-, ex₁, el₁, -⟩ := winOK_spec hh.2.2.2.2.1
+    obtain ⟨-, ex₂, el₂, -⟩ := winOK_spec hh.2.2.2.2.2
+    rw [F.fold3Then_eq, foldUInPlace3Then]
+    let G : L → L → Nat → Nat := fun j j₂ t =>
+      LA.val (LA.get x (xo.toUSize.toNat + t)) +
+        LA.val j * (if t < (min k (xl - k)).toUSize.toNat then
+          LA.val (LA.get x ((xo + k).toUSize.toNat + t)) else 0) +
+        LA.val j₂ * (if t < (min k (xl - 2 * k)).toUSize.toNat then
+          LA.val (LA.get x ((xo + 2 * k).toUSize.toNat + t)) else 0)
+    obtain ⟨f₀, -, -, -, f₁, f₂, f₃, f₄⟩ := foldUInPlace3_spec (min k xl).toUSize _ _ _
+      (fun _ => 0) (fun _ => 0) (fun _ => 0) (G R.one R.one) (G (R.ofUSize 2) (R.ofUSize 4))
+      (G (R.ofUSize 3) (R.ofUSize 9)) (fun c => LA.val c) (fun _ => 0) (fun c => LA.val c)
+      (fun _ => 0) (fun c => LA.val c) (fun _ => 0)
+      (fun c => LA.val c ≤ 14) (fun c => LA.val c ≤ 14) (fun c => LA.val c ≤ 14)
+      (fun t h z c hc => (eval3Step_law hw x xo.toUSize (xo + k).toUSize (xo + 2 * k).toUSize
+          (min k (xl - k)).toUSize (min k (xl - 2 * k)).toUSize (min k xl).toUSize
+          (winOK_spec hh.2.2.2.1).2.2.2 (winOK_spec hh.2.2.2.2.1).2.2.2
+          (winOK_spec hh.2.2.2.2.2).2.2.2 R.one R.one (by rw [R.val_one]; lia) (by rw [R.val_one]; lia) t h z c hc).1)
+      (fun t h z c hc => (eval3Step_law hw x xo.toUSize (xo + k).toUSize (xo + 2 * k).toUSize
+          (min k (xl - k)).toUSize (min k (xl - 2 * k)).toUSize (min k xl).toUSize
+          (winOK_spec hh.2.2.2.1).2.2.2 (winOK_spec hh.2.2.2.2.1).2.2.2
+          (winOK_spec hh.2.2.2.2.2).2.2.2 (R.ofUSize 2) (R.ofUSize 4) (by rw [hv2]; lia) (by rw [hv4]; lia) t h z c hc).1)
+      (fun t h z c hc => (eval3Step_law hw x xo.toUSize (xo + k).toUSize (xo + 2 * k).toUSize
+          (min k (xl - k)).toUSize (min k (xl - 2 * k)).toUSize (min k xl).toUSize
+          (winOK_spec hh.2.2.2.1).2.2.2 (winOK_spec hh.2.2.2.2.1).2.2.2
+          (winOK_spec hh.2.2.2.2.2).2.2.2 (R.ofUSize 3) (R.ofUSize 9) (by rw [hv3]; lia) (by rw [hv9]; lia) t h z c hc).1)
+      (fun t h z c hc => by
+        have := (eval3Step_law hw x xo.toUSize (xo + k).toUSize (xo + 2 * k).toUSize
+          (min k (xl - k)).toUSize (min k (xl - 2 * k)).toUSize (min k xl).toUSize
+          (winOK_spec hh.2.2.2.1).2.2.2 (winOK_spec hh.2.2.2.2.1).2.2.2
+          (winOK_spec hh.2.2.2.2.2).2.2.2 R.one R.one (by rw [R.val_one]; lia) (by rw [R.val_one]; lia) t h z c hc).2
+        simp only [G, Nat.mul_zero, Nat.add_zero]
+        exact this)
+      (fun t h z c hc => by
+        have := (eval3Step_law hw x xo.toUSize (xo + k).toUSize (xo + 2 * k).toUSize
+          (min k (xl - k)).toUSize (min k (xl - 2 * k)).toUSize (min k xl).toUSize
+          (winOK_spec hh.2.2.2.1).2.2.2 (winOK_spec hh.2.2.2.2.1).2.2.2
+          (winOK_spec hh.2.2.2.2.2).2.2.2 (R.ofUSize 2) (R.ofUSize 4) (by rw [hv2]; lia) (by rw [hv4]; lia) t h z c hc).2
+        simp only [G, Nat.mul_zero, Nat.add_zero]
+        exact this)
+      (fun t h z c hc => by
+        have := (eval3Step_law hw x xo.toUSize (xo + k).toUSize (xo + 2 * k).toUSize
+          (min k (xl - k)).toUSize (min k (xl - 2 * k)).toUSize (min k xl).toUSize
+          (winOK_spec hh.2.2.2.1).2.2.2 (winOK_spec hh.2.2.2.2.1).2.2.2
+          (winOK_spec hh.2.2.2.2.2).2.2.2 (R.ofUSize 3) (R.ofUSize 9) (by rw [hv3]; lia) (by rw [hv9]; lia) t h z c hc).2
+        simp only [G, Nat.mul_zero, Nat.add_zero]
+        exact this)
+      (R.zeros (3 * (k + 1))) (0 : Nat).toUSize (k + 1).toUSize (2 * (k + 1)).toUSize _ _ _
+      (by rw [e₀, e₁, en]; lia) (by rw [e₀, e₂, en]; lia) (by rw [e₁, e₂, en]; lia)
+      0 R.zero R.zero R.zero (by rw [R.val_zero]; lia) (by rw [R.val_zero]; lia)
+      (by rw [R.val_zero]; lia)
+    have hG : ∀ (j j₂ : L) (a b : Nat), LA.val j = a → LA.val j₂ = b →
+        wsum LA.w (G j j₂) 0 (min k xl) =
+          valAt x xo (min k xl) + a * valAt x (xo + k) (min k (xl - k)) +
+            b * valAt x (xo + 2 * k) (min k (xl - 2 * k)) := by
+      intro j j₂ a b ha hb
+      simp only [G, ha, hb]
+      rw [wsum_add_mul LA.w (fun t => LA.val (LA.get x (xo.toUSize.toNat + t)) +
+          a * (if t < (min k (xl - k)).toUSize.toNat then
+            LA.val (LA.get x ((xo + k).toUSize.toNat + t)) else 0)),
+        wsum_add_mul, wsum_get, wsum_pad _ _ _ _ _ (by rw [el₁]; lia),
+        wsum_pad _ _ _ _ _ (by rw [el₂]; lia), ex₀, ex₁, ex₂, el₁, el₂]
+      simp only [Nat.add_zero, Nat.sub_zero]
+    simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, e₀, e₁, e₂, en, R.val_zero,
+      wsum_zero, Nat.mul_zero, hz] at f₂ f₃ f₄
+    rw [hG _ _ 1 1 R.val_one R.val_one] at f₂
+    rw [hG _ _ 2 4 hv2 hv4] at f₃
+    rw [hG _ _ 3 9 hv3 hv9] at f₄
+    generalize foldUInPlace3 (min k xl).toUSize _ _ _ (R.zeros (3 * (k + 1))) _ _ _ _ _ _ 0
+      R.zero R.zero R.zero = X at f₀ f₁ f₂ f₃ f₄ ⊢
+    have ok : ∀ Y : A, LA.size Y = LA.size (R.zeros (3 * (k + 1))) → ∀ o,
+        winOK (R.zeros (3 * (k + 1))) o (k + 1) = true → winOK Y o (k + 1) = true :=
+      fun Y hY o h => by unfold winOK at h ⊢; rw [hY]; exact h
+    have hn : min k xl ≤ k + 1 := by lia
+    have hX : ∀ i, min k xl ≤ i → (i < k + 1 ∨ k + 1 + min k xl ≤ i) →
+        (i < 2 * (k + 1) ∨ 2 * (k + 1) + min k xl ≤ i) → LA.val (LA.get X.1 i) = 0 :=
+      fun i h₁ h₂ h₃ => by
+        rw [f₁ i (by rw [e₀, en]; lia) (by rw [e₁, en]; lia) (by rw [e₂, en]; lia)]
+        exact R.val_get_zeros _ i
+    -- The first window.
+    obtain ⟨y₁, y₂, y₃⟩ := carry_win X.1 0 (k + 1) (min k xl) _ X.2.1 hn (ok _ f₀ _ hh.1)
+      (by simpa using f₂)
+      (valAt_eq_zero _ fun i h₁ h₂ => hX i (by lia) (by lia) (by lia)) (hlt 1 (by lia))
+    generalize incrWin X.1 0 (k + 1) (min k xl) X.2.1 = Y₁ at y₁ y₂ y₃ ⊢
+    have hY₁ : ∀ i, k + 1 ≤ i → LA.get Y₁ i = LA.get X.1 i := fun i hi => y₂ i (.inr (by lia))
+    obtain ⟨z₁, z₂, z₃⟩ := carry_win Y₁ (k + 1) (k + 1) (min k xl) _ X.2.2.1 hn
+      (ok _ (y₁.trans f₀) _ hh.2.1)
+      (by rw [valAt_congr _ fun i h₁ _ => hY₁ i h₁]; simpa using f₃)
+      (valAt_eq_zero _ fun i h₁ h₂ => by rw [hY₁ i (by lia)]; exact hX i (by lia) (by lia) (by lia))
+      (hlt 2 (by lia))
+    generalize incrWin Y₁ (k + 1) (k + 1) (min k xl) X.2.2.1 = Y₂ at z₁ z₂ z₃ ⊢
+    have hY₂ : ∀ i, 2 * (k + 1) ≤ i → LA.get Y₂ i = LA.get X.1 i :=
+      fun i hi => (z₂ i (.inr (by lia))).trans (hY₁ i (by lia))
+    obtain ⟨u₁, u₂, u₃⟩ := carry_win Y₂ (2 * (k + 1)) (k + 1) (min k xl) _ X.2.2.2 hn
+      (ok _ (z₁.trans (y₁.trans f₀)) _ hh.2.2.1)
+      (by rw [valAt_congr _ fun i h₁ _ => hY₂ i h₁]; simpa using f₄)
+      (valAt_eq_zero _ fun i h₁ h₂ => by rw [hY₂ i (by lia)]; exact hX i (by lia) (by lia) (by lia))
+      (hlt 3 (by lia))
+    generalize incrWin Y₂ (2 * (k + 1)) (k + 1) (min k xl) X.2.2.2 = Y₃ at u₁ u₂ u₃ ⊢
+    refine ⟨u₁.trans (z₁.trans (y₁.trans (f₀.trans hsz))), fun j h₁ h₂ => ?_⟩
+    obtain rfl | rfl | rfl : j = 1 ∨ j = 2 ∨ j = 3 := by lia
+    · rw [show (1 - 1) * (k + 1) = 0 by simp, ← y₃,
+        valAt_congr _ fun i _ _ => (u₂ i (.inl (by lia))).trans (z₂ i (.inl (by lia)))]
+    · rw [show (2 - 1) * (k + 1) = k + 1 by simp, ← z₃,
+        valAt_congr _ fun i _ _ => u₂ i (.inl (by lia))]
+    · rw [show (3 - 1) * (k + 1) = 2 * (k + 1) by simp, u₃]
+  · have hw₀ : 0 + (k + 1) ≤ LA.size (R.zeros (3 * (k + 1))) := by rw [hsz]; lia
+    obtain ⟨w₁, v₁⟩ := fallback _ 0 (k + 1) _ hw₀ (hlt 1 (by lia))
+    generalize writeNat (R.zeros (3 * (k + 1))) 0 (k + 1) _ = D₁ at w₁ v₁ ⊢
+    obtain ⟨w₂, v₂⟩ := fallback D₁ (k + 1) (k + 1) _ (by rw [w₁.1, hsz]; lia) (hlt 2 (by lia))
+    generalize writeNat D₁ (k + 1) (k + 1) _ = D₂ at w₂ v₂ ⊢
+    obtain ⟨w₃, v₃⟩ := fallback D₂ (2 * (k + 1)) (k + 1) _ (by rw [w₂.1, w₁.1, hsz]; lia)
+      (hlt 3 (by lia))
+    generalize writeNat D₂ (2 * (k + 1)) (k + 1) _ = D₃ at w₃ v₃ ⊢
+    refine ⟨w₃.1.trans (w₂.1.trans (w₁.1.trans hsz)), fun j h₁ h₂ => ?_⟩
+    obtain rfl | rfl | rfl : j = 1 ∨ j = 2 ∨ j = 3 := by lia
+    · rw [show (1 - 1) * (k + 1) = 0 by simp, w₃.valAt_eq (by lia), w₂.valAt_eq (by lia), v₁]
+    · rw [show (2 - 1) * (k + 1) = k + 1 by simp, w₃.valAt_eq (by lia), v₂]
+    · rw [show (3 - 1) * (k + 1) = 2 * (k + 1) by simp, v₃]
+
 /-- The operations of the Karatsuba and Toom methods: the kernels of this file and `ToomBase`. -/
 public instance toomOpsW [B : ToomBase A L] : ToomOps A L where
   w_ge := B.w_ge
@@ -1084,6 +1440,8 @@ public instance toomOpsW [B : ToomBase A L] : ToomOps A L where
   subMulInto_spec := subMulIntoK_spec
   subMulWin := subMulWinK
   subMulWin_spec d o len so sl v hw hsw hds hsl hvw hv := subMulWinK_spec d o len so sl v hw hsw hds hsl hvw hv
+  evals3 := evals3K
+  evals3_spec := evals3K_spec B.w_ge
   sub3Lin := sub3LinK
   sub3Lin_spec := sub3LinK_spec
   shlTop := shlTopK

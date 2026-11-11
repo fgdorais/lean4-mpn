@@ -120,6 +120,16 @@ public class ToomOps (A : Type) (L : outParam Type) [LimbArray A L] where
     Writes (subMulWin d o len so sl v) d o len ∧
       valAt (subMulWin d o len so sl v) o len = valAt d o len - valAt d so sl * v
   /--
+  The values at `1`, `2` and `3` of the three pieces of `k` limbs of `X`, in the windows of `k + 1`
+  limbs at `0`, `k + 1` and `2 (k + 1)` of a new array: `evals3 x xo xl k`.
+  -/
+  evals3 : A → Nat → Nat → Nat → A
+  evals3_spec : ∀ (x : A) (xo xl k : Nat),
+    LimbArray.size (evals3 x xo xl k) = 3 * (k + 1) ∧
+      ∀ j, 1 ≤ j → j ≤ 3 → valAt (evals3 x xo xl k) ((j - 1) * (k + 1)) (k + 1) =
+        valAt x xo (min k xl) + j * valAt x (xo + k) (min k (xl - k)) +
+          j ^ 2 * valAt x (xo + 2 * k) (min k (xl - 2 * k))
+  /--
   `Dᵢ - (S + T vᵢ)` in three disjoint windows `Dᵢ` of `d`, for limbs `vᵢ`, in one pass:
   `sub3Lin d o₁ o₂ o₃ len s so sl to tl v₁ v₂ v₃`.
   -/

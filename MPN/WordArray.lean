@@ -817,6 +817,11 @@ public theorem wsum_succ (w : Nat) (g : Nat → Nat) (j m : Nat) :
     wsum w g j (m + 1) = g j + 2 ^ w * wsum w g (j + 1) m := by
   rw [wsum]
 
+public theorem wsum_zero (w j m : Nat) : wsum w (fun _ => 0) j m = 0 := by
+  induction m generalizing j with
+  | zero => rfl
+  | succ m ih => rw [wsum_succ, ih]; simp
+
 /-- `wsum` is linear in its digits. -/
 public theorem wsum_add_mul (w : Nat) (g h : Nat → Nat) (v : Nat) :
     ∀ m j, wsum w (fun i => g i + v * h i) j m = wsum w g j m + v * wsum w h j m
@@ -826,35 +831,37 @@ public theorem wsum_add_mul (w : Nat) (g h : Nat → Nat) (v : Nat) :
     simp only [Nat.mul_add]
     grind
 
-/-- One step of a borrow law of a fold, from the law of the rest. -/
-private theorem law3_step {o e q x V Wk Qp X B Qf W : Nat}
-    (ih : V + Wk + Qp = X + B * Qf) (hl : o + e + q = x + W * Qp) :
-    o + W * V + (e + W * Wk) + q = x + W * X + B * W * Qf := by
+/-- One step of a carry law of a fold over one window with amounts, from the law of the rest. -/
+private theorem law3_step {o ea eb q p x V Wa Wb Pp Qp P' Q' X B W : Nat}
+    (ih : V + B * P' + Wa + Qp = X + Wb + B * Q' + Pp)
+    (hl : o + W * Pp + ea + q = x + eb + W * Qp + p) :
+    o + W * V + B * W * P' + (ea + W * Wa) + q = x + W * X + (eb + W * Wb) + B * W * Q' + p := by
   have := congrArg (W * ·) ih
   simp only [Nat.mul_add] at this
   grind
 
 /--
-The values of `foldUInPlace3`, for steps with borrow laws: if every step of `fᵢ` turns a limb `z`
-and a borrow `c` into a limb `out` and a borrow `c'` with `out + Eᵢ j + Qᵢ c = z + 2ʷ Qᵢ c'`, then
-each window minus the sum of its amounts is its new value and the last borrow, as long as the
-three windows are disjoint.
+The values of `foldUInPlace3`, for steps with linear carry laws: if every step of `fᵢ` turns a limb
+`z` and an accumulator `c` into a limb `out` and an accumulator `c'` with
+`out + 2ʷ Pᵢ c' + Eᵢ j + Qᵢ c = z + Gᵢ j + 2ʷ Qᵢ c' + Pᵢ c`, then the windows satisfy the same law
+with the sums of the amounts `Eᵢ` and `Gᵢ`, as long as the three windows are disjoint. `Pᵢ` is a
+carry and `Qᵢ` a borrow.
 -/
 public theorem foldUInPlace3_spec {β₁ β₂ β₃ : Type} (n : USize)
     (f₁ : (j : USize) → j < n → L → β₁ → L × β₁)
     (f₂ : (j : USize) → j < n → L → β₂ → L × β₂)
     (f₃ : (j : USize) → j < n → L → β₃ → L × β₃)
-    (E₁ E₂ E₃ : Nat → Nat) (Q₁ : β₁ → Nat) (Q₂ : β₂ → Nat) (Q₃ : β₃ → Nat)
+    (E₁ E₂ E₃ G₁ G₂ G₃ : Nat → Nat) (P₁ Q₁ : β₁ → Nat) (P₂ Q₂ : β₂ → Nat) (P₃ Q₃ : β₃ → Nat)
     (I₁ : β₁ → Prop) (I₂ : β₂ → Prop) (I₃ : β₃ → Prop)
     (inv₁ : ∀ j h z c, I₁ c → I₁ (f₁ j h z c).2)
     (inv₂ : ∀ j h z c, I₂ c → I₂ (f₂ j h z c).2)
     (inv₃ : ∀ j h z c, I₃ c → I₃ (f₃ j h z c).2)
-    (law₁ : ∀ j h z c, I₁ c → LA.val (f₁ j h z c).1 + E₁ j.toNat + Q₁ c =
-      LA.val z + 2 ^ LA.w * Q₁ (f₁ j h z c).2)
-    (law₂ : ∀ j h z c, I₂ c → LA.val (f₂ j h z c).1 + E₂ j.toNat + Q₂ c =
-      LA.val z + 2 ^ LA.w * Q₂ (f₂ j h z c).2)
-    (law₃ : ∀ j h z c, I₃ c → LA.val (f₃ j h z c).1 + E₃ j.toNat + Q₃ c =
-      LA.val z + 2 ^ LA.w * Q₃ (f₃ j h z c).2)
+    (law₁ : ∀ j h z c, I₁ c → LA.val (f₁ j h z c).1 + 2 ^ LA.w * P₁ (f₁ j h z c).2 +
+      E₁ j.toNat + Q₁ c = LA.val z + G₁ j.toNat + 2 ^ LA.w * Q₁ (f₁ j h z c).2 + P₁ c)
+    (law₂ : ∀ j h z c, I₂ c → LA.val (f₂ j h z c).1 + 2 ^ LA.w * P₂ (f₂ j h z c).2 +
+      E₂ j.toNat + Q₂ c = LA.val z + G₂ j.toNat + 2 ^ LA.w * Q₂ (f₂ j h z c).2 + P₂ c)
+    (law₃ : ∀ j h z c, I₃ c → LA.val (f₃ j h z c).1 + 2 ^ LA.w * P₃ (f₃ j h z c).2 +
+      E₃ j.toNat + Q₃ c = LA.val z + G₃ j.toNat + 2 ^ LA.w * Q₃ (f₃ j h z c).2 + P₃ c)
     (arr : A) (rs ts us : USize) (hr : LoopBound arr rs n) (ht : LoopBound arr ts n)
     (hu : LoopBound arr us n)
     (hrt : rs.toNat + n.toNat ≤ ts.toNat ∨ ts.toNat + n.toNat ≤ rs.toNat)
@@ -868,17 +875,23 @@ public theorem foldUInPlace3_spec {β₁ β₂ β₃ : Type} (n : USize)
         (i < us.toNat + j.toNat ∨ us.toNat + n.toNat ≤ i) →
         LA.get (foldUInPlace3 n f₁ f₂ f₃ arr rs ts us hr ht hu j b₁ b₂ b₃).1 i = LA.get arr i) ∧
       LimbArray.valAt (foldUInPlace3 n f₁ f₂ f₃ arr rs ts us hr ht hu j b₁ b₂ b₃).1 (rs.toNat + j.toNat) (n.toNat - j.toNat) +
+        2 ^ (LA.w * (n.toNat - j.toNat)) * P₁ (foldUInPlace3 n f₁ f₂ f₃ arr rs ts us hr ht hu j b₁ b₂ b₃).2.1 +
         wsum LA.w E₁ j.toNat (n.toNat - j.toNat) + Q₁ b₁ =
       LimbArray.valAt arr (rs.toNat + j.toNat) (n.toNat - j.toNat) +
-        2 ^ (LA.w * (n.toNat - j.toNat)) * Q₁ (foldUInPlace3 n f₁ f₂ f₃ arr rs ts us hr ht hu j b₁ b₂ b₃).2.1 ∧
+        wsum LA.w G₁ j.toNat (n.toNat - j.toNat) +
+        2 ^ (LA.w * (n.toNat - j.toNat)) * Q₁ (foldUInPlace3 n f₁ f₂ f₃ arr rs ts us hr ht hu j b₁ b₂ b₃).2.1 + P₁ b₁ ∧
       LimbArray.valAt (foldUInPlace3 n f₁ f₂ f₃ arr rs ts us hr ht hu j b₁ b₂ b₃).1 (ts.toNat + j.toNat) (n.toNat - j.toNat) +
+        2 ^ (LA.w * (n.toNat - j.toNat)) * P₂ (foldUInPlace3 n f₁ f₂ f₃ arr rs ts us hr ht hu j b₁ b₂ b₃).2.2.1 +
         wsum LA.w E₂ j.toNat (n.toNat - j.toNat) + Q₂ b₂ =
       LimbArray.valAt arr (ts.toNat + j.toNat) (n.toNat - j.toNat) +
-        2 ^ (LA.w * (n.toNat - j.toNat)) * Q₂ (foldUInPlace3 n f₁ f₂ f₃ arr rs ts us hr ht hu j b₁ b₂ b₃).2.2.1 ∧
+        wsum LA.w G₂ j.toNat (n.toNat - j.toNat) +
+        2 ^ (LA.w * (n.toNat - j.toNat)) * Q₂ (foldUInPlace3 n f₁ f₂ f₃ arr rs ts us hr ht hu j b₁ b₂ b₃).2.2.1 + P₂ b₂ ∧
       LimbArray.valAt (foldUInPlace3 n f₁ f₂ f₃ arr rs ts us hr ht hu j b₁ b₂ b₃).1 (us.toNat + j.toNat) (n.toNat - j.toNat) +
+        2 ^ (LA.w * (n.toNat - j.toNat)) * P₃ (foldUInPlace3 n f₁ f₂ f₃ arr rs ts us hr ht hu j b₁ b₂ b₃).2.2.2 +
         wsum LA.w E₃ j.toNat (n.toNat - j.toNat) + Q₃ b₃ =
       LimbArray.valAt arr (us.toNat + j.toNat) (n.toNat - j.toNat) +
-        2 ^ (LA.w * (n.toNat - j.toNat)) * Q₃ (foldUInPlace3 n f₁ f₂ f₃ arr rs ts us hr ht hu j b₁ b₂ b₃).2.2.2 := by
+        wsum LA.w G₃ j.toNat (n.toNat - j.toNat) +
+        2 ^ (LA.w * (n.toNat - j.toNat)) * Q₃ (foldUInPlace3 n f₁ f₂ f₃ arr rs ts us hr ht hu j b₁ b₂ b₃).2.2.2 + P₃ b₃ := by
   induction arr, hr, ht, hu, j, b₁, b₂, b₃ using foldUInPlace3.induct (R := R) n f₁ f₂ f₃ rs ts us
     with
   | case1 arr hr ht hu j b₁ b₂ b₃ h x y z p q r a₁ a₂ ih =>
@@ -959,18 +972,18 @@ public theorem foldUInPlace3_spec {β₁ β₂ β₃ : Type} (n : USize)
       simp only [show ¬ i = us.toNat + j.toNat by lia, show ¬ i = ts.toNat + j.toNat by lia,
         show ¬ i = rs.toNat + j.toNat by lia, ↓reduceIte]
     · rw [hk, LimbArray.valAt_succ, LimbArray.valAt_succ, wsum_succ, hv₁, Nat.mul_succ,
-        Nat.pow_add, ← hx']
+        Nat.pow_add, ← hx', wsum_succ]
       exact law3_step ih₃ hl₁
     · rw [hk, LimbArray.valAt_succ, LimbArray.valAt_succ, wsum_succ, hv₂, Nat.mul_succ,
-        Nat.pow_add, ← hy']
+        Nat.pow_add, ← hy', wsum_succ]
       exact law3_step ih₄ hl₂
     · rw [hk, LimbArray.valAt_succ, LimbArray.valAt_succ, wsum_succ, hv₃, Nat.mul_succ,
-        Nat.pow_add, ← hz']
+        Nat.pow_add, ← hz', wsum_succ]
       exact law3_step ih₅ hl₃
   | case2 arr hr ht hu j b₁ b₂ b₃ h =>
     rw [foldUInPlace3]
     have : n.toNat - j.toNat = 0 := by have := USize.lt_iff_toNat_lt (a := j) (b := n); lia
-    simp [h, this, wsum, hb₁, hb₂, hb₃]
+    simp [h, this, wsum, hb₁, hb₂, hb₃, Nat.add_comm]
 
 /-- `foldUInPlace3` followed by `g` on the new array and the last accumulators. -/
 @[expose]
