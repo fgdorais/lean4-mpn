@@ -110,6 +110,16 @@ public class ToomOps (A : Type) (L : outParam Type) [LimbArray A L] where
     Writes (subMulInto d o len s so sl v) d o len ∧
       valAt (subMulInto d o len s so sl v) o len = valAt d o len - valAt s so sl * v
   /--
+  `D - S v` for a limb `v`, with `S` another window of the same array, disjoint from `D`:
+  `subMulWin d o len so sl v`.
+  -/
+  subMulWin : A → Nat → Nat → Nat → Nat → Nat → A
+  subMulWin_spec : ∀ (d : A) (o len so sl v : Nat), o + len ≤ LimbArray.size d →
+    so + sl ≤ LimbArray.size d → (o + len ≤ so ∨ so + sl ≤ o) → sl ≤ len →
+    v < 2 ^ LimbArray.w A → valAt d so sl * v ≤ valAt d o len →
+    Writes (subMulWin d o len so sl v) d o len ∧
+      valAt (subMulWin d o len so sl v) o len = valAt d o len - valAt d so sl * v
+  /--
   `D 2^(w - 1)`, wrapped: an even `D` that fits in all but the top limb ends up halved in the
   limbs from the second on.
   -/

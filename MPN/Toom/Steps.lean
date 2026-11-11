@@ -89,6 +89,82 @@ public theorem low_val {q : A} {len : Nat} (_hlen : 1 ≤ len) {Q : Nat} (hq : v
     (hlt : Q < 2 ^ (LA.w * (len - 1))) : valAt q 0 (len - 1) = Q := by
   rw [valAt_mod q 0 (Nat.sub_le len 1), hq, Nat.mod_eq_of_lt hlt]
 
+/-! ## Passes by values within one array
+
+The same passes on windows of one array, which return what they leave unchanged (`Writes`), so
+that the values of the other windows carry over; `subMulWin_val` subtracts a window of the same
+array.
+-/
+
+public theorem subW_val {q : A} {o len : Nat} (h : o + len ≤ LA.size q) (s : A) (so sl : Nat)
+    {Q S V : Nat} (hq : valAt q o len = Q) (hs : valAt s so sl = S) (hV : Q = S + V) :
+    Writes (R.subInto q o len s so sl) q o len ∧ valAt (R.subInto q o len s so sl) o len = V := by
+  obtain ⟨w, e⟩ := R.subInto_spec q o len s so sl h (by lia)
+  exact ⟨w, by rw [e]; lia⟩
+
+public theorem subMulW_val {q : A} {o len : Nat} (h : o + len ≤ LA.size q) (s : A) (so sl m : Nat)
+    (hm : m < 2 ^ 32) {Q S V : Nat} (hq : valAt q o len = Q) (hs : valAt s so sl = S)
+    (hV : Q = m * S + V) :
+    Writes (R.subMulInto q o len s so sl m) q o len ∧
+      valAt (R.subMulInto q o len s so sl m) o len = V := by
+  obtain ⟨w, e⟩ := R.subMulInto_spec q o len s so sl m h (lt_limb hm) (by rw [hq, hs]; lia)
+  exact ⟨w, by rw [e, hq, hs]; lia⟩
+
+public theorem subMulWin_val {q : A} {o len : Nat} (h : o + len ≤ LA.size q) (so sl m : Nat)
+    (hs : so + sl ≤ LA.size q) (hds : o + len ≤ so ∨ so + sl ≤ o) (hsl : sl ≤ len)
+    (hm : m < 2 ^ 32) {Q S V : Nat} (hq : valAt q o len = Q) (hS : valAt q so sl = S)
+    (hV : Q = m * S + V) :
+    Writes (R.subMulWin q o len so sl m) q o len ∧
+      valAt (R.subMulWin q o len so sl m) o len = V := by
+  obtain ⟨w, e⟩ := R.subMulWin_spec q o len so sl m h hs hds hsl (lt_limb hm)
+    (by rw [hq, hS]; lia)
+  exact ⟨w, by rw [e, hq, hS]; lia⟩
+
+public theorem divW_val {q : A} {o len : Nat} (h : o + len ≤ LA.size q) (d : Nat) (hd : d % 2 = 1)
+    (hd' : d < 2 ^ 32) {Q V : Nat} (hq : valAt q o len = Q) (hV : Q = d * V) :
+    Writes (R.divExact q o len d) q o len ∧ valAt (R.divExact q o len d) o len = V := by
+  have hd0 : 0 < d := by lia
+  obtain ⟨w, e⟩ := R.divExact_spec q o len d h hd (lt_limb hd') (by rw [hq, hV]; simp)
+  exact ⟨w, by rw [e, hq, hV, Nat.mul_div_cancel_left _ hd0]⟩
+
+public theorem shrW_val {q : A} {o len : Nat} (h : o + len ≤ LA.size q) (s : Nat) (hs₀ : 0 < s)
+    (hs : s < 32) {Q V : Nat} (hq : valAt q o len = Q) (hV : Q = 2 ^ s * V) :
+    Writes (R.shr q o len s) q o len ∧ valAt (R.shr q o len s) o len = V := by
+  obtain ⟨w, e⟩ := R.shr_spec q o len s h hs₀ (by have := R.w_ge; lia)
+  exact ⟨w, by rw [e, hq, hV, Nat.mul_div_cancel_left _ (Nat.two_pow_pos _)]⟩
+
+/-- `half_val` on the window at `b`. -/
+public theorem halfW_val {q : A} {b len : Nat} (h : b + len ≤ LA.size q) (h₁ : 1 ≤ len)
+    {Q V : Nat} (hq : valAt q b len = Q) (hV : Q = 2 * V) (hlt : Q < 2 ^ (LA.w * (len - 1))) :
+    Writes (R.shlTop q b len) q b len ∧ valAt (R.shlTop q b len) (b + 1) (len - 1) = V := by
+  obtain ⟨w, e⟩ := R.shlTop_spec q b len h
+  refine ⟨w, ?_⟩
+  have hw := LA.w_pos
+  have hB : 2 ^ LA.w = 2 * 2 ^ (LA.w - 1) := by
+    rw [← Nat.pow_succ']; congr 1; lia
+  have hP : 2 ^ (LA.w * len) = 2 ^ LA.w * 2 ^ (LA.w * (len - 1)) := by
+    rw [← Nat.pow_add]; congr 1
+    conv => lhs; rw [show len = (len - 1) + 1 by lia]
+    rw [Nat.mul_succ, Nat.add_comm]
+  have hfit : Q * 2 ^ (LA.w - 1) = 2 ^ LA.w * V := by rw [hV, hB]; grind
+  have hVlt : V < 2 ^ (LA.w * (len - 1)) := by lia
+  rw [hq, hfit, hP, Nat.mod_eq_of_lt (Nat.mul_lt_mul_of_pos_left hVlt (Nat.two_pow_pos _))] at e
+  have hs := valAt_add (R.shlTop q b len) b 1 (len - 1)
+  rw [show 1 + (len - 1) = len by lia, e, valAt_one, Nat.mul_one] at hs
+  have hlo := LA.val_lt (LA.get (R.shlTop q b len) b)
+  have h0 : LA.val (LA.get (R.shlTop q b len) b) = 0 := by
+    have := congrArg (· % 2 ^ LA.w) hs
+    simp only [Nat.mul_mod_right, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hlo] at this
+    exact this.symm
+  rw [h0, Nat.zero_add] at hs
+  exact (Nat.eq_of_mul_eq_mul_left (Nat.two_pow_pos _) hs).symm
+
+omit R in
+/-- `low_val` on the window at `b`. -/
+public theorem lowW_val {q : A} {b len : Nat} (_hlen : 1 ≤ len) {Q : Nat} (hq : valAt q b len = Q)
+    (hlt : Q < 2 ^ (LA.w * (len - 1))) : valAt q b (len - 1) = Q := by
+  rw [valAt_mod q b (Nat.sub_le len 1), hq, Nat.mod_eq_of_lt hlt]
+
 /-! ## The recombination -/
 
 /-- The sum of the terms is at least each of them. -/

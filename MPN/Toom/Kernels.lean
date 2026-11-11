@@ -55,7 +55,7 @@ public theorem winOK_spec {d : A} {o len : Nat} (h : winOK d o len = true) :
 
 omit R F in
 /-- A loop bound for the first `n` limbs of a window. -/
-private theorem bound_le {d : A} {o len n : USize} (h : LoopBound d o len)
+public theorem bound_le {d : A} {o len n : USize} (h : LoopBound d o len)
     (hn : n.toNat ≤ len.toNat) : LoopBound d o n := ⟨by have := h.1; lia, by have := h.2; lia⟩
 
 omit R F in
@@ -299,6 +299,24 @@ public theorem addMulIntoK_spec (d : A) (o len : Nat) (s : A) (so sl v : Nat)
     exact carry_pass d o len sl _ _ hsl _ _ _ e₁ e₂ e₄ a₁ a₂ (by rw [a₃]) hv _
   · exact fallback _ _ _ _ hw hv
 
+/--
+`D - S v` for a limb `v`, with `S` the window of `sl` limbs at `so` of the same array: one pass
+of `fold2Then`, which reads `S` from the array it writes, then the borrow propagated.
+-/
+@[expose, specialize]
+public def subMulWinK (d : A) (o len so sl v : Nat) : A :=
+  if h : winOK d o len = true ∧ winOK d so sl = true ∧ sl ≤ len ∧ v < 2 ^ LA.w ∧
+      v < 4294967295 then
+    have hd := winOK_spec h.1
+    have hs := winOK_spec h.2.1
+    have hsl : sl.toUSize.toNat ≤ len.toUSize.toNat := by rw [hs.2.2.1, hd.2.2.1]; exact h.2.2.1
+    F.fold2Then sl.toUSize (fun _ _ z y c => R.subMulB z y (R.ofUSize v.toUSize) c) d o.toUSize
+      o.toUSize so.toUSize (bound_le hd.2.2.2 hsl) (bound_le hd.2.2.2 hsl)
+      (by rw [hs.2.2.1] at hs; exact ⟨by have := hs.2.2.2.1; lia, hs.2.2.2.2⟩) 0 R.b0
+      fun arr ha c =>
+        (FFT.decrAt arr o.toUSize len.toUSize (hd.2.2.2.of_size ha) sl.toUSize (R.unB c)).1
+  else writeNat d o len (valAt d o len - valAt d so sl * v)
+
 /-- `D - S v` in the window of `D`, for a limb `v`: `subMulInto d o len s so sl v`. -/
 public def subMulIntoK (d : A) (o len : Nat) (s : A) (so sl v : Nat) : A :=
   if h : winOK d o len = true ∧ winOK s so sl = true ∧ sl ≤ len ∧ v < 2 ^ LA.w ∧ v < 4294967295 then
@@ -327,6 +345,32 @@ public theorem subMulIntoK_spec (d : A) (o len : Nat) (s : A) (so sl v : Nat)
       val_ofUSize_lt hvw h.2.2.2.2,
       R.val_unB_b0] at a₂ a₃
     exact borrow_pass d o len sl _ _ _ hsl _ _ _ e₁ e₂ e₄ a₁ a₂ a₃ hv _
+  · exact fallback _ _ _ _ hw (Nat.lt_of_le_of_lt (Nat.sub_le _ _) (valAt_lt ..))
+
+public theorem subMulWinK_spec (d : A) (o len so sl v : Nat) (hw : o + len ≤ LA.size d)
+    (_hsw : so + sl ≤ LA.size d) (hds : o + len ≤ so ∨ so + sl ≤ o) (hsl : sl ≤ len)
+    (hvw : v < 2 ^ LA.w) (hv : valAt d so sl * v ≤ valAt d o len) :
+    Writes (subMulWinK d o len so sl v) d o len ∧
+      valAt (subMulWinK d o len so sl v) o len = valAt d o len - valAt d so sl * v := by
+  unfold subMulWinK
+  split
+  · rename_i h
+    obtain ⟨-, e₁, e₂, hd⟩ := winOK_spec h.1
+    obtain ⟨-, e₃, e₄, hs⟩ := winOK_spec h.2.1
+    rw [fold2Then_eq']
+    obtain ⟨f₁, -, f₂, f₃⟩ := foldUInPlace2_spec sl.toUSize
+      (fun _ _ z y c => R.subMulB z y (R.ofUSize v.toUSize) c) (fun _ => 0)
+      (fun c => LA.val (R.unB c)) 0 (LA.val (R.ofUSize v.toUSize : L)) 1 0 (fun _ => True)
+      (fun _ _ _ _ _ _ => trivial)
+      (fun _ _ z y c _ => by
+        have := R.val_subMulB z y (R.ofUSize v.toUSize) c
+        lia) d o.toUSize o.toUSize so.toUSize _ _ _ (by lia) (by rw [e₁, e₃, e₄]; lia) 0 R.b0
+      trivial
+    simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, e₁, e₃, e₄,
+      val_ofUSize_lt hvw h.2.2.2.2, R.val_unB_b0, Nat.zero_mul, Nat.mul_zero, Nat.one_mul]
+      at f₂ f₃
+    exact borrow_pass d o len sl _ _ _ hsl _ _ _ e₁ e₂ e₄ f₁ f₂ (by rw [Nat.mul_comm] at f₃; lia)
+      hv _
   · exact fallback _ _ _ _ hw (Nat.lt_of_le_of_lt (Nat.sub_le _ _) (valAt_lt ..))
 
 /-! ## Zeros -/
@@ -757,6 +801,8 @@ public instance toomOpsW [B : ToomBase A L] : ToomOps A L where
   addMulInto_spec := addMulIntoK_spec
   subMulInto := subMulIntoK
   subMulInto_spec := subMulIntoK_spec
+  subMulWin := subMulWinK
+  subMulWin_spec d o len so sl v hw hsw hds hsl hvw hv := subMulWinK_spec d o len so sl v hw hsw hds hsl hvw hv
   shlTop := shlTopK
   shlTop_spec := shlTopK_spec
   shr := shrK

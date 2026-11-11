@@ -280,6 +280,192 @@ from `o` and `c_{D}` from limb `o + {D} k` to `o + n`, with `w₁, …, w_{D - 1
     out.append('')
     return '\n'.join(out)
 
+def base(j): return '0' if j == 1 else ('L' if j == 2 else f'{j - 1} * L')
+def at(j, o):
+    b = base(j)
+    if o == 0: return b if b in ('0', 'L') else f'({b})'
+    return '1' if b == '0' else f'({b} + 1)'
+def ln(o): return 'L' if o == 0 else '(L - 1)'
+
+def genW(D):
+    """`interp{D}` on one array `W`, the value at `j` in the window of `L` limbs at `(j - 1) L`: the
+    same passes, a window of `W` minus another by `subMulWin`, and in the proof the values of the
+    windows not written carried over each pass."""
+    title, sched = SCHEDULES[D]
+    passes = [p.strip() for p in sched.split(';')]
+    ws = list(range(1, D))
+    st = {j: [0, f'hv{sub(j)}', {m: Fraction(j ** m) for m in range(D + 1)}] for j in ws}
+    top = {m: Fraction((D - 1) ** m) for m in range(D + 1)}
+    needs_hb = any(('half' in p) or ('.low' in p) for p in passes)
+    code, proof, names = [], [], []
+    curW, sz = 'W', 'hW'
+    q = 0
+    for p in passes:
+        q += 1
+        qn = f'q{sub(q)}'
+        names.append(qn)
+        toks = p.split()
+        j = int(toks[0])
+        o, vh, val = st[j]
+        do, dl = at(j, o), ln(o)
+        h = f'(by rw [{sz}]; lia)'
+        no = o
+        pre = []
+        if toks[1] == '-':
+            src = toks[2]
+            m = 1
+            if '*' in src:
+                ms, src = src.split('*')
+                m = int(ms)
+            if src in ('X0', 'Xd'):
+                if src == 'X0':
+                    so, sl, hs, sv = 'o', '(k + k)', 'hc₀', {0: Fraction(1)}
+                else:
+                    so, sl, hs, sv = f'(o + {offo(D)})', f'(n - {offo(D)})', f'hc{sub(D)}', \
+                        {D: Fraction(1)}
+                new = addv(val, scale(sv, m), -1)
+                if m == 1:
+                    call = f'R.subInto {curW} {do} {dl} d {so} {sl}'
+                    step = (f'subW_val (q := {curW}) (o := {do}) (len := {dl}) {h} d {so} {sl}'
+                            f'\n      (V := {expr(new)}) {vh} {hs} (by lia)')
+                else:
+                    call = f'R.subMulInto {curW} {do} {dl} d {so} {sl} {m}'
+                    step = (f'subMulW_val (q := {curW}) (o := {do}) (len := {dl}) {h} d {so} {sl} '
+                            f'{m} (by decide)\n      (V := {expr(new)}) {vh} {hs} (by lia)')
+            else:
+                low = src.endswith('.low')
+                i = int(src[:-4] if low else src)
+                io, ivh, ival = st[i]
+                if low:
+                    assert io == 0
+                    for k, v in ival.items():
+                        assert v <= top.get(k, 0)
+                    so, sl, hs = at(i, 0), '(L - 1)', f'l{sub(q)}'
+                    pre.append(f'  have {hs} := lowW_val (b := {at(i, 0)}) (by lia) {ivh} (by lia)')
+                else:
+                    so, sl, hs = at(i, io), ln(io), ivh
+                assert not (o == 1 and sl == 'L'), p
+                new = addv(val, scale(ival, m), -1)
+                call = f'R.subMulWin {curW} {do} {dl} {so} {sl} {m}'
+                step = (f'subMulWin_val (q := {curW}) (o := {do}) (len := {dl}) {h} {so} {sl} {m}'
+                        f'\n      (by rw [{sz}]; lia) (by lia) (by lia) (by decide)'
+                        f'\n      (V := {expr(new)}) {vh} {hs} (by lia)')
+        elif toks[1] == '/':
+            dv = int(toks[2])
+            new = scale(val, Fraction(1, dv))
+            call = f'R.divExact {curW} {do} {dl} {dv}'
+            step = (f'divW_val (q := {curW}) (o := {do}) (len := {dl}) {h} {dv} (by decide) '
+                    f'(by decide)\n      (V := {expr(new)}) {vh} (by lia)')
+        elif toks[1] == '>>':
+            sh = int(toks[2])
+            new = scale(val, Fraction(1, 2 ** sh))
+            call = f'R.shr {curW} {do} {dl} {sh}'
+            step = (f'shrW_val (q := {curW}) (o := {do}) (len := {dl}) {h} {sh} (by decide) '
+                    f'(by decide)\n      (V := {expr(new)}) {vh} (by lia)')
+        elif toks[1] == 'half':
+            assert o == 0
+            for k, v in val.items():
+                assert v <= top.get(k, 0)
+            new = scale(val, Fraction(1, 2))
+            call = f'R.shlTop {curW} {do} L'
+            step = (f'halfW_val (q := {curW}) (b := {do}) (len := L) {h} (by lia)\n'
+                    f'      (V := {expr(new)}) {vh} (by lia) (by lia)')
+            no = 1
+        else:
+            raise ValueError(p)
+        check(new, p)
+        code.append('  let W := ' + re.sub(rf'\b{curW}\b', 'W', call))
+        wn, en, sn = f'w{sub(q)}', f'e{sub(q)}', f's{sub(q)}'
+        proof.extend(pre)
+        proof.append(f'  obtain ⟨{wn}, {en}⟩ := {step}')
+        proof.append(f'  rw [← (show {qn} = {call} from rfl)] at {wn} {en}')
+        proof.append(f'  have {sn} := {wn}.1.trans {sz}')
+        for i in ws:
+            if i == j:
+                continue
+            io, ivh, ival = st[i]
+            nv = f'v{sub(i)}q{sub(q)}'
+            proof.append(f'  have {nv} := ({wn}.valAt_eq (lo := {at(i, io)}) (n := {ln(io)}) '
+                         f'(by lia)).trans {ivh}')
+            st[i][1] = nv
+        st[j] = [no, en, new]
+        curW, sz = qn, sn
+    for j in ws:
+        assert st[j][2] == {j: 1}, (D, j, st[j][2])
+    rec = [f'  let d := R.zeroInto d (o + (k + k)) ({offo(D)} - (k + k))']
+    for i in ws:
+        o = st[i][0]
+        line = (f'R.addInto d (o + {off(i)}) (n - {off(i)}) W {at(i, o)} '
+                f'(min (n - {off(i)}) {ln(o)})')
+        rec.append(f'  let d := {line}' if i < D - 1 else f'  {line}')
+    rnames = [f'A{sub(i)}' for i in range(D - 1)]
+    gens = '\n'.join(f'    generalize {pw(i)} * c{sub(i)} = T{sub(i)} at htot ⊢'
+                     for i in range(1, D + 1))
+    rproof = []
+    rproof.append(f'  obtain ⟨z₁, z₂⟩ := zero_mid d o n (k + k) ({offo(D)}) hd (by lia) (by lia)')
+    rproof.append(f'  rw [hc₀, hc{sub(D)}] at z₂')
+    rproof.append(f'  rw [← (show A₀ = R.zeroInto d (o + (k + k)) ({offo(D)} - (k + k)) from rfl)]'
+                  ' at z₁ z₂')
+    rproof.append("  replace z₁ := z₁.mono (o' := o) (len' := n) (by lia) (by lia)")
+    prev, prevw, prevv = 'A₀', 'z₁', 'z₂'
+    for i in ws:
+        o, ve, _ = st[i]
+        so, sl = at(i, o), ln(o)
+        tgt = f'A{sub(i)}' if i < D - 1 else None
+        aw, av = f'a{sub(i)}w', f'a{sub(i)}v'
+        rproof.append(f'  obtain ⟨{aw}, {av}⟩ := add_coef {prev} o n {off(i)} '
+                      f'(by rw [{prevw}.1]; exact hd) (by lia)\n      {curW} {so} {sl} c{sub(i)} '
+                      f'{ve} (by\n    rw [{prevv}]\n{gens}\n    lia)')
+        rproof.append(f'  rw [{prevv}] at {av}')
+        if tgt:
+            rproof.append(f'  rw [← (show {tgt} = R.addInto {prev} (o + {off(i)}) (n - {off(i)}) '
+                          f'{curW} {so} (min (n - {off(i)}) {sl}) from rfl)] at {aw} {av}')
+            rproof.append(f"  have {aw}' := {aw}.mono (o' := o) (len' := n) (by lia) (by lia) "
+                          f'|>.trans {prevw}')
+            prev, prevw, prevv = tgt, f"{aw}'", av
+        else:
+            rproof.append(f"  refine ⟨({aw}.mono (o' := o) (len' := n) (by lia) (by lia)).trans "
+                          f'{prevw}, ?_⟩')
+            rproof.append(f'  rw [{av}]')
+            rproof.append(gens.replace('    generalize', '  generalize'))
+            rproof.append('  lia')
+    cs = ' '.join(f'c{sub(i)}' for i in range(D + 1))
+    hvs = []
+    for j in ws:
+        e = expr({m: Fraction(j ** m) for m in range(D + 1)})
+        hvs.append(wrap(f'(hv{sub(j)} : valAt W {at(j, 0)} L = {e})'.split(' '), '        ', '   '))
+    out = []
+    out.append(f'/--\n`interp{D}` on one array: the values at `1, …, {D - 1}` in the windows of `L` '
+               f'limbs of `W`\nat `0, L, …, {D - 2} L`, and the passes between two of them by '
+               f'`subMulWin`.\n-/\n@[expose, specialize] public def interp{D}W (d : A) (o n k L : Nat) '
+               f'(W : A) : A :=')
+    out.append('\n'.join(code))
+    out.append('  -- The recombination.')
+    out.append('\n'.join(rec))
+    out.append('')
+    if HEARTBEATS[D]:
+        out.append(f'set_option maxHeartbeats {HEARTBEATS[D]} in')
+    hb = (f'\n    (hb : {expr(top)} < 2 ^ (LA.w * (L - 1)))' if needs_hb else '')
+    stmt = f'interp{D}W d o n k L W'
+    hl = '' if needs_hb else '_'
+    head = (f'public theorem interp{D}W_spec (d : A) (o n k L : Nat) (W : A) ({cs} : Nat)\n'
+            f'    (hd : o + n ≤ LA.size d) (hk : {offo(D)} ≤ n) ({hl}hL : 2 ≤ L)\n'
+            f'    (hW : LA.size W = {D - 1} * L)\n'
+            f'    (hc₀ : valAt d o (k + k) = c₀) (hc{sub(D)} : valAt d (o + {offo(D)}) '
+            f'(n - {offo(D)}) = c{sub(D)})\n')
+    head += '\n'.join(hvs) + hb + '\n'
+    head += wrap(f'(htot : {total(D)} < 2 ^ (LA.w * n)) :'.split(' '), '        ', '   ') + '\n'
+    head += f'    Writes ({stmt}) d o n ∧\n'
+    head += wrap(f'valAt ({stmt}) o n = {total(D)} := by'.split(' '), '          ', '     ') + '\n'
+    head += f'  unfold interp{D}W\n'
+    head += wrap(names + rnames, '     ', '  extract_lets')
+    out.append(head)
+    out.append('\n'.join(proof))
+    out.append('  -- The recombination.')
+    out.append('\n'.join(rproof))
+    out.append('')
+    return '\n'.join(out)
+
 HEADER = '''/-
 Copyright © 2026 François G. Dorais. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
@@ -310,4 +496,6 @@ if __name__ == '__main__':
     print(HEADER)
     for D in (3, 4, 5, 6, 10, 14):
         print(gen(D))
+    for D in (4,):
+        print(genW(D))
     print('end MPN.Toom')
