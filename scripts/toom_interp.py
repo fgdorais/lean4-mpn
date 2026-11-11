@@ -551,6 +551,6 @@ if __name__ == '__main__':
     print(HEADER)
     for D in (3, 4, 5, 6, 10, 14):
         print(gen(D))
-    for D in (4,):
+    for D in (3, 4, 6):
         print(genW(D))
     print('end MPN.Toom')

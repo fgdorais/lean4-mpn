@@ -484,4 +484,64 @@ public theorem point_sqr_spec {N : Nat} (sq : SqrFn A N) (hsq : IsSqr sq) (x : A
   rw [show k + 1 + (k + 1) = k + k + 2 by lia, (evalAt_spec x xo xl k p j hp hj hjp).2] at v
   exact ⟨w.1.trans (R.size_zeros _), v⟩
 
+/-- The squares of the values at `j, …, m` in `E`, into the windows of `2 k + 2` limbs of `W`. -/
+@[expose, specialize] public def sqrsLoop {N : Nat} (sq : SqrFn A N) (E : A) (k m : Nat)
+    (h : k + 1 < N) (W : A) (j : Nat) : A :=
+  if j ≤ m then
+    sqrsLoop sq E k m h (sq W ((j - 1) * (k + k + 2)) E ((j - 1) * (k + 1)) (k + 1) h) (j + 1)
+  else W
+termination_by m + 1 - j
+
+omit R in
+public theorem sqrsLoop_spec {N : Nat} (sq : SqrFn A N) (hsq : IsSqr sq) (E : A) (k m : Nat)
+    (h : k + 1 < N) :
+    ∀ n (W : A) j, m + 1 - j = n → 1 ≤ j → LA.size W = m * (k + k + 2) →
+      LA.size (sqrsLoop sq E k m h W j) = m * (k + k + 2) ∧
+        (∀ i, 1 ≤ i → i < j →
+          valAt (sqrsLoop sq E k m h W j) ((i - 1) * (k + k + 2)) (k + k + 2) =
+            valAt W ((i - 1) * (k + k + 2)) (k + k + 2)) ∧
+        ∀ i, j ≤ i → i ≤ m →
+          valAt (sqrsLoop sq E k m h W j) ((i - 1) * (k + k + 2)) (k + k + 2) =
+            valAt E ((i - 1) * (k + 1)) (k + 1) * valAt E ((i - 1) * (k + 1)) (k + 1)
+  | 0, W, j, hn, hj, hW => by
+    rw [sqrsLoop, ite_eq_right (show ¬ j ≤ m by lia)]
+    exact ⟨hW, fun _ _ _ => rfl, fun i h₁ h₂ => absurd h₂ (by lia)⟩
+  | n + 1, W, j, hn, hj, hW => by
+    rw [sqrsLoop, ite_eq_left (show j ≤ m by lia)]
+    obtain ⟨w, v⟩ := hsq W ((j - 1) * (k + k + 2)) E ((j - 1) * (k + 1)) (k + 1) h
+      (by rw [hW, show k + 1 + (k + 1) = k + k + 2 by lia]; exact win_lt (by lia))
+    rw [show k + 1 + (k + 1) = k + k + 2 by lia] at w v
+    generalize sq W ((j - 1) * (k + k + 2)) E ((j - 1) * (k + 1)) (k + 1) h = W' at w v
+    have hkeep : ∀ i, 1 ≤ i → i ≠ j → valAt W' ((i - 1) * (k + k + 2)) (k + k + 2) =
+        valAt W ((i - 1) * (k + k + 2)) (k + k + 2) := fun i hi₁ hi =>
+      w.valAt_eq (win_ne (K := k + k + 2) (show i - 1 ≠ j - 1 by lia))
+    obtain ⟨r₁, r₂, r₃⟩ := sqrsLoop_spec sq hsq E k m h n W' (j + 1) (by lia) (by lia)
+      (by rw [w.1, hW])
+    refine ⟨r₁, fun i h₁ h₂ => ?_, fun i h₁ h₂ => ?_⟩
+    · rw [r₂ i h₁ (by lia), hkeep i h₁ (by lia)]
+    · rcases Nat.lt_or_ge j i with h' | h'
+      · exact r₃ i h' h₂
+      · rw [r₂ i (by lia) (by lia), show i = j by lia, v]
+
+/--
+The squares of the values at `1, …, m` of the `p` pieces of `x`: the values in windows of one
+array (`evalsW`), their squares in windows of another.
+-/
+@[expose, specialize] public def pointsSqrW {N : Nat} (sq : SqrFn A N) (x : A) (xo xl k p m : Nat)
+    (h : k + 1 < N) : A :=
+  sqrsLoop sq (evalsW x xo xl k p m) k m h (R.zeros (m * (k + k + 2))) 1
+
+public theorem pointsSqrW_spec {N : Nat} (sq : SqrFn A N) (hsq : IsSqr sq) (x : A)
+    (xo xl k p m : Nat) (hp : 1 ≤ p) (hjp : ∀ j, j ≤ m → sumRange (fun i => j ^ i) p ≤ 2 ^ 32)
+    (h : k + 1 < N) :
+    LA.size (pointsSqrW sq x xo xl k p m h) = m * (k + k + 2) ∧
+      ∀ j, 1 ≤ j → j ≤ m →
+        valAt (pointsSqrW sq x xo xl k p m h) ((j - 1) * (k + k + 2)) (k + k + 2) =
+          sumRange (fun i => piece x xo xl k i * j ^ i) p *
+            sumRange (fun i => piece x xo xl k i * j ^ i) p := by
+  obtain ⟨r₁, -, r₃⟩ := sqrsLoop_spec sq hsq _ k m h _ (R.zeros (m * (k + k + 2))) 1 rfl
+    (Nat.le_refl _) (R.size_zeros _)
+  exact ⟨r₁, fun j h₁ h₂ => by
+    rw [pointsSqrW, r₃ j h₁ h₂, evalsW_spec x xo xl k p m hp hjp j h₁ h₂]⟩
+
 end MPN.Toom
