@@ -447,12 +447,11 @@ private theorem sqrRow2K_spec (arr : UInt64Array) (rs : USize) (a : USlice)
   obtain ⟨hw, h1, hI₁, hI₂, hI, hrow, htop, htop1, hm1, hm2⟩ := sqr2_facts hr hi' h
   have lb : ∀ arr' : UInt64Array, arr'.size = arr.size → LoopBound arr' (rs + i) a.size :=
     fun arr' hs => by rw [LoopBound, hs, hrow]; constructor <;> lia
-  have e := fun arr' hs c => run_addMul2Loop a (a[i]'(USize.lt_iff_toNat_lt.2 hi'))
-    (a[i + 1]'(USize.lt_iff_toNat_lt.2 h1)) (rs + i) (i + 1 + 1) hw arr' (lb arr' hs) (i + 1 + 1)
-    (Nat.le_refl _) c hs
-  simp only [sqrRow2K, runInPlaceThen_eq, InPlace.Tail.run_readThen, InPlace.Tail.run_writeThen,
-    InPlace.Tail.forIn2Bind_eq, InPlace.forIn2_eq, InPlace.pure_eq, InPlace.Tail.run_bind,
-    InPlace.Tail.run_done, e]
+  have e := fun (γ : Type) (k : UInt64 → UInt64 → InPlace.Tail arr.size γ) arr' hs c =>
+    run_addMul2Loop a (a[i]'(USize.lt_iff_toNat_lt.2 hi')) (a[i + 1]'(USize.lt_iff_toNat_lt.2 h1))
+      (rs + i) (i + 1 + 1) hw k arr' (lb arr' hs) (i + 1 + 1) (Nat.le_refl _) c hs
+  simp only [sqrRow2K, runInPlaceThenOf_eq, InPlace.Tail.run_readThen, InPlace.Tail.run_writeThen,
+    InPlace.Tail.forIn2_eq, InPlace.Tail.run_done, e]
   have hfirst : (rs + i + (i + 1)).toNat = rs.toNat + 2 * i.toNat + 1 := by
     rw [USize.toNat_add_of_lt (by rw [hrow, hI₁]; lia), hrow, hI₁]; lia
   have hb₁ : (rs + i + (i + 1)).toNat < arr.size := by rw [hfirst]; lia

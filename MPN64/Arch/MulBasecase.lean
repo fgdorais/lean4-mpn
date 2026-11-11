@@ -562,27 +562,31 @@ A loop of `addMul2Word` steps over the window at `off`, as an in-place program f
 `addMul2Loop`. It is the pass of two rows of `mulRow2K`, and of the squares' `sqrRow2K`, whose
 loops start above `0`.
 -/
-public theorem run_addMul2Loop {N : Nat} (a : USlice) (x₀ x₁ : UInt64) (off lo : USize)
-    (hw : off.toNat + a.size.toNat ≤ N) (arr : UInt64Array) (hr : LoopBound arr off a.size)
+public theorem run_addMul2Loop {N : Nat} {γ : Type} (a : USlice) (x₀ x₁ : UInt64) (off lo : USize)
+    (hw : off.toNat + a.size.toNat ≤ N) (k : UInt64 → UInt64 → InPlace.Tail N γ)
+    (arr : UInt64Array) (hr : LoopBound arr off a.size)
     (j : USize) (hlo : lo.toNat ≤ j.toNat) (c : UInt64 × UInt64) (hs : arr.size = N) :
-    (InPlace.forIn2From lo a.size j hlo c.1 c.2 fun k _ hj c₀ c₁ =>
-        InPlace.readThen (off + k) (InPlaceSyntax.toNat_add_lt_of_window hw hj) fun z =>
-          InPlace.writeThen (off + k) (InPlaceSyntax.toNat_add_lt_of_window hw hj)
-              (addMul2Word z (a[k]'(USize.lt_iff_toNat_lt.2 hj)) x₀ x₁ c₀ c₁).1
-            (pure ((addMul2Word z (a[k]'(USize.lt_iff_toNat_lt.2 hj)) x₀ x₁ c₀ c₁).2.1,
-              (addMul2Word z (a[k]'(USize.lt_iff_toNat_lt.2 hj)) x₀ x₁ c₀ c₁).2.2))).run arr hs =
-      ((addMul2Loop arr off a a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _)) hr x₀ x₁ j c).2,
-        (addMul2Loop arr off a a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _)) hr x₀ x₁ j c).1) := by
-  rw [addMul2Loop_eq_fold]
+    (InPlace.Tail.forIn2From lo a.size j hlo c.1 c.2 (fun k' _ hj next c₀ c₁ =>
+        InPlace.Tail.readThen (off + k') (InPlaceSyntax.toNat_add_lt_of_window hw hj) fun z =>
+          InPlace.Tail.writeThen (off + k') (InPlaceSyntax.toNat_add_lt_of_window hw hj)
+              (addMul2Word z (a[k']'(USize.lt_iff_toNat_lt.2 hj)) x₀ x₁ c₀ c₁).1
+            (next (addMul2Word z (a[k']'(USize.lt_iff_toNat_lt.2 hj)) x₀ x₁ c₀ c₁).2.1
+              (addMul2Word z (a[k']'(USize.lt_iff_toNat_lt.2 hj)) x₀ x₁ c₀ c₁).2.2)) k).run arr hs =
+      (k (addMul2Loop arr off a a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _)) hr x₀ x₁ j c).2.1
+          (addMul2Loop arr off a a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _)) hr x₀ x₁ j c).2.2).run
+        (addMul2Loop arr off a a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _)) hr x₀ x₁ j c).1
+        ((addMul2Loop_spec ..).1.trans hs) := by
+  simp only [addMul2Loop_eq_fold]
   induction arr, hr, j, c using foldUInPlace.induct a.size
     (addMul2Step a a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _)) x₀ x₁) off with
   | case1 arr hr j c h p ih =>
-    rw [InPlace.forIn2From_eq, dite_eq_left_of_eq_true (eq_true h), foldUInPlace_lt _ _ _ _ _ _ _ h]
-    simp only [InPlace.run_bind, InPlace.run_readThen, InPlace.run_writeThen, InPlace.run_pure]
+    rw [InPlace.Tail.forIn2From_eq, dite_eq_left_of_eq_true (eq_true h)]
+    simp only [foldUInPlace_lt _ _ _ _ _ _ _ h, InPlace.Tail.run_readThen,
+      InPlace.Tail.run_writeThen]
     exact ih _ _
   | case2 arr hr j c h =>
-    rw [InPlace.forIn2From_eq, dite_eq_right_of_eq_false (eq_false h),
-      foldUInPlace_ge _ _ _ _ _ _ _ h, InPlace.run_pure]
+    rw [InPlace.Tail.forIn2From_eq, dite_eq_right_of_eq_false (eq_false h)]
+    simp only [foldUInPlace_ge _ _ _ _ _ _ _ h]
 
 private theorem mulRow2K_eq (arr : UInt64Array) (rs : USize) (a b : USlice)
     (hr : MulBound arr rs a.size.toNat b.size.toNat) (i : USize) (h : i < b.size)
@@ -596,12 +600,12 @@ private theorem mulRow2K_eq (arr : UInt64Array) (rs : USize) (a b : USlice)
           (b[i]'h) (b[i + 1]'h') 0 (0, 0)).2.1
         (addMul2Loop arr (rs + i) a a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _)) (hr.row h)
           (b[i]'h) (b[i + 1]'h') 0 (0, 0)).2.2).1 := by
-  have e := run_addMul2Loop a (b[i]'h) (b[i + 1]'h') (rs + i) 0 (hr.row h).1 arr (hr.row h) 0
-    (Nat.le_refl _) (0, 0) rfl
+  have e := fun (γ : Type) (k : UInt64 → UInt64 → InPlace.Tail arr.size γ) =>
+    run_addMul2Loop a (b[i]'h) (b[i + 1]'h') (rs + i) 0 (hr.row h).1 k arr (hr.row h) 0
+      (Nat.le_refl _) (0, 0) rfl
   simp only at e
-  simp only [mulRow2K, runInPlaceThen_eq, InPlace.Tail.forIn2Bind_eq, InPlace.forIn2_eq,
-    InPlace.pure_eq, InPlace.Tail.run_bind, InPlace.Tail.run_writeThen, InPlace.Tail.run_done, e,
-    storeCarries]
+  simp only [mulRow2K, runInPlaceThenOf_eq, InPlace.Tail.forIn2_eq, InPlace.Tail.run_writeThen,
+    InPlace.Tail.run_done, e, storeCarries]
   rfl
 
 /--
