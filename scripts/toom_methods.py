@@ -24,7 +24,7 @@ SQR = [('toom3Sqr', 'The Toom-3 square', 3), ('toom4Sqr', 'The Toom-4 square', 4
 HEART = {4: None, 3: None, 5: 2000000, 6: 2000000, 10: 8000000, 14: 16000000}
 # The methods whose values and their products or squares live in windows of one array each
 # (`pointsW`, `pointsSqrW`), interpolated by `interpDW`.
-ONE_ARRAY = {'toom33', 'toom42', 'toom32', 'toom3Sqr', 'toom44', 'toom4Sqr'}
+ONE_ARRAY = {'toom33', 'toom42', 'toom32', 'toom3Sqr', 'toom44', 'toom4Sqr', 'toom43'}
 
 def wat(j):
     return '0' if j == 1 else ('(k + k + 2)' if j == 2 else f'{j - 1} * (k + k + 2)')

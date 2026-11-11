@@ -288,22 +288,25 @@ def at(j, o):
 def ln(o): return 'L' if o == 0 else '(L - 1)'
 
 # The one-array interpolations whose first stage is fused into one pass of `sub3Lin`.
-FUSE = {4}
+FUSE = {4, 5, 6}
 
 def first_pass(p):
     toks = p.split()
     return toks[1] == '-' and (toks[2] == 'X0' or toks[2].endswith('Xd'))
 
 def fuse_first(passes, ws):
-    """The multipliers `m` of the passes `j - X0` and `j - m*Xd` of the three windows, when these
-    are the first passes on each window: they read `d`, not the other windows, so that they run
-    first and together."""
-    if len(ws) != 3:
+    """The multipliers `m` of the passes `j - X0` and `j - m*Xd` of the first three windows, when
+    these are the first passes on each window: they read `d`, not the other windows, so that they
+    run first and together."""
+    if len(ws) < 3:
         return None
+    ws = ws[:3]
     ms, done = {}, set()
     for p in passes:
         toks = p.split()
         j = int(toks[0])
+        if j not in ws:
+            continue
         if first_pass(p):
             assert j not in done, p
             if toks[2] != 'X0':
@@ -326,7 +329,7 @@ def genW(D):
     needs_hb = any(('half' in p) or ('.low' in p) for p in passes)
     ms = fuse_first(passes, ws) if D in FUSE else None
     if ms:
-        passes = ['fuse'] + [p for p in passes if not first_pass(p)]
+        passes = ['fuse'] + [p for p in passes if not (first_pass(p) and int(p.split()[0]) in ms)]
     code, proof, names = [], [], []
     curW, sz = 'W', 'hW'
     q = 0
@@ -336,16 +339,17 @@ def genW(D):
         names.append(qn)
         if p == 'fuse':
             # The first stage in one pass: each window minus `X0 + m Xd`, by `sub3Lin`.
+            fw = sorted(ms)
             new = {}
-            for j in ws:
+            for j in fw:
                 assert st[j][0] == 0
                 new[j] = addv(addv(st[j][2], {0: Fraction(1)}, -1), {D: Fraction(ms[j])}, -1)
                 check(new[j], p)
-            m1, m2, m3 = (ms[j] for j in ws)
+            m1, m2, m3 = (ms[j] for j in fw)
             src = f'd o (k + k) (o + {offo(D)}) (n - {offo(D)}) {m1} {m2} {m3}'
             call = f'R.sub3Lin {curW} {at(1, 0)} {at(2, 0)} {at(3, 0)} L {src}'
-            vs = ' '.join(f'(V{sub(i + 1)} := {expr(new[j])})' for i, j in enumerate(ws))
-            hvs_ = ' '.join(st[j][1] for j in ws)
+            vs = ' '.join(f'(V{sub(i + 1)} := {expr(new[j])})' for i, j in enumerate(fw))
+            hvs_ = ' '.join(st[j][1] for j in fw)
             wn, sn = f'w{sub(q)}', f's{sub(q)}'
             ens = [f'e{sub(q)}{"abc"[i]}' for i in range(3)]
             proof.append(f'  obtain ⟨{wn}, {", ".join(ens)}⟩ := sub3W_val (q := {curW}) '
@@ -354,8 +358,16 @@ def genW(D):
                          f'      {hvs_} hc₀ hc{sub(D)} (by lia) (by lia) (by lia)')
             proof.append(f'  rw [← (show {qn} = {call} from rfl)] at {wn} {" ".join(ens)}')
             proof.append(f'  have {sn} := {wn}.1.trans {sz}')
-            for i, j in enumerate(ws):
+            for i, j in enumerate(fw):
                 st[j] = [0, ens[i], new[j]]
+            for i in ws:
+                if i in fw:
+                    continue
+                io, ivh, ival = st[i]
+                nv = f'v{sub(i)}q{sub(q)}'
+                proof.append(f'  have {nv} := ({wn}.valAt_eq (lo := {at(i, io)}) (n := {ln(io)}) '
+                             f'(by lia)).trans {ivh}')
+                st[i][1] = nv
             code.append('  let W := ' + re.sub(rf'\b{curW}\b', 'W', call))
             curW, sz = qn, sn
             continue
@@ -551,6 +563,6 @@ if __name__ == '__main__':
     print(HEADER)
     for D in (3, 4, 5, 6, 10, 14):
         print(gen(D))
-    for D in (3, 4, 6):
+    for D in (3, 4, 5, 6):
         print(genW(D))
     print('end MPN.Toom')

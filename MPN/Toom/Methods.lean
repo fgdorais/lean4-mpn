@@ -448,15 +448,17 @@ nonempty.
 public abbrev Shape43 (al bl k : Nat) : Prop :=
   1 ≤ k ∧ 3 * k < al ∧ al ≤ 4 * k ∧ 2 * k < bl ∧ bl ≤ 3 * k
 
-/-- Toom-4 by 3: `a` in 4 pieces of `k` limbs and `b` in 3, at most, the top ones nonempty. -/
+/--
+Toom-4 by 3: `a` in 4 pieces of `k` limbs and `b` in 3, at most, the top ones nonempty, the values
+and their products in windows of one array each (`pointsW`).
+-/
 @[expose, specialize] public def toom43 (d : A) (o : Nat) (a : A) (ao al : Nat) (b : A)
     (bo bl k : Nat) (hk : Shape43 al bl k) (mul : MulFn A (al + bl)) : A :=
   let d := mul d o a ao k b bo k (by obtain ⟨_, _, _, _, _⟩ := hk; lia)
   let d := mul d (o + 5 * k) a (ao + 3 * k) (al - 3 * k) b (bo + 2 * k)
     (bl - 2 * k) (by obtain ⟨_, _, _, _, _⟩ := hk; lia)
-  let w (j : Nat) := mul (R.zeros (k + k + 2)) 0 (evalAt a ao al k 4 j (k + 1)) 0 (k + 1)
-    (evalAt b bo bl k 3 j (k + 1)) 0 (k + 1) (by obtain ⟨_, _, _, _, _⟩ := hk; lia)
-  interp5 d o (al + bl) k (k + k + 2) (w 1) (w 2) (w 3) (w 4)
+  interp5W d o (al + bl) k (k + k + 2)
+    (pointsW mul a ao al b bo bl k 4 3 4 (by obtain ⟨_, _, _, _, _⟩ := hk; lia))
 
 set_option maxHeartbeats 2000000 in
 public theorem toom43_spec (d : A) (o : Nat) (a : A) (ao al : Nat) (b : A) (bo bl k : Nat)
@@ -473,6 +475,20 @@ public theorem toom43_spec (d : A) (o : Nat) (a : A) (ao al : Nat) (b : A) (bo b
     (by decide) hj
   simp only [sumRange_succ, sumRange_zero, Nat.zero_add, Nat.pow_zero, Nat.mul_one,
     Nat.pow_one] at hA hB pA
+  obtain ⟨sW, pW⟩ := pointsW_spec mul hmul a ao al b bo bl k 4 3 4 (by decide) (by decide)
+    (fun j hj => match j, hj with | 0, _ | 1, _ | 2, _ | 3, _ | 4, _ => by decide | _ + 5, h => absurd h (by lia))
+    (fun j hj => match j, hj with | 0, _ | 1, _ | 2, _ | 3, _ | 4, _ => by decide | _ + 5, h => absurd h (by lia))
+    (by lia)
+  have e₁ := pW 1 (by decide) (by decide)
+  rw [show (1 - 1) * (k + k + 2) = 0 by lia] at e₁
+  have e₂ := pW 2 (by decide) (by decide)
+  rw [show (2 - 1) * (k + k + 2) = (k + k + 2) by lia] at e₂
+  have e₃ := pW 3 (by decide) (by decide)
+  rw [show (3 - 1) * (k + k + 2) = 2 * (k + k + 2) by lia] at e₃
+  have e₄ := pW 4 (by decide) (by decide)
+  rw [show (4 - 1) * (k + k + 2) = 3 * (k + k + 2) by lia] at e₄
+  simp only [sumRange_succ, sumRange_zero, Nat.zero_add, Nat.pow_zero, Nat.mul_one,
+    Nat.pow_one] at e₁ e₂ e₃ e₄
   have a₀ := piece_full a ao al k 0 (by lia)
   have aT := piece_top a ao al k 3 (by lia)
   have b₀ := piece_full b bo bl k 0 (by lia)
@@ -507,10 +523,6 @@ public theorem toom43_spec (d : A) (o : Nat) (a : A) (ao al : Nat) (b : A) (bo b
   have hc₀ : valAt d₂ o (k + k) = A₀ * B₀ := by rw [← v₁]; exact w₂.valAt_eq (by lia)
   -- The values at the points.
   have p₃ : k + 1 + (k + 1) < al + bl := by lia
-  obtain ⟨s₁, e₁⟩ := pA 1 (by decide) (by decide) (by decide) p₃
-  obtain ⟨s₂, e₂⟩ := pA 2 (by decide) (by decide) (by decide) p₃
-  obtain ⟨s₃, e₃⟩ := pA 3 (by decide) (by decide) (by decide) p₃
-  obtain ⟨s₄, e₄⟩ := pA 4 (by decide) (by decide) (by decide) p₃
   -- The interpolation.
   generalize hX : 2 ^ (LA.w * k) = X at *
   have hX2 : 2 ^ (LA.w * (2 * k)) = X * X := by rw [pow_mul_k, hX]; grind
@@ -520,9 +532,9 @@ public theorem toom43_spec (d : A) (o : Nat) (a : A) (ao al : Nat) (b : A) (bo b
   have hval : valAt a ao al * valAt b bo bl =
       (A₀ * B₀) + X * (A₀ * B₁ + A₁ * B₀) + X * X * (A₀ * B₂ + A₁ * B₁ + A₂ * B₀) + X * X * X * (A₁ * B₂ + A₂ * B₁ + A₃ * B₀) + X * X * X * X * (A₂ * B₂ + A₃ * B₁) + X * X * X * X * X * (A₃ * B₂) := by
     rw [hA, hB]; grind
-  obtain ⟨f₁, f₂⟩ := interp5_spec d₂ o (al + bl) k (k + k + 2) _ _ _ _ 
+  obtain ⟨f₁, f₂⟩ := interp5W_spec d₂ o (al + bl) k (k + k + 2) _ 
     (A₀ * B₀) (A₀ * B₁ + A₁ * B₀) (A₀ * B₂ + A₁ * B₁ + A₂ * B₀) (A₁ * B₂ + A₂ * B₁ + A₃ * B₀) (A₂ * B₂ + A₃ * B₁) (A₃ * B₂)
-    (by rw [w₂.1, w₁.1]; exact hd) (by lia) (by lia) s₁ s₂ s₃ s₄ hc₀ v₂
+    (by rw [w₂.1, w₁.1]; exact hd) (by lia) (by lia) sW hc₀ v₂
     (by rw [e₁]; grind)
     (by rw [e₂]; grind)
     (by rw [e₃]; grind)
