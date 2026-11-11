@@ -120,6 +120,26 @@ public class ToomOps (A : Type) (L : outParam Type) [LimbArray A L] where
     Writes (subMulWin d o len so sl v) d o len ∧
       valAt (subMulWin d o len so sl v) o len = valAt d o len - valAt d so sl * v
   /--
+  `Dᵢ - (S + T vᵢ)` in three disjoint windows `Dᵢ` of `d`, for limbs `vᵢ`, in one pass:
+  `sub3Lin d o₁ o₂ o₃ len s so sl to tl v₁ v₂ v₃`.
+  -/
+  sub3Lin : A → Nat → Nat → Nat → Nat → A → Nat → Nat → Nat → Nat → Nat → Nat → Nat → A
+  sub3Lin_spec : ∀ (d : A) (o₁ o₂ o₃ len : Nat) (s : A) (so sl to tl v₁ v₂ v₃ : Nat),
+    o₁ + len ≤ LimbArray.size d → o₂ + len ≤ LimbArray.size d → o₃ + len ≤ LimbArray.size d →
+    o₁ + len ≤ o₂ → o₂ + len ≤ o₃ →
+    valAt s so sl + valAt s to tl * v₁ ≤ valAt d o₁ len →
+    valAt s so sl + valAt s to tl * v₂ ≤ valAt d o₂ len →
+    valAt s so sl + valAt s to tl * v₃ ≤ valAt d o₃ len →
+    LimbArray.size (sub3Lin d o₁ o₂ o₃ len s so sl to tl v₁ v₂ v₃) = LimbArray.size d ∧
+      (∀ i, (i < o₁ ∨ o₁ + len ≤ i) → (i < o₂ ∨ o₂ + len ≤ i) → (i < o₃ ∨ o₃ + len ≤ i) →
+        LimbArray.get (sub3Lin d o₁ o₂ o₃ len s so sl to tl v₁ v₂ v₃) i = LimbArray.get d i) ∧
+      valAt (sub3Lin d o₁ o₂ o₃ len s so sl to tl v₁ v₂ v₃) o₁ len =
+        valAt d o₁ len - (valAt s so sl + valAt s to tl * v₁) ∧
+      valAt (sub3Lin d o₁ o₂ o₃ len s so sl to tl v₁ v₂ v₃) o₂ len =
+        valAt d o₂ len - (valAt s so sl + valAt s to tl * v₂) ∧
+      valAt (sub3Lin d o₁ o₂ o₃ len s so sl to tl v₁ v₂ v₃) o₃ len =
+        valAt d o₃ len - (valAt s so sl + valAt s to tl * v₃)
+  /--
   `D 2^(w - 1)`, wrapped: an even `D` that fits in all but the top limb ends up halved in the
   limbs from the second on.
   -/

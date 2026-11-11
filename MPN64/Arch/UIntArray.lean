@@ -1057,6 +1057,75 @@ private theorem run_fold2x2 {β₁ β₂ γ : Type} (n lo : USize)
     simp only [InPlace.Tail.run_readThen, InPlace.Tail.run_writeThen, hf]
     exact ih _ _ _ (by rw [USize.toNat_add_one_of_lt h]; lia) _ _ _ _ _ _ _
 
+/--
+Three passes of updates over three windows in one, as an `inplace` program with three loop
+variables: `foldUInPlace3Then`.
+-/
+@[inline, expose] public def foldUInPlace3ThenLib {β₁ β₂ β₃ γ : Type} (n : USize)
+    (f₁ : (j : USize) → j < n → UInt64 → β₁ → UInt64 × β₁)
+    (f₂ : (j : USize) → j < n → UInt64 → β₂ → UInt64 × β₂)
+    (f₃ : (j : USize) → j < n → UInt64 → β₃ → UInt64 × β₃) (arr : UInt64Array)
+    (rs ts us : USize) (hr : LoopBound arr rs n) (ht : LoopBound arr ts n)
+    (hu : LoopBound arr us n) (j : USize) (b₁ : β₁) (b₂ : β₂) (b₃ : β₃)
+    (g : (arr' : UInt64Array) → arr'.size = arr.size → β₁ → β₂ → β₃ → γ) : γ :=
+  have := hr.1; have := ht.1; have := hu.1
+  inplace arr do
+    for k in j...n with (c₁ := b₁) (c₂ := b₂) (c₃ := b₃) do
+      let x ← arr[rs + k]
+      let y ← arr[ts + k]
+      let z ← arr[us + k]
+      let (u, d₁) := f₁ k (USize.lt_iff_toNat_lt.2 (by assumption)) x c₁
+      let (v, d₂) := f₂ k (USize.lt_iff_toNat_lt.2 (by assumption)) y c₂
+      let (w, d₃) := f₃ k (USize.lt_iff_toNat_lt.2 (by assumption)) z c₃
+      arr[rs + k] := u
+      arr[ts + k] := v
+      arr[us + k] := w
+      c₁ := d₁
+      c₂ := d₂
+      c₃ := d₃
+    return (c₁, c₂, c₃)
+  then fun (c₁, c₂, c₃) arr' h => g arr' h c₁ c₂ c₃
+
+/-- The loop of `foldUInPlace3ThenLib` is `foldUInPlace3`, followed by the rest `k`. -/
+private theorem run_fold3 {β₁ β₂ β₃ γ : Type} (n lo : USize)
+    (f₁ : (j : USize) → j < n → UInt64 → β₁ → UInt64 × β₁)
+    (f₂ : (j : USize) → j < n → UInt64 → β₂ → UInt64 × β₂)
+    (f₃ : (j : USize) → j < n → UInt64 → β₃ → UInt64 × β₃) (arr₀ : UInt64Array)
+    (rs ts us : USize) (hr : LoopBound arr₀ rs n) (ht : LoopBound arr₀ ts n)
+    (hu : LoopBound arr₀ us n) (k : β₁ → β₂ → β₃ → InPlace.Tail arr₀.size γ) :
+    ∀ (arr : UInt64Array) (hs : arr.size = arr₀.size) (j : USize) (hlo : lo.toNat ≤ j.toNat)
+      (b₁ : β₁) (b₂ : β₂) (b₃ : β₃) hr' ht' hu',
+      (InPlace.Tail.forIn3From lo n j hlo b₁ b₂ b₃ (fun k' _ hk next c₁ c₂ c₃ =>
+        InPlace.Tail.readThen (rs + k') (hr.uset_bound (USize.lt_iff_toNat_lt.2 hk)) fun x =>
+          InPlace.Tail.readThen (ts + k') (ht.uset_bound (USize.lt_iff_toNat_lt.2 hk)) fun y =>
+            InPlace.Tail.readThen (us + k') (hu.uset_bound (USize.lt_iff_toNat_lt.2 hk)) fun z =>
+              InPlace.Tail.writeThen (rs + k') (hr.uset_bound (USize.lt_iff_toNat_lt.2 hk)) (f₁ k' (USize.lt_iff_toNat_lt.2 hk) x c₁).1
+                (InPlace.Tail.writeThen (ts + k') (ht.uset_bound (USize.lt_iff_toNat_lt.2 hk)) (f₂ k' (USize.lt_iff_toNat_lt.2 hk) y c₂).1
+                  (InPlace.Tail.writeThen (us + k') (hu.uset_bound (USize.lt_iff_toNat_lt.2 hk)) (f₃ k' (USize.lt_iff_toNat_lt.2 hk) z c₃).1
+                    (next (f₁ k' (USize.lt_iff_toNat_lt.2 hk) x c₁).2 (f₂ k' (USize.lt_iff_toNat_lt.2 hk) y c₂).2
+                      (f₃ k' (USize.lt_iff_toNat_lt.2 hk) z c₃).2)))) k).run arr hs =
+        (k (MPN.WordArray.foldUInPlace3 n f₁ f₂ f₃ arr rs ts us hr' ht' hu' j b₁ b₂ b₃).2.1 (MPN.WordArray.foldUInPlace3 n f₁ f₂ f₃ arr rs ts us hr' ht' hu' j b₁ b₂ b₃).2.2.1
+            (MPN.WordArray.foldUInPlace3 n f₁ f₂ f₃ arr rs ts us hr' ht' hu' j b₁ b₂ b₃).2.2.2).run
+          (MPN.WordArray.foldUInPlace3 n f₁ f₂ f₃ arr rs ts us hr' ht' hu' j b₁ b₂ b₃).1
+          (Eq.trans (MPN.WordArray.size_foldUInPlace3 (A := UInt64Array) ..) hs) := by
+  intro arr hs j
+  induction hd : n.toNat - j.toNat generalizing arr j with
+  | zero =>
+    intro hlo b₁ b₂ b₃ hr' ht' hu'
+    have h : ¬ j < n := fun h => by have := USize.lt_iff_toNat_lt.1 h; lia
+    have hf := MPN.WordArray.foldUInPlace3.eq_1 n f₁ f₂ f₃ arr rs ts us hr' ht' hu' j b₁ b₂ b₃
+    rw [dite_eq_right_of_eq_false (eq_false h)] at hf
+    rw [InPlace.Tail.forIn3From_eq, dite_eq_right_of_eq_false (eq_false h)]
+    simp only [hf]
+  | succ d ih =>
+    intro hlo b₁ b₂ b₃ hr' ht' hu'
+    have h : j < n := USize.lt_iff_toNat_lt.2 (by lia)
+    rw [InPlace.Tail.forIn3From_eq, dite_eq_left_of_eq_true (eq_true h)]
+    have hf := MPN.WordArray.foldUInPlace3.eq_1 n f₁ f₂ f₃ arr rs ts us hr' ht' hu' j b₁ b₂ b₃
+    rw [dite_eq_left_of_eq_true (eq_true h)] at hf
+    simp only [InPlace.Tail.run_readThen, InPlace.Tail.run_writeThen, hf]
+    exact ih _ _ _ (by rw [USize.toNat_add_one_of_lt h]; lia) _ _ _ _ _ _ _
+
 /-- `main`'s in-place loops on `UInt64Array`, by `foldlInPlaceRangeThen` and `foldlInPlace2Then`. -/
 public instance wordFolds64 : MPN.WordFolds UInt64Array UInt64 where
   fold2Then := foldUInPlace2ThenLib
@@ -1091,6 +1160,13 @@ public instance wordFolds64 : MPN.WordFolds UInt64Array UInt64 where
     rw [run_fold2x2 n j f₁ f₂ arr rs ts xs ys hr ht hx hy _ arr rfl j (Nat.le_refl _) b₁ b₂
       hr ht hx hy]
     simp only [InPlace.Tail.run_done, MPN.WordArray.foldUInPlace2x2Then]
+  fold3Then := foldUInPlace3ThenLib
+  fold3Then_eq := by
+    intro β₁ β₂ β₃ γ n f₁ f₂ f₃ arr rs ts us hr ht hu j b₁ b₂ b₃ g
+    simp only [foldUInPlace3ThenLib, runInPlaceThenOf_eq, InPlace.Tail.forIn3_eq]
+    rw [run_fold3 n j f₁ f₂ f₃ arr rs ts us hr ht hu _ arr rfl j (Nat.le_refl _) b₁ b₂ b₃
+      hr ht hu]
+    simp only [InPlace.Tail.run_done, MPN.WordArray.foldUInPlace3Then]
 
 /-- A sub-slice of a whole array, `toUSlice`. -/
 public theorem toUSlice_slice (a : UInt64Array) {i j : USize} (hij : i.toNat ≤ j.toNat)

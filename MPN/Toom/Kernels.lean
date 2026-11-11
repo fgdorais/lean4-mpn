@@ -787,6 +787,287 @@ public class ToomBase (A : Type) (L : outParam Type) [LimbArray A L] where
     Writes (sqrBase d o x xo xl) d o (xl + xl) ∧
       valAt (sqrBase d o x xo xl) o (xl + xl) = valAt x xo xl * valAt x xo xl
 
+/-! ## Three windows at once -/
+
+/--
+One limb of `Dᵢ - (S + T v)`: `z - (x + y v) - c` modulo `2ʷ` and the borrow out, at most `v + 1`,
+where `y` is `0` past the `tl` limbs of `T`.
+-/
+@[inline, expose] public def lin3Step (s : A) (so to tl n : USize) (hs : LoopBound s so n)
+    (ht : LoopBound s to tl) (v : L) (j : USize) (h : j < n) (z c : L) : L × L :=
+  let x := R.uget s (so + j) (hs.uset_bound h)
+  let y := if h' : j < tl then R.uget s (to + j) (ht.uset_bound h') else R.zero
+  let p := R.mulAdd2 y v x c
+  let q := R.subC z p.1 R.zero
+  (q.1, R.add p.2 q.2)
+
+/-- `FFT.decrAt` from limb `j` of a window given by its `Nat` bounds. -/
+@[inline, expose] public def decrWin (d : A) (o len j : Nat) (c : L) : A :=
+  if h : winOK d o len = true then
+    (FFT.decrAt d o.toUSize len.toUSize (winOK_spec h).2.2.2 j.toUSize c).1
+  else d
+
+/-- `Dᵢ - (S + T vᵢ)` in three windows of `d` in one pass, and the three borrows above `S`. -/
+public def sub3LinK (d : A) (o₁ o₂ o₃ len : Nat) (s : A) (so sl to tl v₁ v₂ v₃ : Nat) : A :=
+  if h : winOK d o₁ len = true ∧ winOK d o₂ len = true ∧ winOK d o₃ len = true ∧
+      winOK s so sl = true ∧ winOK s to tl = true ∧ sl ≤ len ∧ tl ≤ sl ∧ v₁ + 1 < 2 ^ LA.w ∧
+      v₁ < 4294967295 ∧ v₂ + 1 < 2 ^ LA.w ∧ v₂ < 4294967295 ∧ v₃ + 1 < 2 ^ LA.w ∧
+      v₃ < 4294967295 then
+    have h₁ := winOK_spec h.1
+    have h₂ := winOK_spec h.2.1
+    have h₃ := winOK_spec h.2.2.1
+    have hs := winOK_spec h.2.2.2.1
+    have ht := winOK_spec h.2.2.2.2.1
+    have hsl : sl.toUSize.toNat ≤ len.toUSize.toNat := by
+      rw [hs.2.2.1, h₁.2.2.1]; exact h.2.2.2.2.2.1
+    F.fold3Then sl.toUSize
+      (lin3Step s so.toUSize to.toUSize tl.toUSize sl.toUSize hs.2.2.2 ht.2.2.2
+        (R.ofUSize v₁.toUSize))
+      (lin3Step s so.toUSize to.toUSize tl.toUSize sl.toUSize hs.2.2.2 ht.2.2.2
+        (R.ofUSize v₂.toUSize))
+      (lin3Step s so.toUSize to.toUSize tl.toUSize sl.toUSize hs.2.2.2 ht.2.2.2
+        (R.ofUSize v₃.toUSize))
+      d o₁.toUSize o₂.toUSize o₃.toUSize (bound_le h₁.2.2.2 hsl)
+      (bound_le h₂.2.2.2 (by rw [h₂.2.2.1, ← h₁.2.2.1]; exact hsl))
+      (bound_le h₃.2.2.2 (by rw [h₃.2.2.1, ← h₁.2.2.1]; exact hsl)) 0 R.zero R.zero R.zero
+      fun arr _ c₁ c₂ c₃ =>
+        decrWin (decrWin (decrWin arr o₁ len sl c₁) o₂ len sl c₂) o₃ len sl c₃
+  else
+    let S := valAt s so sl
+    let T := valAt s to tl
+    let d := writeNat d o₁ len (valAt d o₁ len - (S + T * v₁))
+    let d := writeNat d o₂ len (valAt d o₂ len - (S + T * v₂))
+    writeNat d o₃ len (valAt d o₃ len - (S + T * v₃))
+
+omit F in
+/-- The law of `lin3Step`, with its borrow at most `v + 1`. -/
+private theorem lin3Step_law (s : A) (so to tl n : USize) (hs : LoopBound s so n)
+    (ht : LoopBound s to tl) (v : Nat) (hv : v + 1 < 2 ^ LA.w) (hv' : v < 4294967295) (j : USize)
+    (h : j < n) (z c : L) (hc : LA.val c ≤ v + 1) :
+    LA.val (lin3Step s so to tl n hs ht (R.ofUSize v.toUSize) j h z c).2 ≤ v + 1 ∧
+      LA.val (lin3Step s so to tl n hs ht (R.ofUSize v.toUSize) j h z c).1 +
+          (LA.val (LA.get s (so.toNat + j.toNat)) + v *
+            (if j.toNat < tl.toNat then LA.val (LA.get s (to.toNat + j.toNat)) else 0)) +
+          LA.val c =
+        LA.val z + 2 ^ LA.w * LA.val (lin3Step s so to tl n hs ht (R.ofUSize v.toUSize) j h z c).2 := by
+  have ev := val_ofUSize_lt (R := R) (v := v) (by lia) hv'
+  have hx : R.uget s (so + j) (hs.uset_bound h) = LA.get s (so.toNat + j.toNat) := by
+    rw [R.uget_eq, hs.toNat_add h]
+  have hy : LA.val (if h' : j < tl then R.uget s (to + j) (ht.uset_bound h') else R.zero) =
+      if j.toNat < tl.toNat then LA.val (LA.get s (to.toNat + j.toNat)) else 0 := by
+    by_cases h' : j < tl
+    · have e := USize.lt_iff_toNat_lt.1 h'
+      simp only [h', e, ↓reduceDIte, ↓reduceIte, R.uget_eq, ht.toNat_add h']
+    · have e : ¬ j.toNat < tl.toNat := fun e => h' (USize.lt_iff_toNat_lt.2 e)
+      simp only [h', e, ↓reduceDIte, ↓reduceIte, R.val_zero]
+  simp only [lin3Step]
+  rw [← hy, ← hx]
+  generalize (if h' : j < tl then R.uget s (to + j) (ht.uset_bound h') else R.zero) = y
+  generalize R.uget s (so + j) (hs.uset_bound h) = x
+  have m := R.val_mulAdd2 y (R.ofUSize v.toUSize) x c
+  generalize R.mulAdd2 y (R.ofUSize v.toUSize) x c = p at m ⊢
+  have sc := R.val_subC z p.1 R.zero
+  generalize R.subC z p.1 R.zero = q at sc ⊢
+  rw [R.val_add]
+  rw [R.val_zero, ev] at *
+  have hW := R.four_le
+  have lx := LA.val_lt x
+  have ly := LA.val_lt y
+  have lz := LA.val_lt z
+  have lp := LA.val_lt p.1
+  have lq := LA.val_lt q.1
+  generalize 2 ^ LA.w = W at *
+  generalize LA.val p.1 = lo at *
+  generalize LA.val p.2 = hi at *
+  generalize LA.val q.1 = o at *
+  generalize LA.val q.2 = bit at *
+  have hyv : LA.val y * v + v ≤ W * v := by
+    have := Nat.mul_le_mul_right v (show LA.val y + 1 ≤ W by lia)
+    rw [Nat.add_mul, Nat.one_mul] at this
+    exact this
+  have hhi : hi ≤ v + 1 :=
+    Nat.le_of_mul_le_mul_left (show W * hi ≤ W * (v + 1) by rw [Nat.mul_succ]; lia) (by lia)
+  have hbit : bit < 2 := Nat.lt_of_mul_lt_mul_left (show W * bit < W * 2 by lia)
+  have hsum : hi + bit ≤ v + 1 := by
+    rcases Nat.lt_or_ge hi (v + 1) with e | e
+    · lia
+    · have e' : hi = v + 1 := by lia
+      subst e'
+      have : lo = 0 := by rw [Nat.mul_succ] at m; lia
+      subst this
+      have : bit < 1 := Nat.lt_of_mul_lt_mul_left (show W * bit < W * 1 by lia)
+      lia
+  rw [Nat.mod_eq_of_lt (by lia : hi + bit < W)]
+  refine ⟨hsum, ?_⟩
+  rw [Nat.mul_add, Nat.mul_comm v]
+  lia
+
+omit F in
+/--
+The borrow pass of a window, after a first pass over its low `sl` limbs whose value plus `S` is
+the low part of `D` and the borrow `c`, and whose high limbs are those of `D`.
+-/
+private theorem borrow_win (X D : A) (o len sl Sv : Nat) (c : L) (hsl : sl ≤ len)
+    (hw : winOK X o len = true)
+    (a₃ : valAt X o sl + Sv = valAt D o sl + 2 ^ (LA.w * sl) * LA.val c)
+    (hhigh : valAt X (o + sl) (len - sl) = valAt D (o + sl) (len - sl))
+    (hv : Sv ≤ valAt D o len) :
+    LA.size (decrWin X o len sl c) = LA.size X ∧
+      (∀ i, (i < o ∨ o + len ≤ i) → LA.get (decrWin X o len sl c) i = LA.get X i) ∧
+      valAt (decrWin X o len sl c) o len = valAt D o len - Sv := by
+  obtain ⟨-, e₁, e₂, hb⟩ := winOK_spec hw
+  have e₄ : sl.toUSize.toNat = sl := by
+    rw [← e₂] at hsl; simp only [winOK, Bool.and_eq_true, decide_eq_true_eq] at hw
+    exact toNat_toUSize' (by lia)
+  unfold decrWin
+  simp only [hw, ↓reduceDIte]
+  obtain ⟨b₁, b₂, b₃⟩ := FFT.decrAt_spec X o.toUSize len.toUSize (winOK_spec hw).2.2.2 sl.toUSize c
+  generalize FFT.decrAt X o.toUSize len.toUSize (winOK_spec hw).2.2.2 sl.toUSize c = q at b₁ b₂ b₃ ⊢
+  rw [e₁, e₂, e₄] at b₂ b₃
+  refine ⟨b₁, fun i hi => b₂ i (by lia), ?_⟩
+  have hlow : valAt q.1 o sl = valAt X o sl :=
+    valAt_congr _ fun i _ hi => b₂ i (.inl (by lia))
+  have hsplit : ∀ x : A,
+      valAt x o len = valAt x o sl + 2 ^ (LA.w * sl) * valAt x (o + sl) (len - sl) := by
+    intro x; rw [← valAt_add, Nat.add_sub_cancel' hsl]
+  have hq := valAt_lt q.1 o len
+  rw [hsplit q.1, hlow] at hq ⊢
+  rw [hsplit D] at hv ⊢
+  rw [hhigh] at b₃
+  have hpow : 2 ^ (LA.w * len) = 2 ^ (LA.w * sl) * 2 ^ (LA.w * (len - sl)) := by
+    rw [← Nat.pow_add]; congr 1; rw [← Nat.mul_add, Nat.add_sub_cancel' hsl]
+  rw [hpow] at hq
+  generalize valAt q.1 (o + sl) (len - sl) = Qh at b₃ hq ⊢
+  generalize valAt D (o + sl) (len - sl) = Dh at b₃ hv ⊢
+  generalize valAt X o sl = Pl at a₃ hq ⊢
+  generalize valAt D o sl = Dl at a₃ hv ⊢
+  generalize LA.val q.2 = c₂ at b₃
+  generalize LA.val c = c₁ at a₃ b₃
+  generalize 2 ^ (LA.w * sl) = P at *
+  generalize 2 ^ (LA.w * (len - sl)) = H at *
+  have e : Pl + P * Qh + Sv = Dl + P * Dh + P * H * c₂ := by
+    have : P * (Qh + c₁) = P * (Dh + H * c₂) := by rw [b₃]
+    grind
+  have hc₂ : c₂ = 0 := by
+    rcases Nat.eq_zero_or_pos c₂ with h | h
+    · exact h
+    · exfalso
+      have : P * H ≤ P * H * c₂ := Nat.le_mul_of_pos_right _ h
+      lia
+  subst hc₂
+  lia
+
+public theorem sub3LinK_spec (d : A) (o₁ o₂ o₃ len : Nat) (s : A) (so sl to tl v₁ v₂ v₃ : Nat)
+    (h₁ : o₁ + len ≤ LA.size d) (h₂ : o₂ + len ≤ LA.size d) (h₃ : o₃ + len ≤ LA.size d)
+    (h₁₂ : o₁ + len ≤ o₂) (h₂₃ : o₂ + len ≤ o₃)
+    (hb₁ : valAt s so sl + valAt s to tl * v₁ ≤ valAt d o₁ len)
+    (hb₂ : valAt s so sl + valAt s to tl * v₂ ≤ valAt d o₂ len)
+    (hb₃ : valAt s so sl + valAt s to tl * v₃ ≤ valAt d o₃ len) :
+    LA.size (sub3LinK d o₁ o₂ o₃ len s so sl to tl v₁ v₂ v₃) = LA.size d ∧
+      (∀ i, (i < o₁ ∨ o₁ + len ≤ i) → (i < o₂ ∨ o₂ + len ≤ i) → (i < o₃ ∨ o₃ + len ≤ i) →
+        LA.get (sub3LinK d o₁ o₂ o₃ len s so sl to tl v₁ v₂ v₃) i = LA.get d i) ∧
+      valAt (sub3LinK d o₁ o₂ o₃ len s so sl to tl v₁ v₂ v₃) o₁ len =
+        valAt d o₁ len - (valAt s so sl + valAt s to tl * v₁) ∧
+      valAt (sub3LinK d o₁ o₂ o₃ len s so sl to tl v₁ v₂ v₃) o₂ len =
+        valAt d o₂ len - (valAt s so sl + valAt s to tl * v₂) ∧
+      valAt (sub3LinK d o₁ o₂ o₃ len s so sl to tl v₁ v₂ v₃) o₃ len =
+        valAt d o₃ len - (valAt s so sl + valAt s to tl * v₃) := by
+  have hW := R.four_le
+  unfold sub3LinK
+  split
+  · rename_i h
+    have k₁ := h.1
+    have k₂ := h.2.1
+    have k₃ := h.2.2.1
+    have ks := h.2.2.2.1
+    have kt := h.2.2.2.2.1
+    have hsl : sl ≤ len := h.2.2.2.2.2.1
+    have htl : tl ≤ sl := h.2.2.2.2.2.2.1
+    have hw₁ := h.2.2.2.2.2.2.2.1
+    have hw₁' := h.2.2.2.2.2.2.2.2.1
+    have hw₂ := h.2.2.2.2.2.2.2.2.2.1
+    have hw₂' := h.2.2.2.2.2.2.2.2.2.2.1
+    have hw₃ := h.2.2.2.2.2.2.2.2.2.2.2.1
+    have hw₃' := h.2.2.2.2.2.2.2.2.2.2.2.2
+    obtain ⟨-, e₁, eL, -⟩ := winOK_spec k₁
+    obtain ⟨-, e₂, -, -⟩ := winOK_spec k₂
+    obtain ⟨-, e₃, -, -⟩ := winOK_spec k₃
+    obtain ⟨-, es, esl, -⟩ := winOK_spec ks
+    obtain ⟨-, et, etl, -⟩ := winOK_spec kt
+    rw [F.fold3Then_eq, foldUInPlace3Then]
+    let E : Nat → Nat → Nat := fun v i => LA.val (LA.get s (so.toUSize.toNat + i)) +
+      v * (if i < tl.toUSize.toNat then LA.val (LA.get s (to.toUSize.toNat + i)) else 0)
+    obtain ⟨f₀, -, -, -, f₁, f₂, f₃, f₄⟩ := foldUInPlace3_spec sl.toUSize _ _ _ (E v₁) (E v₂) (E v₃)
+      (fun c => LA.val c) (fun c => LA.val c) (fun c => LA.val c)
+      (fun c => LA.val c ≤ v₁ + 1) (fun c => LA.val c ≤ v₂ + 1) (fun c => LA.val c ≤ v₃ + 1)
+      (fun j h z c hc => (lin3Step_law s _ _ _ _ _ _ v₁ hw₁ hw₁' j h z c hc).1)
+      (fun j h z c hc => (lin3Step_law s _ _ _ _ _ _ v₂ hw₂ hw₂' j h z c hc).1)
+      (fun j h z c hc => (lin3Step_law s _ _ _ _ _ _ v₃ hw₃ hw₃' j h z c hc).1)
+      (fun j h z c hc => (lin3Step_law s _ _ _ _ _ _ v₁ hw₁ hw₁' j h z c hc).2)
+      (fun j h z c hc => (lin3Step_law s _ _ _ _ _ _ v₂ hw₂ hw₂' j h z c hc).2)
+      (fun j h z c hc => (lin3Step_law s _ _ _ _ _ _ v₃ hw₃ hw₃' j h z c hc).2)
+      d o₁.toUSize o₂.toUSize o₃.toUSize _ _ _ (by rw [e₁, e₂, esl]; lia)
+      (by rw [e₁, e₃, esl]; lia) (by rw [e₂, e₃, esl]; lia) 0 R.zero R.zero R.zero
+      (by rw [R.val_zero]; lia) (by rw [R.val_zero]; lia) (by rw [R.val_zero]; lia)
+    simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, e₁, e₂, e₃, esl, R.val_zero]
+      at f₁ f₂ f₃ f₄
+    have hE : ∀ v, wsum LA.w (E v) 0 sl = valAt s so sl + valAt s to tl * v := by
+      intro v
+      simp only [E]
+      rw [wsum_add_mul LA.w (fun i => LA.val (LA.get s (so.toUSize.toNat + i)))
+        (fun i => if i < tl.toUSize.toNat then LA.val (LA.get s (to.toUSize.toNat + i)) else 0),
+        wsum_get, wsum_pad _ _ _ _ _ (by rw [etl]; lia), es, et, etl, Nat.add_zero, Nat.add_zero,
+        Nat.sub_zero, Nat.mul_comm v]
+    rw [hE] at f₂ f₃ f₄
+    generalize foldUInPlace3 sl.toUSize _ _ _ d o₁.toUSize o₂.toUSize o₃.toUSize _ _ _ 0
+      R.zero R.zero R.zero = X at f₀ f₁ f₂ f₃ f₄ ⊢
+    have ok : ∀ Y : A, LA.size Y = LA.size d → ∀ o, winOK d o len = true → winOK Y o len = true :=
+      fun Y hY o h => by unfold winOK at h ⊢; rw [hY]; exact h
+    have hhigh : ∀ o, (o = o₁ ∨ o = o₂ ∨ o = o₃) →
+        valAt X.1 (o + sl) (len - sl) = valAt d (o + sl) (len - sl) := by
+      intro o ho
+      exact valAt_congr _ fun i _ _ => f₁ i (by lia) (by lia) (by lia)
+    obtain ⟨y₁, y₂, y₃⟩ := borrow_win X.1 d o₁ len sl _ X.2.1 hsl (ok _ f₀ _ k₁) (by lia)
+      (hhigh o₁ (.inl rfl)) hb₁
+    generalize decrWin X.1 o₁ len sl X.2.1 = Y₁ at y₁ y₂ y₃ ⊢
+    obtain ⟨z₁, z₂, z₃⟩ := borrow_win Y₁ d o₂ len sl _ X.2.2.1 hsl (ok _ (y₁.trans f₀) _ k₂)
+      (by rw [show valAt Y₁ o₂ sl = valAt X.1 o₂ sl from
+            valAt_congr _ fun i _ _ => y₂ i (by lia)]; lia)
+      ((valAt_congr _ fun i _ _ => y₂ i (by lia)).trans (hhigh o₂ (.inr (.inl rfl)))) hb₂
+    generalize decrWin Y₁ o₂ len sl X.2.2.1 = Y₂ at z₁ z₂ z₃ ⊢
+    obtain ⟨u₁, u₂, u₃⟩ := borrow_win Y₂ d o₃ len sl _ X.2.2.2 hsl
+      (ok _ (z₁.trans (y₁.trans f₀)) _ k₃)
+      (by rw [show valAt Y₂ o₃ sl = valAt X.1 o₃ sl from
+            valAt_congr _ fun i _ _ => (z₂ i (by lia)).trans (y₂ i (by lia))]; lia)
+      ((valAt_congr _ fun i _ _ => (z₂ i (by lia)).trans (y₂ i (by lia))).trans
+        (hhigh o₃ (.inr (.inr rfl)))) hb₃
+    generalize decrWin Y₂ o₃ len sl X.2.2.2 = Y₃ at u₁ u₂ u₃ ⊢
+    refine ⟨u₁.trans (z₁.trans (y₁.trans f₀)), fun i hi₁ hi₂ hi₃ => ?_, ?_, ?_, u₃⟩
+    · rw [u₂ i hi₃, z₂ i hi₂, y₂ i hi₁, f₁ i (by lia) (by lia) (by lia)]
+    · rw [← y₃]
+      exact valAt_congr _ fun i _ _ => (u₂ i (by lia)).trans (z₂ i (by lia))
+    · rw [← z₃]
+      exact valAt_congr _ fun i _ _ => u₂ i (by lia)
+  · dsimp only
+    have b : ∀ (x : A) o (y : Nat), valAt x o len - y < 2 ^ (LA.w * len) :=
+      fun x o y => Nat.lt_of_le_of_lt (Nat.sub_le _ _) (valAt_lt ..)
+    obtain ⟨w₁, v₁e⟩ := fallback d o₁ len _ h₁ (b d o₁ (valAt s so sl + valAt s to tl * v₁))
+    generalize writeNat d o₁ len _ = D₁ at w₁ v₁e ⊢
+    obtain ⟨w₂, v₂e⟩ := fallback D₁ o₂ len _ (by rw [w₁.1]; exact h₂)
+      (b D₁ o₂ (valAt s so sl + valAt s to tl * v₂))
+    have e₂ : valAt D₁ o₂ len = valAt d o₂ len := w₁.valAt_eq (by lia)
+    have e₃ : valAt D₁ o₃ len = valAt d o₃ len := w₁.valAt_eq (by lia)
+    generalize writeNat D₁ o₂ len _ = D₂ at w₂ v₂e ⊢
+    rw [e₂] at v₂e
+    obtain ⟨w₃, v₃e⟩ := fallback D₂ o₃ len _ (by rw [w₂.1, w₁.1]; exact h₃)
+      (b D₂ o₃ (valAt s so sl + valAt s to tl * v₃))
+    generalize writeNat D₂ o₃ len _ = D₃ at w₃ v₃e ⊢
+    rw [w₂.valAt_eq (by lia), e₃] at v₃e
+    refine ⟨w₃.1.trans (w₂.1.trans w₁.1), fun i hi₁ hi₂ hi₃ => ?_, ?_, ?_, v₃e⟩
+    · rw [w₃.2 i hi₃, w₂.2 i hi₂, w₁.2 i hi₁]
+    · rw [w₃.valAt_eq (by lia), w₂.valAt_eq (by lia), v₁e]
+    · rw [w₃.valAt_eq (by lia), v₂e]
+
 /-- The operations of the Karatsuba and Toom methods: the kernels of this file and `ToomBase`. -/
 public instance toomOpsW [B : ToomBase A L] : ToomOps A L where
   w_ge := B.w_ge
@@ -803,6 +1084,8 @@ public instance toomOpsW [B : ToomBase A L] : ToomOps A L where
   subMulInto_spec := subMulIntoK_spec
   subMulWin := subMulWinK
   subMulWin_spec d o len so sl v hw hsw hds hsl hvw hv := subMulWinK_spec d o len so sl v hw hsw hds hsl hvw hv
+  sub3Lin := sub3LinK
+  sub3Lin_spec := sub3LinK_spec
   shlTop := shlTopK
   shlTop_spec := shlTopK_spec
   shr := shrK

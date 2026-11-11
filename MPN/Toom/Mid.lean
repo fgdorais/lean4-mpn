@@ -33,13 +33,8 @@ variable {A L : Type} [LA : LimbArray A L] [R : WordArray A L] [F : WordFolds A 
 
 /-! ## Sums of digits -/
 
-/-- `g j + 2ʷ g (j + 1) + ⋯`, `m` terms: the value of the digits `g j, …, g (j + m - 1)`. -/
-public def wsum (w : Nat) (g : Nat → Nat) (j : Nat) : Nat → Nat
-  | 0 => 0
-  | m + 1 => g j + 2 ^ w * wsum w g (j + 1) m
-
 omit R F in
-private theorem wsum_get (a : A) (lo m : Nat) : ∀ j,
+public theorem wsum_get (a : A) (lo m : Nat) : ∀ j,
     wsum LA.w (fun i => LA.val (LA.get a (lo + i))) j m = valAt a (lo + j) m := by
   induction m with
   | zero => intro j; rw [wsum, valAt_zero]
@@ -47,7 +42,7 @@ private theorem wsum_get (a : A) (lo m : Nat) : ∀ j,
 
 omit R F in
 /-- The limbs of `a` from `lo`, `len` of them and zeros after. -/
-private theorem wsum_pad (a : A) (lo len m : Nat) : ∀ j, len ≤ j + m →
+public theorem wsum_pad (a : A) (lo len m : Nat) : ∀ j, len ≤ j + m →
     wsum LA.w (fun i => if i < len then LA.val (LA.get a (lo + i)) else 0) j m =
       valAt a (lo + j) (len - j) := by
   induction m with

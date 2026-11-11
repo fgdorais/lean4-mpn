@@ -110,6 +110,27 @@ public theorem subMulW_val {q : A} {o len : Nat} (h : o + len ≤ LA.size q) (s 
   obtain ⟨w, e⟩ := R.subMulInto_spec q o len s so sl m h (lt_limb hm) (by rw [hq, hs]; lia)
   exact ⟨w, by rw [e, hq, hs]; lia⟩
 
+/-- Three windows minus `S + mᵢ T` in one pass, by `sub3Lin`. -/
+public theorem sub3W_val {q : A} {o₁ o₂ o₃ len : Nat} (h : o₃ + len ≤ LA.size q)
+    (h₁₂ : o₁ + len ≤ o₂) (h₂₃ : o₂ + len ≤ o₃) (s : A) (so sl to tl m₁ m₂ m₃ : Nat)
+    {Q₁ Q₂ Q₃ S T V₁ V₂ V₃ : Nat} (hq₁ : valAt q o₁ len = Q₁) (hq₂ : valAt q o₂ len = Q₂)
+    (hq₃ : valAt q o₃ len = Q₃) (hs : valAt s so sl = S) (ht : valAt s to tl = T)
+    (hV₁ : Q₁ = S + m₁ * T + V₁) (hV₂ : Q₂ = S + m₂ * T + V₂) (hV₃ : Q₃ = S + m₃ * T + V₃) :
+    Writes (R.sub3Lin q o₁ o₂ o₃ len s so sl to tl m₁ m₂ m₃) q o₁ (o₃ + len - o₁) ∧
+      valAt (R.sub3Lin q o₁ o₂ o₃ len s so sl to tl m₁ m₂ m₃) o₁ len = V₁ ∧
+      valAt (R.sub3Lin q o₁ o₂ o₃ len s so sl to tl m₁ m₂ m₃) o₂ len = V₂ ∧
+      valAt (R.sub3Lin q o₁ o₂ o₃ len s so sl to tl m₁ m₂ m₃) o₃ len = V₃ := by
+  rw [Nat.mul_comm m₁] at hV₁
+  rw [Nat.mul_comm m₂] at hV₂
+  rw [Nat.mul_comm m₃] at hV₃
+  obtain ⟨a, b, c₁, c₂, c₃⟩ := R.sub3Lin_spec q o₁ o₂ o₃ len s so sl to tl m₁ m₂ m₃ (by lia)
+    (by lia) h h₁₂ h₂₃ (by rw [hq₁, hs, ht]; lia)
+    (by rw [hq₂, hs, ht]; lia) (by rw [hq₃, hs, ht]; lia)
+  refine ⟨⟨a, fun i hi => b i (by lia) (by lia) (by lia)⟩, ?_, ?_, ?_⟩
+  · rw [c₁, hq₁, hs, ht]; lia
+  · rw [c₂, hq₂, hs, ht]; lia
+  · rw [c₃, hq₃, hs, ht]; lia
+
 public theorem subMulWin_val {q : A} {o len : Nat} (h : o + len ≤ LA.size q) (so sl m : Nat)
     (hs : so + sl ≤ LA.size q) (hds : o + len ≤ so ∨ so + sl ≤ o) (hsl : sl ≤ len)
     (hm : m < 2 ^ 32) {Q S V : Nat} (hq : valAt q o len = Q) (hS : valAt q so sl = S)
