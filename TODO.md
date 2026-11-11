@@ -73,9 +73,10 @@ Below 256 limbs, under the target's 4× of `Nat` but far from `mpn`:
   together −3% to −4% from 384 to 504 limbs and −3% at 3584 on 64-bit limbs, neutral on 32-bit
   limbs. What is left: the second stage of the interpolation, passes between windows of the same
   array, which needs a fold that writes some windows while reading others, and five loop variables
-  to take in the shift and the exact division (four is the limit); and the same for Toom-3 by 2,
-  Toom-4 by 2 and the Toom-3 square (`ONE_ARRAY` in `scripts/toom_methods.py`, `FUSE` and `genW` in
-  `scripts/toom_interp.py`, `evalsW` for their shapes).
+  to take in the shift and the exact division (four is the limit); and one-pass values for the other shapes (`evalsW` has them only for
+  three pieces at three points). Since `a8c9827` Toom-3 by 2, Toom-4 by 2, Toom-4 and the Toom-3 and
+  Toom-4 squares are on one array too (`ONE_ARRAY`); Toom-4 by 3, Toom-6 and Toom-8 are not
+  (`genW` emits degrees 3, 4 and 6).
 - [ ] **A shorter dependency chain in division by a limb**, for CPUs with slow division (GMP's
   `mpn_div_qr_1n_pi1`, which keeps a partly reduced two-limb remainder and takes the quotient off
   the chain): the loop is bound by the latency of one step, about 14–15 cycles on Zen 3, and a
