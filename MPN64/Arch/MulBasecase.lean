@@ -534,7 +534,7 @@ private theorem MulBound.toNat_top₂ {arr : UInt64Array} {rs : USize} {a b : US
 /--
 Rows `i` and `i + 1` of `a * b` added to the limbs of `arr` from `rs + i` on in one pass, and the
 carries stored above them, as an `inplace` program. The loop hands its two carries to the stores
-unboxed (`forIn2Bind`).
+unboxed (`forIn2Bind`), and the program ends with `then`, so that its result is not paired.
 -/
 @[inline] def mulRow2K (arr : UInt64Array) (rs : USize) (a b : USlice)
     (hr : MulBound arr rs a.size.toNat b.size.toNat) (i : USize) (h : i < b.size)
@@ -546,15 +546,16 @@ unboxed (`forIn2Bind`).
   have hi₁ := USize.toNat_add_one_of_lt h
   let x₀ := b[i]'h
   let x₁ := b[i + 1]'h'
-  ⟨(inplace arr do
-      for k in 0...a.size with (c₀ := (0 : UInt64)) (c₁ := (0 : UInt64)) do
-        let z ← arr[rs + i + k]
-        let (w, d₀, d₁) := addMul2Word z (a[k]'(USize.lt_iff_toNat_lt.2 (by assumption))) x₀ x₁ c₀ c₁
-        arr[rs + i + k] := w
-        c₀ := d₀
-        c₁ := d₁
-      arr[rs + i + a.size] := c₀
-      arr[rs + i + a.size + 1] := c₁).2, by simp⟩
+  inplace arr do
+    for k in 0...a.size with (c₀ := (0 : UInt64)) (c₁ := (0 : UInt64)) do
+      let z ← arr[rs + i + k]
+      let (w, d₀, d₁) := addMul2Word z (a[k]'(USize.lt_iff_toNat_lt.2 (by assumption))) x₀ x₁ c₀ c₁
+      arr[rs + i + k] := w
+      c₀ := d₀
+      c₁ := d₁
+    arr[rs + i + a.size] := c₀
+    arr[rs + i + a.size + 1] := c₁
+  then fun _ arr' h => ⟨arr', h⟩
 
 /--
 A loop of `addMul2Word` steps over the window at `off`, as an in-place program from index `j` on:
@@ -566,10 +567,10 @@ public theorem run_addMul2Loop {N : Nat} (a : USlice) (x₀ x₁ : UInt64) (off 
     (j : USize) (hlo : lo.toNat ≤ j.toNat) (c : UInt64 × UInt64) (hs : arr.size = N) :
     (InPlace.forIn2From lo a.size j hlo c.1 c.2 fun k _ hj c₀ c₁ =>
         InPlace.readThen (off + k) (InPlaceSyntax.toNat_add_lt_of_window hw hj) fun z =>
-          (InPlace.write (off + k) (InPlaceSyntax.toNat_add_lt_of_window hw hj)
-              (addMul2Word z (a[k]'(USize.lt_iff_toNat_lt.2 hj)) x₀ x₁ c₀ c₁).1) >>= fun _ =>
-            pure ((addMul2Word z (a[k]'(USize.lt_iff_toNat_lt.2 hj)) x₀ x₁ c₀ c₁).2.1,
-              (addMul2Word z (a[k]'(USize.lt_iff_toNat_lt.2 hj)) x₀ x₁ c₀ c₁).2.2)).run arr hs =
+          InPlace.writeThen (off + k) (InPlaceSyntax.toNat_add_lt_of_window hw hj)
+              (addMul2Word z (a[k]'(USize.lt_iff_toNat_lt.2 hj)) x₀ x₁ c₀ c₁).1
+            (pure ((addMul2Word z (a[k]'(USize.lt_iff_toNat_lt.2 hj)) x₀ x₁ c₀ c₁).2.1,
+              (addMul2Word z (a[k]'(USize.lt_iff_toNat_lt.2 hj)) x₀ x₁ c₀ c₁).2.2))).run arr hs =
       ((addMul2Loop arr off a a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _)) hr x₀ x₁ j c).2,
         (addMul2Loop arr off a a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _)) hr x₀ x₁ j c).1) := by
   rw [addMul2Loop_eq_fold]
@@ -577,7 +578,7 @@ public theorem run_addMul2Loop {N : Nat} (a : USlice) (x₀ x₁ : UInt64) (off 
     (addMul2Step a a.size (USize.le_iff_toNat_le.2 (Nat.le_refl _)) x₀ x₁) off with
   | case1 arr hr j c h p ih =>
     rw [InPlace.forIn2From_eq, dite_eq_left_of_eq_true (eq_true h), foldUInPlace_lt _ _ _ _ _ _ _ h]
-    simp only [InPlace.run_bind, InPlace.run_readThen, InPlace.run_write, InPlace.run_pure]
+    simp only [InPlace.run_bind, InPlace.run_readThen, InPlace.run_writeThen, InPlace.run_pure]
     exact ih _ _
   | case2 arr hr j c h =>
     rw [InPlace.forIn2From_eq, dite_eq_right_of_eq_false (eq_false h),
@@ -598,8 +599,9 @@ private theorem mulRow2K_eq (arr : UInt64Array) (rs : USize) (a b : USlice)
   have e := run_addMul2Loop a (b[i]'h) (b[i + 1]'h') (rs + i) 0 (hr.row h).1 arr (hr.row h) 0
     (Nat.le_refl _) (0, 0) rfl
   simp only at e
-  simp only [mulRow2K, runInPlace_eq, InPlace.forIn2Bind_eq, InPlace.forIn2_eq, InPlace.bind_eq,
-    InPlace.pure_eq, InPlace.run_bind, InPlace.run_write, InPlace.run_pure, e, storeCarries]
+  simp only [mulRow2K, runInPlaceThen_eq, InPlace.Tail.forIn2Bind_eq, InPlace.forIn2_eq,
+    InPlace.pure_eq, InPlace.Tail.run_bind, InPlace.Tail.run_writeThen, InPlace.Tail.run_done, e,
+    storeCarries]
   rfl
 
 /--
