@@ -44,6 +44,8 @@ SCHEDULES = {
          "8 - 2*9; 1 - 2; 2 - 3; 3 - 4; 4 - 5; 5 - 6; 6 - 7; 7 - 8; 8 - 9"),
 }
 HEARTBEATS = {3: None, 4: None, 5: 1000000, 6: 1000000, 10: 8000000, 14: 8000000}
+# The one-array proof of degree 14 nests its 200 passes deeper than the default recursion depth.
+RECDEPTH_W = {14: 8192}
 
 
 def newton_schedule(D):
@@ -357,7 +359,9 @@ def genW(D):
                          f'(len := L) (by rw [{sz}]; lia) (by lia) (by lia)\n      {src}\n      {vs}\n'
                          f'      {hvs_} hc₀ hc{sub(D)} (by lia) (by lia) (by lia)')
             proof.append(f'  rw [← (show {qn} = {call} from rfl)] at {wn} {" ".join(ens)}')
+            proof.append(f'  clear_value {qn}')
             proof.append(f'  have {sn} := {wn}.1.trans {sz}')
+            dead = [wn] + [st[j][1] for j in fw] + ([sz] if sz != 'hW' else [])
             for i, j in enumerate(fw):
                 st[j] = [0, ens[i], new[j]]
             for i in ws:
@@ -367,7 +371,9 @@ def genW(D):
                 nv = f'v{sub(i)}q{sub(q)}'
                 proof.append(f'  have {nv} := ({wn}.valAt_eq (lo := {at(i, io)}) (n := {ln(io)}) '
                              f'(by lia)).trans {ivh}')
+                dead.append(ivh)
                 st[i][1] = nv
+            proof.append(f'  clear {" ".join(dead)}')
             code.append('  let W := ' + re.sub(rf'\b{curW}\b', 'W', call))
             curW, sz = qn, sn
             continue
@@ -444,8 +450,10 @@ def genW(D):
         code.append('  let W := ' + re.sub(rf'\b{curW}\b', 'W', call))
         wn, en, sn = f'w{sub(q)}', f'e{sub(q)}', f's{sub(q)}'
         proof.extend(pre)
+        dead = [wn, vh] + [l.split()[1] for l in pre] + ([sz] if sz != 'hW' else [])
         proof.append(f'  obtain ⟨{wn}, {en}⟩ := {step}')
         proof.append(f'  rw [← (show {qn} = {call} from rfl)] at {wn} {en}')
+        proof.append(f'  clear_value {qn}')
         proof.append(f'  have {sn} := {wn}.1.trans {sz}')
         for i in ws:
             if i == j:
@@ -454,7 +462,9 @@ def genW(D):
             nv = f'v{sub(i)}q{sub(q)}'
             proof.append(f'  have {nv} := ({wn}.valAt_eq (lo := {at(i, io)}) (n := {ln(io)}) '
                          f'(by lia)).trans {ivh}')
+            dead.append(ivh)
             st[i][1] = nv
+        proof.append(f'  clear {" ".join(dead)}')
         st[j] = [no, en, new]
         curW, sz = qn, sn
     for j in ws:
@@ -510,6 +520,8 @@ def genW(D):
     out.append('  -- The recombination.')
     out.append('\n'.join(rec))
     out.append('')
+    if D in RECDEPTH_W:
+        out.append(f'set_option maxRecDepth {RECDEPTH_W[D]} in')
     if HEARTBEATS[D]:
         out.append(f'set_option maxHeartbeats {HEARTBEATS[D]} in')
     hb = (f'\n    (hb : {expr(top)} < 2 ^ (LA.w * (L - 1)))' if needs_hb else '')
@@ -563,6 +575,6 @@ if __name__ == '__main__':
     print(HEADER)
     for D in (3, 4, 5, 6, 10, 14):
         print(gen(D))
-    for D in (3, 4, 5, 6):
+    for D in (3, 4, 5, 6, 10, 14):
         print(genW(D))
     print('end MPN.Toom')

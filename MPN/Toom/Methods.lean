@@ -550,15 +550,17 @@ nonempty.
 public abbrev Shape66 (al bl k : Nat) : Prop :=
   1 ≤ k ∧ 5 * k < al ∧ al ≤ 6 * k ∧ 5 * k < bl ∧ bl ≤ al
 
-/-- Toom-6: `a` in 6 pieces of `k` limbs and `b` in 6, at most, the top ones nonempty. -/
+/--
+Toom-6: `a` in 6 pieces of `k` limbs and `b` in 6, at most, the top ones nonempty, the values
+and their products in windows of one array each (`pointsW`).
+-/
 @[expose, specialize] public def toom66 (d : A) (o : Nat) (a : A) (ao al : Nat) (b : A)
     (bo bl k : Nat) (hk : Shape66 al bl k) (mul : MulFn A (al + bl)) : A :=
   let d := mul d o a ao k b bo k (by obtain ⟨_, _, _, _, _⟩ := hk; lia)
   let d := mul d (o + 10 * k) a (ao + 5 * k) (al - 5 * k) b (bo + 5 * k)
     (bl - 5 * k) (by obtain ⟨_, _, _, _, _⟩ := hk; lia)
-  let w (j : Nat) := mul (R.zeros (k + k + 2)) 0 (evalAt a ao al k 6 j (k + 1)) 0 (k + 1)
-    (evalAt b bo bl k 6 j (k + 1)) 0 (k + 1) (by obtain ⟨_, _, _, _, _⟩ := hk; lia)
-  interp10 d o (al + bl) k (k + k + 2) (w 1) (w 2) (w 3) (w 4) (w 5) (w 6) (w 7) (w 8) (w 9)
+  interp10W d o (al + bl) k (k + k + 2)
+    (pointsW mul a ao al b bo bl k 6 6 9 (by obtain ⟨_, _, _, _, _⟩ := hk; lia))
 
 set_option maxHeartbeats 8000000 in
 public theorem toom66_spec (d : A) (o : Nat) (a : A) (ao al : Nat) (b : A) (bo bl k : Nat)
@@ -575,6 +577,30 @@ public theorem toom66_spec (d : A) (o : Nat) (a : A) (ao al : Nat) (b : A) (bo b
     (by decide) hj
   simp only [sumRange_succ, sumRange_zero, Nat.zero_add, Nat.pow_zero, Nat.mul_one,
     Nat.pow_one] at hA hB pA
+  obtain ⟨sW, pW⟩ := pointsW_spec mul hmul a ao al b bo bl k 6 6 9 (by decide) (by decide)
+    (fun j hj => match j, hj with | 0, _ | 1, _ | 2, _ | 3, _ | 4, _ | 5, _ | 6, _ | 7, _ | 8, _ | 9, _ => by decide | _ + 10, h => absurd h (by lia))
+    (fun j hj => match j, hj with | 0, _ | 1, _ | 2, _ | 3, _ | 4, _ | 5, _ | 6, _ | 7, _ | 8, _ | 9, _ => by decide | _ + 10, h => absurd h (by lia))
+    (by lia)
+  have e₁ := pW 1 (by decide) (by decide)
+  rw [show (1 - 1) * (k + k + 2) = 0 by lia] at e₁
+  have e₂ := pW 2 (by decide) (by decide)
+  rw [show (2 - 1) * (k + k + 2) = (k + k + 2) by lia] at e₂
+  have e₃ := pW 3 (by decide) (by decide)
+  rw [show (3 - 1) * (k + k + 2) = 2 * (k + k + 2) by lia] at e₃
+  have e₄ := pW 4 (by decide) (by decide)
+  rw [show (4 - 1) * (k + k + 2) = 3 * (k + k + 2) by lia] at e₄
+  have e₅ := pW 5 (by decide) (by decide)
+  rw [show (5 - 1) * (k + k + 2) = 4 * (k + k + 2) by lia] at e₅
+  have e₆ := pW 6 (by decide) (by decide)
+  rw [show (6 - 1) * (k + k + 2) = 5 * (k + k + 2) by lia] at e₆
+  have e₇ := pW 7 (by decide) (by decide)
+  rw [show (7 - 1) * (k + k + 2) = 6 * (k + k + 2) by lia] at e₇
+  have e₈ := pW 8 (by decide) (by decide)
+  rw [show (8 - 1) * (k + k + 2) = 7 * (k + k + 2) by lia] at e₈
+  have e₉ := pW 9 (by decide) (by decide)
+  rw [show (9 - 1) * (k + k + 2) = 8 * (k + k + 2) by lia] at e₉
+  simp only [sumRange_succ, sumRange_zero, Nat.zero_add, Nat.pow_zero, Nat.mul_one,
+    Nat.pow_one] at e₁ e₂ e₃ e₄ e₅ e₆ e₇ e₈ e₉
   have a₀ := piece_full a ao al k 0 (by lia)
   have aT := piece_top a ao al k 5 (by lia)
   have b₀ := piece_full b bo bl k 0 (by lia)
@@ -619,15 +645,6 @@ public theorem toom66_spec (d : A) (o : Nat) (a : A) (ao al : Nat) (b : A) (bo b
   have hc₀ : valAt d₂ o (k + k) = A₀ * B₀ := by rw [← v₁]; exact w₂.valAt_eq (by lia)
   -- The values at the points.
   have p₃ : k + 1 + (k + 1) < al + bl := by lia
-  obtain ⟨s₁, e₁⟩ := pA 1 (by decide) (by decide) (by decide) p₃
-  obtain ⟨s₂, e₂⟩ := pA 2 (by decide) (by decide) (by decide) p₃
-  obtain ⟨s₃, e₃⟩ := pA 3 (by decide) (by decide) (by decide) p₃
-  obtain ⟨s₄, e₄⟩ := pA 4 (by decide) (by decide) (by decide) p₃
-  obtain ⟨s₅, e₅⟩ := pA 5 (by decide) (by decide) (by decide) p₃
-  obtain ⟨s₆, e₆⟩ := pA 6 (by decide) (by decide) (by decide) p₃
-  obtain ⟨s₇, e₇⟩ := pA 7 (by decide) (by decide) (by decide) p₃
-  obtain ⟨s₈, e₈⟩ := pA 8 (by decide) (by decide) (by decide) p₃
-  obtain ⟨s₉, e₉⟩ := pA 9 (by decide) (by decide) (by decide) p₃
   -- The interpolation.
   generalize hX : 2 ^ (LA.w * k) = X at *
   have hX2 : 2 ^ (LA.w * (2 * k)) = X * X := by rw [pow_mul_k, hX]; grind
@@ -642,9 +659,9 @@ public theorem toom66_spec (d : A) (o : Nat) (a : A) (ao al : Nat) (b : A) (bo b
   have hval : valAt a ao al * valAt b bo bl =
       (A₀ * B₀) + X * (A₀ * B₁ + A₁ * B₀) + X * X * (A₀ * B₂ + A₁ * B₁ + A₂ * B₀) + X * X * X * (A₀ * B₃ + A₁ * B₂ + A₂ * B₁ + A₃ * B₀) + X * X * X * X * (A₀ * B₄ + A₁ * B₃ + A₂ * B₂ + A₃ * B₁ + A₄ * B₀) + X * X * X * X * X * (A₀ * B₅ + A₁ * B₄ + A₂ * B₃ + A₃ * B₂ + A₄ * B₁ + A₅ * B₀) + X * X * X * X * X * X * (A₁ * B₅ + A₂ * B₄ + A₃ * B₃ + A₄ * B₂ + A₅ * B₁) + X * X * X * X * X * X * X * (A₂ * B₅ + A₃ * B₄ + A₄ * B₃ + A₅ * B₂) + X * X * X * X * X * X * X * X * (A₃ * B₅ + A₄ * B₄ + A₅ * B₃) + X * X * X * X * X * X * X * X * X * (A₄ * B₅ + A₅ * B₄) + X * X * X * X * X * X * X * X * X * X * (A₅ * B₅) := by
     rw [hA, hB]; grind
-  obtain ⟨f₁, f₂⟩ := interp10_spec d₂ o (al + bl) k (k + k + 2) _ _ _ _ _ _ _ _ _ 
+  obtain ⟨f₁, f₂⟩ := interp10W_spec d₂ o (al + bl) k (k + k + 2) _ 
     (A₀ * B₀) (A₀ * B₁ + A₁ * B₀) (A₀ * B₂ + A₁ * B₁ + A₂ * B₀) (A₀ * B₃ + A₁ * B₂ + A₂ * B₁ + A₃ * B₀) (A₀ * B₄ + A₁ * B₃ + A₂ * B₂ + A₃ * B₁ + A₄ * B₀) (A₀ * B₅ + A₁ * B₄ + A₂ * B₃ + A₃ * B₂ + A₄ * B₁ + A₅ * B₀) (A₁ * B₅ + A₂ * B₄ + A₃ * B₃ + A₄ * B₂ + A₅ * B₁) (A₂ * B₅ + A₃ * B₄ + A₄ * B₃ + A₅ * B₂) (A₃ * B₅ + A₄ * B₄ + A₅ * B₃) (A₄ * B₅ + A₅ * B₄) (A₅ * B₅)
-    (by rw [w₂.1, w₁.1]; exact hd) (by lia) (by lia) s₁ s₂ s₃ s₄ s₅ s₆ s₇ s₈ s₉ hc₀ v₂
+    (by rw [w₂.1, w₁.1]; exact hd) (by lia) (by lia) sW hc₀ v₂
     (by rw [e₁]; grind)
     (by rw [e₂]; grind)
     (by rw [e₃]; grind)
@@ -665,15 +682,17 @@ nonempty.
 public abbrev Shape88 (al bl k : Nat) : Prop :=
   1 ≤ k ∧ 7 * k < al ∧ al ≤ 8 * k ∧ 7 * k < bl ∧ bl ≤ al
 
-/-- Toom-8: `a` in 8 pieces of `k` limbs and `b` in 8, at most, the top ones nonempty. -/
+/--
+Toom-8: `a` in 8 pieces of `k` limbs and `b` in 8, at most, the top ones nonempty, the values
+and their products in windows of one array each (`pointsW`).
+-/
 @[expose, specialize] public def toom88 (d : A) (o : Nat) (a : A) (ao al : Nat) (b : A)
     (bo bl k : Nat) (hk : Shape88 al bl k) (mul : MulFn A (al + bl)) : A :=
   let d := mul d o a ao k b bo k (by obtain ⟨_, _, _, _, _⟩ := hk; lia)
   let d := mul d (o + 14 * k) a (ao + 7 * k) (al - 7 * k) b (bo + 7 * k)
     (bl - 7 * k) (by obtain ⟨_, _, _, _, _⟩ := hk; lia)
-  let w (j : Nat) := mul (R.zeros (k + k + 2)) 0 (evalAt a ao al k 8 j (k + 1)) 0 (k + 1)
-    (evalAt b bo bl k 8 j (k + 1)) 0 (k + 1) (by obtain ⟨_, _, _, _, _⟩ := hk; lia)
-  interp14 d o (al + bl) k (k + k + 2) (w 1) (w 2) (w 3) (w 4) (w 5) (w 6) (w 7) (w 8) (w 9) (w 10) (w 11) (w 12) (w 13)
+  interp14W d o (al + bl) k (k + k + 2)
+    (pointsW mul a ao al b bo bl k 8 8 13 (by obtain ⟨_, _, _, _, _⟩ := hk; lia))
 
 set_option maxHeartbeats 16000000 in
 public theorem toom88_spec (d : A) (o : Nat) (a : A) (ao al : Nat) (b : A) (bo bl k : Nat)
@@ -690,6 +709,38 @@ public theorem toom88_spec (d : A) (o : Nat) (a : A) (ao al : Nat) (b : A) (bo b
     (by decide) hj
   simp only [sumRange_succ, sumRange_zero, Nat.zero_add, Nat.pow_zero, Nat.mul_one,
     Nat.pow_one] at hA hB pA
+  obtain ⟨sW, pW⟩ := pointsW_spec mul hmul a ao al b bo bl k 8 8 13 (by decide) (by decide)
+    (fun j hj => match j, hj with | 0, _ | 1, _ | 2, _ | 3, _ | 4, _ | 5, _ | 6, _ | 7, _ | 8, _ | 9, _ | 10, _ | 11, _ | 12, _ | 13, _ => by decide | _ + 14, h => absurd h (by lia))
+    (fun j hj => match j, hj with | 0, _ | 1, _ | 2, _ | 3, _ | 4, _ | 5, _ | 6, _ | 7, _ | 8, _ | 9, _ | 10, _ | 11, _ | 12, _ | 13, _ => by decide | _ + 14, h => absurd h (by lia))
+    (by lia)
+  have e₁ := pW 1 (by decide) (by decide)
+  rw [show (1 - 1) * (k + k + 2) = 0 by lia] at e₁
+  have e₂ := pW 2 (by decide) (by decide)
+  rw [show (2 - 1) * (k + k + 2) = (k + k + 2) by lia] at e₂
+  have e₃ := pW 3 (by decide) (by decide)
+  rw [show (3 - 1) * (k + k + 2) = 2 * (k + k + 2) by lia] at e₃
+  have e₄ := pW 4 (by decide) (by decide)
+  rw [show (4 - 1) * (k + k + 2) = 3 * (k + k + 2) by lia] at e₄
+  have e₅ := pW 5 (by decide) (by decide)
+  rw [show (5 - 1) * (k + k + 2) = 4 * (k + k + 2) by lia] at e₅
+  have e₆ := pW 6 (by decide) (by decide)
+  rw [show (6 - 1) * (k + k + 2) = 5 * (k + k + 2) by lia] at e₆
+  have e₇ := pW 7 (by decide) (by decide)
+  rw [show (7 - 1) * (k + k + 2) = 6 * (k + k + 2) by lia] at e₇
+  have e₈ := pW 8 (by decide) (by decide)
+  rw [show (8 - 1) * (k + k + 2) = 7 * (k + k + 2) by lia] at e₈
+  have e₉ := pW 9 (by decide) (by decide)
+  rw [show (9 - 1) * (k + k + 2) = 8 * (k + k + 2) by lia] at e₉
+  have e₁₀ := pW 10 (by decide) (by decide)
+  rw [show (10 - 1) * (k + k + 2) = 9 * (k + k + 2) by lia] at e₁₀
+  have e₁₁ := pW 11 (by decide) (by decide)
+  rw [show (11 - 1) * (k + k + 2) = 10 * (k + k + 2) by lia] at e₁₁
+  have e₁₂ := pW 12 (by decide) (by decide)
+  rw [show (12 - 1) * (k + k + 2) = 11 * (k + k + 2) by lia] at e₁₂
+  have e₁₃ := pW 13 (by decide) (by decide)
+  rw [show (13 - 1) * (k + k + 2) = 12 * (k + k + 2) by lia] at e₁₃
+  simp only [sumRange_succ, sumRange_zero, Nat.zero_add, Nat.pow_zero, Nat.mul_one,
+    Nat.pow_one] at e₁ e₂ e₃ e₄ e₅ e₆ e₇ e₈ e₉ e₁₀ e₁₁ e₁₂ e₁₃
   have a₀ := piece_full a ao al k 0 (by lia)
   have aT := piece_top a ao al k 7 (by lia)
   have b₀ := piece_full b bo bl k 0 (by lia)
@@ -742,19 +793,6 @@ public theorem toom88_spec (d : A) (o : Nat) (a : A) (ao al : Nat) (b : A) (bo b
   have hc₀ : valAt d₂ o (k + k) = A₀ * B₀ := by rw [← v₁]; exact w₂.valAt_eq (by lia)
   -- The values at the points.
   have p₃ : k + 1 + (k + 1) < al + bl := by lia
-  obtain ⟨s₁, e₁⟩ := pA 1 (by decide) (by decide) (by decide) p₃
-  obtain ⟨s₂, e₂⟩ := pA 2 (by decide) (by decide) (by decide) p₃
-  obtain ⟨s₃, e₃⟩ := pA 3 (by decide) (by decide) (by decide) p₃
-  obtain ⟨s₄, e₄⟩ := pA 4 (by decide) (by decide) (by decide) p₃
-  obtain ⟨s₅, e₅⟩ := pA 5 (by decide) (by decide) (by decide) p₃
-  obtain ⟨s₆, e₆⟩ := pA 6 (by decide) (by decide) (by decide) p₃
-  obtain ⟨s₇, e₇⟩ := pA 7 (by decide) (by decide) (by decide) p₃
-  obtain ⟨s₈, e₈⟩ := pA 8 (by decide) (by decide) (by decide) p₃
-  obtain ⟨s₉, e₉⟩ := pA 9 (by decide) (by decide) (by decide) p₃
-  obtain ⟨s₁₀, e₁₀⟩ := pA 10 (by decide) (by decide) (by decide) p₃
-  obtain ⟨s₁₁, e₁₁⟩ := pA 11 (by decide) (by decide) (by decide) p₃
-  obtain ⟨s₁₂, e₁₂⟩ := pA 12 (by decide) (by decide) (by decide) p₃
-  obtain ⟨s₁₃, e₁₃⟩ := pA 13 (by decide) (by decide) (by decide) p₃
   -- The interpolation.
   generalize hX : 2 ^ (LA.w * k) = X at *
   have hX2 : 2 ^ (LA.w * (2 * k)) = X * X := by rw [pow_mul_k, hX]; grind
@@ -773,9 +811,9 @@ public theorem toom88_spec (d : A) (o : Nat) (a : A) (ao al : Nat) (b : A) (bo b
   have hval : valAt a ao al * valAt b bo bl =
       (A₀ * B₀) + X * (A₀ * B₁ + A₁ * B₀) + X * X * (A₀ * B₂ + A₁ * B₁ + A₂ * B₀) + X * X * X * (A₀ * B₃ + A₁ * B₂ + A₂ * B₁ + A₃ * B₀) + X * X * X * X * (A₀ * B₄ + A₁ * B₃ + A₂ * B₂ + A₃ * B₁ + A₄ * B₀) + X * X * X * X * X * (A₀ * B₅ + A₁ * B₄ + A₂ * B₃ + A₃ * B₂ + A₄ * B₁ + A₅ * B₀) + X * X * X * X * X * X * (A₀ * B₆ + A₁ * B₅ + A₂ * B₄ + A₃ * B₃ + A₄ * B₂ + A₅ * B₁ + A₆ * B₀) + X * X * X * X * X * X * X * (A₀ * B₇ + A₁ * B₆ + A₂ * B₅ + A₃ * B₄ + A₄ * B₃ + A₅ * B₂ + A₆ * B₁ + A₇ * B₀) + X * X * X * X * X * X * X * X * (A₁ * B₇ + A₂ * B₆ + A₃ * B₅ + A₄ * B₄ + A₅ * B₃ + A₆ * B₂ + A₇ * B₁) + X * X * X * X * X * X * X * X * X * (A₂ * B₇ + A₃ * B₆ + A₄ * B₅ + A₅ * B₄ + A₆ * B₃ + A₇ * B₂) + X * X * X * X * X * X * X * X * X * X * (A₃ * B₇ + A₄ * B₆ + A₅ * B₅ + A₆ * B₄ + A₇ * B₃) + X * X * X * X * X * X * X * X * X * X * X * (A₄ * B₇ + A₅ * B₆ + A₆ * B₅ + A₇ * B₄) + X * X * X * X * X * X * X * X * X * X * X * X * (A₅ * B₇ + A₆ * B₆ + A₇ * B₅) + X * X * X * X * X * X * X * X * X * X * X * X * X * (A₆ * B₇ + A₇ * B₆) + X * X * X * X * X * X * X * X * X * X * X * X * X * X * (A₇ * B₇) := by
     rw [hA, hB]; grind
-  obtain ⟨f₁, f₂⟩ := interp14_spec d₂ o (al + bl) k (k + k + 2) _ _ _ _ _ _ _ _ _ _ _ _ _ 
+  obtain ⟨f₁, f₂⟩ := interp14W_spec d₂ o (al + bl) k (k + k + 2) _ 
     (A₀ * B₀) (A₀ * B₁ + A₁ * B₀) (A₀ * B₂ + A₁ * B₁ + A₂ * B₀) (A₀ * B₃ + A₁ * B₂ + A₂ * B₁ + A₃ * B₀) (A₀ * B₄ + A₁ * B₃ + A₂ * B₂ + A₃ * B₁ + A₄ * B₀) (A₀ * B₅ + A₁ * B₄ + A₂ * B₃ + A₃ * B₂ + A₄ * B₁ + A₅ * B₀) (A₀ * B₆ + A₁ * B₅ + A₂ * B₄ + A₃ * B₃ + A₄ * B₂ + A₅ * B₁ + A₆ * B₀) (A₀ * B₇ + A₁ * B₆ + A₂ * B₅ + A₃ * B₄ + A₄ * B₃ + A₅ * B₂ + A₆ * B₁ + A₇ * B₀) (A₁ * B₇ + A₂ * B₆ + A₃ * B₅ + A₄ * B₄ + A₅ * B₃ + A₆ * B₂ + A₇ * B₁) (A₂ * B₇ + A₃ * B₆ + A₄ * B₅ + A₅ * B₄ + A₆ * B₃ + A₇ * B₂) (A₃ * B₇ + A₄ * B₆ + A₅ * B₅ + A₆ * B₄ + A₇ * B₃) (A₄ * B₇ + A₅ * B₆ + A₆ * B₅ + A₇ * B₄) (A₅ * B₇ + A₆ * B₆ + A₇ * B₅) (A₆ * B₇ + A₇ * B₆) (A₇ * B₇)
-    (by rw [w₂.1, w₁.1]; exact hd) (by lia) (by lia) s₁ s₂ s₃ s₄ s₅ s₆ s₇ s₈ s₉ s₁₀ s₁₁ s₁₂ s₁₃ hc₀ v₂
+    (by rw [w₂.1, w₁.1]; exact hd) (by lia) (by lia) sW hc₀ v₂
     (by rw [e₁]; grind)
     (by rw [e₂]; grind)
     (by rw [e₃]; grind)
@@ -972,14 +1010,15 @@ public theorem toom4Sqr_spec (d : A) (o : Nat) (a : A) (ao al k : Nat) (hk : Sha
 public abbrev Shape6S (al k : Nat) : Prop :=
   1 ≤ k ∧ 5 * k < al ∧ al ≤ 6 * k
 
-/-- The Toom-6 square: `a` in 6 pieces of `k` limbs, at most, the top one nonempty. -/
+/--
+The Toom-6 square: `a` in 6 pieces of `k` limbs, at most, the top one nonempty, the values and their
+squares in windows of one array each (`pointsSqrW`).
+-/
 @[expose, specialize] public def toom6Sqr (d : A) (o : Nat) (a : A) (ao al k : Nat)
     (hk : Shape6S al k) (sq : SqrFn A al) : A :=
   let d := sq d o a ao k (by obtain ⟨_, _, _⟩ := hk; lia)
   let d := sq d (o + 10 * k) a (ao + 5 * k) (al - 5 * k) (by obtain ⟨_, _, _⟩ := hk; lia)
-  let w (j : Nat) := sq (R.zeros (k + k + 2)) 0 (evalAt a ao al k 6 j (k + 1)) 0 (k + 1)
-    (by obtain ⟨_, _, _⟩ := hk; lia)
-  interp10 d o (al + al) k (k + k + 2) (w 1) (w 2) (w 3) (w 4) (w 5) (w 6) (w 7) (w 8) (w 9)
+  interp10W d o (al + al) k (k + k + 2) (pointsSqrW sq a ao al k 6 9 (by obtain ⟨_, _, _⟩ := hk; lia))
 
 set_option maxHeartbeats 8000000 in
 public theorem toom6Sqr_spec (d : A) (o : Nat) (a : A) (ao al k : Nat) (hk : Shape6S al k)
@@ -993,6 +1032,29 @@ public theorem toom6Sqr_spec (d : A) (o : Nat) (a : A) (ao al k : Nat) (hk : Sha
   have pA (j : Nat) (hj : 1 ≤ j) := point_sqr_spec sq hsq a ao al k 6 j (by decide) hj
   simp only [sumRange_succ, sumRange_zero, Nat.zero_add, Nat.pow_zero, Nat.mul_one,
     Nat.pow_one] at hA pA
+  obtain ⟨sW, pW⟩ := pointsSqrW_spec sq hsq a ao al k 6 9 (by decide)
+    (fun j hj => match j, hj with | 0, _ | 1, _ | 2, _ | 3, _ | 4, _ | 5, _ | 6, _ | 7, _ | 8, _ | 9, _ => by decide | _ + 10, h => absurd h (by lia))
+    (by lia)
+  have e₁ := pW 1 (by decide) (by decide)
+  rw [show (1 - 1) * (k + k + 2) = 0 by lia] at e₁
+  have e₂ := pW 2 (by decide) (by decide)
+  rw [show (2 - 1) * (k + k + 2) = (k + k + 2) by lia] at e₂
+  have e₃ := pW 3 (by decide) (by decide)
+  rw [show (3 - 1) * (k + k + 2) = 2 * (k + k + 2) by lia] at e₃
+  have e₄ := pW 4 (by decide) (by decide)
+  rw [show (4 - 1) * (k + k + 2) = 3 * (k + k + 2) by lia] at e₄
+  have e₅ := pW 5 (by decide) (by decide)
+  rw [show (5 - 1) * (k + k + 2) = 4 * (k + k + 2) by lia] at e₅
+  have e₆ := pW 6 (by decide) (by decide)
+  rw [show (6 - 1) * (k + k + 2) = 5 * (k + k + 2) by lia] at e₆
+  have e₇ := pW 7 (by decide) (by decide)
+  rw [show (7 - 1) * (k + k + 2) = 6 * (k + k + 2) by lia] at e₇
+  have e₈ := pW 8 (by decide) (by decide)
+  rw [show (8 - 1) * (k + k + 2) = 7 * (k + k + 2) by lia] at e₈
+  have e₉ := pW 9 (by decide) (by decide)
+  rw [show (9 - 1) * (k + k + 2) = 8 * (k + k + 2) by lia] at e₉
+  simp only [sumRange_succ, sumRange_zero, Nat.zero_add, Nat.pow_zero, Nat.mul_one,
+    Nat.pow_one] at e₁ e₂ e₃ e₄ e₅ e₆ e₇ e₈ e₉
   have a₀ := piece_full a ao al k 0 (by lia)
   have aT := piece_top a ao al k 5 (by lia)
   simp only [Nat.zero_mul, Nat.add_zero] at a₀ aT
@@ -1022,15 +1084,6 @@ public theorem toom6Sqr_spec (d : A) (o : Nat) (a : A) (ao al k : Nat) (hk : Sha
   have hc₀ : valAt d₂ o (k + k) = A₀ * A₀ := by rw [← v₁]; exact w₂.valAt_eq (by lia)
   -- The values at the points.
   have p₃ : k + 1 < al := by lia
-  obtain ⟨s₁, e₁⟩ := pA 1 (by decide) (by decide) p₃
-  obtain ⟨s₂, e₂⟩ := pA 2 (by decide) (by decide) p₃
-  obtain ⟨s₃, e₃⟩ := pA 3 (by decide) (by decide) p₃
-  obtain ⟨s₄, e₄⟩ := pA 4 (by decide) (by decide) p₃
-  obtain ⟨s₅, e₅⟩ := pA 5 (by decide) (by decide) p₃
-  obtain ⟨s₆, e₆⟩ := pA 6 (by decide) (by decide) p₃
-  obtain ⟨s₇, e₇⟩ := pA 7 (by decide) (by decide) p₃
-  obtain ⟨s₈, e₈⟩ := pA 8 (by decide) (by decide) p₃
-  obtain ⟨s₉, e₉⟩ := pA 9 (by decide) (by decide) p₃
   -- The interpolation.
   generalize hX : 2 ^ (LA.w * k) = X at *
   have hX2 : 2 ^ (LA.w * (2 * k)) = X * X := by rw [pow_mul_k, hX]; grind
@@ -1045,9 +1098,9 @@ public theorem toom6Sqr_spec (d : A) (o : Nat) (a : A) (ao al k : Nat) (hk : Sha
   have hval : valAt a ao al * valAt a ao al =
       (A₀ * A₀) + X * (A₀ * A₁ + A₁ * A₀) + X * X * (A₀ * A₂ + A₁ * A₁ + A₂ * A₀) + X * X * X * (A₀ * A₃ + A₁ * A₂ + A₂ * A₁ + A₃ * A₀) + X * X * X * X * (A₀ * A₄ + A₁ * A₃ + A₂ * A₂ + A₃ * A₁ + A₄ * A₀) + X * X * X * X * X * (A₀ * A₅ + A₁ * A₄ + A₂ * A₃ + A₃ * A₂ + A₄ * A₁ + A₅ * A₀) + X * X * X * X * X * X * (A₁ * A₅ + A₂ * A₄ + A₃ * A₃ + A₄ * A₂ + A₅ * A₁) + X * X * X * X * X * X * X * (A₂ * A₅ + A₃ * A₄ + A₄ * A₃ + A₅ * A₂) + X * X * X * X * X * X * X * X * (A₃ * A₅ + A₄ * A₄ + A₅ * A₃) + X * X * X * X * X * X * X * X * X * (A₄ * A₅ + A₅ * A₄) + X * X * X * X * X * X * X * X * X * X * (A₅ * A₅) := by
     rw [hA]; grind
-  obtain ⟨f₁, f₂⟩ := interp10_spec d₂ o (al + al) k (k + k + 2) _ _ _ _ _ _ _ _ _ 
+  obtain ⟨f₁, f₂⟩ := interp10W_spec d₂ o (al + al) k (k + k + 2) _ 
     (A₀ * A₀) (A₀ * A₁ + A₁ * A₀) (A₀ * A₂ + A₁ * A₁ + A₂ * A₀) (A₀ * A₃ + A₁ * A₂ + A₂ * A₁ + A₃ * A₀) (A₀ * A₄ + A₁ * A₃ + A₂ * A₂ + A₃ * A₁ + A₄ * A₀) (A₀ * A₅ + A₁ * A₄ + A₂ * A₃ + A₃ * A₂ + A₄ * A₁ + A₅ * A₀) (A₁ * A₅ + A₂ * A₄ + A₃ * A₃ + A₄ * A₂ + A₅ * A₁) (A₂ * A₅ + A₃ * A₄ + A₄ * A₃ + A₅ * A₂) (A₃ * A₅ + A₄ * A₄ + A₅ * A₃) (A₄ * A₅ + A₅ * A₄) (A₅ * A₅)
-    (by rw [w₂.1, w₁.1]; exact hd) (by lia) (by lia) s₁ s₂ s₃ s₄ s₅ s₆ s₇ s₈ s₉ hc₀ v₂
+    (by rw [w₂.1, w₁.1]; exact hd) (by lia) (by lia) sW hc₀ v₂
     (by rw [e₁]; grind)
     (by rw [e₂]; grind)
     (by rw [e₃]; grind)
@@ -1065,14 +1118,15 @@ public theorem toom6Sqr_spec (d : A) (o : Nat) (a : A) (ao al k : Nat) (hk : Sha
 public abbrev Shape8S (al k : Nat) : Prop :=
   1 ≤ k ∧ 7 * k < al ∧ al ≤ 8 * k
 
-/-- The Toom-8 square: `a` in 8 pieces of `k` limbs, at most, the top one nonempty. -/
+/--
+The Toom-8 square: `a` in 8 pieces of `k` limbs, at most, the top one nonempty, the values and their
+squares in windows of one array each (`pointsSqrW`).
+-/
 @[expose, specialize] public def toom8Sqr (d : A) (o : Nat) (a : A) (ao al k : Nat)
     (hk : Shape8S al k) (sq : SqrFn A al) : A :=
   let d := sq d o a ao k (by obtain ⟨_, _, _⟩ := hk; lia)
   let d := sq d (o + 14 * k) a (ao + 7 * k) (al - 7 * k) (by obtain ⟨_, _, _⟩ := hk; lia)
-  let w (j : Nat) := sq (R.zeros (k + k + 2)) 0 (evalAt a ao al k 8 j (k + 1)) 0 (k + 1)
-    (by obtain ⟨_, _, _⟩ := hk; lia)
-  interp14 d o (al + al) k (k + k + 2) (w 1) (w 2) (w 3) (w 4) (w 5) (w 6) (w 7) (w 8) (w 9) (w 10) (w 11) (w 12) (w 13)
+  interp14W d o (al + al) k (k + k + 2) (pointsSqrW sq a ao al k 8 13 (by obtain ⟨_, _, _⟩ := hk; lia))
 
 set_option maxHeartbeats 16000000 in
 public theorem toom8Sqr_spec (d : A) (o : Nat) (a : A) (ao al k : Nat) (hk : Shape8S al k)
@@ -1086,6 +1140,37 @@ public theorem toom8Sqr_spec (d : A) (o : Nat) (a : A) (ao al k : Nat) (hk : Sha
   have pA (j : Nat) (hj : 1 ≤ j) := point_sqr_spec sq hsq a ao al k 8 j (by decide) hj
   simp only [sumRange_succ, sumRange_zero, Nat.zero_add, Nat.pow_zero, Nat.mul_one,
     Nat.pow_one] at hA pA
+  obtain ⟨sW, pW⟩ := pointsSqrW_spec sq hsq a ao al k 8 13 (by decide)
+    (fun j hj => match j, hj with | 0, _ | 1, _ | 2, _ | 3, _ | 4, _ | 5, _ | 6, _ | 7, _ | 8, _ | 9, _ | 10, _ | 11, _ | 12, _ | 13, _ => by decide | _ + 14, h => absurd h (by lia))
+    (by lia)
+  have e₁ := pW 1 (by decide) (by decide)
+  rw [show (1 - 1) * (k + k + 2) = 0 by lia] at e₁
+  have e₂ := pW 2 (by decide) (by decide)
+  rw [show (2 - 1) * (k + k + 2) = (k + k + 2) by lia] at e₂
+  have e₃ := pW 3 (by decide) (by decide)
+  rw [show (3 - 1) * (k + k + 2) = 2 * (k + k + 2) by lia] at e₃
+  have e₄ := pW 4 (by decide) (by decide)
+  rw [show (4 - 1) * (k + k + 2) = 3 * (k + k + 2) by lia] at e₄
+  have e₅ := pW 5 (by decide) (by decide)
+  rw [show (5 - 1) * (k + k + 2) = 4 * (k + k + 2) by lia] at e₅
+  have e₆ := pW 6 (by decide) (by decide)
+  rw [show (6 - 1) * (k + k + 2) = 5 * (k + k + 2) by lia] at e₆
+  have e₇ := pW 7 (by decide) (by decide)
+  rw [show (7 - 1) * (k + k + 2) = 6 * (k + k + 2) by lia] at e₇
+  have e₈ := pW 8 (by decide) (by decide)
+  rw [show (8 - 1) * (k + k + 2) = 7 * (k + k + 2) by lia] at e₈
+  have e₉ := pW 9 (by decide) (by decide)
+  rw [show (9 - 1) * (k + k + 2) = 8 * (k + k + 2) by lia] at e₉
+  have e₁₀ := pW 10 (by decide) (by decide)
+  rw [show (10 - 1) * (k + k + 2) = 9 * (k + k + 2) by lia] at e₁₀
+  have e₁₁ := pW 11 (by decide) (by decide)
+  rw [show (11 - 1) * (k + k + 2) = 10 * (k + k + 2) by lia] at e₁₁
+  have e₁₂ := pW 12 (by decide) (by decide)
+  rw [show (12 - 1) * (k + k + 2) = 11 * (k + k + 2) by lia] at e₁₂
+  have e₁₃ := pW 13 (by decide) (by decide)
+  rw [show (13 - 1) * (k + k + 2) = 12 * (k + k + 2) by lia] at e₁₃
+  simp only [sumRange_succ, sumRange_zero, Nat.zero_add, Nat.pow_zero, Nat.mul_one,
+    Nat.pow_one] at e₁ e₂ e₃ e₄ e₅ e₆ e₇ e₈ e₉ e₁₀ e₁₁ e₁₂ e₁₃
   have a₀ := piece_full a ao al k 0 (by lia)
   have aT := piece_top a ao al k 7 (by lia)
   simp only [Nat.zero_mul, Nat.add_zero] at a₀ aT
@@ -1119,19 +1204,6 @@ public theorem toom8Sqr_spec (d : A) (o : Nat) (a : A) (ao al k : Nat) (hk : Sha
   have hc₀ : valAt d₂ o (k + k) = A₀ * A₀ := by rw [← v₁]; exact w₂.valAt_eq (by lia)
   -- The values at the points.
   have p₃ : k + 1 < al := by lia
-  obtain ⟨s₁, e₁⟩ := pA 1 (by decide) (by decide) p₃
-  obtain ⟨s₂, e₂⟩ := pA 2 (by decide) (by decide) p₃
-  obtain ⟨s₃, e₃⟩ := pA 3 (by decide) (by decide) p₃
-  obtain ⟨s₄, e₄⟩ := pA 4 (by decide) (by decide) p₃
-  obtain ⟨s₅, e₅⟩ := pA 5 (by decide) (by decide) p₃
-  obtain ⟨s₆, e₆⟩ := pA 6 (by decide) (by decide) p₃
-  obtain ⟨s₇, e₇⟩ := pA 7 (by decide) (by decide) p₃
-  obtain ⟨s₈, e₈⟩ := pA 8 (by decide) (by decide) p₃
-  obtain ⟨s₉, e₉⟩ := pA 9 (by decide) (by decide) p₃
-  obtain ⟨s₁₀, e₁₀⟩ := pA 10 (by decide) (by decide) p₃
-  obtain ⟨s₁₁, e₁₁⟩ := pA 11 (by decide) (by decide) p₃
-  obtain ⟨s₁₂, e₁₂⟩ := pA 12 (by decide) (by decide) p₃
-  obtain ⟨s₁₃, e₁₃⟩ := pA 13 (by decide) (by decide) p₃
   -- The interpolation.
   generalize hX : 2 ^ (LA.w * k) = X at *
   have hX2 : 2 ^ (LA.w * (2 * k)) = X * X := by rw [pow_mul_k, hX]; grind
@@ -1150,9 +1222,9 @@ public theorem toom8Sqr_spec (d : A) (o : Nat) (a : A) (ao al k : Nat) (hk : Sha
   have hval : valAt a ao al * valAt a ao al =
       (A₀ * A₀) + X * (A₀ * A₁ + A₁ * A₀) + X * X * (A₀ * A₂ + A₁ * A₁ + A₂ * A₀) + X * X * X * (A₀ * A₃ + A₁ * A₂ + A₂ * A₁ + A₃ * A₀) + X * X * X * X * (A₀ * A₄ + A₁ * A₃ + A₂ * A₂ + A₃ * A₁ + A₄ * A₀) + X * X * X * X * X * (A₀ * A₅ + A₁ * A₄ + A₂ * A₃ + A₃ * A₂ + A₄ * A₁ + A₅ * A₀) + X * X * X * X * X * X * (A₀ * A₆ + A₁ * A₅ + A₂ * A₄ + A₃ * A₃ + A₄ * A₂ + A₅ * A₁ + A₆ * A₀) + X * X * X * X * X * X * X * (A₀ * A₇ + A₁ * A₆ + A₂ * A₅ + A₃ * A₄ + A₄ * A₃ + A₅ * A₂ + A₆ * A₁ + A₇ * A₀) + X * X * X * X * X * X * X * X * (A₁ * A₇ + A₂ * A₆ + A₃ * A₅ + A₄ * A₄ + A₅ * A₃ + A₆ * A₂ + A₇ * A₁) + X * X * X * X * X * X * X * X * X * (A₂ * A₇ + A₃ * A₆ + A₄ * A₅ + A₅ * A₄ + A₆ * A₃ + A₇ * A₂) + X * X * X * X * X * X * X * X * X * X * (A₃ * A₇ + A₄ * A₆ + A₅ * A₅ + A₆ * A₄ + A₇ * A₃) + X * X * X * X * X * X * X * X * X * X * X * (A₄ * A₇ + A₅ * A₆ + A₆ * A₅ + A₇ * A₄) + X * X * X * X * X * X * X * X * X * X * X * X * (A₅ * A₇ + A₆ * A₆ + A₇ * A₅) + X * X * X * X * X * X * X * X * X * X * X * X * X * (A₆ * A₇ + A₇ * A₆) + X * X * X * X * X * X * X * X * X * X * X * X * X * X * (A₇ * A₇) := by
     rw [hA]; grind
-  obtain ⟨f₁, f₂⟩ := interp14_spec d₂ o (al + al) k (k + k + 2) _ _ _ _ _ _ _ _ _ _ _ _ _ 
+  obtain ⟨f₁, f₂⟩ := interp14W_spec d₂ o (al + al) k (k + k + 2) _ 
     (A₀ * A₀) (A₀ * A₁ + A₁ * A₀) (A₀ * A₂ + A₁ * A₁ + A₂ * A₀) (A₀ * A₃ + A₁ * A₂ + A₂ * A₁ + A₃ * A₀) (A₀ * A₄ + A₁ * A₃ + A₂ * A₂ + A₃ * A₁ + A₄ * A₀) (A₀ * A₅ + A₁ * A₄ + A₂ * A₃ + A₃ * A₂ + A₄ * A₁ + A₅ * A₀) (A₀ * A₆ + A₁ * A₅ + A₂ * A₄ + A₃ * A₃ + A₄ * A₂ + A₅ * A₁ + A₆ * A₀) (A₀ * A₇ + A₁ * A₆ + A₂ * A₅ + A₃ * A₄ + A₄ * A₃ + A₅ * A₂ + A₆ * A₁ + A₇ * A₀) (A₁ * A₇ + A₂ * A₆ + A₃ * A₅ + A₄ * A₄ + A₅ * A₃ + A₆ * A₂ + A₇ * A₁) (A₂ * A₇ + A₃ * A₆ + A₄ * A₅ + A₅ * A₄ + A₆ * A₃ + A₇ * A₂) (A₃ * A₇ + A₄ * A₆ + A₅ * A₅ + A₆ * A₄ + A₇ * A₃) (A₄ * A₇ + A₅ * A₆ + A₆ * A₅ + A₇ * A₄) (A₅ * A₇ + A₆ * A₆ + A₇ * A₅) (A₆ * A₇ + A₇ * A₆) (A₇ * A₇)
-    (by rw [w₂.1, w₁.1]; exact hd) (by lia) (by lia) s₁ s₂ s₃ s₄ s₅ s₆ s₇ s₈ s₉ s₁₀ s₁₁ s₁₂ s₁₃ hc₀ v₂
+    (by rw [w₂.1, w₁.1]; exact hd) (by lia) (by lia) sW hc₀ v₂
     (by rw [e₁]; grind)
     (by rw [e₂]; grind)
     (by rw [e₃]; grind)
