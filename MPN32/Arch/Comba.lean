@@ -217,8 +217,8 @@ private theorem writeCol_eq (r : UInt32Array) (k : USize) (hrs : r.size < USize.
       ((r.set k.toNat lo.toUInt32 (by lia)).set (k.toNat + 1) ((lo >>> 32) + hi).toUInt32
         (by simp; lia)).set (k.toNat + 2) (((lo >>> 32) + hi) >>> 32).toUInt32
         (by simp; lia) := by
-  have hk1 : (k + 1).toNat = k.toNat + 1 := by rw [toNat_add_usize (by simp; lia)]; simp
-  have hk2 : (k + 2).toNat = k.toNat + 2 := by rw [toNat_add_usize (by simp; lia)]; simp
+  have hk1 : (k + 1).toNat = k.toNat + 1 := by grind
+  have hk2 : (k + 2).toNat = k.toNat + 2 := by grind
   have h₀ : ∀ (a : UInt32Array) v h, a.uset k v h = a.set k.toNat v h :=
     fun a v h => uset_eq_set a k _ rfl v h
   have h₁ : ∀ (a : UInt32Array) v h, a.uset (k + 1) v h = a.set (k.toNat + 1) v (hk1 ▸ h) :=
@@ -316,14 +316,14 @@ square by doubling it first (`csqCol`).
       (by rw [USize.toNat_sub_of_le _ _ (USize.le_iff_toNat_le.2 (by lia))]; lia)
     let p := x.toUInt64 * y.toUInt64
     colLoop aa sa na ha hA bb sb nb hb hB k iEnd hiE hiEk fin (i + 1)
-      (by rw [toNat_add_usize (by simp; lia)]; simp; lia)
-      (by rw [toNat_add_usize (by simp; lia)]; simp; lia)
+      (by grind)
+      (by grind)
       (lo + (p &&& 0xFFFFFFFF)) (hi + (p >>> 32))
   else
     fin lo hi
 termination_by iEnd.toNat - i.toNat
 decreasing_by
-  rw [toNat_add_usize (by simp; lia)]; simp; lia
+  grind
 
 private theorem colLoop_spec (aa : UInt32Array) (sa na : USize) (ha : aa.size < USize.size)
     (hA : sa.toNat + na.toNat ≤ aa.size) (bb : UInt32Array) (sb nb : USize)
@@ -444,7 +444,7 @@ private theorem size_colLoop (aa : UInt32Array) (sa na : USize) (ha : aa.size < 
     rw [colLoop, dite_eq_left (show i < iEnd from h')]
     dsimp only
     apply ih
-    rw [toNat_add_usize (by simp; lia)]; simp; lia
+    grind
 
 private theorem size_combaCol (aa : UInt32Array) (sa na : USize) (ha : aa.size < USize.size)
     (hA : sa.toNat + na.toNat ≤ aa.size) (bb : UInt32Array) (sb nb : USize)
@@ -479,14 +479,14 @@ with `w` counting its wraps, then handed to `fin`. One addition with carry per p
     let p := x.toUInt64 * y.toUInt64
     let acc' := acc + p
     colLoopW aa sa na ha hA bb sb nb hb hB k iEnd hiE hiEk fin (i + 1)
-      (by rw [toNat_add_usize (by simp; lia)]; simp; lia)
-      (by rw [toNat_add_usize (by simp; lia)]; simp; lia)
+      (by grind)
+      (by grind)
       acc' (w + if acc' < p then 1 else 0)
   else
     fin acc w
 termination_by iEnd.toNat - i.toNat
 decreasing_by
-  rw [toNat_add_usize (by simp; lia)]; simp; lia
+  grind
 
 /-- Adding a word to a word: the sum modulo `2⁶⁴` and its wrap, which the comparison detects. -/
 private theorem add_wrap (acc p : UInt64) :
@@ -577,7 +577,7 @@ private theorem size_colLoopW (aa : UInt32Array) (sa na : USize) (ha : aa.size <
     rw [colLoopW, dite_eq_left (show i < iEnd from h')]
     dsimp only
     apply ih
-    rw [toNat_add_usize (by simp; lia)]; simp; lia
+    grind
 
 /--
 `colLoopW` finished by writing the column into `r`, for the product: `acc + 2⁶⁴ w` as
@@ -653,23 +653,11 @@ private theorem size_combaColW (aa : UInt32Array) (sa na : USize) (ha : aa.size 
 
 private theorem toNat_colEnd (k na : USize) (hk : k.toNat + 1 < USize.size) :
     (colEnd k na).toNat = min (k.toNat + 1) na.toNat := by
-  have h1 : (k + 1).toNat = k.toNat + 1 := by rw [toNat_add_usize (by simp; lia)]; simp
-  unfold colEnd
-  split
-  · rename_i h; rw [USize.lt_iff_toNat_lt, h1] at h; rw [h1]; lia
-  · rename_i h; rw [USize.lt_iff_toNat_lt, h1] at h; lia
+  unfold colEnd; grind
 
 private theorem toNat_colStart (k nb : USize) (hk : k.toNat + 1 < USize.size) :
     (colStart k nb).toNat = k.toNat + 1 - nb.toNat := by
-  have h1 : (k + 1).toNat = k.toNat + 1 := by rw [toNat_add_usize (by simp; lia)]; simp
-  unfold colStart
-  split
-  · rename_i h
-    rw [USize.le_iff_toNat_le] at h
-    rw [USize.toNat_sub_of_le _ _ (by rw [USize.le_iff_toNat_le, h1]; lia), h1]
-  · rename_i h
-    rw [USize.le_iff_toNat_le] at h
-    simp; lia
+  unfold colStart; grind
 
 /--
 The columns `k` to `kEnd - 1` of the product, each with `combaCol`, the carry of each column
@@ -685,7 +673,7 @@ def combaOuter (aa : UInt32Array) (sa na : USize) (ha : aa.size < USize.size)
     have h' : k.toNat < kEnd.toNat := h
     have hk1 : k.toNat + 1 < USize.size := by lia
     let lo := (r.uget k (by lia)).toUInt64
-    let hi := (r.uget (k + 1) (by rw [toNat_add_usize (by simp; lia)]; simp; lia)).toUInt64
+    let hi := (r.uget (k + 1) (by grind)).toUInt64
     let r' := combaCol aa sa na ha hA bb sb nb hb hB k (colEnd k na)
       (by rw [toNat_colEnd _ _ hk1]; lia) (by rw [toNat_colEnd _ _ hk1]; lia) r hrs
       (by lia) (colStart k nb)
@@ -693,12 +681,12 @@ def combaOuter (aa : UInt32Array) (sa na : USize) (ha : aa.size < USize.size)
       (by rw [toNat_colStart _ _ hk1]; lia) lo hi
     combaOuter aa sa na ha hA bb sb nb hb hB kEnd hkE r'
       (by rw [size_combaCol]; exact hrs) (by rw [size_combaCol]; exact hr) (k + 1)
-      (by rw [toNat_add_usize (by simp; lia)]; simp; lia)
+      (by grind)
   else
     r
 termination_by kEnd.toNat - k.toNat
 decreasing_by
-  rw [toNat_add_usize (by simp; lia)]; simp; lia
+  grind
 
 /--
 The columns `k` to `kEnd - 1` of the product, each with `combaColW`, the carry of each column
@@ -714,7 +702,7 @@ def combaOuterW (aa : UInt32Array) (sa na : USize) (ha : aa.size < USize.size)
     have h' : k.toNat < kEnd.toNat := h
     have hk1 : k.toNat + 1 < USize.size := by lia
     let lo := (r.uget k (by lia)).toUInt64
-    let hi := (r.uget (k + 1) (by rw [toNat_add_usize (by simp; lia)]; simp; lia)).toUInt64
+    let hi := (r.uget (k + 1) (by grind)).toUInt64
     let r' := combaColW aa sa na ha hA bb sb nb hb hB k (colEnd k na)
       (by rw [toNat_colEnd _ _ hk1]; lia) (by rw [toNat_colEnd _ _ hk1]; lia) r hrs
       (by lia) (colStart k nb)
@@ -722,12 +710,12 @@ def combaOuterW (aa : UInt32Array) (sa na : USize) (ha : aa.size < USize.size)
       (by rw [toNat_colStart _ _ hk1]; lia) lo hi
     combaOuterW aa sa na ha hA bb sb nb hb hB kEnd hkE r'
       (by rw [size_combaColW]; exact hrs) (by rw [size_combaColW]; exact hr) (k + 1)
-      (by rw [toNat_add_usize (by simp; lia)]; simp; lia)
+      (by grind)
   else
     r
 termination_by kEnd.toNat - k.toNat
 decreasing_by
-  rw [toNat_add_usize (by simp; lia)]; simp; lia
+  grind
 
 private theorem limbD_lt (l : UInt32Array.Slice) (j : Nat) : limbD l j < 2 ^ 32 :=
   UInt32.toNat_lt _
@@ -1113,7 +1101,7 @@ def csqOuter (aa : UInt32Array) (sa na : USize) (ha : aa.size < USize.size)
   if h : k < kEnd then
     have h' : k.toNat < kEnd.toNat := h
     have hk1 : k.toNat + 1 < USize.size := by lia
-    have hk1' : (k + 1).toNat = k.toNat + 1 := by rw [toNat_add_usize (by simp; lia)]; simp
+    have hk1' : (k + 1).toNat = k.toNat + 1 := by grind
     have he : ((k + 1) / 2).toNat = (k.toNat + 1) / 2 := by rw [USize.toNat_div, hk1']; simp
     have hS := toNat_colStart k na hk1
     let d := diagWord aa sa na ha hA k (by rw [USize.toNat_div]; simp; lia)
@@ -1134,7 +1122,7 @@ def csqOuter (aa : UInt32Array) (sa na : USize) (ha : aa.size < USize.size)
     r
 termination_by kEnd.toNat - k.toNat
 decreasing_by
-  rw [toNat_add_usize (by simp; lia)]; simp; lia
+  grind
 
 private theorem size_csqOuter (aa : UInt32Array) (sa na : USize) (ha : aa.size < USize.size)
     (hA : sa.toNat + na.toNat ≤ aa.size) (kEnd : USize) (hkE : kEnd.toNat + 1 = 2 * na.toNat)

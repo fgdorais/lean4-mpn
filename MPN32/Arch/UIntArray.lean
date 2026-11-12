@@ -536,18 +536,10 @@ private theorem uget_eq_get' (a : UInt32Array) (i : USize) (h) (m : Nat) (hm : i
   subst hm; rfl
 
 public theorem toNat_shift {n j₀ k : USize} (h : j₀ < n) (hk : k.toNat < (n - j₀).toNat) :
-    (j₀ + k).toNat = j₀.toNat + k.toNat ∧ j₀ + k < n := by
-  have h₀ := USize.lt_iff_toNat_lt.1 h
-  have hs : (n - j₀).toNat = n.toNat - j₀.toNat := USize.toNat_sub_of_le _ _ (USize.le_of_lt h)
-  have hn := n.toNat_lt_size
-  have e : (j₀ + k).toNat = j₀.toNat + k.toNat := USize.toNat_add_of_lt (by lia)
-  exact ⟨e, USize.lt_iff_toNat_lt.2 (by rw [e]; lia)⟩
+    (j₀ + k).toNat = j₀.toNat + k.toNat ∧ j₀ + k < n := by grind
 
-private theorem toNat_toUSize_of_le {n j₀ : USize} (h : j₀ < n) {k : Nat}
-    (hk : k ≤ (n - j₀).toNat) : k.toUSize.toNat = k := by
-  have hs : (n - j₀).toNat = n.toNat - j₀.toNat := USize.toNat_sub_of_le _ _ (USize.le_of_lt h)
-  have := n.toNat_lt_size
-  rw [Nat.toUSize_eq, USize.toNat_ofNat_of_lt' (by lia)]
+private theorem toNat_toUSize_of_le {n j₀ : USize} (_h : j₀ < n) {k : Nat}
+    (hk : k ≤ (n - j₀).toNat) : k.toUSize.toNat = k := by grind
 
 /-- The slice loop of the range fold from index `k` is `foldUInPlace` from `j₀ + k`. -/
 private theorem rangeLoop_eq {β : Type} (n : USize)
@@ -875,7 +867,7 @@ public instance wordArray32 : MPN.WordArray UInt32Array UInt32 where
     rw [USize.toNat_toUInt32]
   toNat_wU := by
     show (32 : USize).toNat = 32
-    rw [USize.toNat_ofNat, Nat.mod_eq_of_lt (by cases USize.size_eq <;> simp_all [USize.size])]
+    grind
   val_land x y := UInt32.toNat_and x y
   val_lor x y := UInt32.toNat_or x y
   val_xor x y := UInt32.toNat_xor x y

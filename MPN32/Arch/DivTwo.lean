@@ -536,9 +536,7 @@ private theorem toNat_limbU_or_zero (a : UInt32Array.Slice) (has : a.array.size 
     rw [Nat.div_eq_of_lt (by lia), Nat.zero_mod]
 
 /-- `0 - 1` wraps to the largest `USize`. -/
-private theorem toNat_zero_sub_one : ((0 : USize) - 1).toNat = USize.size - 1 := by
-  rw [USize.toNat_sub, USize.toNat_zero, USize.toNat_one, Nat.add_zero]
-  exact Nat.mod_eq_of_lt (by have := USize.size_pos; show USize.size - 1 < USize.size; lia)
+private theorem toNat_zero_sub_one : ((0 : USize) - 1).toNat = USize.size - 1 := by grind
 
 private theorem toNat_shlLimbU (a : UInt32Array.Slice) (has : a.array.size < USize.size)
     (s : Nat) (hs : s < 32) (k : USize) :
