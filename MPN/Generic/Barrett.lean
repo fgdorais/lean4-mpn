@@ -525,7 +525,6 @@ The quotient and remainder of `x` by `d` from a quotient `q` and the remainder `
 when `q` may be too small: `q` goes up by one while `r ≥ d`, at most `fuel` times before the
 slow division.
 -/
-@[specialize o]
 def fixUp (x d q r : α) : Nat → α × α
   | 0 => if o.le d r then o.divRem x d else (q, r)
   | fuel + 1 => if o.le d r then fixUp x d (o.add q o.one) (o.sub r d) fuel else (q, r)
@@ -535,7 +534,6 @@ The quotient and remainder of `x` by `d` from a quotient `q` that is too large, 
 `q d = x + t` and `t > 0`: `q` goes down by one while `t > d`, at most `fuel` times before the
 slow division.
 -/
-@[specialize o]
 def fixDown (x d q t : α) : Nat → α × α
   | 0 => if o.le t d then (o.sub q o.one, o.sub d t) else o.divRem x d
   | fuel + 1 => if o.le t d then (o.sub q o.one, o.sub d t)
@@ -545,7 +543,6 @@ def fixDown (x d q t : α) : Nat → α × α
 The quotient and remainder of `x` by `d`, from an estimate `q` of the quotient: one product
 `q d`, then `fixUp` or `fixDown`.
 -/
-@[specialize o]
 public def fixQuot (x d q : α) (fuel : Nat) : α × α :=
   let p := o.mul q d
   if o.le p x then o.fixUp x d q (o.sub x p) fuel else o.fixDown x d q (o.sub p x) fuel
@@ -656,7 +653,6 @@ public theorem fixQuot_spec (x d q : α) (fuel : Nat) (hd : 0 < o.val d) :
 `x` by the `n`-limb `d` with the reciprocal `μ ≈ B²ⁿ / d`, for `x < B²ⁿ`: the estimate
 `⌊⌊x / Bⁿ⁻¹⌋ μ / Bⁿ⁺¹⌋`, corrected by `fixQuot`.
 -/
-@[specialize o]
 public def barrettStep (x d μ : α) (n : Nat) : α × α :=
   o.fixQuot x d (o.hi (n + 1) (o.mul (o.hi (n - 1) x) μ)) 2
 
@@ -669,7 +665,6 @@ public theorem barrettStep_spec (x d μ : α) (n : Nat) (hd : 0 < o.val d) :
 the quotient of the part above the low `n` limbs, then one `barrettStep` on its remainder
 followed by those limbs.
 -/
-@[specialize o]
 public def divBlocks (d μ : α) (n : Nat) (hn : 0 < n) (a : α) : α × α :=
   if o.size a ≤ 2 * n then o.barrettStep a d μ n
   else
@@ -723,7 +718,6 @@ correction, an `h` by `k` product. The step squares the relative error of `μ₀
 the error of the result is about `Bⁿ⁻²ʰ ≤ B⁻²` units: the extra limb of `h` keeps errors from
 growing from one level to the next. Four limbs and fewer by the slow division.
 -/
-@[specialize o]
 public def recip (d : α) : α :=
   let n := o.size d
   if hn : n ≤ 4 then (o.divRem (o.pow (2 * n)) d).1
@@ -742,7 +736,6 @@ termination_by o.size d
 decreasing_by rw [o.size_hi]; lia
 
 /-- `(a / d, a % d)` by Barrett's division with Newton's reciprocal, for `d ≠ 0`. -/
-@[specialize o]
 public def divMu (a d : α) : α × α :=
   if hn : 0 < o.size d then o.divBlocks d (o.recip d) (o.size d) hn a else o.divRem a d
 

@@ -118,7 +118,6 @@ variable {α : Type} (o : NatOps α)
 /-! ## Powers of ten -/
 
 /-- `n`, as a sum of ones. -/
-@[specialize o]
 def ofSmall : Nat → α
   | 0 => o.sub o.one o.one
   | n + 1 => o.add (ofSmall n) o.one
@@ -134,7 +133,6 @@ theorem val_ofSmall (n : Nat) : o.val (o.ofSmall n) = n := by
   | p :: ps => o.val p = 10 ^ 2 ^ ps.length ∧ IsPows ps
 
 /-- The powers `10^(2ʲ)` above `ps`, squaring the top one while it is at most `x`. -/
-@[specialize o]
 def growPows (x : α) : List α → Nat → List α
   | [], _ => []
   | p :: ps, 0 => p :: ps
@@ -158,7 +156,6 @@ theorem isPows_growPows (x : α) : ∀ (fuel : Nat) (ps : List α), o.IsPows ps 
       · exact h
 
 /-- The powers `10^(2ʲ)` up to the first above `x`, the largest first. -/
-@[specialize o]
 public def decPows (x : α) : List α := o.growPows x [o.ofSmall 10] 64
 
 public theorem isPows_decPows (x : α) : o.IsPows (o.decPows x) :=
@@ -173,7 +170,6 @@ The `2ᵏ` decimal digits of `x < 10^(2ᵏ)`, with leading zeros, for the powers
 `10^(2ᵏ)`: the digits of the quotient and of the remainder by the top power, recursively, and
 `base` below `T` limbs.
 -/
-@[specialize o]
 public def padDec : List α → α → String
   | [], x => padZerosStr 1 (base x)
   | p :: ps, x =>
@@ -187,7 +183,6 @@ The decimal digits of `x`, for the powers `ps` with `x` below the square of the 
 first power `p ≤ x` gives the digits of `x / p`, then the `2ʲ` digits of `x % p`; `base` below
 `T` limbs.
 -/
-@[specialize o]
 public def topDec : List α → α → String
   | [], x => base x
   | p :: ps, x =>
@@ -198,7 +193,6 @@ public def topDec : List α → α → String
     else topDec ps x
 
 /-- The decimal digits of `x`, like `Nat.repr`. -/
-@[specialize o]
 public def toDec (x : α) : String :=
   let ps := o.decPows x
   match ps with
@@ -313,7 +307,6 @@ public theorem toDec_spec (x : α) : (o.toDec base T x).toList = Nat.toDigits 10
   (arr.toList.drop start).take len
 
 /-- The powers `10^(2ʲ)` for `j` from `k - 1` down to `0`. -/
-@[specialize o]
 public def powsN : Nat → List α
   | 0 => []
   | k + 1 =>
@@ -344,7 +337,6 @@ The value of the `len ≤ 2ᵏ` digits of `arr` from `start`, for the powers `ps
 the high digits times the top power plus the low `2ᵏ⁻¹` digits, recursively, and `rbase` for
 `D` digits or fewer.
 -/
-@[specialize o]
 public def decVal : List α → Nat → Nat → α
   | [], start, len => rbase arr start len
   | p :: ps, start, len =>
@@ -355,7 +347,6 @@ public def decVal : List α → Nat → Nat → α
         (decVal ps (start + (len - 2 ^ ps.length)) (2 ^ ps.length))
 
 /-- The value of the decimal digits of `arr`, like `Nat.ofDigitChars 10`. -/
-@[specialize o]
 public def fromDec : α :=
   o.decVal rbase D arr (o.powsN (Nat.log2 arr.size + 1)) 0 arr.size
 
