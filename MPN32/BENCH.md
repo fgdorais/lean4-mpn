@@ -216,6 +216,7 @@ above; ratios before `15534f8` for `MPN.Nat` rows were inflated by the hashing c
 
 | date | commit | change | effect |
 |---|---|---|---|
+| 2026-11-12 | `70cd04a` | `@[specialize]` on the generic half-gcd's operations and steps (`NatOps.hgcdReduce`, `hgcdReduceP`, `baseLoop` and the matrix helpers), not on the well-founded `hgcd` | From eight alternating rounds against `fa52842`: `bgcd` −9% at 64 limbs, −6% at 256, −2% at 1024, under 1% from 4096; `btostr`, `bofstr`, `bsqrt`, `bdiv`, `bmod` and `div` within ±0.8% |
 | 2026-11-10 | `971e47d` | The FFT's butterflies add and subtract in one pass (`WinOps.addSubMod`, shared with 64-bit limbs), on `WordFolds.fold2x2Then` as an in-place program of `UInt32Array` | From three alternating runs against `04211a4`, without `Nat`: `mul` −5% at 16384 and 32768 limbs, −4% at 65536; `sqr` −5% to −6% at 16384 and 32768, −3% to −5% at 65536 |
 | 2026-11-10 | `264533d` | The digits of a long decimal string as an array by one `String.foldl` (`DecChunks.digitArray`), instead of a list, filtered, then converted | From two alternating runs against `9987274`: `bofstr` −27% to −32% at 1024 limbs, −17% to −20% at 4096 and 8192, −14% at 16384 |
 | 2026-11-10 | `9987274` | The square root of a word by `main`'s `WordArray.sqrt2W` on its two 32-bit halves, instead of Newton's iteration on `MPN.Nat` | From three alternating runs against `53e387d`: `bsqrt` at 1 limb (a word) 126–157 → 34 ns (2.4× `mpn_sqrtrem`, from 9–11×); unchanged from 2 limbs |
