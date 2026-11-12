@@ -100,20 +100,13 @@ diagonal and the carry `c`, and the carry out.
 @[inline, expose] public def sqrDiagStep (a : USlice) (n : USize)
     (hn : n.toNat ≤ a.size.toNat + a.size.toNat) (k : USize) (h : k < n) (x c : UInt64) :
     UInt64 × UInt64 :=
-  let y := a[k / 2]'(by
-    have := USize.lt_iff_toNat_lt.1 h
-    have : 4294967296 ≤ USize.size := by cases USize.size_eq <;> lia
-    rw [USize.lt_iff_toNat_lt, USize.toNat_div, USize.toNat_ofNat,
-      Nat.mod_eq_of_lt (by simp only [USize.size] at this; lia)]
-    lia)
+  let y := a[k / 2]'(by grind)
   let d := if k % 2 = 0 then y * y else y.mulh y
   let p := x + x
   let q := p + d
   (q + c, UInt64.addh (UInt64.addh (x >>> 63) p d) q c)
 
-private theorem toNat_two : (2 : USize).toNat = 2 := by
-  have : 4294967296 ≤ USize.size := by cases USize.size_eq <;> lia
-  rw [USize.toNat_ofNat, Nat.mod_eq_of_lt (by simp only [USize.size] at this; lia)]
+private theorem toNat_two : (2 : USize).toNat = 2 := by grind
 
 private theorem sqrDiagStep_spec (a : USlice) (n : USize)
     (hn : n.toNat ≤ a.size.toNat + a.size.toNat) (k : USize) (h : k < n) (x c : UInt64) :
