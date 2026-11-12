@@ -76,8 +76,8 @@ Below 256 limbs, under the target's 4× of `Nat` but far from `mpn`:
   to take in the shift and the exact division (four is the limit); and one-pass values for the other shapes (`evalsW` has them only for
   three pieces at three points). Since `a8c9827` Toom-3 by 2, Toom-4 by 2, Toom-4 and the Toom-3 and
   Toom-4 squares are on one array too (`ONE_ARRAY`), Toom-4 by 3 since `b37f746`, with the first
-  stage fused for three windows at degrees 4 to 6; Toom-6 and Toom-8 are not (`genW` emits
-  degrees 3 to 6). One-pass values for two points or two pieces (Toom-3 by 2, the short operand of
+  stage fused for three windows at degrees 4 to 6, and Toom-6 and Toom-8 since `7a6c28c` (all
+  methods; on 32-bit limbs Toom-8 lost 1.5–2% there, gaining 2–3.5% on 64-bit limbs). One-pass values for two points or two pieces (Toom-3 by 2, the short operand of
   Toom-4 by 2) by `evals3` computing the third point lost 0.6% (2026-11-11: two multiply-adds per
   limb and point, more than the passes they replace); they need a step without the empty piece
   and a fold of two windows, for under 1% of Toom-3 by 2.
