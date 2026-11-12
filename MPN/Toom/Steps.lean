@@ -131,6 +131,33 @@ public theorem sub3W_val {q : A} {o₁ o₂ o₃ len : Nat} (h : o₃ + len ≤ 
   · rw [c₂, hq₂, hs, ht]; lia
   · rw [c₃, hq₃, hs, ht]; lia
 
+/--
+A chain of three windows each minus `m` times the old value of the next, of four disjoint windows,
+in one pass by `sub3Chain`; the three written windows lie in `[lo, lo + span)`.
+-/
+public theorem sub3ChainW_val {q : A} {o₁ o₂ o₃ o₄ len : Nat} (lo span : Nat)
+    (h : o₁ + len ≤ LA.size q ∧ o₂ + len ≤ LA.size q ∧ o₃ + len ≤ LA.size q ∧
+      o₄ + len ≤ LA.size q)
+    (hd : (o₁ + len ≤ o₂ ∨ o₂ + len ≤ o₁) ∧ (o₁ + len ≤ o₃ ∨ o₃ + len ≤ o₁) ∧
+      (o₁ + len ≤ o₄ ∨ o₄ + len ≤ o₁) ∧ (o₂ + len ≤ o₃ ∨ o₃ + len ≤ o₂) ∧
+      (o₂ + len ≤ o₄ ∨ o₄ + len ≤ o₂) ∧ (o₃ + len ≤ o₄ ∨ o₄ + len ≤ o₃))
+    (hspan : lo ≤ o₁ ∧ lo ≤ o₂ ∧ lo ≤ o₃ ∧ o₁ + len ≤ lo + span ∧ o₂ + len ≤ lo + span ∧
+      o₃ + len ≤ lo + span) (m : Nat)
+    {Q₁ Q₂ Q₃ Q₄ V₁ V₂ V₃ : Nat} (hq₁ : valAt q o₁ len = Q₁) (hq₂ : valAt q o₂ len = Q₂)
+    (hq₃ : valAt q o₃ len = Q₃) (hq₄ : valAt q o₄ len = Q₄)
+    (hV₁ : Q₁ = m * Q₂ + V₁) (hV₂ : Q₂ = m * Q₃ + V₂) (hV₃ : Q₃ = m * Q₄ + V₃) :
+    Writes (R.sub3Chain q o₁ o₂ o₃ o₄ len m) q lo span ∧
+      valAt (R.sub3Chain q o₁ o₂ o₃ o₄ len m) o₁ len = V₁ ∧
+      valAt (R.sub3Chain q o₁ o₂ o₃ o₄ len m) o₂ len = V₂ ∧
+      valAt (R.sub3Chain q o₁ o₂ o₃ o₄ len m) o₃ len = V₃ := by
+  obtain ⟨a, b, c₁, c₂, c₃⟩ := R.sub3Chain_spec q o₁ o₂ o₃ o₄ len m h.1 h.2.1 h.2.2.1 h.2.2.2
+    hd.1 hd.2.1 hd.2.2.1 hd.2.2.2.1 hd.2.2.2.2.1 hd.2.2.2.2.2
+    (by rw [hq₁, hq₂]; lia) (by rw [hq₂, hq₃]; lia) (by rw [hq₃, hq₄]; lia)
+  refine ⟨⟨a, fun i hi => b i (by lia) (by lia) (by lia)⟩, ?_, ?_, ?_⟩
+  · rw [c₁, hq₁, hq₂]; lia
+  · rw [c₂, hq₂, hq₃]; lia
+  · rw [c₃, hq₃, hq₄]; lia
+
 public theorem subMulWin_val {q : A} {o len : Nat} (h : o + len ≤ LA.size q) (so sl m : Nat)
     (hs : so + sl ≤ LA.size q) (hds : o + len ≤ so ∨ so + sl ≤ o) (hsl : sl ≤ len)
     (hm : m < 2 ^ 32) {Q S V : Nat} (hq : valAt q o len = Q) (hS : valAt q so sl = S)

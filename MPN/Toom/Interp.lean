@@ -3255,9 +3255,7 @@ at `0, L, …, 3 L`, and the passes between two of them by `subMulWin`.
   let W := R.subInto W (3 * L) L d o (k + k)
   let W := R.subMulInto W (3 * L) L d (o + 5 * k) (n - 5 * k) 1024
   let W := R.shr W (3 * L) L 2
-  let W := R.subMulWin W (3 * L) L (2 * L) L 1
-  let W := R.subMulWin W (2 * L) L L L 1
-  let W := R.subMulWin W L L 0 L 1
+  let W := R.sub3Chain W (3 * L) (2 * L) L 0 L 1
   let W := R.subMulWin W (3 * L) L (2 * L) L 1
   let W := R.shr W (3 * L) L 1
   let W := R.subMulWin W (2 * L) L L L 1
@@ -3267,9 +3265,7 @@ at `0, L, …, 3 L`, and the passes between two of them by `subMulWin`.
   let W := R.subMulWin W (2 * L) L (3 * L) L 3
   let W := R.subMulWin W L L (2 * L) L 2
   let W := R.subMulWin W (2 * L) L (3 * L) L 2
-  let W := R.subMulWin W 0 L L L 1
-  let W := R.subMulWin W L L (2 * L) L 1
-  let W := R.subMulWin W (2 * L) L (3 * L) L 1
+  let W := R.sub3Chain W 0 L (2 * L) (3 * L) L 1
   -- The recombination.
   let d := R.zeroInto d (o + (k + k)) (5 * k - (k + k))
   let d := R.addInto d (o + k) (n - k) W 0 (min (n - k) L)
@@ -3292,8 +3288,7 @@ public theorem interp5W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
       valAt (interp5W d o n k L W) o n = c₀ + 2 ^ (LA.w * k) * c₁ + 2 ^ (LA.w * (2 * k)) * c₂ + 2 ^
           (LA.w * (3 * k)) * c₃ + 2 ^ (LA.w * (4 * k)) * c₄ + 2 ^ (LA.w * (5 * k)) * c₅ := by
   unfold interp5W
-  extract_lets q₁ q₂ q₃ q₄ q₅ q₆ q₇ q₈ q₉ q₁₀ q₁₁ q₁₂ q₁₃ q₁₄ q₁₅ q₁₆ q₁₇ q₁₈ q₁₉ q₂₀ q₂₁ A₀ A₁ A₂
-     A₃
+  extract_lets q₁ q₂ q₃ q₄ q₅ q₆ q₇ q₈ q₉ q₁₀ q₁₁ q₁₂ q₁₃ q₁₄ q₁₅ q₁₆ q₁₇ A₀ A₁ A₂ A₃
   obtain ⟨w₁, e₁a, e₁b, e₁c⟩ := sub3W_val (q := W) (o₁ := 0) (o₂ := L)
       (o₃ := (2 * L)) (len := L) (by rw [hW]; lia) (by lia) (by lia)
       d o (k + k) (o + 5 * k) (n - 5 * k) 1 32 243
@@ -3349,160 +3344,118 @@ public theorem interp5W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₂q₆ := (w₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₅
   have v₃q₆ := (w₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₅
   clear w₆ e₅ s₅ v₁q₅ v₂q₅ v₃q₅
-  obtain ⟨w₇, e₇⟩ := subMulWin_val (q := q₆) (o := (3 * L)) (len := L) (by rw [s₆]; lia) (2 * L) L 1
-      (by rw [s₆]; lia) (by lia) (by lia) (by decide)
-      (V := c₂ + 7 * c₃ + 37 * c₄) e₆ v₃q₆ (by lia)
-  rw [← (show q₇ = R.subMulWin q₆ (3 * L) L (2 * L) L 1 from rfl)] at w₇ e₇
+  obtain ⟨w₇, e₇a, e₇b, e₇c⟩ := sub3ChainW_val (q := q₆) (o₁ := (3 * L)) (o₂ := (2 * L))
+      (o₃ := L) (o₄ := 0) (len := L) L (3 * L) (by rw [s₆]; lia) (by lia) (by lia) 1
+      (V₁ := c₂ + 7 * c₃ + 37 * c₄) (V₂ := c₂ + 5 * c₃ + 19 * c₄) (V₃ := c₂ + 3 * c₃ + 7 * c₄)
+      e₆ v₃q₆ v₂q₆ v₁q₆ (by lia) (by lia) (by lia)
+  rw [← (show q₇ = R.sub3Chain q₆ (3 * L) (2 * L) L 0 L 1 from rfl)] at w₇ e₇a e₇b e₇c
   clear_value q₇
   have s₇ := w₇.1.trans s₆
   have v₁q₇ := (w₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₆
-  have v₂q₇ := (w₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₆
-  have v₃q₇ := (w₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₆
-  clear w₇ e₆ s₆ v₁q₆ v₂q₆ v₃q₆
-  obtain ⟨w₈, e₈⟩ := subMulWin_val (q := q₇) (o := (2 * L)) (len := L) (by rw [s₇]; lia) L L 1
+  clear w₇ e₆ v₃q₆ v₂q₆ s₆ v₁q₆
+  obtain ⟨w₈, e₈⟩ := subMulWin_val (q := q₇) (o := (3 * L)) (len := L) (by rw [s₇]; lia) (2 * L) L 1
       (by rw [s₇]; lia) (by lia) (by lia) (by decide)
-      (V := c₂ + 5 * c₃ + 19 * c₄) v₃q₇ v₂q₇ (by lia)
-  rw [← (show q₈ = R.subMulWin q₇ (2 * L) L L L 1 from rfl)] at w₈ e₈
+      (V := 2 * c₃ + 18 * c₄) e₇a e₇b (by lia)
+  rw [← (show q₈ = R.subMulWin q₇ (3 * L) L (2 * L) L 1 from rfl)] at w₈ e₈
   clear_value q₈
   have s₈ := w₈.1.trans s₇
   have v₁q₈ := (w₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₇
-  have v₂q₈ := (w₈.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₇
-  have v₄q₈ := (w₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₇
-  clear w₈ v₃q₇ s₇ v₁q₇ v₂q₇ e₇
-  obtain ⟨w₉, e₉⟩ := subMulWin_val (q := q₈) (o := L) (len := L) (by rw [s₈]; lia) 0 L 1
-      (by rw [s₈]; lia) (by lia) (by lia) (by decide)
-      (V := c₂ + 3 * c₃ + 7 * c₄) v₂q₈ v₁q₈ (by lia)
-  rw [← (show q₉ = R.subMulWin q₈ L L 0 L 1 from rfl)] at w₉ e₉
+  have v₂q₈ := (w₈.valAt_eq (lo := L) (n := L) (by lia)).trans e₇c
+  have v₃q₈ := (w₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₇b
+  clear w₈ e₇a s₇ v₁q₇ e₇c e₇b
+  obtain ⟨w₉, e₉⟩ := shrW_val (q := q₈) (o := (3 * L)) (len := L) (by rw [s₈]; lia) 1 (by decide) (by decide)
+      (V := c₃ + 9 * c₄) e₈ (by lia)
+  rw [← (show q₉ = R.shr q₈ (3 * L) L 1 from rfl)] at w₉ e₉
   clear_value q₉
   have s₉ := w₉.1.trans s₈
   have v₁q₉ := (w₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₈
-  have v₃q₉ := (w₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₈
-  have v₄q₉ := (w₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₈
-  clear w₉ v₂q₈ s₈ v₁q₈ e₈ v₄q₈
-  obtain ⟨w₁₀, e₁₀⟩ := subMulWin_val (q := q₉) (o := (3 * L)) (len := L) (by rw [s₉]; lia) (2 * L) L 1
+  have v₂q₉ := (w₉.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₈
+  have v₃q₉ := (w₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₈
+  clear w₉ e₈ s₈ v₁q₈ v₂q₈ v₃q₈
+  obtain ⟨w₁₀, e₁₀⟩ := subMulWin_val (q := q₉) (o := (2 * L)) (len := L) (by rw [s₉]; lia) L L 1
       (by rw [s₉]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₃ + 18 * c₄) v₄q₉ v₃q₉ (by lia)
-  rw [← (show q₁₀ = R.subMulWin q₉ (3 * L) L (2 * L) L 1 from rfl)] at w₁₀ e₁₀
+      (V := 2 * c₃ + 12 * c₄) v₃q₉ v₂q₉ (by lia)
+  rw [← (show q₁₀ = R.subMulWin q₉ (2 * L) L L L 1 from rfl)] at w₁₀ e₁₀
   clear_value q₁₀
   have s₁₀ := w₁₀.1.trans s₉
   have v₁q₁₀ := (w₁₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₉
-  have v₂q₁₀ := (w₁₀.valAt_eq (lo := L) (n := L) (by lia)).trans e₉
-  have v₃q₁₀ := (w₁₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₉
-  clear w₁₀ v₄q₉ s₉ v₁q₉ e₉ v₃q₉
-  obtain ⟨w₁₁, e₁₁⟩ := shrW_val (q := q₁₀) (o := (3 * L)) (len := L) (by rw [s₁₀]; lia) 1 (by decide) (by decide)
-      (V := c₃ + 9 * c₄) e₁₀ (by lia)
-  rw [← (show q₁₁ = R.shr q₁₀ (3 * L) L 1 from rfl)] at w₁₁ e₁₁
+  have v₂q₁₀ := (w₁₀.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₉
+  have v₄q₁₀ := (w₁₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₉
+  clear w₁₀ v₃q₉ s₉ v₁q₉ v₂q₉ e₉
+  obtain ⟨w₁₁, e₁₁⟩ := shrW_val (q := q₁₀) (o := (2 * L)) (len := L) (by rw [s₁₀]; lia) 1 (by decide) (by decide)
+      (V := c₃ + 6 * c₄) e₁₀ (by lia)
+  rw [← (show q₁₁ = R.shr q₁₀ (2 * L) L 1 from rfl)] at w₁₁ e₁₁
   clear_value q₁₁
   have s₁₁ := w₁₁.1.trans s₁₀
   have v₁q₁₁ := (w₁₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₀
   have v₂q₁₁ := (w₁₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₀
-  have v₃q₁₁ := (w₁₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₀
-  clear w₁₁ e₁₀ s₁₀ v₁q₁₀ v₂q₁₀ v₃q₁₀
-  obtain ⟨w₁₂, e₁₂⟩ := subMulWin_val (q := q₁₁) (o := (2 * L)) (len := L) (by rw [s₁₁]; lia) L L 1
+  have v₄q₁₁ := (w₁₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₀
+  clear w₁₁ e₁₀ s₁₀ v₁q₁₀ v₂q₁₀ v₄q₁₀
+  obtain ⟨w₁₂, e₁₂⟩ := subMulWin_val (q := q₁₁) (o := (3 * L)) (len := L) (by rw [s₁₁]; lia) (2 * L) L 1
       (by rw [s₁₁]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₃ + 12 * c₄) v₃q₁₁ v₂q₁₁ (by lia)
-  rw [← (show q₁₂ = R.subMulWin q₁₁ (2 * L) L L L 1 from rfl)] at w₁₂ e₁₂
+      (V := 3 * c₄) v₄q₁₁ e₁₁ (by lia)
+  rw [← (show q₁₂ = R.subMulWin q₁₁ (3 * L) L (2 * L) L 1 from rfl)] at w₁₂ e₁₂
   clear_value q₁₂
   have s₁₂ := w₁₂.1.trans s₁₁
   have v₁q₁₂ := (w₁₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₁
   have v₂q₁₂ := (w₁₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₁
-  have v₄q₁₂ := (w₁₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₁₁
-  clear w₁₂ v₃q₁₁ s₁₁ v₁q₁₁ v₂q₁₁ e₁₁
-  obtain ⟨w₁₃, e₁₃⟩ := shrW_val (q := q₁₂) (o := (2 * L)) (len := L) (by rw [s₁₂]; lia) 1 (by decide) (by decide)
-      (V := c₃ + 6 * c₄) e₁₂ (by lia)
-  rw [← (show q₁₃ = R.shr q₁₂ (2 * L) L 1 from rfl)] at w₁₃ e₁₃
+  have v₃q₁₂ := (w₁₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₁₁
+  clear w₁₂ v₄q₁₁ s₁₁ v₁q₁₁ v₂q₁₁ e₁₁
+  obtain ⟨w₁₃, e₁₃⟩ := divW_val (q := q₁₂) (o := (3 * L)) (len := L) (by rw [s₁₂]; lia) 3 (by decide) (by decide)
+      (V := c₄) e₁₂ (by lia)
+  rw [← (show q₁₃ = R.divExact q₁₂ (3 * L) L 3 from rfl)] at w₁₃ e₁₃
   clear_value q₁₃
   have s₁₃ := w₁₃.1.trans s₁₂
   have v₁q₁₃ := (w₁₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₂
   have v₂q₁₃ := (w₁₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₂
-  have v₄q₁₃ := (w₁₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₂
-  clear w₁₃ e₁₂ s₁₂ v₁q₁₂ v₂q₁₂ v₄q₁₂
-  obtain ⟨w₁₄, e₁₄⟩ := subMulWin_val (q := q₁₃) (o := (3 * L)) (len := L) (by rw [s₁₃]; lia) (2 * L) L 1
+  have v₃q₁₃ := (w₁₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₂
+  clear w₁₃ e₁₂ s₁₂ v₁q₁₂ v₂q₁₂ v₃q₁₂
+  obtain ⟨w₁₄, e₁₄⟩ := subMulWin_val (q := q₁₃) (o := (2 * L)) (len := L) (by rw [s₁₃]; lia) (3 * L) L 3
       (by rw [s₁₃]; lia) (by lia) (by lia) (by decide)
-      (V := 3 * c₄) v₄q₁₃ e₁₃ (by lia)
-  rw [← (show q₁₄ = R.subMulWin q₁₃ (3 * L) L (2 * L) L 1 from rfl)] at w₁₄ e₁₄
+      (V := c₃ + 3 * c₄) v₃q₁₃ e₁₃ (by lia)
+  rw [← (show q₁₄ = R.subMulWin q₁₃ (2 * L) L (3 * L) L 3 from rfl)] at w₁₄ e₁₄
   clear_value q₁₄
   have s₁₄ := w₁₄.1.trans s₁₃
   have v₁q₁₄ := (w₁₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₃
   have v₂q₁₄ := (w₁₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₃
-  have v₃q₁₄ := (w₁₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₁₃
-  clear w₁₄ v₄q₁₃ s₁₃ v₁q₁₃ v₂q₁₃ e₁₃
-  obtain ⟨w₁₅, e₁₅⟩ := divW_val (q := q₁₄) (o := (3 * L)) (len := L) (by rw [s₁₄]; lia) 3 (by decide) (by decide)
-      (V := c₄) e₁₄ (by lia)
-  rw [← (show q₁₅ = R.divExact q₁₄ (3 * L) L 3 from rfl)] at w₁₅ e₁₅
+  have v₄q₁₄ := (w₁₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₁₃
+  clear w₁₄ v₃q₁₃ s₁₃ v₁q₁₃ v₂q₁₃ e₁₃
+  obtain ⟨w₁₅, e₁₅⟩ := subMulWin_val (q := q₁₄) (o := L) (len := L) (by rw [s₁₄]; lia) (2 * L) L 2
+      (by rw [s₁₄]; lia) (by lia) (by lia) (by decide)
+      (V := c₂ + c₃ + c₄) v₂q₁₄ e₁₄ (by lia)
+  rw [← (show q₁₅ = R.subMulWin q₁₄ L L (2 * L) L 2 from rfl)] at w₁₅ e₁₅
   clear_value q₁₅
   have s₁₅ := w₁₅.1.trans s₁₄
   have v₁q₁₅ := (w₁₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₄
-  have v₂q₁₅ := (w₁₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₄
-  have v₃q₁₅ := (w₁₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₄
-  clear w₁₅ e₁₄ s₁₄ v₁q₁₄ v₂q₁₄ v₃q₁₄
-  obtain ⟨w₁₆, e₁₆⟩ := subMulWin_val (q := q₁₅) (o := (2 * L)) (len := L) (by rw [s₁₅]; lia) (3 * L) L 3
+  have v₃q₁₅ := (w₁₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₁₄
+  have v₄q₁₅ := (w₁₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₄
+  clear w₁₅ v₂q₁₄ s₁₄ v₁q₁₄ e₁₄ v₄q₁₄
+  obtain ⟨w₁₆, e₁₆⟩ := subMulWin_val (q := q₁₅) (o := (2 * L)) (len := L) (by rw [s₁₅]; lia) (3 * L) L 2
       (by rw [s₁₅]; lia) (by lia) (by lia) (by decide)
-      (V := c₃ + 3 * c₄) v₃q₁₅ e₁₅ (by lia)
-  rw [← (show q₁₆ = R.subMulWin q₁₅ (2 * L) L (3 * L) L 3 from rfl)] at w₁₆ e₁₆
+      (V := c₃ + c₄) v₃q₁₅ v₄q₁₅ (by lia)
+  rw [← (show q₁₆ = R.subMulWin q₁₅ (2 * L) L (3 * L) L 2 from rfl)] at w₁₆ e₁₆
   clear_value q₁₆
   have s₁₆ := w₁₆.1.trans s₁₅
   have v₁q₁₆ := (w₁₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₅
-  have v₂q₁₆ := (w₁₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₅
-  have v₄q₁₆ := (w₁₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₁₅
-  clear w₁₆ v₃q₁₅ s₁₅ v₁q₁₅ v₂q₁₅ e₁₅
-  obtain ⟨w₁₇, e₁₇⟩ := subMulWin_val (q := q₁₆) (o := L) (len := L) (by rw [s₁₆]; lia) (2 * L) L 2
-      (by rw [s₁₆]; lia) (by lia) (by lia) (by decide)
-      (V := c₂ + c₃ + c₄) v₂q₁₆ e₁₆ (by lia)
-  rw [← (show q₁₇ = R.subMulWin q₁₆ L L (2 * L) L 2 from rfl)] at w₁₇ e₁₇
+  have v₂q₁₆ := (w₁₆.valAt_eq (lo := L) (n := L) (by lia)).trans e₁₅
+  have v₄q₁₆ := (w₁₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₅
+  clear w₁₆ v₃q₁₅ s₁₅ v₁q₁₅ e₁₅ v₄q₁₅
+  obtain ⟨w₁₇, e₁₇a, e₁₇b, e₁₇c⟩ := sub3ChainW_val (q := q₁₆) (o₁ := 0) (o₂ := L)
+      (o₃ := (2 * L)) (o₄ := (3 * L)) (len := L) 0 (3 * L) (by rw [s₁₆]; lia) (by lia) (by lia) 1
+      (V₁ := c₁) (V₂ := c₂) (V₃ := c₃)
+      v₁q₁₆ v₂q₁₆ e₁₆ v₄q₁₆ (by lia) (by lia) (by lia)
+  rw [← (show q₁₇ = R.sub3Chain q₁₆ 0 L (2 * L) (3 * L) L 1 from rfl)] at w₁₇ e₁₇a e₁₇b e₁₇c
   clear_value q₁₇
   have s₁₇ := w₁₇.1.trans s₁₆
-  have v₁q₁₇ := (w₁₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₆
-  have v₃q₁₇ := (w₁₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₁₆
   have v₄q₁₇ := (w₁₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₆
-  clear w₁₇ v₂q₁₆ s₁₆ v₁q₁₆ e₁₆ v₄q₁₆
-  obtain ⟨w₁₈, e₁₈⟩ := subMulWin_val (q := q₁₇) (o := (2 * L)) (len := L) (by rw [s₁₇]; lia) (3 * L) L 2
-      (by rw [s₁₇]; lia) (by lia) (by lia) (by decide)
-      (V := c₃ + c₄) v₃q₁₇ v₄q₁₇ (by lia)
-  rw [← (show q₁₈ = R.subMulWin q₁₇ (2 * L) L (3 * L) L 2 from rfl)] at w₁₈ e₁₈
-  clear_value q₁₈
-  have s₁₈ := w₁₈.1.trans s₁₇
-  have v₁q₁₈ := (w₁₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₇
-  have v₂q₁₈ := (w₁₈.valAt_eq (lo := L) (n := L) (by lia)).trans e₁₇
-  have v₄q₁₈ := (w₁₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₇
-  clear w₁₈ v₃q₁₇ s₁₇ v₁q₁₇ e₁₇ v₄q₁₇
-  obtain ⟨w₁₉, e₁₉⟩ := subMulWin_val (q := q₁₈) (o := 0) (len := L) (by rw [s₁₈]; lia) L L 1
-      (by rw [s₁₈]; lia) (by lia) (by lia) (by decide)
-      (V := c₁) v₁q₁₈ v₂q₁₈ (by lia)
-  rw [← (show q₁₉ = R.subMulWin q₁₈ 0 L L L 1 from rfl)] at w₁₉ e₁₉
-  clear_value q₁₉
-  have s₁₉ := w₁₉.1.trans s₁₈
-  have v₂q₁₉ := (w₁₉.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₈
-  have v₃q₁₉ := (w₁₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₁₈
-  have v₄q₁₉ := (w₁₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₈
-  clear w₁₉ v₁q₁₈ s₁₈ v₂q₁₈ e₁₈ v₄q₁₈
-  obtain ⟨w₂₀, e₂₀⟩ := subMulWin_val (q := q₁₉) (o := L) (len := L) (by rw [s₁₉]; lia) (2 * L) L 1
-      (by rw [s₁₉]; lia) (by lia) (by lia) (by decide)
-      (V := c₂) v₂q₁₉ v₃q₁₉ (by lia)
-  rw [← (show q₂₀ = R.subMulWin q₁₉ L L (2 * L) L 1 from rfl)] at w₂₀ e₂₀
-  clear_value q₂₀
-  have s₂₀ := w₂₀.1.trans s₁₉
-  have v₁q₂₀ := (w₂₀.valAt_eq (lo := 0) (n := L) (by lia)).trans e₁₉
-  have v₃q₂₀ := (w₂₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₉
-  have v₄q₂₀ := (w₂₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₉
-  clear w₂₀ v₂q₁₉ s₁₉ e₁₉ v₃q₁₉ v₄q₁₉
-  obtain ⟨w₂₁, e₂₁⟩ := subMulWin_val (q := q₂₀) (o := (2 * L)) (len := L) (by rw [s₂₀]; lia) (3 * L) L 1
-      (by rw [s₂₀]; lia) (by lia) (by lia) (by decide)
-      (V := c₃) v₃q₂₀ v₄q₂₀ (by lia)
-  rw [← (show q₂₁ = R.subMulWin q₂₀ (2 * L) L (3 * L) L 1 from rfl)] at w₂₁ e₂₁
-  clear_value q₂₁
-  have s₂₁ := w₂₁.1.trans s₂₀
-  have v₁q₂₁ := (w₂₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₀
-  have v₂q₂₁ := (w₂₁.valAt_eq (lo := L) (n := L) (by lia)).trans e₂₀
-  have v₄q₂₁ := (w₂₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₀
-  clear w₂₁ v₃q₂₀ s₂₀ v₁q₂₀ e₂₀ v₄q₂₀
+  clear w₁₇ v₁q₁₆ v₂q₁₆ e₁₆ s₁₆ v₄q₁₆
   -- The recombination.
   obtain ⟨z₁, z₂⟩ := zero_mid d o n (k + k) (5 * k) hd (by lia) (by lia)
   rw [hc₀, hc₅] at z₂
   rw [← (show A₀ = R.zeroInto d (o + (k + k)) (5 * k - (k + k)) from rfl)] at z₁ z₂
   replace z₁ := z₁.mono (o' := o) (len' := n) (by lia) (by lia)
   obtain ⟨a₁w, a₁v⟩ := add_coef A₀ o n k (by rw [z₁.1]; exact hd) (by lia)
-      q₂₁ 0 L c₁ v₁q₂₁ (by
+      q₁₇ 0 L c₁ e₁₇a (by
     rw [z₂]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -3511,10 +3464,10 @@ public theorem interp5W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (5 * k)) * c₅ = T₅ at htot ⊢
     lia)
   rw [z₂] at a₁v
-  rw [← (show A₁ = R.addInto A₀ (o + k) (n - k) q₂₁ 0 (min (n - k) L) from rfl)] at a₁w a₁v
+  rw [← (show A₁ = R.addInto A₀ (o + k) (n - k) q₁₇ 0 (min (n - k) L) from rfl)] at a₁w a₁v
   have a₁w' := a₁w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans z₁
   obtain ⟨a₂w, a₂v⟩ := add_coef A₁ o n (2 * k) (by rw [a₁w'.1]; exact hd) (by lia)
-      q₂₁ L L c₂ v₂q₂₁ (by
+      q₁₇ L L c₂ e₁₇b (by
     rw [a₁v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -3523,10 +3476,10 @@ public theorem interp5W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (5 * k)) * c₅ = T₅ at htot ⊢
     lia)
   rw [a₁v] at a₂v
-  rw [← (show A₂ = R.addInto A₁ (o + (2 * k)) (n - (2 * k)) q₂₁ L (min (n - (2 * k)) L) from rfl)] at a₂w a₂v
+  rw [← (show A₂ = R.addInto A₁ (o + (2 * k)) (n - (2 * k)) q₁₇ L (min (n - (2 * k)) L) from rfl)] at a₂w a₂v
   have a₂w' := a₂w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₁w'
   obtain ⟨a₃w, a₃v⟩ := add_coef A₂ o n (3 * k) (by rw [a₂w'.1]; exact hd) (by lia)
-      q₂₁ (2 * L) L c₃ e₂₁ (by
+      q₁₇ (2 * L) L c₃ e₁₇c (by
     rw [a₂v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -3535,10 +3488,10 @@ public theorem interp5W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (5 * k)) * c₅ = T₅ at htot ⊢
     lia)
   rw [a₂v] at a₃v
-  rw [← (show A₃ = R.addInto A₂ (o + (3 * k)) (n - (3 * k)) q₂₁ (2 * L) (min (n - (3 * k)) L) from rfl)] at a₃w a₃v
+  rw [← (show A₃ = R.addInto A₂ (o + (3 * k)) (n - (3 * k)) q₁₇ (2 * L) (min (n - (3 * k)) L) from rfl)] at a₃w a₃v
   have a₃w' := a₃w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₂w'
   obtain ⟨a₄w, a₄v⟩ := add_coef A₃ o n (4 * k) (by rw [a₃w'.1]; exact hd) (by lia)
-      q₂₁ (3 * L) L c₄ v₄q₂₁ (by
+      q₁₇ (3 * L) L c₄ v₄q₁₇ (by
     rw [a₃v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -3570,9 +3523,7 @@ at `0, L, …, 4 L`, and the passes between two of them by `subMulWin`.
   let W := R.subInto W (4 * L) L d o (k + k)
   let W := R.subMulInto W (4 * L) L d (o + 6 * k) (n - 6 * k) 15625
   let W := R.divExact W (4 * L) L 5
-  let W := R.subMulWin W (4 * L) L (3 * L) L 1
-  let W := R.subMulWin W (3 * L) L (2 * L) L 1
-  let W := R.subMulWin W (2 * L) L L L 1
+  let W := R.sub3Chain W (4 * L) (3 * L) (2 * L) L L 1
   let W := R.subMulWin W L L 0 L 1
   let W := R.subMulWin W (4 * L) L (3 * L) L 1
   let W := R.shr W (4 * L) L 1
@@ -3589,12 +3540,8 @@ at `0, L, …, 4 L`, and the passes between two of them by `subMulWin`.
   let W := R.subMulWin W (3 * L) L (4 * L) L 4
   let W := R.subMulWin W (2 * L) L (3 * L) L 3
   let W := R.subMulWin W (3 * L) L (4 * L) L 3
-  let W := R.subMulWin W L L (2 * L) L 2
-  let W := R.subMulWin W (2 * L) L (3 * L) L 2
-  let W := R.subMulWin W (3 * L) L (4 * L) L 2
-  let W := R.subMulWin W 0 L L L 1
-  let W := R.subMulWin W L L (2 * L) L 1
-  let W := R.subMulWin W (2 * L) L (3 * L) L 1
+  let W := R.sub3Chain W L (2 * L) (3 * L) (4 * L) L 2
+  let W := R.sub3Chain W 0 L (2 * L) (3 * L) L 1
   let W := R.subMulWin W (3 * L) L (4 * L) L 1
   -- The recombination.
   let d := R.zeroInto d (o + (k + k)) (6 * k - (k + k))
@@ -3623,7 +3570,7 @@ public theorem interp6W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
           * (6 * k)) * c₆ := by
   unfold interp6W
   extract_lets q₁ q₂ q₃ q₄ q₅ q₆ q₇ q₈ q₉ q₁₀ q₁₁ q₁₂ q₁₃ q₁₄ q₁₅ q₁₆ q₁₇ q₁₈ q₁₉ q₂₀ q₂₁ q₂₂ q₂₃
-     q₂₄ q₂₅ q₂₆ q₂₇ q₂₈ q₂₉ q₃₀ q₃₁ q₃₂ q₃₃ q₃₄ q₃₅ A₀ A₁ A₂ A₃ A₄
+     q₂₄ q₂₅ q₂₆ q₂₇ q₂₈ q₂₉ A₀ A₁ A₂ A₃ A₄
   obtain ⟨w₁, e₁a, e₁b, e₁c⟩ := sub3W_val (q := W) (o₁ := 0) (o₂ := L)
       (o₃ := (2 * L)) (len := L) (by rw [hW]; lia) (by lia) (by lia)
       d o (k + k) (o + 6 * k) (n - 6 * k) 1 64 729
@@ -3715,293 +3662,224 @@ public theorem interp6W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₃q₉ := (w₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₈
   have v₄q₉ := (w₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₈
   clear w₉ e₈ s₈ v₁q₈ v₂q₈ v₃q₈ v₄q₈
-  obtain ⟨w₁₀, e₁₀⟩ := subMulWin_val (q := q₉) (o := (4 * L)) (len := L) (by rw [s₉]; lia) (3 * L) L 1
-      (by rw [s₉]; lia) (by lia) (by lia) (by decide)
-      (V := c₂ + 9 * c₃ + 61 * c₄ + 369 * c₅) e₉ v₄q₉ (by lia)
-  rw [← (show q₁₀ = R.subMulWin q₉ (4 * L) L (3 * L) L 1 from rfl)] at w₁₀ e₁₀
+  obtain ⟨w₁₀, e₁₀a, e₁₀b, e₁₀c⟩ := sub3ChainW_val (q := q₉) (o₁ := (4 * L)) (o₂ := (3 * L))
+      (o₃ := (2 * L)) (o₄ := L) (len := L) (2 * L) (3 * L) (by rw [s₉]; lia) (by lia) (by lia) 1
+      (V₁ := c₂ + 9 * c₃ + 61 * c₄ + 369 * c₅) (V₂ := c₂ + 7 * c₃ + 37 * c₄ + 175 * c₅) (V₃ := c₂ + 5 * c₃ + 19 * c₄ + 65 * c₅)
+      e₉ v₄q₉ v₃q₉ v₂q₉ (by lia) (by lia) (by lia)
+  rw [← (show q₁₀ = R.sub3Chain q₉ (4 * L) (3 * L) (2 * L) L L 1 from rfl)] at w₁₀ e₁₀a e₁₀b e₁₀c
   clear_value q₁₀
   have s₁₀ := w₁₀.1.trans s₉
   have v₁q₁₀ := (w₁₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₉
   have v₂q₁₀ := (w₁₀.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₉
-  have v₃q₁₀ := (w₁₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₉
-  have v₄q₁₀ := (w₁₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₉
-  clear w₁₀ e₉ s₉ v₁q₉ v₂q₉ v₃q₉ v₄q₉
-  obtain ⟨w₁₁, e₁₁⟩ := subMulWin_val (q := q₁₀) (o := (3 * L)) (len := L) (by rw [s₁₀]; lia) (2 * L) L 1
+  clear w₁₀ e₉ v₄q₉ v₃q₉ s₉ v₁q₉ v₂q₉
+  obtain ⟨w₁₁, e₁₁⟩ := subMulWin_val (q := q₁₀) (o := L) (len := L) (by rw [s₁₀]; lia) 0 L 1
       (by rw [s₁₀]; lia) (by lia) (by lia) (by decide)
-      (V := c₂ + 7 * c₃ + 37 * c₄ + 175 * c₅) v₄q₁₀ v₃q₁₀ (by lia)
-  rw [← (show q₁₁ = R.subMulWin q₁₀ (3 * L) L (2 * L) L 1 from rfl)] at w₁₁ e₁₁
+      (V := c₂ + 3 * c₃ + 7 * c₄ + 15 * c₅) v₂q₁₀ v₁q₁₀ (by lia)
+  rw [← (show q₁₁ = R.subMulWin q₁₀ L L 0 L 1 from rfl)] at w₁₁ e₁₁
   clear_value q₁₁
   have s₁₁ := w₁₁.1.trans s₁₀
   have v₁q₁₁ := (w₁₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₀
-  have v₂q₁₁ := (w₁₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₀
-  have v₃q₁₁ := (w₁₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₀
-  have v₅q₁₁ := (w₁₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₁₀
-  clear w₁₁ v₄q₁₀ s₁₀ v₁q₁₀ v₂q₁₀ v₃q₁₀ e₁₀
-  obtain ⟨w₁₂, e₁₂⟩ := subMulWin_val (q := q₁₁) (o := (2 * L)) (len := L) (by rw [s₁₁]; lia) L L 1
+  have v₃q₁₁ := (w₁₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₁₀c
+  have v₄q₁₁ := (w₁₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₁₀b
+  have v₅q₁₁ := (w₁₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₁₀a
+  clear w₁₁ v₂q₁₀ s₁₀ v₁q₁₀ e₁₀c e₁₀b e₁₀a
+  obtain ⟨w₁₂, e₁₂⟩ := subMulWin_val (q := q₁₁) (o := (4 * L)) (len := L) (by rw [s₁₁]; lia) (3 * L) L 1
       (by rw [s₁₁]; lia) (by lia) (by lia) (by decide)
-      (V := c₂ + 5 * c₃ + 19 * c₄ + 65 * c₅) v₃q₁₁ v₂q₁₁ (by lia)
-  rw [← (show q₁₂ = R.subMulWin q₁₁ (2 * L) L L L 1 from rfl)] at w₁₂ e₁₂
+      (V := 2 * c₃ + 24 * c₄ + 194 * c₅) v₅q₁₁ v₄q₁₁ (by lia)
+  rw [← (show q₁₂ = R.subMulWin q₁₁ (4 * L) L (3 * L) L 1 from rfl)] at w₁₂ e₁₂
   clear_value q₁₂
   have s₁₂ := w₁₂.1.trans s₁₁
   have v₁q₁₂ := (w₁₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₁
-  have v₂q₁₂ := (w₁₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₁
-  have v₄q₁₂ := (w₁₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₁₁
-  have v₅q₁₂ := (w₁₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₁
-  clear w₁₂ v₃q₁₁ s₁₁ v₁q₁₁ v₂q₁₁ e₁₁ v₅q₁₁
-  obtain ⟨w₁₃, e₁₃⟩ := subMulWin_val (q := q₁₂) (o := L) (len := L) (by rw [s₁₂]; lia) 0 L 1
-      (by rw [s₁₂]; lia) (by lia) (by lia) (by decide)
-      (V := c₂ + 3 * c₃ + 7 * c₄ + 15 * c₅) v₂q₁₂ v₁q₁₂ (by lia)
-  rw [← (show q₁₃ = R.subMulWin q₁₂ L L 0 L 1 from rfl)] at w₁₃ e₁₃
+  have v₂q₁₂ := (w₁₂.valAt_eq (lo := L) (n := L) (by lia)).trans e₁₁
+  have v₃q₁₂ := (w₁₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₁
+  have v₄q₁₂ := (w₁₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₁
+  clear w₁₂ v₅q₁₁ s₁₁ v₁q₁₁ e₁₁ v₃q₁₁ v₄q₁₁
+  obtain ⟨w₁₃, e₁₃⟩ := shrW_val (q := q₁₂) (o := (4 * L)) (len := L) (by rw [s₁₂]; lia) 1 (by decide) (by decide)
+      (V := c₃ + 12 * c₄ + 97 * c₅) e₁₂ (by lia)
+  rw [← (show q₁₃ = R.shr q₁₂ (4 * L) L 1 from rfl)] at w₁₃ e₁₃
   clear_value q₁₃
   have s₁₃ := w₁₃.1.trans s₁₂
   have v₁q₁₃ := (w₁₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₂
-  have v₃q₁₃ := (w₁₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₁₂
+  have v₂q₁₃ := (w₁₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₂
+  have v₃q₁₃ := (w₁₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₂
   have v₄q₁₃ := (w₁₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₂
-  have v₅q₁₃ := (w₁₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₂
-  clear w₁₃ v₂q₁₂ s₁₂ v₁q₁₂ e₁₂ v₄q₁₂ v₅q₁₂
-  obtain ⟨w₁₄, e₁₄⟩ := subMulWin_val (q := q₁₃) (o := (4 * L)) (len := L) (by rw [s₁₃]; lia) (3 * L) L 1
+  clear w₁₃ e₁₂ s₁₂ v₁q₁₂ v₂q₁₂ v₃q₁₂ v₄q₁₂
+  obtain ⟨w₁₄, e₁₄⟩ := subMulWin_val (q := q₁₃) (o := (3 * L)) (len := L) (by rw [s₁₃]; lia) (2 * L) L 1
       (by rw [s₁₃]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₃ + 24 * c₄ + 194 * c₅) v₅q₁₃ v₄q₁₃ (by lia)
-  rw [← (show q₁₄ = R.subMulWin q₁₃ (4 * L) L (3 * L) L 1 from rfl)] at w₁₄ e₁₄
+      (V := 2 * c₃ + 18 * c₄ + 110 * c₅) v₄q₁₃ v₃q₁₃ (by lia)
+  rw [← (show q₁₄ = R.subMulWin q₁₃ (3 * L) L (2 * L) L 1 from rfl)] at w₁₄ e₁₄
   clear_value q₁₄
   have s₁₄ := w₁₄.1.trans s₁₃
   have v₁q₁₄ := (w₁₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₃
-  have v₂q₁₄ := (w₁₄.valAt_eq (lo := L) (n := L) (by lia)).trans e₁₃
+  have v₂q₁₄ := (w₁₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₃
   have v₃q₁₄ := (w₁₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₃
-  have v₄q₁₄ := (w₁₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₃
-  clear w₁₄ v₅q₁₃ s₁₃ v₁q₁₃ e₁₃ v₃q₁₃ v₄q₁₃
-  obtain ⟨w₁₅, e₁₅⟩ := shrW_val (q := q₁₄) (o := (4 * L)) (len := L) (by rw [s₁₄]; lia) 1 (by decide) (by decide)
-      (V := c₃ + 12 * c₄ + 97 * c₅) e₁₄ (by lia)
-  rw [← (show q₁₅ = R.shr q₁₄ (4 * L) L 1 from rfl)] at w₁₅ e₁₅
+  have v₅q₁₄ := (w₁₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₁₃
+  clear w₁₄ v₄q₁₃ s₁₃ v₁q₁₃ v₂q₁₃ v₃q₁₃ e₁₃
+  obtain ⟨w₁₅, e₁₅⟩ := shrW_val (q := q₁₄) (o := (3 * L)) (len := L) (by rw [s₁₄]; lia) 1 (by decide) (by decide)
+      (V := c₃ + 9 * c₄ + 55 * c₅) e₁₄ (by lia)
+  rw [← (show q₁₅ = R.shr q₁₄ (3 * L) L 1 from rfl)] at w₁₅ e₁₅
   clear_value q₁₅
   have s₁₅ := w₁₅.1.trans s₁₄
   have v₁q₁₅ := (w₁₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₄
   have v₂q₁₅ := (w₁₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₄
   have v₃q₁₅ := (w₁₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₄
-  have v₄q₁₅ := (w₁₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₄
-  clear w₁₅ e₁₄ s₁₄ v₁q₁₄ v₂q₁₄ v₃q₁₄ v₄q₁₄
-  obtain ⟨w₁₆, e₁₆⟩ := subMulWin_val (q := q₁₅) (o := (3 * L)) (len := L) (by rw [s₁₅]; lia) (2 * L) L 1
+  have v₅q₁₅ := (w₁₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₄
+  clear w₁₅ e₁₄ s₁₄ v₁q₁₄ v₂q₁₄ v₃q₁₄ v₅q₁₄
+  obtain ⟨w₁₆, e₁₆⟩ := subMulWin_val (q := q₁₅) (o := (2 * L)) (len := L) (by rw [s₁₅]; lia) L L 1
       (by rw [s₁₅]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₃ + 18 * c₄ + 110 * c₅) v₄q₁₅ v₃q₁₅ (by lia)
-  rw [← (show q₁₆ = R.subMulWin q₁₅ (3 * L) L (2 * L) L 1 from rfl)] at w₁₆ e₁₆
+      (V := 2 * c₃ + 12 * c₄ + 50 * c₅) v₃q₁₅ v₂q₁₅ (by lia)
+  rw [← (show q₁₆ = R.subMulWin q₁₅ (2 * L) L L L 1 from rfl)] at w₁₆ e₁₆
   clear_value q₁₆
   have s₁₆ := w₁₆.1.trans s₁₅
   have v₁q₁₆ := (w₁₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₅
   have v₂q₁₆ := (w₁₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₅
-  have v₃q₁₆ := (w₁₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₅
-  have v₅q₁₆ := (w₁₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₁₅
-  clear w₁₆ v₄q₁₅ s₁₅ v₁q₁₅ v₂q₁₅ v₃q₁₅ e₁₅
-  obtain ⟨w₁₇, e₁₇⟩ := shrW_val (q := q₁₆) (o := (3 * L)) (len := L) (by rw [s₁₆]; lia) 1 (by decide) (by decide)
-      (V := c₃ + 9 * c₄ + 55 * c₅) e₁₆ (by lia)
-  rw [← (show q₁₇ = R.shr q₁₆ (3 * L) L 1 from rfl)] at w₁₇ e₁₇
+  have v₄q₁₆ := (w₁₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₁₅
+  have v₅q₁₆ := (w₁₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₅
+  clear w₁₆ v₃q₁₅ s₁₅ v₁q₁₅ v₂q₁₅ e₁₅ v₅q₁₅
+  obtain ⟨w₁₇, e₁₇⟩ := shrW_val (q := q₁₆) (o := (2 * L)) (len := L) (by rw [s₁₆]; lia) 1 (by decide) (by decide)
+      (V := c₃ + 6 * c₄ + 25 * c₅) e₁₆ (by lia)
+  rw [← (show q₁₇ = R.shr q₁₆ (2 * L) L 1 from rfl)] at w₁₇ e₁₇
   clear_value q₁₇
   have s₁₇ := w₁₇.1.trans s₁₆
   have v₁q₁₇ := (w₁₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₆
   have v₂q₁₇ := (w₁₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₆
-  have v₃q₁₇ := (w₁₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₆
+  have v₄q₁₇ := (w₁₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₆
   have v₅q₁₇ := (w₁₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₆
-  clear w₁₇ e₁₆ s₁₆ v₁q₁₆ v₂q₁₆ v₃q₁₆ v₅q₁₆
-  obtain ⟨w₁₈, e₁₈⟩ := subMulWin_val (q := q₁₇) (o := (2 * L)) (len := L) (by rw [s₁₇]; lia) L L 1
+  clear w₁₇ e₁₆ s₁₆ v₁q₁₆ v₂q₁₆ v₄q₁₆ v₅q₁₆
+  obtain ⟨w₁₈, e₁₈⟩ := subMulWin_val (q := q₁₇) (o := (4 * L)) (len := L) (by rw [s₁₇]; lia) (3 * L) L 1
       (by rw [s₁₇]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₃ + 12 * c₄ + 50 * c₅) v₃q₁₇ v₂q₁₇ (by lia)
-  rw [← (show q₁₈ = R.subMulWin q₁₇ (2 * L) L L L 1 from rfl)] at w₁₈ e₁₈
+      (V := 3 * c₄ + 42 * c₅) v₅q₁₇ v₄q₁₇ (by lia)
+  rw [← (show q₁₈ = R.subMulWin q₁₇ (4 * L) L (3 * L) L 1 from rfl)] at w₁₈ e₁₈
   clear_value q₁₈
   have s₁₈ := w₁₈.1.trans s₁₇
   have v₁q₁₈ := (w₁₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₇
   have v₂q₁₈ := (w₁₈.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₇
-  have v₄q₁₈ := (w₁₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₁₇
-  have v₅q₁₈ := (w₁₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₇
-  clear w₁₈ v₃q₁₇ s₁₇ v₁q₁₇ v₂q₁₇ e₁₇ v₅q₁₇
-  obtain ⟨w₁₉, e₁₉⟩ := shrW_val (q := q₁₈) (o := (2 * L)) (len := L) (by rw [s₁₈]; lia) 1 (by decide) (by decide)
-      (V := c₃ + 6 * c₄ + 25 * c₅) e₁₈ (by lia)
-  rw [← (show q₁₉ = R.shr q₁₈ (2 * L) L 1 from rfl)] at w₁₉ e₁₉
+  have v₃q₁₈ := (w₁₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₁₇
+  have v₄q₁₈ := (w₁₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₇
+  clear w₁₈ v₅q₁₇ s₁₇ v₁q₁₇ v₂q₁₇ e₁₇ v₄q₁₇
+  obtain ⟨w₁₉, e₁₉⟩ := divW_val (q := q₁₈) (o := (4 * L)) (len := L) (by rw [s₁₈]; lia) 3 (by decide) (by decide)
+      (V := c₄ + 14 * c₅) e₁₈ (by lia)
+  rw [← (show q₁₉ = R.divExact q₁₈ (4 * L) L 3 from rfl)] at w₁₉ e₁₉
   clear_value q₁₉
   have s₁₉ := w₁₉.1.trans s₁₈
   have v₁q₁₉ := (w₁₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₈
   have v₂q₁₉ := (w₁₉.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₈
+  have v₃q₁₉ := (w₁₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₈
   have v₄q₁₉ := (w₁₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₈
-  have v₅q₁₉ := (w₁₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₈
-  clear w₁₉ e₁₈ s₁₈ v₁q₁₈ v₂q₁₈ v₄q₁₈ v₅q₁₈
-  obtain ⟨w₂₀, e₂₀⟩ := subMulWin_val (q := q₁₉) (o := (4 * L)) (len := L) (by rw [s₁₉]; lia) (3 * L) L 1
+  clear w₁₉ e₁₈ s₁₈ v₁q₁₈ v₂q₁₈ v₃q₁₈ v₄q₁₈
+  obtain ⟨w₂₀, e₂₀⟩ := subMulWin_val (q := q₁₉) (o := (3 * L)) (len := L) (by rw [s₁₉]; lia) (2 * L) L 1
       (by rw [s₁₉]; lia) (by lia) (by lia) (by decide)
-      (V := 3 * c₄ + 42 * c₅) v₅q₁₉ v₄q₁₉ (by lia)
-  rw [← (show q₂₀ = R.subMulWin q₁₉ (4 * L) L (3 * L) L 1 from rfl)] at w₂₀ e₂₀
+      (V := 3 * c₄ + 30 * c₅) v₄q₁₉ v₃q₁₉ (by lia)
+  rw [← (show q₂₀ = R.subMulWin q₁₉ (3 * L) L (2 * L) L 1 from rfl)] at w₂₀ e₂₀
   clear_value q₂₀
   have s₂₀ := w₂₀.1.trans s₁₉
   have v₁q₂₀ := (w₂₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₉
   have v₂q₂₀ := (w₂₀.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₉
-  have v₃q₂₀ := (w₂₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₁₉
-  have v₄q₂₀ := (w₂₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₉
-  clear w₂₀ v₅q₁₉ s₁₉ v₁q₁₉ v₂q₁₉ e₁₉ v₄q₁₉
-  obtain ⟨w₂₁, e₂₁⟩ := divW_val (q := q₂₀) (o := (4 * L)) (len := L) (by rw [s₂₀]; lia) 3 (by decide) (by decide)
-      (V := c₄ + 14 * c₅) e₂₀ (by lia)
-  rw [← (show q₂₁ = R.divExact q₂₀ (4 * L) L 3 from rfl)] at w₂₁ e₂₁
+  have v₃q₂₀ := (w₂₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₉
+  have v₅q₂₀ := (w₂₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₁₉
+  clear w₂₀ v₄q₁₉ s₁₉ v₁q₁₉ v₂q₁₉ v₃q₁₉ e₁₉
+  obtain ⟨w₂₁, e₂₁⟩ := divW_val (q := q₂₀) (o := (3 * L)) (len := L) (by rw [s₂₀]; lia) 3 (by decide) (by decide)
+      (V := c₄ + 10 * c₅) e₂₀ (by lia)
+  rw [← (show q₂₁ = R.divExact q₂₀ (3 * L) L 3 from rfl)] at w₂₁ e₂₁
   clear_value q₂₁
   have s₂₁ := w₂₁.1.trans s₂₀
   have v₁q₂₁ := (w₂₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₀
   have v₂q₂₁ := (w₂₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₀
   have v₃q₂₁ := (w₂₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₀
-  have v₄q₂₁ := (w₂₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₀
-  clear w₂₁ e₂₀ s₂₀ v₁q₂₀ v₂q₂₀ v₃q₂₀ v₄q₂₀
-  obtain ⟨w₂₂, e₂₂⟩ := subMulWin_val (q := q₂₁) (o := (3 * L)) (len := L) (by rw [s₂₁]; lia) (2 * L) L 1
+  have v₅q₂₁ := (w₂₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₀
+  clear w₂₁ e₂₀ s₂₀ v₁q₂₀ v₂q₂₀ v₃q₂₀ v₅q₂₀
+  obtain ⟨w₂₂, e₂₂⟩ := subMulWin_val (q := q₂₁) (o := (4 * L)) (len := L) (by rw [s₂₁]; lia) (3 * L) L 1
       (by rw [s₂₁]; lia) (by lia) (by lia) (by decide)
-      (V := 3 * c₄ + 30 * c₅) v₄q₂₁ v₃q₂₁ (by lia)
-  rw [← (show q₂₂ = R.subMulWin q₂₁ (3 * L) L (2 * L) L 1 from rfl)] at w₂₂ e₂₂
+      (V := 4 * c₅) v₅q₂₁ e₂₁ (by lia)
+  rw [← (show q₂₂ = R.subMulWin q₂₁ (4 * L) L (3 * L) L 1 from rfl)] at w₂₂ e₂₂
   clear_value q₂₂
   have s₂₂ := w₂₂.1.trans s₂₁
   have v₁q₂₂ := (w₂₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₁
   have v₂q₂₂ := (w₂₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₁
   have v₃q₂₂ := (w₂₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₁
-  have v₅q₂₂ := (w₂₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₂₁
-  clear w₂₂ v₄q₂₁ s₂₁ v₁q₂₁ v₂q₂₁ v₃q₂₁ e₂₁
-  obtain ⟨w₂₃, e₂₃⟩ := divW_val (q := q₂₂) (o := (3 * L)) (len := L) (by rw [s₂₂]; lia) 3 (by decide) (by decide)
-      (V := c₄ + 10 * c₅) e₂₂ (by lia)
-  rw [← (show q₂₃ = R.divExact q₂₂ (3 * L) L 3 from rfl)] at w₂₃ e₂₃
+  have v₄q₂₂ := (w₂₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₂₁
+  clear w₂₂ v₅q₂₁ s₂₁ v₁q₂₁ v₂q₂₁ v₃q₂₁ e₂₁
+  obtain ⟨w₂₃, e₂₃⟩ := shrW_val (q := q₂₂) (o := (4 * L)) (len := L) (by rw [s₂₂]; lia) 2 (by decide) (by decide)
+      (V := c₅) e₂₂ (by lia)
+  rw [← (show q₂₃ = R.shr q₂₂ (4 * L) L 2 from rfl)] at w₂₃ e₂₃
   clear_value q₂₃
   have s₂₃ := w₂₃.1.trans s₂₂
   have v₁q₂₃ := (w₂₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₂
   have v₂q₂₃ := (w₂₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₂
   have v₃q₂₃ := (w₂₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₂
-  have v₅q₂₃ := (w₂₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₂
-  clear w₂₃ e₂₂ s₂₂ v₁q₂₂ v₂q₂₂ v₃q₂₂ v₅q₂₂
-  obtain ⟨w₂₄, e₂₄⟩ := subMulWin_val (q := q₂₃) (o := (4 * L)) (len := L) (by rw [s₂₃]; lia) (3 * L) L 1
+  have v₄q₂₃ := (w₂₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₂
+  clear w₂₃ e₂₂ s₂₂ v₁q₂₂ v₂q₂₂ v₃q₂₂ v₄q₂₂
+  obtain ⟨w₂₄, e₂₄⟩ := subMulWin_val (q := q₂₃) (o := (3 * L)) (len := L) (by rw [s₂₃]; lia) (4 * L) L 4
       (by rw [s₂₃]; lia) (by lia) (by lia) (by decide)
-      (V := 4 * c₅) v₅q₂₃ e₂₃ (by lia)
-  rw [← (show q₂₄ = R.subMulWin q₂₃ (4 * L) L (3 * L) L 1 from rfl)] at w₂₄ e₂₄
+      (V := c₄ + 6 * c₅) v₄q₂₃ e₂₃ (by lia)
+  rw [← (show q₂₄ = R.subMulWin q₂₃ (3 * L) L (4 * L) L 4 from rfl)] at w₂₄ e₂₄
   clear_value q₂₄
   have s₂₄ := w₂₄.1.trans s₂₃
   have v₁q₂₄ := (w₂₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₃
   have v₂q₂₄ := (w₂₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₃
   have v₃q₂₄ := (w₂₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₃
-  have v₄q₂₄ := (w₂₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₂₃
-  clear w₂₄ v₅q₂₃ s₂₃ v₁q₂₃ v₂q₂₃ v₃q₂₃ e₂₃
-  obtain ⟨w₂₅, e₂₅⟩ := shrW_val (q := q₂₄) (o := (4 * L)) (len := L) (by rw [s₂₄]; lia) 2 (by decide) (by decide)
-      (V := c₅) e₂₄ (by lia)
-  rw [← (show q₂₅ = R.shr q₂₄ (4 * L) L 2 from rfl)] at w₂₅ e₂₅
+  have v₅q₂₄ := (w₂₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₂₃
+  clear w₂₄ v₄q₂₃ s₂₃ v₁q₂₃ v₂q₂₃ v₃q₂₃ e₂₃
+  obtain ⟨w₂₅, e₂₅⟩ := subMulWin_val (q := q₂₄) (o := (2 * L)) (len := L) (by rw [s₂₄]; lia) (3 * L) L 3
+      (by rw [s₂₄]; lia) (by lia) (by lia) (by decide)
+      (V := c₃ + 3 * c₄ + 7 * c₅) v₃q₂₄ e₂₄ (by lia)
+  rw [← (show q₂₅ = R.subMulWin q₂₄ (2 * L) L (3 * L) L 3 from rfl)] at w₂₅ e₂₅
   clear_value q₂₅
   have s₂₅ := w₂₅.1.trans s₂₄
   have v₁q₂₅ := (w₂₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₄
   have v₂q₂₅ := (w₂₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₄
-  have v₃q₂₅ := (w₂₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₄
-  have v₄q₂₅ := (w₂₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₄
-  clear w₂₅ e₂₄ s₂₄ v₁q₂₄ v₂q₂₄ v₃q₂₄ v₄q₂₄
-  obtain ⟨w₂₆, e₂₆⟩ := subMulWin_val (q := q₂₅) (o := (3 * L)) (len := L) (by rw [s₂₅]; lia) (4 * L) L 4
+  have v₄q₂₅ := (w₂₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₂₄
+  have v₅q₂₅ := (w₂₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₄
+  clear w₂₅ v₃q₂₄ s₂₄ v₁q₂₄ v₂q₂₄ e₂₄ v₅q₂₄
+  obtain ⟨w₂₆, e₂₆⟩ := subMulWin_val (q := q₂₅) (o := (3 * L)) (len := L) (by rw [s₂₅]; lia) (4 * L) L 3
       (by rw [s₂₅]; lia) (by lia) (by lia) (by decide)
-      (V := c₄ + 6 * c₅) v₄q₂₅ e₂₅ (by lia)
-  rw [← (show q₂₆ = R.subMulWin q₂₅ (3 * L) L (4 * L) L 4 from rfl)] at w₂₆ e₂₆
+      (V := c₄ + 3 * c₅) v₄q₂₅ v₅q₂₅ (by lia)
+  rw [← (show q₂₆ = R.subMulWin q₂₅ (3 * L) L (4 * L) L 3 from rfl)] at w₂₆ e₂₆
   clear_value q₂₆
   have s₂₆ := w₂₆.1.trans s₂₅
   have v₁q₂₆ := (w₂₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₅
   have v₂q₂₆ := (w₂₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₅
-  have v₃q₂₆ := (w₂₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₅
-  have v₅q₂₆ := (w₂₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₂₅
-  clear w₂₆ v₄q₂₅ s₂₅ v₁q₂₅ v₂q₂₅ v₃q₂₅ e₂₅
-  obtain ⟨w₂₇, e₂₇⟩ := subMulWin_val (q := q₂₆) (o := (2 * L)) (len := L) (by rw [s₂₆]; lia) (3 * L) L 3
-      (by rw [s₂₆]; lia) (by lia) (by lia) (by decide)
-      (V := c₃ + 3 * c₄ + 7 * c₅) v₃q₂₆ e₂₆ (by lia)
-  rw [← (show q₂₇ = R.subMulWin q₂₆ (2 * L) L (3 * L) L 3 from rfl)] at w₂₇ e₂₇
+  have v₃q₂₆ := (w₂₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₂₅
+  have v₅q₂₆ := (w₂₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₅
+  clear w₂₆ v₄q₂₅ s₂₅ v₁q₂₅ v₂q₂₅ e₂₅ v₅q₂₅
+  obtain ⟨w₂₇, e₂₇a, e₂₇b, e₂₇c⟩ := sub3ChainW_val (q := q₂₆) (o₁ := L) (o₂ := (2 * L))
+      (o₃ := (3 * L)) (o₄ := (4 * L)) (len := L) L (3 * L) (by rw [s₂₆]; lia) (by lia) (by lia) 2
+      (V₁ := c₂ + c₃ + c₄ + c₅) (V₂ := c₃ + c₄ + c₅) (V₃ := c₄ + c₅)
+      v₂q₂₆ v₃q₂₆ e₂₆ v₅q₂₆ (by lia) (by lia) (by lia)
+  rw [← (show q₂₇ = R.sub3Chain q₂₆ L (2 * L) (3 * L) (4 * L) L 2 from rfl)] at w₂₇ e₂₇a e₂₇b e₂₇c
   clear_value q₂₇
   have s₂₇ := w₂₇.1.trans s₂₆
   have v₁q₂₇ := (w₂₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₆
-  have v₂q₂₇ := (w₂₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₆
-  have v₄q₂₇ := (w₂₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₂₆
   have v₅q₂₇ := (w₂₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₆
-  clear w₂₇ v₃q₂₆ s₂₆ v₁q₂₆ v₂q₂₆ e₂₆ v₅q₂₆
-  obtain ⟨w₂₈, e₂₈⟩ := subMulWin_val (q := q₂₇) (o := (3 * L)) (len := L) (by rw [s₂₇]; lia) (4 * L) L 3
-      (by rw [s₂₇]; lia) (by lia) (by lia) (by decide)
-      (V := c₄ + 3 * c₅) v₄q₂₇ v₅q₂₇ (by lia)
-  rw [← (show q₂₈ = R.subMulWin q₂₇ (3 * L) L (4 * L) L 3 from rfl)] at w₂₈ e₂₈
+  clear w₂₇ v₂q₂₆ v₃q₂₆ e₂₆ s₂₆ v₁q₂₆ v₅q₂₆
+  obtain ⟨w₂₈, e₂₈a, e₂₈b, e₂₈c⟩ := sub3ChainW_val (q := q₂₇) (o₁ := 0) (o₂ := L)
+      (o₃ := (2 * L)) (o₄ := (3 * L)) (len := L) 0 (3 * L) (by rw [s₂₇]; lia) (by lia) (by lia) 1
+      (V₁ := c₁) (V₂ := c₂) (V₃ := c₃)
+      v₁q₂₇ e₂₇a e₂₇b e₂₇c (by lia) (by lia) (by lia)
+  rw [← (show q₂₈ = R.sub3Chain q₂₇ 0 L (2 * L) (3 * L) L 1 from rfl)] at w₂₈ e₂₈a e₂₈b e₂₈c
   clear_value q₂₈
   have s₂₈ := w₂₈.1.trans s₂₇
-  have v₁q₂₈ := (w₂₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₇
-  have v₂q₂₈ := (w₂₈.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₇
-  have v₃q₂₈ := (w₂₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₂₇
+  have v₄q₂₈ := (w₂₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₂₇c
   have v₅q₂₈ := (w₂₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₇
-  clear w₂₈ v₄q₂₇ s₂₇ v₁q₂₇ v₂q₂₇ e₂₇ v₅q₂₇
-  obtain ⟨w₂₉, e₂₉⟩ := subMulWin_val (q := q₂₈) (o := L) (len := L) (by rw [s₂₈]; lia) (2 * L) L 2
+  clear w₂₈ v₁q₂₇ e₂₇a e₂₇b s₂₇ e₂₇c v₅q₂₇
+  obtain ⟨w₂₉, e₂₉⟩ := subMulWin_val (q := q₂₈) (o := (3 * L)) (len := L) (by rw [s₂₈]; lia) (4 * L) L 1
       (by rw [s₂₈]; lia) (by lia) (by lia) (by decide)
-      (V := c₂ + c₃ + c₄ + c₅) v₂q₂₈ v₃q₂₈ (by lia)
-  rw [← (show q₂₉ = R.subMulWin q₂₈ L L (2 * L) L 2 from rfl)] at w₂₉ e₂₉
+      (V := c₄) v₄q₂₈ v₅q₂₈ (by lia)
+  rw [← (show q₂₉ = R.subMulWin q₂₈ (3 * L) L (4 * L) L 1 from rfl)] at w₂₉ e₂₉
   clear_value q₂₉
   have s₂₉ := w₂₉.1.trans s₂₈
-  have v₁q₂₉ := (w₂₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₈
-  have v₃q₂₉ := (w₂₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₈
-  have v₄q₂₉ := (w₂₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₂₈
+  have v₁q₂₉ := (w₂₉.valAt_eq (lo := 0) (n := L) (by lia)).trans e₂₈a
+  have v₂q₂₉ := (w₂₉.valAt_eq (lo := L) (n := L) (by lia)).trans e₂₈b
+  have v₃q₂₉ := (w₂₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₂₈c
   have v₅q₂₉ := (w₂₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₈
-  clear w₂₉ v₂q₂₈ s₂₈ v₁q₂₈ v₃q₂₈ e₂₈ v₅q₂₈
-  obtain ⟨w₃₀, e₃₀⟩ := subMulWin_val (q := q₂₉) (o := (2 * L)) (len := L) (by rw [s₂₉]; lia) (3 * L) L 2
-      (by rw [s₂₉]; lia) (by lia) (by lia) (by decide)
-      (V := c₃ + c₄ + c₅) v₃q₂₉ v₄q₂₉ (by lia)
-  rw [← (show q₃₀ = R.subMulWin q₂₉ (2 * L) L (3 * L) L 2 from rfl)] at w₃₀ e₃₀
-  clear_value q₃₀
-  have s₃₀ := w₃₀.1.trans s₂₉
-  have v₁q₃₀ := (w₃₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₉
-  have v₂q₃₀ := (w₃₀.valAt_eq (lo := L) (n := L) (by lia)).trans e₂₉
-  have v₄q₃₀ := (w₃₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₉
-  have v₅q₃₀ := (w₃₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₉
-  clear w₃₀ v₃q₂₉ s₂₉ v₁q₂₉ e₂₉ v₄q₂₉ v₅q₂₉
-  obtain ⟨w₃₁, e₃₁⟩ := subMulWin_val (q := q₃₀) (o := (3 * L)) (len := L) (by rw [s₃₀]; lia) (4 * L) L 2
-      (by rw [s₃₀]; lia) (by lia) (by lia) (by decide)
-      (V := c₄ + c₅) v₄q₃₀ v₅q₃₀ (by lia)
-  rw [← (show q₃₁ = R.subMulWin q₃₀ (3 * L) L (4 * L) L 2 from rfl)] at w₃₁ e₃₁
-  clear_value q₃₁
-  have s₃₁ := w₃₁.1.trans s₃₀
-  have v₁q₃₁ := (w₃₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₃₀
-  have v₂q₃₁ := (w₃₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₃₀
-  have v₃q₃₁ := (w₃₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₃₀
-  have v₅q₃₁ := (w₃₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₃₀
-  clear w₃₁ v₄q₃₀ s₃₀ v₁q₃₀ v₂q₃₀ e₃₀ v₅q₃₀
-  obtain ⟨w₃₂, e₃₂⟩ := subMulWin_val (q := q₃₁) (o := 0) (len := L) (by rw [s₃₁]; lia) L L 1
-      (by rw [s₃₁]; lia) (by lia) (by lia) (by decide)
-      (V := c₁) v₁q₃₁ v₂q₃₁ (by lia)
-  rw [← (show q₃₂ = R.subMulWin q₃₁ 0 L L L 1 from rfl)] at w₃₂ e₃₂
-  clear_value q₃₂
-  have s₃₂ := w₃₂.1.trans s₃₁
-  have v₂q₃₂ := (w₃₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₃₁
-  have v₃q₃₂ := (w₃₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₃₁
-  have v₄q₃₂ := (w₃₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₃₁
-  have v₅q₃₂ := (w₃₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₃₁
-  clear w₃₂ v₁q₃₁ s₃₁ v₂q₃₁ v₃q₃₁ e₃₁ v₅q₃₁
-  obtain ⟨w₃₃, e₃₃⟩ := subMulWin_val (q := q₃₂) (o := L) (len := L) (by rw [s₃₂]; lia) (2 * L) L 1
-      (by rw [s₃₂]; lia) (by lia) (by lia) (by decide)
-      (V := c₂) v₂q₃₂ v₃q₃₂ (by lia)
-  rw [← (show q₃₃ = R.subMulWin q₃₂ L L (2 * L) L 1 from rfl)] at w₃₃ e₃₃
-  clear_value q₃₃
-  have s₃₃ := w₃₃.1.trans s₃₂
-  have v₁q₃₃ := (w₃₃.valAt_eq (lo := 0) (n := L) (by lia)).trans e₃₂
-  have v₃q₃₃ := (w₃₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₃₂
-  have v₄q₃₃ := (w₃₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₃₂
-  have v₅q₃₃ := (w₃₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₃₂
-  clear w₃₃ v₂q₃₂ s₃₂ e₃₂ v₃q₃₂ v₄q₃₂ v₅q₃₂
-  obtain ⟨w₃₄, e₃₄⟩ := subMulWin_val (q := q₃₃) (o := (2 * L)) (len := L) (by rw [s₃₃]; lia) (3 * L) L 1
-      (by rw [s₃₃]; lia) (by lia) (by lia) (by decide)
-      (V := c₃) v₃q₃₃ v₄q₃₃ (by lia)
-  rw [← (show q₃₄ = R.subMulWin q₃₃ (2 * L) L (3 * L) L 1 from rfl)] at w₃₄ e₃₄
-  clear_value q₃₄
-  have s₃₄ := w₃₄.1.trans s₃₃
-  have v₁q₃₄ := (w₃₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₃₃
-  have v₂q₃₄ := (w₃₄.valAt_eq (lo := L) (n := L) (by lia)).trans e₃₃
-  have v₄q₃₄ := (w₃₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₃₃
-  have v₅q₃₄ := (w₃₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₃₃
-  clear w₃₄ v₃q₃₃ s₃₃ v₁q₃₃ e₃₃ v₄q₃₃ v₅q₃₃
-  obtain ⟨w₃₅, e₃₅⟩ := subMulWin_val (q := q₃₄) (o := (3 * L)) (len := L) (by rw [s₃₄]; lia) (4 * L) L 1
-      (by rw [s₃₄]; lia) (by lia) (by lia) (by decide)
-      (V := c₄) v₄q₃₄ v₅q₃₄ (by lia)
-  rw [← (show q₃₅ = R.subMulWin q₃₄ (3 * L) L (4 * L) L 1 from rfl)] at w₃₅ e₃₅
-  clear_value q₃₅
-  have s₃₅ := w₃₅.1.trans s₃₄
-  have v₁q₃₅ := (w₃₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₃₄
-  have v₂q₃₅ := (w₃₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₃₄
-  have v₃q₃₅ := (w₃₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₃₄
-  have v₅q₃₅ := (w₃₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₃₄
-  clear w₃₅ v₄q₃₄ s₃₄ v₁q₃₄ v₂q₃₄ e₃₄ v₅q₃₄
+  clear w₂₉ v₄q₂₈ s₂₈ e₂₈a e₂₈b e₂₈c v₅q₂₈
   -- The recombination.
   obtain ⟨z₁, z₂⟩ := zero_mid d o n (k + k) (6 * k) hd (by lia) (by lia)
   rw [hc₀, hc₆] at z₂
   rw [← (show A₀ = R.zeroInto d (o + (k + k)) (6 * k - (k + k)) from rfl)] at z₁ z₂
   replace z₁ := z₁.mono (o' := o) (len' := n) (by lia) (by lia)
   obtain ⟨a₁w, a₁v⟩ := add_coef A₀ o n k (by rw [z₁.1]; exact hd) (by lia)
-      q₃₅ 0 L c₁ v₁q₃₅ (by
+      q₂₉ 0 L c₁ v₁q₂₉ (by
     rw [z₂]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -4011,10 +3889,10 @@ public theorem interp6W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (6 * k)) * c₆ = T₆ at htot ⊢
     lia)
   rw [z₂] at a₁v
-  rw [← (show A₁ = R.addInto A₀ (o + k) (n - k) q₃₅ 0 (min (n - k) L) from rfl)] at a₁w a₁v
+  rw [← (show A₁ = R.addInto A₀ (o + k) (n - k) q₂₉ 0 (min (n - k) L) from rfl)] at a₁w a₁v
   have a₁w' := a₁w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans z₁
   obtain ⟨a₂w, a₂v⟩ := add_coef A₁ o n (2 * k) (by rw [a₁w'.1]; exact hd) (by lia)
-      q₃₅ L L c₂ v₂q₃₅ (by
+      q₂₉ L L c₂ v₂q₂₉ (by
     rw [a₁v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -4024,10 +3902,10 @@ public theorem interp6W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (6 * k)) * c₆ = T₆ at htot ⊢
     lia)
   rw [a₁v] at a₂v
-  rw [← (show A₂ = R.addInto A₁ (o + (2 * k)) (n - (2 * k)) q₃₅ L (min (n - (2 * k)) L) from rfl)] at a₂w a₂v
+  rw [← (show A₂ = R.addInto A₁ (o + (2 * k)) (n - (2 * k)) q₂₉ L (min (n - (2 * k)) L) from rfl)] at a₂w a₂v
   have a₂w' := a₂w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₁w'
   obtain ⟨a₃w, a₃v⟩ := add_coef A₂ o n (3 * k) (by rw [a₂w'.1]; exact hd) (by lia)
-      q₃₅ (2 * L) L c₃ v₃q₃₅ (by
+      q₂₉ (2 * L) L c₃ v₃q₂₉ (by
     rw [a₂v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -4037,10 +3915,10 @@ public theorem interp6W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (6 * k)) * c₆ = T₆ at htot ⊢
     lia)
   rw [a₂v] at a₃v
-  rw [← (show A₃ = R.addInto A₂ (o + (3 * k)) (n - (3 * k)) q₃₅ (2 * L) (min (n - (3 * k)) L) from rfl)] at a₃w a₃v
+  rw [← (show A₃ = R.addInto A₂ (o + (3 * k)) (n - (3 * k)) q₂₉ (2 * L) (min (n - (3 * k)) L) from rfl)] at a₃w a₃v
   have a₃w' := a₃w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₂w'
   obtain ⟨a₄w, a₄v⟩ := add_coef A₃ o n (4 * k) (by rw [a₃w'.1]; exact hd) (by lia)
-      q₃₅ (3 * L) L c₄ e₃₅ (by
+      q₂₉ (3 * L) L c₄ e₂₉ (by
     rw [a₃v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -4050,10 +3928,10 @@ public theorem interp6W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (6 * k)) * c₆ = T₆ at htot ⊢
     lia)
   rw [a₃v] at a₄v
-  rw [← (show A₄ = R.addInto A₃ (o + (4 * k)) (n - (4 * k)) q₃₅ (3 * L) (min (n - (4 * k)) L) from rfl)] at a₄w a₄v
+  rw [← (show A₄ = R.addInto A₃ (o + (4 * k)) (n - (4 * k)) q₂₉ (3 * L) (min (n - (4 * k)) L) from rfl)] at a₄w a₄v
   have a₄w' := a₄w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₃w'
   obtain ⟨a₅w, a₅v⟩ := add_coef A₄ o n (5 * k) (by rw [a₄w'.1]; exact hd) (by lia)
-      q₃₅ (4 * L) L c₅ v₅q₃₅ (by
+      q₂₉ (4 * L) L c₅ v₅q₂₉ (by
     rw [a₄v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -4087,48 +3965,26 @@ at `0, L, …, 8 L`, and the passes between two of them by `subMulWin`.
   let W := R.subMulInto W (6 * L) L d (o + 10 * k) (n - 10 * k) 282475249
   let W := R.subMulInto W (7 * L) L d (o + 10 * k) (n - 10 * k) 1073741824
   let W := R.subMulInto W (8 * L) L d (o + 10 * k) (n - 10 * k) 3486784401
-  let W := R.subMulWin W (8 * L) L (7 * L) L 1
-  let W := R.subMulWin W (7 * L) L (6 * L) L 1
-  let W := R.subMulWin W (6 * L) L (5 * L) L 1
-  let W := R.subMulWin W (5 * L) L (4 * L) L 1
-  let W := R.subMulWin W (4 * L) L (3 * L) L 1
-  let W := R.subMulWin W (3 * L) L (2 * L) L 1
+  let W := R.sub3Chain W (8 * L) (7 * L) (6 * L) (5 * L) L 1
+  let W := R.sub3Chain W (5 * L) (4 * L) (3 * L) (2 * L) L 1
   let W := R.subMulWin W (2 * L) L L L 1
   let W := R.subMulWin W L L 0 L 1
   let W := R.subInto W 0 L d o (k + k)
-  let W := R.subMulWin W (8 * L) L (7 * L) L 1
-  let W := R.subMulWin W (7 * L) L (6 * L) L 1
-  let W := R.subMulWin W (6 * L) L (5 * L) L 1
-  let W := R.subMulWin W (5 * L) L (4 * L) L 1
-  let W := R.subMulWin W (4 * L) L (3 * L) L 1
-  let W := R.subMulWin W (3 * L) L (2 * L) L 1
+  let W := R.sub3Chain W (8 * L) (7 * L) (6 * L) (5 * L) L 1
+  let W := R.sub3Chain W (5 * L) (4 * L) (3 * L) (2 * L) L 1
   let W := R.subMulWin W (2 * L) L L L 1
   let W := R.subMulWin W L L 0 L 1
-  let W := R.subMulWin W (8 * L) L (7 * L) L 1
-  let W := R.subMulWin W (7 * L) L (6 * L) L 1
-  let W := R.subMulWin W (6 * L) L (5 * L) L 1
-  let W := R.subMulWin W (5 * L) L (4 * L) L 1
-  let W := R.subMulWin W (4 * L) L (3 * L) L 1
-  let W := R.subMulWin W (3 * L) L (2 * L) L 1
+  let W := R.sub3Chain W (8 * L) (7 * L) (6 * L) (5 * L) L 1
+  let W := R.sub3Chain W (5 * L) (4 * L) (3 * L) (2 * L) L 1
   let W := R.subMulWin W (2 * L) L L L 1
-  let W := R.subMulWin W (8 * L) L (7 * L) L 1
-  let W := R.subMulWin W (7 * L) L (6 * L) L 1
-  let W := R.subMulWin W (6 * L) L (5 * L) L 1
+  let W := R.sub3Chain W (8 * L) (7 * L) (6 * L) (5 * L) L 1
+  let W := R.sub3Chain W (5 * L) (4 * L) (3 * L) (2 * L) L 1
+  let W := R.sub3Chain W (8 * L) (7 * L) (6 * L) (5 * L) L 1
   let W := R.subMulWin W (5 * L) L (4 * L) L 1
   let W := R.subMulWin W (4 * L) L (3 * L) L 1
-  let W := R.subMulWin W (3 * L) L (2 * L) L 1
-  let W := R.subMulWin W (8 * L) L (7 * L) L 1
-  let W := R.subMulWin W (7 * L) L (6 * L) L 1
-  let W := R.subMulWin W (6 * L) L (5 * L) L 1
+  let W := R.sub3Chain W (8 * L) (7 * L) (6 * L) (5 * L) L 1
   let W := R.subMulWin W (5 * L) L (4 * L) L 1
-  let W := R.subMulWin W (4 * L) L (3 * L) L 1
-  let W := R.subMulWin W (8 * L) L (7 * L) L 1
-  let W := R.subMulWin W (7 * L) L (6 * L) L 1
-  let W := R.subMulWin W (6 * L) L (5 * L) L 1
-  let W := R.subMulWin W (5 * L) L (4 * L) L 1
-  let W := R.subMulWin W (8 * L) L (7 * L) L 1
-  let W := R.subMulWin W (7 * L) L (6 * L) L 1
-  let W := R.subMulWin W (6 * L) L (5 * L) L 1
+  let W := R.sub3Chain W (8 * L) (7 * L) (6 * L) (5 * L) L 1
   let W := R.subMulWin W (8 * L) L (7 * L) L 1
   let W := R.subMulWin W (7 * L) L (6 * L) L 1
   let W := R.subMulWin W (8 * L) L (7 * L) L 1
@@ -4150,37 +4006,19 @@ at `0, L, …, 8 L`, and the passes between two of them by `subMulWin`.
   let W := R.subMulWin W (7 * L) L (8 * L) L 8
   let W := R.subMulWin W (6 * L) L (7 * L) L 7
   let W := R.subMulWin W (7 * L) L (8 * L) L 7
-  let W := R.subMulWin W (5 * L) L (6 * L) L 6
-  let W := R.subMulWin W (6 * L) L (7 * L) L 6
-  let W := R.subMulWin W (7 * L) L (8 * L) L 6
-  let W := R.subMulWin W (4 * L) L (5 * L) L 5
-  let W := R.subMulWin W (5 * L) L (6 * L) L 5
-  let W := R.subMulWin W (6 * L) L (7 * L) L 5
+  let W := R.sub3Chain W (5 * L) (6 * L) (7 * L) (8 * L) L 6
+  let W := R.sub3Chain W (4 * L) (5 * L) (6 * L) (7 * L) L 5
   let W := R.subMulWin W (7 * L) L (8 * L) L 5
-  let W := R.subMulWin W (3 * L) L (4 * L) L 4
-  let W := R.subMulWin W (4 * L) L (5 * L) L 4
-  let W := R.subMulWin W (5 * L) L (6 * L) L 4
+  let W := R.sub3Chain W (3 * L) (4 * L) (5 * L) (6 * L) L 4
   let W := R.subMulWin W (6 * L) L (7 * L) L 4
   let W := R.subMulWin W (7 * L) L (8 * L) L 4
-  let W := R.subMulWin W (2 * L) L (3 * L) L 3
-  let W := R.subMulWin W (3 * L) L (4 * L) L 3
-  let W := R.subMulWin W (4 * L) L (5 * L) L 3
-  let W := R.subMulWin W (5 * L) L (6 * L) L 3
-  let W := R.subMulWin W (6 * L) L (7 * L) L 3
-  let W := R.subMulWin W (7 * L) L (8 * L) L 3
-  let W := R.subMulWin W L L (2 * L) L 2
-  let W := R.subMulWin W (2 * L) L (3 * L) L 2
-  let W := R.subMulWin W (3 * L) L (4 * L) L 2
-  let W := R.subMulWin W (4 * L) L (5 * L) L 2
-  let W := R.subMulWin W (5 * L) L (6 * L) L 2
-  let W := R.subMulWin W (6 * L) L (7 * L) L 2
+  let W := R.sub3Chain W (2 * L) (3 * L) (4 * L) (5 * L) L 3
+  let W := R.sub3Chain W (5 * L) (6 * L) (7 * L) (8 * L) L 3
+  let W := R.sub3Chain W L (2 * L) (3 * L) (4 * L) L 2
+  let W := R.sub3Chain W (4 * L) (5 * L) (6 * L) (7 * L) L 2
   let W := R.subMulWin W (7 * L) L (8 * L) L 2
-  let W := R.subMulWin W 0 L L L 1
-  let W := R.subMulWin W L L (2 * L) L 1
-  let W := R.subMulWin W (2 * L) L (3 * L) L 1
-  let W := R.subMulWin W (3 * L) L (4 * L) L 1
-  let W := R.subMulWin W (4 * L) L (5 * L) L 1
-  let W := R.subMulWin W (5 * L) L (6 * L) L 1
+  let W := R.sub3Chain W 0 L (2 * L) (3 * L) L 1
+  let W := R.sub3Chain W (3 * L) (4 * L) (5 * L) (6 * L) L 1
   let W := R.subMulWin W (6 * L) L (7 * L) L 1
   let W := R.subMulWin W (7 * L) L (8 * L) L 1
   -- The recombination.
@@ -4229,9 +4067,8 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   unfold interp10W
   extract_lets q₁ q₂ q₃ q₄ q₅ q₆ q₇ q₈ q₉ q₁₀ q₁₁ q₁₂ q₁₃ q₁₄ q₁₅ q₁₆ q₁₇ q₁₈ q₁₉ q₂₀ q₂₁ q₂₂ q₂₃
      q₂₄ q₂₅ q₂₆ q₂₇ q₂₈ q₂₉ q₃₀ q₃₁ q₃₂ q₃₃ q₃₄ q₃₅ q₃₆ q₃₇ q₃₈ q₃₉ q₄₀ q₄₁ q₄₂ q₄₃ q₄₄ q₄₅ q₄₆ q₄₇
-     q₄₈ q₄₉ q₅₀ q₅₁ q₅₂ q₅₃ q₅₄ q₅₅ q₅₆ q₅₇ q₅₈ q₅₉ q₆₀ q₆₁ q₆₂ q₆₃ q₆₄ q₆₅ q₆₆ q₆₇ q₆₈ q₆₉ q₇₀ q₇₁
-     q₇₂ q₇₃ q₇₄ q₇₅ q₇₆ q₇₇ q₇₈ q₇₉ q₈₀ q₈₁ q₈₂ q₈₃ q₈₄ q₈₅ q₈₆ q₈₇ q₈₈ q₈₉ q₉₀ q₉₁ q₉₂ q₉₃ q₉₄ q₉₅
-     q₉₆ q₉₇ q₉₈ q₉₉ q₁₀₀ q₁₀₁ q₁₀₂ q₁₀₃ q₁₀₄ q₁₀₅ A₀ A₁ A₂ A₃ A₄ A₅ A₆ A₇ A₈
+     q₄₈ q₄₉ q₅₀ q₅₁ q₅₂ q₅₃ q₅₄ q₅₅ q₅₆ q₅₇ q₅₈ q₅₉ q₆₀ q₆₁ q₆₂ q₆₃ q₆₄ q₆₅ A₀ A₁ A₂ A₃ A₄ A₅ A₆ A₇
+     A₈
   obtain ⟨w₁, e₁⟩ := subW_val (q := W) (o := 0) (len := L) (by rw [hW]; lia) d (o + 10 * k) (n - 10 * k)
       (V := c₀ + c₁ + c₂ + c₃ + c₄ + c₅ + c₆ + c₇ + c₈ + c₉) hv₁ hc₁₀ (by lia)
   rw [← (show q₁ = R.subInto W 0 L d (o + 10 * k) (n - 10 * k) from rfl)] at w₁ e₁
@@ -4358,10 +4195,11 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₇q₉ := (w₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₈
   have v₈q₉ := (w₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₈
   clear w₉ v₉q₈ s₈ v₁q₈ v₂q₈ v₃q₈ v₄q₈ v₅q₈ v₆q₈ v₇q₈ e₈
-  obtain ⟨w₁₀, e₁₀⟩ := subMulWin_val (q := q₉) (o := (8 * L)) (len := L) (by rw [s₉]; lia) (7 * L) L 1
-      (by rw [s₉]; lia) (by lia) (by lia) (by decide)
-      (V := c₁ + 17 * c₂ + 217 * c₃ + 2465 * c₄ + 26281 * c₅ + 269297 * c₆ + 2685817 * c₇ + 26269505 * c₈ + 253202761 * c₉) e₉ v₈q₉ (by lia)
-  rw [← (show q₁₀ = R.subMulWin q₉ (8 * L) L (7 * L) L 1 from rfl)] at w₁₀ e₁₀
+  obtain ⟨w₁₀, e₁₀a, e₁₀b, e₁₀c⟩ := sub3ChainW_val (q := q₉) (o₁ := (8 * L)) (o₂ := (7 * L))
+      (o₃ := (6 * L)) (o₄ := (5 * L)) (len := L) (6 * L) (3 * L) (by rw [s₉]; lia) (by lia) (by lia) 1
+      (V₁ := c₁ + 17 * c₂ + 217 * c₃ + 2465 * c₄ + 26281 * c₅ + 269297 * c₆ + 2685817 * c₇ + 26269505 * c₈ + 253202761 * c₉) (V₂ := c₁ + 15 * c₂ + 169 * c₃ + 1695 * c₄ + 15961 * c₅ + 144495 * c₆ + 1273609 * c₇ + 11012415 * c₈ + 93864121 * c₉) (V₃ := c₁ + 13 * c₂ + 127 * c₃ + 1105 * c₄ + 9031 * c₅ + 70993 * c₆ + 543607 * c₇ + 4085185 * c₈ + 30275911 * c₉)
+      e₉ v₈q₉ v₇q₉ v₆q₉ (by lia) (by lia) (by lia)
+  rw [← (show q₁₀ = R.sub3Chain q₉ (8 * L) (7 * L) (6 * L) (5 * L) L 1 from rfl)] at w₁₀ e₁₀a e₁₀b e₁₀c
   clear_value q₁₀
   have s₁₀ := w₁₀.1.trans s₉
   have v₁q₁₀ := (w₁₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₉
@@ -4370,267 +4208,256 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₄q₁₀ := (w₁₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₉
   have v₅q₁₀ := (w₁₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₉
   have v₆q₁₀ := (w₁₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₉
-  have v₇q₁₀ := (w₁₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₉
-  have v₈q₁₀ := (w₁₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₉
-  clear w₁₀ e₉ s₉ v₁q₉ v₂q₉ v₃q₉ v₄q₉ v₅q₉ v₆q₉ v₇q₉ v₈q₉
-  obtain ⟨w₁₁, e₁₁⟩ := subMulWin_val (q := q₁₀) (o := (7 * L)) (len := L) (by rw [s₁₀]; lia) (6 * L) L 1
-      (by rw [s₁₀]; lia) (by lia) (by lia) (by decide)
-      (V := c₁ + 15 * c₂ + 169 * c₃ + 1695 * c₄ + 15961 * c₅ + 144495 * c₆ + 1273609 * c₇ + 11012415 * c₈ + 93864121 * c₉) v₈q₁₀ v₇q₁₀ (by lia)
-  rw [← (show q₁₁ = R.subMulWin q₁₀ (7 * L) L (6 * L) L 1 from rfl)] at w₁₁ e₁₁
+  clear w₁₀ e₉ v₈q₉ v₇q₉ s₉ v₁q₉ v₂q₉ v₃q₉ v₄q₉ v₅q₉ v₆q₉
+  obtain ⟨w₁₁, e₁₁a, e₁₁b, e₁₁c⟩ := sub3ChainW_val (q := q₁₀) (o₁ := (5 * L)) (o₂ := (4 * L))
+      (o₃ := (3 * L)) (o₄ := (2 * L)) (len := L) (3 * L) (3 * L) (by rw [s₁₀]; lia) (by lia) (by lia) 1
+      (V₁ := c₁ + 11 * c₂ + 91 * c₃ + 671 * c₄ + 4651 * c₅ + 31031 * c₆ + 201811 * c₇ + 1288991 * c₈ + 8124571 * c₉) (V₂ := c₁ + 9 * c₂ + 61 * c₃ + 369 * c₄ + 2101 * c₅ + 11529 * c₆ + 61741 * c₇ + 325089 * c₈ + 1690981 * c₉) (V₃ := c₁ + 7 * c₂ + 37 * c₃ + 175 * c₄ + 781 * c₅ + 3367 * c₆ + 14197 * c₇ + 58975 * c₈ + 242461 * c₉)
+      v₆q₁₀ v₅q₁₀ v₄q₁₀ v₃q₁₀ (by lia) (by lia) (by lia)
+  rw [← (show q₁₁ = R.sub3Chain q₁₀ (5 * L) (4 * L) (3 * L) (2 * L) L 1 from rfl)] at w₁₁ e₁₁a e₁₁b e₁₁c
   clear_value q₁₁
   have s₁₁ := w₁₁.1.trans s₁₀
   have v₁q₁₁ := (w₁₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₀
   have v₂q₁₁ := (w₁₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₀
   have v₃q₁₁ := (w₁₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₀
-  have v₄q₁₁ := (w₁₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₀
-  have v₅q₁₁ := (w₁₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₀
-  have v₆q₁₁ := (w₁₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₀
-  have v₇q₁₁ := (w₁₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₀
-  have v₉q₁₁ := (w₁₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₁₀
-  clear w₁₁ v₈q₁₀ s₁₀ v₁q₁₀ v₂q₁₀ v₃q₁₀ v₄q₁₀ v₅q₁₀ v₆q₁₀ v₇q₁₀ e₁₀
-  obtain ⟨w₁₂, e₁₂⟩ := subMulWin_val (q := q₁₁) (o := (6 * L)) (len := L) (by rw [s₁₁]; lia) (5 * L) L 1
+  have v₇q₁₁ := (w₁₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₁₀c
+  have v₈q₁₁ := (w₁₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₁₀b
+  have v₉q₁₁ := (w₁₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₁₀a
+  clear w₁₁ v₆q₁₀ v₅q₁₀ v₄q₁₀ s₁₀ v₁q₁₀ v₂q₁₀ v₃q₁₀ e₁₀c e₁₀b e₁₀a
+  obtain ⟨w₁₂, e₁₂⟩ := subMulWin_val (q := q₁₁) (o := (2 * L)) (len := L) (by rw [s₁₁]; lia) L L 1
       (by rw [s₁₁]; lia) (by lia) (by lia) (by decide)
-      (V := c₁ + 13 * c₂ + 127 * c₃ + 1105 * c₄ + 9031 * c₅ + 70993 * c₆ + 543607 * c₇ + 4085185 * c₈ + 30275911 * c₉) v₇q₁₁ v₆q₁₁ (by lia)
-  rw [← (show q₁₂ = R.subMulWin q₁₁ (6 * L) L (5 * L) L 1 from rfl)] at w₁₂ e₁₂
+      (V := c₁ + 5 * c₂ + 19 * c₃ + 65 * c₄ + 211 * c₅ + 665 * c₆ + 2059 * c₇ + 6305 * c₈ + 19171 * c₉) v₃q₁₁ v₂q₁₁ (by lia)
+  rw [← (show q₁₂ = R.subMulWin q₁₁ (2 * L) L L L 1 from rfl)] at w₁₂ e₁₂
   clear_value q₁₂
   have s₁₂ := w₁₂.1.trans s₁₁
   have v₁q₁₂ := (w₁₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₁
   have v₂q₁₂ := (w₁₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₁
-  have v₃q₁₂ := (w₁₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₁
-  have v₄q₁₂ := (w₁₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₁
-  have v₅q₁₂ := (w₁₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₁
-  have v₆q₁₂ := (w₁₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₁
-  have v₈q₁₂ := (w₁₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₁₁
+  have v₄q₁₂ := (w₁₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₁₁c
+  have v₅q₁₂ := (w₁₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₁₁b
+  have v₆q₁₂ := (w₁₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₁₁a
+  have v₇q₁₂ := (w₁₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₁
+  have v₈q₁₂ := (w₁₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₁
   have v₉q₁₂ := (w₁₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₁
-  clear w₁₂ v₇q₁₁ s₁₁ v₁q₁₁ v₂q₁₁ v₃q₁₁ v₄q₁₁ v₅q₁₁ v₆q₁₁ e₁₁ v₉q₁₁
-  obtain ⟨w₁₃, e₁₃⟩ := subMulWin_val (q := q₁₂) (o := (5 * L)) (len := L) (by rw [s₁₂]; lia) (4 * L) L 1
+  clear w₁₂ v₃q₁₁ s₁₁ v₁q₁₁ v₂q₁₁ e₁₁c e₁₁b e₁₁a v₇q₁₁ v₈q₁₁ v₉q₁₁
+  obtain ⟨w₁₃, e₁₃⟩ := subMulWin_val (q := q₁₂) (o := L) (len := L) (by rw [s₁₂]; lia) 0 L 1
       (by rw [s₁₂]; lia) (by lia) (by lia) (by decide)
-      (V := c₁ + 11 * c₂ + 91 * c₃ + 671 * c₄ + 4651 * c₅ + 31031 * c₆ + 201811 * c₇ + 1288991 * c₈ + 8124571 * c₉) v₆q₁₂ v₅q₁₂ (by lia)
-  rw [← (show q₁₃ = R.subMulWin q₁₂ (5 * L) L (4 * L) L 1 from rfl)] at w₁₃ e₁₃
+      (V := c₁ + 3 * c₂ + 7 * c₃ + 15 * c₄ + 31 * c₅ + 63 * c₆ + 127 * c₇ + 255 * c₈ + 511 * c₉) v₂q₁₂ v₁q₁₂ (by lia)
+  rw [← (show q₁₃ = R.subMulWin q₁₂ L L 0 L 1 from rfl)] at w₁₃ e₁₃
   clear_value q₁₃
   have s₁₃ := w₁₃.1.trans s₁₂
   have v₁q₁₃ := (w₁₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₂
-  have v₂q₁₃ := (w₁₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₂
-  have v₃q₁₃ := (w₁₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₂
+  have v₃q₁₃ := (w₁₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₁₂
   have v₄q₁₃ := (w₁₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₂
   have v₅q₁₃ := (w₁₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₂
-  have v₇q₁₃ := (w₁₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₁₂
+  have v₆q₁₃ := (w₁₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₂
+  have v₇q₁₃ := (w₁₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₂
   have v₈q₁₃ := (w₁₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₂
   have v₉q₁₃ := (w₁₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₂
-  clear w₁₃ v₆q₁₂ s₁₂ v₁q₁₂ v₂q₁₂ v₃q₁₂ v₄q₁₂ v₅q₁₂ e₁₂ v₈q₁₂ v₉q₁₂
-  obtain ⟨w₁₄, e₁₄⟩ := subMulWin_val (q := q₁₃) (o := (4 * L)) (len := L) (by rw [s₁₃]; lia) (3 * L) L 1
-      (by rw [s₁₃]; lia) (by lia) (by lia) (by decide)
-      (V := c₁ + 9 * c₂ + 61 * c₃ + 369 * c₄ + 2101 * c₅ + 11529 * c₆ + 61741 * c₇ + 325089 * c₈ + 1690981 * c₉) v₅q₁₃ v₄q₁₃ (by lia)
-  rw [← (show q₁₄ = R.subMulWin q₁₃ (4 * L) L (3 * L) L 1 from rfl)] at w₁₄ e₁₄
+  clear w₁₃ v₂q₁₂ s₁₂ v₁q₁₂ e₁₂ v₄q₁₂ v₅q₁₂ v₆q₁₂ v₇q₁₂ v₈q₁₂ v₉q₁₂
+  obtain ⟨w₁₄, e₁₄⟩ := subW_val (q := q₁₃) (o := 0) (len := L) (by rw [s₁₃]; lia) d o (k + k)
+      (V := c₁ + c₂ + c₃ + c₄ + c₅ + c₆ + c₇ + c₈ + c₉) v₁q₁₃ hc₀ (by lia)
+  rw [← (show q₁₄ = R.subInto q₁₃ 0 L d o (k + k) from rfl)] at w₁₄ e₁₄
   clear_value q₁₄
   have s₁₄ := w₁₄.1.trans s₁₃
-  have v₁q₁₄ := (w₁₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₃
-  have v₂q₁₄ := (w₁₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₃
+  have v₂q₁₄ := (w₁₄.valAt_eq (lo := L) (n := L) (by lia)).trans e₁₃
   have v₃q₁₄ := (w₁₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₃
   have v₄q₁₄ := (w₁₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₃
-  have v₆q₁₄ := (w₁₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₁₃
+  have v₅q₁₄ := (w₁₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₃
+  have v₆q₁₄ := (w₁₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₃
   have v₇q₁₄ := (w₁₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₃
   have v₈q₁₄ := (w₁₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₃
   have v₉q₁₄ := (w₁₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₃
-  clear w₁₄ v₅q₁₃ s₁₃ v₁q₁₃ v₂q₁₃ v₃q₁₃ v₄q₁₃ e₁₃ v₇q₁₃ v₈q₁₃ v₉q₁₃
-  obtain ⟨w₁₅, e₁₅⟩ := subMulWin_val (q := q₁₄) (o := (3 * L)) (len := L) (by rw [s₁₄]; lia) (2 * L) L 1
-      (by rw [s₁₄]; lia) (by lia) (by lia) (by decide)
-      (V := c₁ + 7 * c₂ + 37 * c₃ + 175 * c₄ + 781 * c₅ + 3367 * c₆ + 14197 * c₇ + 58975 * c₈ + 242461 * c₉) v₄q₁₄ v₃q₁₄ (by lia)
-  rw [← (show q₁₅ = R.subMulWin q₁₄ (3 * L) L (2 * L) L 1 from rfl)] at w₁₅ e₁₅
+  clear w₁₄ v₁q₁₃ s₁₃ e₁₃ v₃q₁₃ v₄q₁₃ v₅q₁₃ v₆q₁₃ v₇q₁₃ v₈q₁₃ v₉q₁₃
+  obtain ⟨w₁₅, e₁₅a, e₁₅b, e₁₅c⟩ := sub3ChainW_val (q := q₁₄) (o₁ := (8 * L)) (o₂ := (7 * L))
+      (o₃ := (6 * L)) (o₄ := (5 * L)) (len := L) (6 * L) (3 * L) (by rw [s₁₄]; lia) (by lia) (by lia) 1
+      (V₁ := 2 * c₂ + 48 * c₃ + 770 * c₄ + 10320 * c₅ + 124802 * c₆ + 1412208 * c₇ + 15257090 * c₈ + 159338640 * c₉) (V₂ := 2 * c₂ + 42 * c₃ + 590 * c₄ + 6930 * c₅ + 73502 * c₆ + 730002 * c₇ + 6927230 * c₈ + 63588210 * c₉) (V₃ := 2 * c₂ + 36 * c₃ + 434 * c₄ + 4380 * c₅ + 39962 * c₆ + 341796 * c₇ + 2796194 * c₈ + 22151340 * c₉)
+      v₉q₁₄ v₈q₁₄ v₇q₁₄ v₆q₁₄ (by lia) (by lia) (by lia)
+  rw [← (show q₁₅ = R.sub3Chain q₁₄ (8 * L) (7 * L) (6 * L) (5 * L) L 1 from rfl)] at w₁₅ e₁₅a e₁₅b e₁₅c
   clear_value q₁₅
   have s₁₅ := w₁₅.1.trans s₁₄
-  have v₁q₁₅ := (w₁₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₄
+  have v₁q₁₅ := (w₁₅.valAt_eq (lo := 0) (n := L) (by lia)).trans e₁₄
   have v₂q₁₅ := (w₁₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₄
   have v₃q₁₅ := (w₁₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₄
-  have v₅q₁₅ := (w₁₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₁₄
+  have v₄q₁₅ := (w₁₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₄
+  have v₅q₁₅ := (w₁₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₄
   have v₆q₁₅ := (w₁₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₄
-  have v₇q₁₅ := (w₁₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₄
-  have v₈q₁₅ := (w₁₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₄
-  have v₉q₁₅ := (w₁₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₄
-  clear w₁₅ v₄q₁₄ s₁₄ v₁q₁₄ v₂q₁₄ v₃q₁₄ e₁₄ v₆q₁₄ v₇q₁₄ v₈q₁₄ v₉q₁₄
-  obtain ⟨w₁₆, e₁₆⟩ := subMulWin_val (q := q₁₅) (o := (2 * L)) (len := L) (by rw [s₁₅]; lia) L L 1
-      (by rw [s₁₅]; lia) (by lia) (by lia) (by decide)
-      (V := c₁ + 5 * c₂ + 19 * c₃ + 65 * c₄ + 211 * c₅ + 665 * c₆ + 2059 * c₇ + 6305 * c₈ + 19171 * c₉) v₃q₁₅ v₂q₁₅ (by lia)
-  rw [← (show q₁₆ = R.subMulWin q₁₅ (2 * L) L L L 1 from rfl)] at w₁₆ e₁₆
+  clear w₁₅ v₉q₁₄ v₈q₁₄ v₇q₁₄ s₁₄ e₁₄ v₂q₁₄ v₃q₁₄ v₄q₁₄ v₅q₁₄ v₆q₁₄
+  obtain ⟨w₁₆, e₁₆a, e₁₆b, e₁₆c⟩ := sub3ChainW_val (q := q₁₅) (o₁ := (5 * L)) (o₂ := (4 * L))
+      (o₃ := (3 * L)) (o₄ := (2 * L)) (len := L) (3 * L) (3 * L) (by rw [s₁₅]; lia) (by lia) (by lia) 1
+      (V₁ := 2 * c₂ + 30 * c₃ + 302 * c₄ + 2550 * c₅ + 19502 * c₆ + 140070 * c₇ + 963902 * c₈ + 6433590 * c₉) (V₂ := 2 * c₂ + 24 * c₃ + 194 * c₄ + 1320 * c₅ + 8162 * c₆ + 47544 * c₇ + 266114 * c₈ + 1448520 * c₉) (V₃ := 2 * c₂ + 18 * c₃ + 110 * c₄ + 570 * c₅ + 2702 * c₆ + 12138 * c₇ + 52670 * c₈ + 223290 * c₉)
+      v₆q₁₅ v₅q₁₅ v₄q₁₅ v₃q₁₅ (by lia) (by lia) (by lia)
+  rw [← (show q₁₆ = R.sub3Chain q₁₅ (5 * L) (4 * L) (3 * L) (2 * L) L 1 from rfl)] at w₁₆ e₁₆a e₁₆b e₁₆c
   clear_value q₁₆
   have s₁₆ := w₁₆.1.trans s₁₅
   have v₁q₁₆ := (w₁₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₅
   have v₂q₁₆ := (w₁₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₅
-  have v₄q₁₆ := (w₁₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₁₅
-  have v₅q₁₆ := (w₁₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₅
-  have v₆q₁₆ := (w₁₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₅
-  have v₇q₁₆ := (w₁₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₅
-  have v₈q₁₆ := (w₁₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₅
-  have v₉q₁₆ := (w₁₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₅
-  clear w₁₆ v₃q₁₅ s₁₅ v₁q₁₅ v₂q₁₅ e₁₅ v₅q₁₅ v₆q₁₅ v₇q₁₅ v₈q₁₅ v₉q₁₅
-  obtain ⟨w₁₇, e₁₇⟩ := subMulWin_val (q := q₁₆) (o := L) (len := L) (by rw [s₁₆]; lia) 0 L 1
+  have v₃q₁₆ := (w₁₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₅
+  have v₇q₁₆ := (w₁₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₁₅c
+  have v₈q₁₆ := (w₁₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₁₅b
+  have v₉q₁₆ := (w₁₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₁₅a
+  clear w₁₆ v₆q₁₅ v₅q₁₅ v₄q₁₅ s₁₅ v₁q₁₅ v₂q₁₅ v₃q₁₅ e₁₅c e₁₅b e₁₅a
+  obtain ⟨w₁₇, e₁₇⟩ := subMulWin_val (q := q₁₆) (o := (2 * L)) (len := L) (by rw [s₁₆]; lia) L L 1
       (by rw [s₁₆]; lia) (by lia) (by lia) (by decide)
-      (V := c₁ + 3 * c₂ + 7 * c₃ + 15 * c₄ + 31 * c₅ + 63 * c₆ + 127 * c₇ + 255 * c₈ + 511 * c₉) v₂q₁₆ v₁q₁₆ (by lia)
-  rw [← (show q₁₇ = R.subMulWin q₁₆ L L 0 L 1 from rfl)] at w₁₇ e₁₇
+      (V := 2 * c₂ + 12 * c₃ + 50 * c₄ + 180 * c₅ + 602 * c₆ + 1932 * c₇ + 6050 * c₈ + 18660 * c₉) v₃q₁₆ v₂q₁₆ (by lia)
+  rw [← (show q₁₇ = R.subMulWin q₁₆ (2 * L) L L L 1 from rfl)] at w₁₇ e₁₇
   clear_value q₁₇
   have s₁₇ := w₁₇.1.trans s₁₆
   have v₁q₁₇ := (w₁₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₆
-  have v₃q₁₇ := (w₁₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₁₆
-  have v₄q₁₇ := (w₁₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₆
-  have v₅q₁₇ := (w₁₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₆
-  have v₆q₁₇ := (w₁₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₆
+  have v₂q₁₇ := (w₁₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₆
+  have v₄q₁₇ := (w₁₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₁₆c
+  have v₅q₁₇ := (w₁₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₁₆b
+  have v₆q₁₇ := (w₁₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₁₆a
   have v₇q₁₇ := (w₁₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₆
   have v₈q₁₇ := (w₁₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₆
   have v₉q₁₇ := (w₁₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₆
-  clear w₁₇ v₂q₁₆ s₁₆ v₁q₁₆ e₁₆ v₄q₁₆ v₅q₁₆ v₆q₁₆ v₇q₁₆ v₈q₁₆ v₉q₁₆
-  obtain ⟨w₁₈, e₁₈⟩ := subW_val (q := q₁₇) (o := 0) (len := L) (by rw [s₁₇]; lia) d o (k + k)
-      (V := c₁ + c₂ + c₃ + c₄ + c₅ + c₆ + c₇ + c₈ + c₉) v₁q₁₇ hc₀ (by lia)
-  rw [← (show q₁₈ = R.subInto q₁₇ 0 L d o (k + k) from rfl)] at w₁₈ e₁₈
+  clear w₁₇ v₃q₁₆ s₁₆ v₁q₁₆ v₂q₁₆ e₁₆c e₁₆b e₁₆a v₇q₁₆ v₈q₁₆ v₉q₁₆
+  obtain ⟨w₁₈, e₁₈⟩ := subMulWin_val (q := q₁₇) (o := L) (len := L) (by rw [s₁₇]; lia) 0 L 1
+      (by rw [s₁₇]; lia) (by lia) (by lia) (by decide)
+      (V := 2 * c₂ + 6 * c₃ + 14 * c₄ + 30 * c₅ + 62 * c₆ + 126 * c₇ + 254 * c₈ + 510 * c₉) v₂q₁₇ v₁q₁₇ (by lia)
+  rw [← (show q₁₈ = R.subMulWin q₁₇ L L 0 L 1 from rfl)] at w₁₈ e₁₈
   clear_value q₁₈
   have s₁₈ := w₁₈.1.trans s₁₇
-  have v₂q₁₈ := (w₁₈.valAt_eq (lo := L) (n := L) (by lia)).trans e₁₇
-  have v₃q₁₈ := (w₁₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₇
+  have v₁q₁₈ := (w₁₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₇
+  have v₃q₁₈ := (w₁₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₁₇
   have v₄q₁₈ := (w₁₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₇
   have v₅q₁₈ := (w₁₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₇
   have v₆q₁₈ := (w₁₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₇
   have v₇q₁₈ := (w₁₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₇
   have v₈q₁₈ := (w₁₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₇
   have v₉q₁₈ := (w₁₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₇
-  clear w₁₈ v₁q₁₇ s₁₇ e₁₇ v₃q₁₇ v₄q₁₇ v₅q₁₇ v₆q₁₇ v₇q₁₇ v₈q₁₇ v₉q₁₇
-  obtain ⟨w₁₉, e₁₉⟩ := subMulWin_val (q := q₁₈) (o := (8 * L)) (len := L) (by rw [s₁₈]; lia) (7 * L) L 1
-      (by rw [s₁₈]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₂ + 48 * c₃ + 770 * c₄ + 10320 * c₅ + 124802 * c₆ + 1412208 * c₇ + 15257090 * c₈ + 159338640 * c₉) v₉q₁₈ v₈q₁₈ (by lia)
-  rw [← (show q₁₉ = R.subMulWin q₁₈ (8 * L) L (7 * L) L 1 from rfl)] at w₁₉ e₁₉
+  clear w₁₈ v₂q₁₇ s₁₇ v₁q₁₇ e₁₇ v₄q₁₇ v₅q₁₇ v₆q₁₇ v₇q₁₇ v₈q₁₇ v₉q₁₇
+  obtain ⟨w₁₉, e₁₉a, e₁₉b, e₁₉c⟩ := sub3ChainW_val (q := q₁₈) (o₁ := (8 * L)) (o₂ := (7 * L))
+      (o₃ := (6 * L)) (o₄ := (5 * L)) (len := L) (6 * L) (3 * L) (by rw [s₁₈]; lia) (by lia) (by lia) 1
+      (V₁ := 6 * c₃ + 180 * c₄ + 3390 * c₅ + 51300 * c₆ + 682206 * c₇ + 8329860 * c₈ + 95750430 * c₉) (V₂ := 6 * c₃ + 156 * c₄ + 2550 * c₅ + 33540 * c₆ + 388206 * c₇ + 4131036 * c₈ + 41436870 * c₉) (V₃ := 6 * c₃ + 132 * c₄ + 1830 * c₅ + 20460 * c₆ + 201726 * c₇ + 1832292 * c₈ + 15717750 * c₉)
+      v₉q₁₈ v₈q₁₈ v₇q₁₈ v₆q₁₈ (by lia) (by lia) (by lia)
+  rw [← (show q₁₉ = R.sub3Chain q₁₈ (8 * L) (7 * L) (6 * L) (5 * L) L 1 from rfl)] at w₁₉ e₁₉a e₁₉b e₁₉c
   clear_value q₁₉
   have s₁₉ := w₁₉.1.trans s₁₈
-  have v₁q₁₉ := (w₁₉.valAt_eq (lo := 0) (n := L) (by lia)).trans e₁₈
-  have v₂q₁₉ := (w₁₉.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₈
+  have v₁q₁₉ := (w₁₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₈
+  have v₂q₁₉ := (w₁₉.valAt_eq (lo := L) (n := L) (by lia)).trans e₁₈
   have v₃q₁₉ := (w₁₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₈
   have v₄q₁₉ := (w₁₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₈
   have v₅q₁₉ := (w₁₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₈
   have v₆q₁₉ := (w₁₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₈
-  have v₇q₁₉ := (w₁₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₈
-  have v₈q₁₉ := (w₁₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₈
-  clear w₁₉ v₉q₁₈ s₁₈ e₁₈ v₂q₁₈ v₃q₁₈ v₄q₁₈ v₅q₁₈ v₆q₁₈ v₇q₁₈ v₈q₁₈
-  obtain ⟨w₂₀, e₂₀⟩ := subMulWin_val (q := q₁₉) (o := (7 * L)) (len := L) (by rw [s₁₉]; lia) (6 * L) L 1
-      (by rw [s₁₉]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₂ + 42 * c₃ + 590 * c₄ + 6930 * c₅ + 73502 * c₆ + 730002 * c₇ + 6927230 * c₈ + 63588210 * c₉) v₈q₁₉ v₇q₁₉ (by lia)
-  rw [← (show q₂₀ = R.subMulWin q₁₉ (7 * L) L (6 * L) L 1 from rfl)] at w₂₀ e₂₀
+  clear w₁₉ v₉q₁₈ v₈q₁₈ v₇q₁₈ s₁₈ v₁q₁₈ e₁₈ v₃q₁₈ v₄q₁₈ v₅q₁₈ v₆q₁₈
+  obtain ⟨w₂₀, e₂₀a, e₂₀b, e₂₀c⟩ := sub3ChainW_val (q := q₁₉) (o₁ := (5 * L)) (o₂ := (4 * L))
+      (o₃ := (3 * L)) (o₄ := (2 * L)) (len := L) (3 * L) (3 * L) (by rw [s₁₉]; lia) (by lia) (by lia) 1
+      (V₁ := 6 * c₃ + 108 * c₄ + 1230 * c₅ + 11340 * c₆ + 92526 * c₇ + 697788 * c₈ + 4985070 * c₉) (V₂ := 6 * c₃ + 84 * c₄ + 750 * c₅ + 5460 * c₆ + 35406 * c₇ + 213444 * c₈ + 1225230 * c₉) (V₃ := 6 * c₃ + 60 * c₄ + 390 * c₅ + 2100 * c₆ + 10206 * c₇ + 46620 * c₈ + 204630 * c₉)
+      v₆q₁₉ v₅q₁₉ v₄q₁₉ v₃q₁₉ (by lia) (by lia) (by lia)
+  rw [← (show q₂₀ = R.sub3Chain q₁₉ (5 * L) (4 * L) (3 * L) (2 * L) L 1 from rfl)] at w₂₀ e₂₀a e₂₀b e₂₀c
   clear_value q₂₀
   have s₂₀ := w₂₀.1.trans s₁₉
   have v₁q₂₀ := (w₂₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₉
   have v₂q₂₀ := (w₂₀.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₉
   have v₃q₂₀ := (w₂₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₉
-  have v₄q₂₀ := (w₂₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₉
-  have v₅q₂₀ := (w₂₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₉
-  have v₆q₂₀ := (w₂₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₉
-  have v₇q₂₀ := (w₂₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₉
-  have v₉q₂₀ := (w₂₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₁₉
-  clear w₂₀ v₈q₁₉ s₁₉ v₁q₁₉ v₂q₁₉ v₃q₁₉ v₄q₁₉ v₅q₁₉ v₆q₁₉ v₇q₁₉ e₁₉
-  obtain ⟨w₂₁, e₂₁⟩ := subMulWin_val (q := q₂₀) (o := (6 * L)) (len := L) (by rw [s₂₀]; lia) (5 * L) L 1
+  have v₇q₂₀ := (w₂₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₁₉c
+  have v₈q₂₀ := (w₂₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₁₉b
+  have v₉q₂₀ := (w₂₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₁₉a
+  clear w₂₀ v₆q₁₉ v₅q₁₉ v₄q₁₉ s₁₉ v₁q₁₉ v₂q₁₉ v₃q₁₉ e₁₉c e₁₉b e₁₉a
+  obtain ⟨w₂₁, e₂₁⟩ := subMulWin_val (q := q₂₀) (o := (2 * L)) (len := L) (by rw [s₂₀]; lia) L L 1
       (by rw [s₂₀]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₂ + 36 * c₃ + 434 * c₄ + 4380 * c₅ + 39962 * c₆ + 341796 * c₇ + 2796194 * c₈ + 22151340 * c₉) v₇q₂₀ v₆q₂₀ (by lia)
-  rw [← (show q₂₁ = R.subMulWin q₂₀ (6 * L) L (5 * L) L 1 from rfl)] at w₂₁ e₂₁
+      (V := 6 * c₃ + 36 * c₄ + 150 * c₅ + 540 * c₆ + 1806 * c₇ + 5796 * c₈ + 18150 * c₉) v₃q₂₀ v₂q₂₀ (by lia)
+  rw [← (show q₂₁ = R.subMulWin q₂₀ (2 * L) L L L 1 from rfl)] at w₂₁ e₂₁
   clear_value q₂₁
   have s₂₁ := w₂₁.1.trans s₂₀
   have v₁q₂₁ := (w₂₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₀
   have v₂q₂₁ := (w₂₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₀
-  have v₃q₂₁ := (w₂₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₀
-  have v₄q₂₁ := (w₂₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₀
-  have v₅q₂₁ := (w₂₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₀
-  have v₆q₂₁ := (w₂₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₂₀
-  have v₈q₂₁ := (w₂₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₂₀
+  have v₄q₂₁ := (w₂₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₂₀c
+  have v₅q₂₁ := (w₂₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₂₀b
+  have v₆q₂₁ := (w₂₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₂₀a
+  have v₇q₂₁ := (w₂₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₂₀
+  have v₈q₂₁ := (w₂₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₂₀
   have v₉q₂₁ := (w₂₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₂₀
-  clear w₂₁ v₇q₂₀ s₂₀ v₁q₂₀ v₂q₂₀ v₃q₂₀ v₄q₂₀ v₅q₂₀ v₆q₂₀ e₂₀ v₉q₂₀
-  obtain ⟨w₂₂, e₂₂⟩ := subMulWin_val (q := q₂₁) (o := (5 * L)) (len := L) (by rw [s₂₁]; lia) (4 * L) L 1
-      (by rw [s₂₁]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₂ + 30 * c₃ + 302 * c₄ + 2550 * c₅ + 19502 * c₆ + 140070 * c₇ + 963902 * c₈ + 6433590 * c₉) v₆q₂₁ v₅q₂₁ (by lia)
-  rw [← (show q₂₂ = R.subMulWin q₂₁ (5 * L) L (4 * L) L 1 from rfl)] at w₂₂ e₂₂
+  clear w₂₁ v₃q₂₀ s₂₀ v₁q₂₀ v₂q₂₀ e₂₀c e₂₀b e₂₀a v₇q₂₀ v₈q₂₀ v₉q₂₀
+  obtain ⟨w₂₂, e₂₂a, e₂₂b, e₂₂c⟩ := sub3ChainW_val (q := q₂₁) (o₁ := (8 * L)) (o₂ := (7 * L))
+      (o₃ := (6 * L)) (o₄ := (5 * L)) (len := L) (6 * L) (3 * L) (by rw [s₂₁]; lia) (by lia) (by lia) 1
+      (V₁ := 24 * c₄ + 840 * c₅ + 17760 * c₆ + 294000 * c₇ + 4198824 * c₈ + 54313560 * c₉) (V₂ := 24 * c₄ + 720 * c₅ + 13080 * c₆ + 186480 * c₇ + 2298744 * c₈ + 25719120 * c₉) (V₃ := 24 * c₄ + 600 * c₅ + 9120 * c₆ + 109200 * c₇ + 1134504 * c₈ + 10732680 * c₉)
+      v₉q₂₁ v₈q₂₁ v₇q₂₁ v₆q₂₁ (by lia) (by lia) (by lia)
+  rw [← (show q₂₂ = R.sub3Chain q₂₁ (8 * L) (7 * L) (6 * L) (5 * L) L 1 from rfl)] at w₂₂ e₂₂a e₂₂b e₂₂c
   clear_value q₂₂
   have s₂₂ := w₂₂.1.trans s₂₁
   have v₁q₂₂ := (w₂₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₁
   have v₂q₂₂ := (w₂₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₁
-  have v₃q₂₂ := (w₂₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₁
+  have v₃q₂₂ := (w₂₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₂₁
   have v₄q₂₂ := (w₂₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₁
   have v₅q₂₂ := (w₂₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₁
-  have v₇q₂₂ := (w₂₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₂₁
-  have v₈q₂₂ := (w₂₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₂₁
-  have v₉q₂₂ := (w₂₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₂₁
-  clear w₂₂ v₆q₂₁ s₂₁ v₁q₂₁ v₂q₂₁ v₃q₂₁ v₄q₂₁ v₅q₂₁ e₂₁ v₈q₂₁ v₉q₂₁
-  obtain ⟨w₂₃, e₂₃⟩ := subMulWin_val (q := q₂₂) (o := (4 * L)) (len := L) (by rw [s₂₂]; lia) (3 * L) L 1
-      (by rw [s₂₂]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₂ + 24 * c₃ + 194 * c₄ + 1320 * c₅ + 8162 * c₆ + 47544 * c₇ + 266114 * c₈ + 1448520 * c₉) v₅q₂₂ v₄q₂₂ (by lia)
-  rw [← (show q₂₃ = R.subMulWin q₂₂ (4 * L) L (3 * L) L 1 from rfl)] at w₂₃ e₂₃
+  have v₆q₂₂ := (w₂₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₂₁
+  clear w₂₂ v₉q₂₁ v₈q₂₁ v₇q₂₁ s₂₁ v₁q₂₁ v₂q₂₁ e₂₁ v₄q₂₁ v₅q₂₁ v₆q₂₁
+  obtain ⟨w₂₃, e₂₃a, e₂₃b, e₂₃c⟩ := sub3ChainW_val (q := q₂₂) (o₁ := (5 * L)) (o₂ := (4 * L))
+      (o₃ := (3 * L)) (o₄ := (2 * L)) (len := L) (3 * L) (3 * L) (by rw [s₂₂]; lia) (by lia) (by lia) 1
+      (V₁ := 24 * c₄ + 480 * c₅ + 5880 * c₆ + 57120 * c₇ + 484344 * c₈ + 3759840 * c₉) (V₂ := 24 * c₄ + 360 * c₅ + 3360 * c₆ + 25200 * c₇ + 166824 * c₈ + 1020600 * c₉) (V₃ := 24 * c₄ + 240 * c₅ + 1560 * c₆ + 8400 * c₇ + 40824 * c₈ + 186480 * c₉)
+      v₆q₂₂ v₅q₂₂ v₄q₂₂ v₃q₂₂ (by lia) (by lia) (by lia)
+  rw [← (show q₂₃ = R.sub3Chain q₂₂ (5 * L) (4 * L) (3 * L) (2 * L) L 1 from rfl)] at w₂₃ e₂₃a e₂₃b e₂₃c
   clear_value q₂₃
   have s₂₃ := w₂₃.1.trans s₂₂
   have v₁q₂₃ := (w₂₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₂
   have v₂q₂₃ := (w₂₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₂
   have v₃q₂₃ := (w₂₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₂
-  have v₄q₂₃ := (w₂₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₂
-  have v₆q₂₃ := (w₂₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₂₂
-  have v₇q₂₃ := (w₂₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₂₂
-  have v₈q₂₃ := (w₂₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₂₂
-  have v₉q₂₃ := (w₂₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₂₂
-  clear w₂₃ v₅q₂₂ s₂₂ v₁q₂₂ v₂q₂₂ v₃q₂₂ v₄q₂₂ e₂₂ v₇q₂₂ v₈q₂₂ v₉q₂₂
-  obtain ⟨w₂₄, e₂₄⟩ := subMulWin_val (q := q₂₃) (o := (3 * L)) (len := L) (by rw [s₂₃]; lia) (2 * L) L 1
-      (by rw [s₂₃]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₂ + 18 * c₃ + 110 * c₄ + 570 * c₅ + 2702 * c₆ + 12138 * c₇ + 52670 * c₈ + 223290 * c₉) v₄q₂₃ v₃q₂₃ (by lia)
-  rw [← (show q₂₄ = R.subMulWin q₂₃ (3 * L) L (2 * L) L 1 from rfl)] at w₂₄ e₂₄
+  have v₇q₂₃ := (w₂₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₂₂c
+  have v₈q₂₃ := (w₂₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₂₂b
+  have v₉q₂₃ := (w₂₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₂₂a
+  clear w₂₃ v₆q₂₂ v₅q₂₂ v₄q₂₂ s₂₂ v₁q₂₂ v₂q₂₂ v₃q₂₂ e₂₂c e₂₂b e₂₂a
+  obtain ⟨w₂₄, e₂₄a, e₂₄b, e₂₄c⟩ := sub3ChainW_val (q := q₂₃) (o₁ := (8 * L)) (o₂ := (7 * L))
+      (o₃ := (6 * L)) (o₄ := (5 * L)) (len := L) (6 * L) (3 * L) (by rw [s₂₃]; lia) (by lia) (by lia) 1
+      (V₁ := 120 * c₅ + 4680 * c₆ + 107520 * c₇ + 1900080 * c₈ + 28594440 * c₉) (V₂ := 120 * c₅ + 3960 * c₆ + 77280 * c₇ + 1164240 * c₈ + 14986440 * c₉) (V₃ := 120 * c₅ + 3240 * c₆ + 52080 * c₇ + 650160 * c₈ + 6972840 * c₉)
+      v₉q₂₃ v₈q₂₃ v₇q₂₃ e₂₃a (by lia) (by lia) (by lia)
+  rw [← (show q₂₄ = R.sub3Chain q₂₃ (8 * L) (7 * L) (6 * L) (5 * L) L 1 from rfl)] at w₂₄ e₂₄a e₂₄b e₂₄c
   clear_value q₂₄
   have s₂₄ := w₂₄.1.trans s₂₃
   have v₁q₂₄ := (w₂₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₃
   have v₂q₂₄ := (w₂₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₃
   have v₃q₂₄ := (w₂₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₃
-  have v₅q₂₄ := (w₂₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₂₃
-  have v₆q₂₄ := (w₂₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₂₃
-  have v₇q₂₄ := (w₂₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₂₃
-  have v₈q₂₄ := (w₂₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₂₃
-  have v₉q₂₄ := (w₂₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₂₃
-  clear w₂₄ v₄q₂₃ s₂₃ v₁q₂₃ v₂q₂₃ v₃q₂₃ e₂₃ v₆q₂₃ v₇q₂₃ v₈q₂₃ v₉q₂₃
-  obtain ⟨w₂₅, e₂₅⟩ := subMulWin_val (q := q₂₄) (o := (2 * L)) (len := L) (by rw [s₂₄]; lia) L L 1
+  have v₄q₂₄ := (w₂₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₂₃c
+  have v₅q₂₄ := (w₂₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₂₃b
+  have v₆q₂₄ := (w₂₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₂₃a
+  clear w₂₄ v₉q₂₃ v₈q₂₃ v₇q₂₃ s₂₃ v₁q₂₃ v₂q₂₃ v₃q₂₃ e₂₃c e₂₃b e₂₃a
+  obtain ⟨w₂₅, e₂₅⟩ := subMulWin_val (q := q₂₄) (o := (5 * L)) (len := L) (by rw [s₂₄]; lia) (4 * L) L 1
       (by rw [s₂₄]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₂ + 12 * c₃ + 50 * c₄ + 180 * c₅ + 602 * c₆ + 1932 * c₇ + 6050 * c₈ + 18660 * c₉) v₃q₂₄ v₂q₂₄ (by lia)
-  rw [← (show q₂₅ = R.subMulWin q₂₄ (2 * L) L L L 1 from rfl)] at w₂₅ e₂₅
+      (V := 120 * c₅ + 2520 * c₆ + 31920 * c₇ + 317520 * c₈ + 2739240 * c₉) v₆q₂₄ v₅q₂₄ (by lia)
+  rw [← (show q₂₅ = R.subMulWin q₂₄ (5 * L) L (4 * L) L 1 from rfl)] at w₂₅ e₂₅
   clear_value q₂₅
   have s₂₅ := w₂₅.1.trans s₂₄
   have v₁q₂₅ := (w₂₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₄
   have v₂q₂₅ := (w₂₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₄
-  have v₄q₂₅ := (w₂₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₂₄
+  have v₃q₂₅ := (w₂₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₄
+  have v₄q₂₅ := (w₂₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₄
   have v₅q₂₅ := (w₂₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₄
-  have v₆q₂₅ := (w₂₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₂₄
-  have v₇q₂₅ := (w₂₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₂₄
-  have v₈q₂₅ := (w₂₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₂₄
-  have v₉q₂₅ := (w₂₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₂₄
-  clear w₂₅ v₃q₂₄ s₂₄ v₁q₂₄ v₂q₂₄ e₂₄ v₅q₂₄ v₆q₂₄ v₇q₂₄ v₈q₂₄ v₉q₂₄
-  obtain ⟨w₂₆, e₂₆⟩ := subMulWin_val (q := q₂₅) (o := L) (len := L) (by rw [s₂₅]; lia) 0 L 1
+  have v₇q₂₅ := (w₂₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₂₄c
+  have v₈q₂₅ := (w₂₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₂₄b
+  have v₉q₂₅ := (w₂₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₂₄a
+  clear w₂₅ v₆q₂₄ s₂₄ v₁q₂₄ v₂q₂₄ v₃q₂₄ v₄q₂₄ v₅q₂₄ e₂₄c e₂₄b e₂₄a
+  obtain ⟨w₂₆, e₂₆⟩ := subMulWin_val (q := q₂₅) (o := (4 * L)) (len := L) (by rw [s₂₅]; lia) (3 * L) L 1
       (by rw [s₂₅]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₂ + 6 * c₃ + 14 * c₄ + 30 * c₅ + 62 * c₆ + 126 * c₇ + 254 * c₈ + 510 * c₉) v₂q₂₅ v₁q₂₅ (by lia)
-  rw [← (show q₂₆ = R.subMulWin q₂₅ L L 0 L 1 from rfl)] at w₂₆ e₂₆
+      (V := 120 * c₅ + 1800 * c₆ + 16800 * c₇ + 126000 * c₈ + 834120 * c₉) v₅q₂₅ v₄q₂₅ (by lia)
+  rw [← (show q₂₆ = R.subMulWin q₂₅ (4 * L) L (3 * L) L 1 from rfl)] at w₂₆ e₂₆
   clear_value q₂₆
   have s₂₆ := w₂₆.1.trans s₂₅
   have v₁q₂₆ := (w₂₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₅
-  have v₃q₂₆ := (w₂₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₂₅
+  have v₂q₂₆ := (w₂₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₅
+  have v₃q₂₆ := (w₂₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₅
   have v₄q₂₆ := (w₂₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₅
-  have v₅q₂₆ := (w₂₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₅
-  have v₆q₂₆ := (w₂₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₂₅
+  have v₆q₂₆ := (w₂₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₂₅
   have v₇q₂₆ := (w₂₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₂₅
   have v₈q₂₆ := (w₂₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₂₅
   have v₉q₂₆ := (w₂₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₂₅
-  clear w₂₆ v₂q₂₅ s₂₅ v₁q₂₅ e₂₅ v₄q₂₅ v₅q₂₅ v₆q₂₅ v₇q₂₅ v₈q₂₅ v₉q₂₅
-  obtain ⟨w₂₇, e₂₇⟩ := subMulWin_val (q := q₂₆) (o := (8 * L)) (len := L) (by rw [s₂₆]; lia) (7 * L) L 1
-      (by rw [s₂₆]; lia) (by lia) (by lia) (by decide)
-      (V := 6 * c₃ + 180 * c₄ + 3390 * c₅ + 51300 * c₆ + 682206 * c₇ + 8329860 * c₈ + 95750430 * c₉) v₉q₂₆ v₈q₂₆ (by lia)
-  rw [← (show q₂₇ = R.subMulWin q₂₆ (8 * L) L (7 * L) L 1 from rfl)] at w₂₇ e₂₇
+  clear w₂₆ v₅q₂₅ s₂₅ v₁q₂₅ v₂q₂₅ v₃q₂₅ v₄q₂₅ e₂₅ v₇q₂₅ v₈q₂₅ v₉q₂₅
+  obtain ⟨w₂₇, e₂₇a, e₂₇b, e₂₇c⟩ := sub3ChainW_val (q := q₂₆) (o₁ := (8 * L)) (o₂ := (7 * L))
+      (o₃ := (6 * L)) (o₄ := (5 * L)) (len := L) (6 * L) (3 * L) (by rw [s₂₆]; lia) (by lia) (by lia) 1
+      (V₁ := 720 * c₆ + 30240 * c₇ + 735840 * c₈ + 13608000 * c₉) (V₂ := 720 * c₆ + 25200 * c₇ + 514080 * c₈ + 8013600 * c₉) (V₃ := 720 * c₆ + 20160 * c₇ + 332640 * c₈ + 4233600 * c₉)
+      v₉q₂₆ v₈q₂₆ v₇q₂₆ v₆q₂₆ (by lia) (by lia) (by lia)
+  rw [← (show q₂₇ = R.sub3Chain q₂₆ (8 * L) (7 * L) (6 * L) (5 * L) L 1 from rfl)] at w₂₇ e₂₇a e₂₇b e₂₇c
   clear_value q₂₇
   have s₂₇ := w₂₇.1.trans s₂₆
   have v₁q₂₇ := (w₂₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₆
-  have v₂q₂₇ := (w₂₇.valAt_eq (lo := L) (n := L) (by lia)).trans e₂₆
+  have v₂q₂₇ := (w₂₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₆
   have v₃q₂₇ := (w₂₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₆
   have v₄q₂₇ := (w₂₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₆
-  have v₅q₂₇ := (w₂₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₆
+  have v₅q₂₇ := (w₂₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₂₆
   have v₆q₂₇ := (w₂₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₂₆
-  have v₇q₂₇ := (w₂₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₂₆
-  have v₈q₂₇ := (w₂₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₂₆
-  clear w₂₇ v₉q₂₆ s₂₆ v₁q₂₆ e₂₆ v₃q₂₆ v₄q₂₆ v₅q₂₆ v₆q₂₆ v₇q₂₆ v₈q₂₆
-  obtain ⟨w₂₈, e₂₈⟩ := subMulWin_val (q := q₂₇) (o := (7 * L)) (len := L) (by rw [s₂₇]; lia) (6 * L) L 1
+  clear w₂₇ v₉q₂₆ v₈q₂₆ v₇q₂₆ s₂₆ v₁q₂₆ v₂q₂₆ v₃q₂₆ v₄q₂₆ e₂₆ v₆q₂₆
+  obtain ⟨w₂₈, e₂₈⟩ := subMulWin_val (q := q₂₇) (o := (5 * L)) (len := L) (by rw [s₂₇]; lia) (4 * L) L 1
       (by rw [s₂₇]; lia) (by lia) (by lia) (by decide)
-      (V := 6 * c₃ + 156 * c₄ + 2550 * c₅ + 33540 * c₆ + 388206 * c₇ + 4131036 * c₈ + 41436870 * c₉) v₈q₂₇ v₇q₂₇ (by lia)
-  rw [← (show q₂₈ = R.subMulWin q₂₇ (7 * L) L (6 * L) L 1 from rfl)] at w₂₈ e₂₈
+      (V := 720 * c₆ + 15120 * c₇ + 191520 * c₈ + 1905120 * c₉) v₆q₂₇ v₅q₂₇ (by lia)
+  rw [← (show q₂₈ = R.subMulWin q₂₇ (5 * L) L (4 * L) L 1 from rfl)] at w₂₈ e₂₈
   clear_value q₂₈
   have s₂₈ := w₂₈.1.trans s₂₇
   have v₁q₂₈ := (w₂₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₇
@@ -4638,14 +4465,15 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₃q₂₈ := (w₂₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₇
   have v₄q₂₈ := (w₂₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₇
   have v₅q₂₈ := (w₂₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₇
-  have v₆q₂₈ := (w₂₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₂₇
-  have v₇q₂₈ := (w₂₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₂₇
-  have v₉q₂₈ := (w₂₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₂₇
-  clear w₂₈ v₈q₂₇ s₂₇ v₁q₂₇ v₂q₂₇ v₃q₂₇ v₄q₂₇ v₅q₂₇ v₆q₂₇ v₇q₂₇ e₂₇
-  obtain ⟨w₂₉, e₂₉⟩ := subMulWin_val (q := q₂₈) (o := (6 * L)) (len := L) (by rw [s₂₈]; lia) (5 * L) L 1
-      (by rw [s₂₈]; lia) (by lia) (by lia) (by decide)
-      (V := 6 * c₃ + 132 * c₄ + 1830 * c₅ + 20460 * c₆ + 201726 * c₇ + 1832292 * c₈ + 15717750 * c₉) v₇q₂₈ v₆q₂₈ (by lia)
-  rw [← (show q₂₉ = R.subMulWin q₂₈ (6 * L) L (5 * L) L 1 from rfl)] at w₂₉ e₂₉
+  have v₇q₂₈ := (w₂₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₂₇c
+  have v₈q₂₈ := (w₂₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₂₇b
+  have v₉q₂₈ := (w₂₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₂₇a
+  clear w₂₈ v₆q₂₇ s₂₇ v₁q₂₇ v₂q₂₇ v₃q₂₇ v₄q₂₇ v₅q₂₇ e₂₇c e₂₇b e₂₇a
+  obtain ⟨w₂₉, e₂₉a, e₂₉b, e₂₉c⟩ := sub3ChainW_val (q := q₂₈) (o₁ := (8 * L)) (o₂ := (7 * L))
+      (o₃ := (6 * L)) (o₄ := (5 * L)) (len := L) (6 * L) (3 * L) (by rw [s₂₈]; lia) (by lia) (by lia) 1
+      (V₁ := 5040 * c₇ + 221760 * c₈ + 5594400 * c₉) (V₂ := 5040 * c₇ + 181440 * c₈ + 3780000 * c₉) (V₃ := 5040 * c₇ + 141120 * c₈ + 2328480 * c₉)
+      v₉q₂₈ v₈q₂₈ v₇q₂₈ e₂₈ (by lia) (by lia) (by lia)
+  rw [← (show q₂₉ = R.sub3Chain q₂₈ (8 * L) (7 * L) (6 * L) (5 * L) L 1 from rfl)] at w₂₉ e₂₉a e₂₉b e₂₉c
   clear_value q₂₉
   have s₂₉ := w₂₉.1.trans s₂₈
   have v₁q₂₉ := (w₂₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₈
@@ -4653,14 +4481,12 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₃q₂₉ := (w₂₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₈
   have v₄q₂₉ := (w₂₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₈
   have v₅q₂₉ := (w₂₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₈
-  have v₆q₂₉ := (w₂₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₂₈
-  have v₈q₂₉ := (w₂₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₂₈
-  have v₉q₂₉ := (w₂₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₂₈
-  clear w₂₉ v₇q₂₈ s₂₈ v₁q₂₈ v₂q₂₈ v₃q₂₈ v₄q₂₈ v₅q₂₈ v₆q₂₈ e₂₈ v₉q₂₈
-  obtain ⟨w₃₀, e₃₀⟩ := subMulWin_val (q := q₂₉) (o := (5 * L)) (len := L) (by rw [s₂₉]; lia) (4 * L) L 1
+  have v₆q₂₉ := (w₂₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₂₈
+  clear w₂₉ v₉q₂₈ v₈q₂₈ v₇q₂₈ s₂₈ v₁q₂₈ v₂q₂₈ v₃q₂₈ v₄q₂₈ v₅q₂₈ e₂₈
+  obtain ⟨w₃₀, e₃₀⟩ := subMulWin_val (q := q₂₉) (o := (8 * L)) (len := L) (by rw [s₂₉]; lia) (7 * L) L 1
       (by rw [s₂₉]; lia) (by lia) (by lia) (by decide)
-      (V := 6 * c₃ + 108 * c₄ + 1230 * c₅ + 11340 * c₆ + 92526 * c₇ + 697788 * c₈ + 4985070 * c₉) v₆q₂₉ v₅q₂₉ (by lia)
-  rw [← (show q₃₀ = R.subMulWin q₂₉ (5 * L) L (4 * L) L 1 from rfl)] at w₃₀ e₃₀
+      (V := 40320 * c₈ + 1814400 * c₉) e₂₉a e₂₉b (by lia)
+  rw [← (show q₃₀ = R.subMulWin q₂₉ (8 * L) L (7 * L) L 1 from rfl)] at w₃₀ e₃₀
   clear_value q₃₀
   have s₃₀ := w₃₀.1.trans s₂₉
   have v₁q₃₀ := (w₃₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₉
@@ -4668,164 +4494,155 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₃q₃₀ := (w₃₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₉
   have v₄q₃₀ := (w₃₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₉
   have v₅q₃₀ := (w₃₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₉
-  have v₇q₃₀ := (w₃₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₂₉
-  have v₈q₃₀ := (w₃₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₂₉
-  have v₉q₃₀ := (w₃₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₂₉
-  clear w₃₀ v₆q₂₉ s₂₉ v₁q₂₉ v₂q₂₉ v₃q₂₉ v₄q₂₉ v₅q₂₉ e₂₉ v₈q₂₉ v₉q₂₉
-  obtain ⟨w₃₁, e₃₁⟩ := subMulWin_val (q := q₃₀) (o := (4 * L)) (len := L) (by rw [s₃₀]; lia) (3 * L) L 1
+  have v₆q₃₀ := (w₃₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₂₉
+  have v₇q₃₀ := (w₃₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₂₉c
+  have v₈q₃₀ := (w₃₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₂₉b
+  clear w₃₀ e₂₉a s₂₉ v₁q₂₉ v₂q₂₉ v₃q₂₉ v₄q₂₉ v₅q₂₉ v₆q₂₉ e₂₉c e₂₉b
+  obtain ⟨w₃₁, e₃₁⟩ := subMulWin_val (q := q₃₀) (o := (7 * L)) (len := L) (by rw [s₃₀]; lia) (6 * L) L 1
       (by rw [s₃₀]; lia) (by lia) (by lia) (by decide)
-      (V := 6 * c₃ + 84 * c₄ + 750 * c₅ + 5460 * c₆ + 35406 * c₇ + 213444 * c₈ + 1225230 * c₉) v₅q₃₀ v₄q₃₀ (by lia)
-  rw [← (show q₃₁ = R.subMulWin q₃₀ (4 * L) L (3 * L) L 1 from rfl)] at w₃₁ e₃₁
+      (V := 40320 * c₈ + 1451520 * c₉) v₈q₃₀ v₇q₃₀ (by lia)
+  rw [← (show q₃₁ = R.subMulWin q₃₀ (7 * L) L (6 * L) L 1 from rfl)] at w₃₁ e₃₁
   clear_value q₃₁
   have s₃₁ := w₃₁.1.trans s₃₀
   have v₁q₃₁ := (w₃₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₃₀
   have v₂q₃₁ := (w₃₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₃₀
   have v₃q₃₁ := (w₃₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₃₀
   have v₄q₃₁ := (w₃₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₃₀
-  have v₆q₃₁ := (w₃₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₃₀
+  have v₅q₃₁ := (w₃₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₃₀
+  have v₆q₃₁ := (w₃₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₃₀
   have v₇q₃₁ := (w₃₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₃₀
-  have v₈q₃₁ := (w₃₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₃₀
-  have v₉q₃₁ := (w₃₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₃₀
-  clear w₃₁ v₅q₃₀ s₃₀ v₁q₃₀ v₂q₃₀ v₃q₃₀ v₄q₃₀ e₃₀ v₇q₃₀ v₈q₃₀ v₉q₃₀
-  obtain ⟨w₃₂, e₃₂⟩ := subMulWin_val (q := q₃₁) (o := (3 * L)) (len := L) (by rw [s₃₁]; lia) (2 * L) L 1
+  have v₉q₃₁ := (w₃₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₃₀
+  clear w₃₁ v₈q₃₀ s₃₀ v₁q₃₀ v₂q₃₀ v₃q₃₀ v₄q₃₀ v₅q₃₀ v₆q₃₀ v₇q₃₀ e₃₀
+  obtain ⟨w₃₂, e₃₂⟩ := subMulWin_val (q := q₃₁) (o := (8 * L)) (len := L) (by rw [s₃₁]; lia) (7 * L) L 1
       (by rw [s₃₁]; lia) (by lia) (by lia) (by decide)
-      (V := 6 * c₃ + 60 * c₄ + 390 * c₅ + 2100 * c₆ + 10206 * c₇ + 46620 * c₈ + 204630 * c₉) v₄q₃₁ v₃q₃₁ (by lia)
-  rw [← (show q₃₂ = R.subMulWin q₃₁ (3 * L) L (2 * L) L 1 from rfl)] at w₃₂ e₃₂
+      (V := 362880 * c₉) v₉q₃₁ e₃₁ (by lia)
+  rw [← (show q₃₂ = R.subMulWin q₃₁ (8 * L) L (7 * L) L 1 from rfl)] at w₃₂ e₃₂
   clear_value q₃₂
   have s₃₂ := w₃₂.1.trans s₃₁
   have v₁q₃₂ := (w₃₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₃₁
   have v₂q₃₂ := (w₃₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₃₁
   have v₃q₃₂ := (w₃₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₃₁
-  have v₅q₃₂ := (w₃₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₃₁
+  have v₄q₃₂ := (w₃₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₃₁
+  have v₅q₃₂ := (w₃₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₃₁
   have v₆q₃₂ := (w₃₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₃₁
   have v₇q₃₂ := (w₃₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₃₁
-  have v₈q₃₂ := (w₃₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₃₁
-  have v₉q₃₂ := (w₃₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₃₁
-  clear w₃₂ v₄q₃₁ s₃₁ v₁q₃₁ v₂q₃₁ v₃q₃₁ e₃₁ v₆q₃₁ v₇q₃₁ v₈q₃₁ v₉q₃₁
-  obtain ⟨w₃₃, e₃₃⟩ := subMulWin_val (q := q₃₂) (o := (2 * L)) (len := L) (by rw [s₃₂]; lia) L L 1
-      (by rw [s₃₂]; lia) (by lia) (by lia) (by decide)
-      (V := 6 * c₃ + 36 * c₄ + 150 * c₅ + 540 * c₆ + 1806 * c₇ + 5796 * c₈ + 18150 * c₉) v₃q₃₂ v₂q₃₂ (by lia)
-  rw [← (show q₃₃ = R.subMulWin q₃₂ (2 * L) L L L 1 from rfl)] at w₃₃ e₃₃
+  have v₈q₃₂ := (w₃₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₃₁
+  clear w₃₂ v₉q₃₁ s₃₁ v₁q₃₁ v₂q₃₁ v₃q₃₁ v₄q₃₁ v₅q₃₁ v₆q₃₁ v₇q₃₁ e₃₁
+  obtain ⟨w₃₃, e₃₃⟩ := shrW_val (q := q₃₂) (o := L) (len := L) (by rw [s₃₂]; lia) 1 (by decide) (by decide)
+      (V := c₂ + 3 * c₃ + 7 * c₄ + 15 * c₅ + 31 * c₆ + 63 * c₇ + 127 * c₈ + 255 * c₉) v₂q₃₂ (by lia)
+  rw [← (show q₃₃ = R.shr q₃₂ L L 1 from rfl)] at w₃₃ e₃₃
   clear_value q₃₃
   have s₃₃ := w₃₃.1.trans s₃₂
   have v₁q₃₃ := (w₃₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₃₂
-  have v₂q₃₃ := (w₃₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₃₂
-  have v₄q₃₃ := (w₃₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₃₂
+  have v₃q₃₃ := (w₃₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₃₂
+  have v₄q₃₃ := (w₃₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₃₂
   have v₅q₃₃ := (w₃₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₃₂
   have v₆q₃₃ := (w₃₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₃₂
   have v₇q₃₃ := (w₃₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₃₂
   have v₈q₃₃ := (w₃₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₃₂
-  have v₉q₃₃ := (w₃₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₃₂
-  clear w₃₃ v₃q₃₂ s₃₂ v₁q₃₂ v₂q₃₂ e₃₂ v₅q₃₂ v₆q₃₂ v₇q₃₂ v₈q₃₂ v₉q₃₂
-  obtain ⟨w₃₄, e₃₄⟩ := subMulWin_val (q := q₃₃) (o := (8 * L)) (len := L) (by rw [s₃₃]; lia) (7 * L) L 1
-      (by rw [s₃₃]; lia) (by lia) (by lia) (by decide)
-      (V := 24 * c₄ + 840 * c₅ + 17760 * c₆ + 294000 * c₇ + 4198824 * c₈ + 54313560 * c₉) v₉q₃₃ v₈q₃₃ (by lia)
-  rw [← (show q₃₄ = R.subMulWin q₃₃ (8 * L) L (7 * L) L 1 from rfl)] at w₃₄ e₃₄
+  have v₉q₃₃ := (w₃₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₃₂
+  clear w₃₃ v₂q₃₂ s₃₂ v₁q₃₂ v₃q₃₂ v₄q₃₂ v₅q₃₂ v₆q₃₂ v₇q₃₂ v₈q₃₂ e₃₂
+  obtain ⟨w₃₄, e₃₄⟩ := divW_val (q := q₃₃) (o := (2 * L)) (len := L) (by rw [s₃₃]; lia) 3 (by decide) (by decide)
+      (V := 2 * c₃ + 12 * c₄ + 50 * c₅ + 180 * c₆ + 602 * c₇ + 1932 * c₈ + 6050 * c₉) v₃q₃₃ (by lia)
+  rw [← (show q₃₄ = R.divExact q₃₃ (2 * L) L 3 from rfl)] at w₃₄ e₃₄
   clear_value q₃₄
   have s₃₄ := w₃₄.1.trans s₃₃
   have v₁q₃₄ := (w₃₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₃₃
-  have v₂q₃₄ := (w₃₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₃₃
-  have v₃q₃₄ := (w₃₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₃₃
+  have v₂q₃₄ := (w₃₄.valAt_eq (lo := L) (n := L) (by lia)).trans e₃₃
   have v₄q₃₄ := (w₃₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₃₃
   have v₅q₃₄ := (w₃₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₃₃
   have v₆q₃₄ := (w₃₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₃₃
   have v₇q₃₄ := (w₃₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₃₃
   have v₈q₃₄ := (w₃₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₃₃
-  clear w₃₄ v₉q₃₃ s₃₃ v₁q₃₃ v₂q₃₃ e₃₃ v₄q₃₃ v₅q₃₃ v₆q₃₃ v₇q₃₃ v₈q₃₃
-  obtain ⟨w₃₅, e₃₅⟩ := subMulWin_val (q := q₃₄) (o := (7 * L)) (len := L) (by rw [s₃₄]; lia) (6 * L) L 1
-      (by rw [s₃₄]; lia) (by lia) (by lia) (by decide)
-      (V := 24 * c₄ + 720 * c₅ + 13080 * c₆ + 186480 * c₇ + 2298744 * c₈ + 25719120 * c₉) v₈q₃₄ v₇q₃₄ (by lia)
-  rw [← (show q₃₅ = R.subMulWin q₃₄ (7 * L) L (6 * L) L 1 from rfl)] at w₃₅ e₃₅
+  have v₉q₃₄ := (w₃₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₃₃
+  clear w₃₄ v₃q₃₃ s₃₃ v₁q₃₃ e₃₃ v₄q₃₃ v₅q₃₃ v₆q₃₃ v₇q₃₃ v₈q₃₃ v₉q₃₃
+  obtain ⟨w₃₅, e₃₅⟩ := shrW_val (q := q₃₄) (o := (2 * L)) (len := L) (by rw [s₃₄]; lia) 1 (by decide) (by decide)
+      (V := c₃ + 6 * c₄ + 25 * c₅ + 90 * c₆ + 301 * c₇ + 966 * c₈ + 3025 * c₉) e₃₄ (by lia)
+  rw [← (show q₃₅ = R.shr q₃₄ (2 * L) L 1 from rfl)] at w₃₅ e₃₅
   clear_value q₃₅
   have s₃₅ := w₃₅.1.trans s₃₄
   have v₁q₃₅ := (w₃₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₃₄
   have v₂q₃₅ := (w₃₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₃₄
-  have v₃q₃₅ := (w₃₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₃₄
   have v₄q₃₅ := (w₃₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₃₄
   have v₅q₃₅ := (w₃₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₃₄
   have v₆q₃₅ := (w₃₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₃₄
   have v₇q₃₅ := (w₃₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₃₄
-  have v₉q₃₅ := (w₃₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₃₄
-  clear w₃₅ v₈q₃₄ s₃₄ v₁q₃₄ v₂q₃₄ v₃q₃₄ v₄q₃₄ v₅q₃₄ v₆q₃₄ v₇q₃₄ e₃₄
-  obtain ⟨w₃₆, e₃₆⟩ := subMulWin_val (q := q₃₅) (o := (6 * L)) (len := L) (by rw [s₃₅]; lia) (5 * L) L 1
-      (by rw [s₃₅]; lia) (by lia) (by lia) (by decide)
-      (V := 24 * c₄ + 600 * c₅ + 9120 * c₆ + 109200 * c₇ + 1134504 * c₈ + 10732680 * c₉) v₇q₃₅ v₆q₃₅ (by lia)
-  rw [← (show q₃₆ = R.subMulWin q₃₅ (6 * L) L (5 * L) L 1 from rfl)] at w₃₆ e₃₆
+  have v₈q₃₅ := (w₃₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₃₄
+  have v₉q₃₅ := (w₃₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₃₄
+  clear w₃₅ e₃₄ s₃₄ v₁q₃₄ v₂q₃₄ v₄q₃₄ v₅q₃₄ v₆q₃₄ v₇q₃₄ v₈q₃₄ v₉q₃₄
+  obtain ⟨w₃₆, e₃₆⟩ := divW_val (q := q₃₅) (o := (3 * L)) (len := L) (by rw [s₃₅]; lia) 3 (by decide) (by decide)
+      (V := 8 * c₄ + 80 * c₅ + 520 * c₆ + 2800 * c₇ + 13608 * c₈ + 62160 * c₉) v₄q₃₅ (by lia)
+  rw [← (show q₃₆ = R.divExact q₃₅ (3 * L) L 3 from rfl)] at w₃₆ e₃₆
   clear_value q₃₆
   have s₃₆ := w₃₆.1.trans s₃₅
   have v₁q₃₆ := (w₃₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₃₅
   have v₂q₃₆ := (w₃₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₃₅
-  have v₃q₃₆ := (w₃₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₃₅
-  have v₄q₃₆ := (w₃₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₃₅
+  have v₃q₃₆ := (w₃₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₃₅
   have v₅q₃₆ := (w₃₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₃₅
   have v₆q₃₆ := (w₃₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₃₅
-  have v₈q₃₆ := (w₃₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₃₅
+  have v₇q₃₆ := (w₃₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₃₅
+  have v₈q₃₆ := (w₃₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₃₅
   have v₉q₃₆ := (w₃₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₃₅
-  clear w₃₆ v₇q₃₅ s₃₅ v₁q₃₅ v₂q₃₅ v₃q₃₅ v₄q₃₅ v₅q₃₅ v₆q₃₅ e₃₅ v₉q₃₅
-  obtain ⟨w₃₇, e₃₇⟩ := subMulWin_val (q := q₃₆) (o := (5 * L)) (len := L) (by rw [s₃₆]; lia) (4 * L) L 1
-      (by rw [s₃₆]; lia) (by lia) (by lia) (by decide)
-      (V := 24 * c₄ + 480 * c₅ + 5880 * c₆ + 57120 * c₇ + 484344 * c₈ + 3759840 * c₉) v₆q₃₆ v₅q₃₆ (by lia)
-  rw [← (show q₃₇ = R.subMulWin q₃₆ (5 * L) L (4 * L) L 1 from rfl)] at w₃₇ e₃₇
+  clear w₃₆ v₄q₃₅ s₃₅ v₁q₃₅ v₂q₃₅ e₃₅ v₅q₃₅ v₆q₃₅ v₇q₃₅ v₈q₃₅ v₉q₃₅
+  obtain ⟨w₃₇, e₃₇⟩ := shrW_val (q := q₃₆) (o := (3 * L)) (len := L) (by rw [s₃₆]; lia) 3 (by decide) (by decide)
+      (V := c₄ + 10 * c₅ + 65 * c₆ + 350 * c₇ + 1701 * c₈ + 7770 * c₉) e₃₆ (by lia)
+  rw [← (show q₃₇ = R.shr q₃₆ (3 * L) L 3 from rfl)] at w₃₇ e₃₇
   clear_value q₃₇
   have s₃₇ := w₃₇.1.trans s₃₆
   have v₁q₃₇ := (w₃₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₃₆
   have v₂q₃₇ := (w₃₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₃₆
   have v₃q₃₇ := (w₃₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₃₆
-  have v₄q₃₇ := (w₃₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₃₆
   have v₅q₃₇ := (w₃₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₃₆
-  have v₇q₃₇ := (w₃₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₃₆
+  have v₆q₃₇ := (w₃₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₃₆
+  have v₇q₃₇ := (w₃₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₃₆
   have v₈q₃₇ := (w₃₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₃₆
   have v₉q₃₇ := (w₃₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₃₆
-  clear w₃₇ v₆q₃₆ s₃₆ v₁q₃₆ v₂q₃₆ v₃q₃₆ v₄q₃₆ v₅q₃₆ e₃₆ v₈q₃₆ v₉q₃₆
-  obtain ⟨w₃₈, e₃₈⟩ := subMulWin_val (q := q₃₇) (o := (4 * L)) (len := L) (by rw [s₃₇]; lia) (3 * L) L 1
-      (by rw [s₃₇]; lia) (by lia) (by lia) (by decide)
-      (V := 24 * c₄ + 360 * c₅ + 3360 * c₆ + 25200 * c₇ + 166824 * c₈ + 1020600 * c₉) v₅q₃₇ v₄q₃₇ (by lia)
-  rw [← (show q₃₈ = R.subMulWin q₃₇ (4 * L) L (3 * L) L 1 from rfl)] at w₃₈ e₃₈
+  clear w₃₇ e₃₆ s₃₆ v₁q₃₆ v₂q₃₆ v₃q₃₆ v₅q₃₆ v₆q₃₆ v₇q₃₆ v₈q₃₆ v₉q₃₆
+  obtain ⟨w₃₈, e₃₈⟩ := divW_val (q := q₃₇) (o := (4 * L)) (len := L) (by rw [s₃₇]; lia) 15 (by decide) (by decide)
+      (V := 8 * c₅ + 120 * c₆ + 1120 * c₇ + 8400 * c₈ + 55608 * c₉) v₅q₃₇ (by lia)
+  rw [← (show q₃₈ = R.divExact q₃₇ (4 * L) L 15 from rfl)] at w₃₈ e₃₈
   clear_value q₃₈
   have s₃₈ := w₃₈.1.trans s₃₇
   have v₁q₃₈ := (w₃₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₃₇
   have v₂q₃₈ := (w₃₈.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₃₇
   have v₃q₃₈ := (w₃₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₃₇
-  have v₄q₃₈ := (w₃₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₃₇
-  have v₆q₃₈ := (w₃₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₃₇
+  have v₄q₃₈ := (w₃₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₃₇
+  have v₆q₃₈ := (w₃₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₃₇
   have v₇q₃₈ := (w₃₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₃₇
   have v₈q₃₈ := (w₃₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₃₇
   have v₉q₃₈ := (w₃₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₃₇
-  clear w₃₈ v₅q₃₇ s₃₇ v₁q₃₇ v₂q₃₇ v₃q₃₇ v₄q₃₇ e₃₇ v₇q₃₇ v₈q₃₇ v₉q₃₇
-  obtain ⟨w₃₉, e₃₉⟩ := subMulWin_val (q := q₃₈) (o := (3 * L)) (len := L) (by rw [s₃₈]; lia) (2 * L) L 1
-      (by rw [s₃₈]; lia) (by lia) (by lia) (by decide)
-      (V := 24 * c₄ + 240 * c₅ + 1560 * c₆ + 8400 * c₇ + 40824 * c₈ + 186480 * c₉) v₄q₃₈ v₃q₃₈ (by lia)
-  rw [← (show q₃₉ = R.subMulWin q₃₈ (3 * L) L (2 * L) L 1 from rfl)] at w₃₉ e₃₉
+  clear w₃₈ v₅q₃₇ s₃₇ v₁q₃₇ v₂q₃₇ v₃q₃₇ e₃₇ v₆q₃₇ v₇q₃₇ v₈q₃₇ v₉q₃₇
+  obtain ⟨w₃₉, e₃₉⟩ := shrW_val (q := q₃₈) (o := (4 * L)) (len := L) (by rw [s₃₈]; lia) 3 (by decide) (by decide)
+      (V := c₅ + 15 * c₆ + 140 * c₇ + 1050 * c₈ + 6951 * c₉) e₃₈ (by lia)
+  rw [← (show q₃₉ = R.shr q₃₈ (4 * L) L 3 from rfl)] at w₃₉ e₃₉
   clear_value q₃₉
   have s₃₉ := w₃₉.1.trans s₃₈
   have v₁q₃₉ := (w₃₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₃₈
   have v₂q₃₉ := (w₃₉.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₃₈
   have v₃q₃₉ := (w₃₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₃₈
-  have v₅q₃₉ := (w₃₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₃₈
+  have v₄q₃₉ := (w₃₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₃₈
   have v₆q₃₉ := (w₃₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₃₈
   have v₇q₃₉ := (w₃₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₃₈
   have v₈q₃₉ := (w₃₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₃₈
   have v₉q₃₉ := (w₃₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₃₈
-  clear w₃₉ v₄q₃₈ s₃₈ v₁q₃₈ v₂q₃₈ v₃q₃₈ e₃₈ v₆q₃₈ v₇q₃₈ v₈q₃₈ v₉q₃₈
-  obtain ⟨w₄₀, e₄₀⟩ := subMulWin_val (q := q₃₉) (o := (8 * L)) (len := L) (by rw [s₃₉]; lia) (7 * L) L 1
-      (by rw [s₃₉]; lia) (by lia) (by lia) (by decide)
-      (V := 120 * c₅ + 4680 * c₆ + 107520 * c₇ + 1900080 * c₈ + 28594440 * c₉) v₉q₃₉ v₈q₃₉ (by lia)
-  rw [← (show q₄₀ = R.subMulWin q₃₉ (8 * L) L (7 * L) L 1 from rfl)] at w₄₀ e₄₀
+  clear w₃₉ e₃₈ s₃₈ v₁q₃₈ v₂q₃₈ v₃q₃₈ v₄q₃₈ v₆q₃₈ v₇q₃₈ v₈q₃₈ v₉q₃₈
+  obtain ⟨w₄₀, e₄₀⟩ := divW_val (q := q₃₉) (o := (5 * L)) (len := L) (by rw [s₃₉]; lia) 45 (by decide) (by decide)
+      (V := 16 * c₆ + 336 * c₇ + 4256 * c₈ + 42336 * c₉) v₆q₃₉ (by lia)
+  rw [← (show q₄₀ = R.divExact q₃₉ (5 * L) L 45 from rfl)] at w₄₀ e₄₀
   clear_value q₄₀
   have s₄₀ := w₄₀.1.trans s₃₉
   have v₁q₄₀ := (w₄₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₃₉
   have v₂q₄₀ := (w₄₀.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₃₉
   have v₃q₄₀ := (w₄₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₃₉
-  have v₄q₄₀ := (w₄₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₃₉
-  have v₅q₄₀ := (w₄₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₃₉
-  have v₆q₄₀ := (w₄₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₃₉
+  have v₄q₄₀ := (w₄₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₃₉
+  have v₅q₄₀ := (w₄₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₃₉
   have v₇q₄₀ := (w₄₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₃₉
   have v₈q₄₀ := (w₄₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₃₉
-  clear w₄₀ v₉q₃₉ s₃₉ v₁q₃₉ v₂q₃₉ v₃q₃₉ e₃₉ v₅q₃₉ v₆q₃₉ v₇q₃₉ v₈q₃₉
-  obtain ⟨w₄₁, e₄₁⟩ := subMulWin_val (q := q₄₀) (o := (7 * L)) (len := L) (by rw [s₄₀]; lia) (6 * L) L 1
-      (by rw [s₄₀]; lia) (by lia) (by lia) (by decide)
-      (V := 120 * c₅ + 3960 * c₆ + 77280 * c₇ + 1164240 * c₈ + 14986440 * c₉) v₈q₄₀ v₇q₄₀ (by lia)
-  rw [← (show q₄₁ = R.subMulWin q₄₀ (7 * L) L (6 * L) L 1 from rfl)] at w₄₁ e₄₁
+  have v₉q₄₀ := (w₄₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₃₉
+  clear w₄₀ v₆q₃₉ s₃₉ v₁q₃₉ v₂q₃₉ v₃q₃₉ v₄q₃₉ e₃₉ v₇q₃₉ v₈q₃₉ v₉q₃₉
+  obtain ⟨w₄₁, e₄₁⟩ := shrW_val (q := q₄₀) (o := (5 * L)) (len := L) (by rw [s₄₀]; lia) 4 (by decide) (by decide)
+      (V := c₆ + 21 * c₇ + 266 * c₈ + 2646 * c₉) e₄₀ (by lia)
+  rw [← (show q₄₁ = R.shr q₄₀ (5 * L) L 4 from rfl)] at w₄₁ e₄₁
   clear_value q₄₁
   have s₄₁ := w₄₁.1.trans s₄₀
   have v₁q₄₁ := (w₄₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₄₀
@@ -4833,14 +4650,13 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₃q₄₁ := (w₄₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₄₀
   have v₄q₄₁ := (w₄₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₄₀
   have v₅q₄₁ := (w₄₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₄₀
-  have v₆q₄₁ := (w₄₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₄₀
   have v₇q₄₁ := (w₄₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₄₀
-  have v₉q₄₁ := (w₄₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₄₀
-  clear w₄₁ v₈q₄₀ s₄₀ v₁q₄₀ v₂q₄₀ v₃q₄₀ v₄q₄₀ v₅q₄₀ v₆q₄₀ v₇q₄₀ e₄₀
-  obtain ⟨w₄₂, e₄₂⟩ := subMulWin_val (q := q₄₁) (o := (6 * L)) (len := L) (by rw [s₄₁]; lia) (5 * L) L 1
-      (by rw [s₄₁]; lia) (by lia) (by lia) (by decide)
-      (V := 120 * c₅ + 3240 * c₆ + 52080 * c₇ + 650160 * c₈ + 6972840 * c₉) v₇q₄₁ v₆q₄₁ (by lia)
-  rw [← (show q₄₂ = R.subMulWin q₄₁ (6 * L) L (5 * L) L 1 from rfl)] at w₄₂ e₄₂
+  have v₈q₄₁ := (w₄₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₄₀
+  have v₉q₄₁ := (w₄₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₄₀
+  clear w₄₁ e₄₀ s₄₀ v₁q₄₀ v₂q₄₀ v₃q₄₀ v₄q₄₀ v₅q₄₀ v₇q₄₀ v₈q₄₀ v₉q₄₀
+  obtain ⟨w₄₂, e₄₂⟩ := divW_val (q := q₄₁) (o := (6 * L)) (len := L) (by rw [s₄₁]; lia) 315 (by decide) (by decide)
+      (V := 16 * c₇ + 448 * c₈ + 7392 * c₉) v₇q₄₁ (by lia)
+  rw [← (show q₄₂ = R.divExact q₄₁ (6 * L) L 315 from rfl)] at w₄₂ e₄₂
   clear_value q₄₂
   have s₄₂ := w₄₂.1.trans s₄₁
   have v₁q₄₂ := (w₄₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₄₁
@@ -4848,14 +4664,13 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₃q₄₂ := (w₄₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₄₁
   have v₄q₄₂ := (w₄₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₄₁
   have v₅q₄₂ := (w₄₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₄₁
-  have v₆q₄₂ := (w₄₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₄₁
-  have v₈q₄₂ := (w₄₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₄₁
+  have v₆q₄₂ := (w₄₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₄₁
+  have v₈q₄₂ := (w₄₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₄₁
   have v₉q₄₂ := (w₄₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₄₁
-  clear w₄₂ v₇q₄₁ s₄₁ v₁q₄₁ v₂q₄₁ v₃q₄₁ v₄q₄₁ v₅q₄₁ v₆q₄₁ e₄₁ v₉q₄₁
-  obtain ⟨w₄₃, e₄₃⟩ := subMulWin_val (q := q₄₂) (o := (5 * L)) (len := L) (by rw [s₄₂]; lia) (4 * L) L 1
-      (by rw [s₄₂]; lia) (by lia) (by lia) (by decide)
-      (V := 120 * c₅ + 2520 * c₆ + 31920 * c₇ + 317520 * c₈ + 2739240 * c₉) v₆q₄₂ v₅q₄₂ (by lia)
-  rw [← (show q₄₃ = R.subMulWin q₄₂ (5 * L) L (4 * L) L 1 from rfl)] at w₄₃ e₄₃
+  clear w₄₂ v₇q₄₁ s₄₁ v₁q₄₁ v₂q₄₁ v₃q₄₁ v₄q₄₁ v₅q₄₁ e₄₁ v₈q₄₁ v₉q₄₁
+  obtain ⟨w₄₃, e₄₃⟩ := shrW_val (q := q₄₂) (o := (6 * L)) (len := L) (by rw [s₄₂]; lia) 4 (by decide) (by decide)
+      (V := c₇ + 28 * c₈ + 462 * c₉) e₄₂ (by lia)
+  rw [← (show q₄₃ = R.shr q₄₂ (6 * L) L 4 from rfl)] at w₄₃ e₄₃
   clear_value q₄₃
   have s₄₃ := w₄₃.1.trans s₄₂
   have v₁q₄₃ := (w₄₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₄₂
@@ -4863,44 +4678,41 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₃q₄₃ := (w₄₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₄₂
   have v₄q₄₃ := (w₄₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₄₂
   have v₅q₄₃ := (w₄₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₄₂
-  have v₇q₄₃ := (w₄₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₄₂
+  have v₆q₄₃ := (w₄₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₄₂
   have v₈q₄₃ := (w₄₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₄₂
   have v₉q₄₃ := (w₄₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₄₂
-  clear w₄₃ v₆q₄₂ s₄₂ v₁q₄₂ v₂q₄₂ v₃q₄₂ v₄q₄₂ v₅q₄₂ e₄₂ v₈q₄₂ v₉q₄₂
-  obtain ⟨w₄₄, e₄₄⟩ := subMulWin_val (q := q₄₃) (o := (4 * L)) (len := L) (by rw [s₄₃]; lia) (3 * L) L 1
-      (by rw [s₄₃]; lia) (by lia) (by lia) (by decide)
-      (V := 120 * c₅ + 1800 * c₆ + 16800 * c₇ + 126000 * c₈ + 834120 * c₉) v₅q₄₃ v₄q₄₃ (by lia)
-  rw [← (show q₄₄ = R.subMulWin q₄₃ (4 * L) L (3 * L) L 1 from rfl)] at w₄₄ e₄₄
+  clear w₄₃ e₄₂ s₄₂ v₁q₄₂ v₂q₄₂ v₃q₄₂ v₄q₄₂ v₅q₄₂ v₆q₄₂ v₈q₄₂ v₉q₄₂
+  obtain ⟨w₄₄, e₄₄⟩ := divW_val (q := q₄₃) (o := (7 * L)) (len := L) (by rw [s₄₃]; lia) 315 (by decide) (by decide)
+      (V := 128 * c₈ + 4608 * c₉) v₈q₄₃ (by lia)
+  rw [← (show q₄₄ = R.divExact q₄₃ (7 * L) L 315 from rfl)] at w₄₄ e₄₄
   clear_value q₄₄
   have s₄₄ := w₄₄.1.trans s₄₃
   have v₁q₄₄ := (w₄₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₄₃
   have v₂q₄₄ := (w₄₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₄₃
   have v₃q₄₄ := (w₄₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₄₃
   have v₄q₄₄ := (w₄₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₄₃
-  have v₆q₄₄ := (w₄₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₄₃
-  have v₇q₄₄ := (w₄₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₄₃
-  have v₈q₄₄ := (w₄₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₄₃
+  have v₅q₄₄ := (w₄₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₄₃
+  have v₆q₄₄ := (w₄₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₄₃
+  have v₇q₄₄ := (w₄₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₄₃
   have v₉q₄₄ := (w₄₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₄₃
-  clear w₄₄ v₅q₄₃ s₄₃ v₁q₄₃ v₂q₄₃ v₃q₄₃ v₄q₄₃ e₄₃ v₇q₄₃ v₈q₄₃ v₉q₄₃
-  obtain ⟨w₄₅, e₄₅⟩ := subMulWin_val (q := q₄₄) (o := (8 * L)) (len := L) (by rw [s₄₄]; lia) (7 * L) L 1
-      (by rw [s₄₄]; lia) (by lia) (by lia) (by decide)
-      (V := 720 * c₆ + 30240 * c₇ + 735840 * c₈ + 13608000 * c₉) v₉q₄₄ v₈q₄₄ (by lia)
-  rw [← (show q₄₅ = R.subMulWin q₄₄ (8 * L) L (7 * L) L 1 from rfl)] at w₄₅ e₄₅
+  clear w₄₄ v₈q₄₃ s₄₃ v₁q₄₃ v₂q₄₃ v₃q₄₃ v₄q₄₃ v₅q₄₃ v₆q₄₃ e₄₃ v₉q₄₃
+  obtain ⟨w₄₅, e₄₅⟩ := shrW_val (q := q₄₄) (o := (7 * L)) (len := L) (by rw [s₄₄]; lia) 7 (by decide) (by decide)
+      (V := c₈ + 36 * c₉) e₄₄ (by lia)
+  rw [← (show q₄₅ = R.shr q₄₄ (7 * L) L 7 from rfl)] at w₄₅ e₄₅
   clear_value q₄₅
   have s₄₅ := w₄₅.1.trans s₄₄
   have v₁q₄₅ := (w₄₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₄₄
   have v₂q₄₅ := (w₄₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₄₄
   have v₃q₄₅ := (w₄₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₄₄
   have v₄q₄₅ := (w₄₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₄₄
-  have v₅q₄₅ := (w₄₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₄₄
+  have v₅q₄₅ := (w₄₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₄₄
   have v₆q₄₅ := (w₄₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₄₄
   have v₇q₄₅ := (w₄₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₄₄
-  have v₈q₄₅ := (w₄₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₄₄
-  clear w₄₅ v₉q₄₄ s₄₄ v₁q₄₄ v₂q₄₄ v₃q₄₄ v₄q₄₄ e₄₄ v₆q₄₄ v₇q₄₄ v₈q₄₄
-  obtain ⟨w₄₆, e₄₆⟩ := subMulWin_val (q := q₄₅) (o := (7 * L)) (len := L) (by rw [s₄₅]; lia) (6 * L) L 1
-      (by rw [s₄₅]; lia) (by lia) (by lia) (by decide)
-      (V := 720 * c₆ + 25200 * c₇ + 514080 * c₈ + 8013600 * c₉) v₈q₄₅ v₇q₄₅ (by lia)
-  rw [← (show q₄₆ = R.subMulWin q₄₅ (7 * L) L (6 * L) L 1 from rfl)] at w₄₆ e₄₆
+  have v₉q₄₅ := (w₄₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₄₄
+  clear w₄₅ e₄₄ s₄₄ v₁q₄₄ v₂q₄₄ v₃q₄₄ v₄q₄₄ v₅q₄₄ v₆q₄₄ v₇q₄₄ v₉q₄₄
+  obtain ⟨w₄₆, e₄₆⟩ := divW_val (q := q₄₅) (o := (8 * L)) (len := L) (by rw [s₄₅]; lia) 2835 (by decide) (by decide)
+      (V := 128 * c₉) v₉q₄₅ (by lia)
+  rw [← (show q₄₆ = R.divExact q₄₅ (8 * L) L 2835 from rfl)] at w₄₆ e₄₆
   clear_value q₄₆
   have s₄₆ := w₄₆.1.trans s₄₅
   have v₁q₄₆ := (w₄₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₄₅
@@ -4910,12 +4722,11 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₅q₄₆ := (w₄₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₄₅
   have v₆q₄₆ := (w₄₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₄₅
   have v₇q₄₆ := (w₄₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₄₅
-  have v₉q₄₆ := (w₄₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₄₅
-  clear w₄₆ v₈q₄₅ s₄₅ v₁q₄₅ v₂q₄₅ v₃q₄₅ v₄q₄₅ v₅q₄₅ v₆q₄₅ v₇q₄₅ e₄₅
-  obtain ⟨w₄₇, e₄₇⟩ := subMulWin_val (q := q₄₆) (o := (6 * L)) (len := L) (by rw [s₄₆]; lia) (5 * L) L 1
-      (by rw [s₄₆]; lia) (by lia) (by lia) (by decide)
-      (V := 720 * c₆ + 20160 * c₇ + 332640 * c₈ + 4233600 * c₉) v₇q₄₆ v₆q₄₆ (by lia)
-  rw [← (show q₄₇ = R.subMulWin q₄₆ (6 * L) L (5 * L) L 1 from rfl)] at w₄₇ e₄₇
+  have v₈q₄₆ := (w₄₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₄₅
+  clear w₄₆ v₉q₄₅ s₄₅ v₁q₄₅ v₂q₄₅ v₃q₄₅ v₄q₄₅ v₅q₄₅ v₆q₄₅ v₇q₄₅ e₄₅
+  obtain ⟨w₄₇, e₄₇⟩ := shrW_val (q := q₄₆) (o := (8 * L)) (len := L) (by rw [s₄₆]; lia) 7 (by decide) (by decide)
+      (V := c₉) e₄₆ (by lia)
+  rw [← (show q₄₇ = R.shr q₄₆ (8 * L) L 7 from rfl)] at w₄₇ e₄₇
   clear_value q₄₇
   have s₄₇ := w₄₇.1.trans s₄₆
   have v₁q₄₇ := (w₄₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₄₆
@@ -4924,13 +4735,13 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₄q₄₇ := (w₄₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₄₆
   have v₅q₄₇ := (w₄₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₄₆
   have v₆q₄₇ := (w₄₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₄₆
-  have v₈q₄₇ := (w₄₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₄₆
-  have v₉q₄₇ := (w₄₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₄₆
-  clear w₄₇ v₇q₄₆ s₄₆ v₁q₄₆ v₂q₄₆ v₃q₄₆ v₄q₄₆ v₅q₄₆ v₆q₄₆ e₄₆ v₉q₄₆
-  obtain ⟨w₄₈, e₄₈⟩ := subMulWin_val (q := q₄₇) (o := (5 * L)) (len := L) (by rw [s₄₇]; lia) (4 * L) L 1
+  have v₇q₄₇ := (w₄₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₄₆
+  have v₈q₄₇ := (w₄₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₄₆
+  clear w₄₇ e₄₆ s₄₆ v₁q₄₆ v₂q₄₆ v₃q₄₆ v₄q₄₆ v₅q₄₆ v₆q₄₆ v₇q₄₆ v₈q₄₆
+  obtain ⟨w₄₈, e₄₈⟩ := subMulWin_val (q := q₄₇) (o := (7 * L)) (len := L) (by rw [s₄₇]; lia) (8 * L) L 8
       (by rw [s₄₇]; lia) (by lia) (by lia) (by decide)
-      (V := 720 * c₆ + 15120 * c₇ + 191520 * c₈ + 1905120 * c₉) v₆q₄₇ v₅q₄₇ (by lia)
-  rw [← (show q₄₈ = R.subMulWin q₄₇ (5 * L) L (4 * L) L 1 from rfl)] at w₄₈ e₄₈
+      (V := c₈ + 28 * c₉) v₈q₄₇ e₄₇ (by lia)
+  rw [← (show q₄₈ = R.subMulWin q₄₇ (7 * L) L (8 * L) L 8 from rfl)] at w₄₈ e₄₈
   clear_value q₄₈
   have s₄₈ := w₄₈.1.trans s₄₇
   have v₁q₄₈ := (w₄₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₄₇
@@ -4938,14 +4749,14 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₃q₄₈ := (w₄₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₄₇
   have v₄q₄₈ := (w₄₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₄₇
   have v₅q₄₈ := (w₄₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₄₇
-  have v₇q₄₈ := (w₄₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₄₇
-  have v₈q₄₈ := (w₄₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₄₇
-  have v₉q₄₈ := (w₄₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₄₇
-  clear w₄₈ v₆q₄₇ s₄₇ v₁q₄₇ v₂q₄₇ v₃q₄₇ v₄q₄₇ v₅q₄₇ e₄₇ v₈q₄₇ v₉q₄₇
-  obtain ⟨w₄₉, e₄₉⟩ := subMulWin_val (q := q₄₈) (o := (8 * L)) (len := L) (by rw [s₄₈]; lia) (7 * L) L 1
+  have v₆q₄₈ := (w₄₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₄₇
+  have v₇q₄₈ := (w₄₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₄₇
+  have v₉q₄₈ := (w₄₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₄₇
+  clear w₄₈ v₈q₄₇ s₄₇ v₁q₄₇ v₂q₄₇ v₃q₄₇ v₄q₄₇ v₅q₄₇ v₆q₄₇ v₇q₄₇ e₄₇
+  obtain ⟨w₄₉, e₄₉⟩ := subMulWin_val (q := q₄₈) (o := (6 * L)) (len := L) (by rw [s₄₈]; lia) (7 * L) L 7
       (by rw [s₄₈]; lia) (by lia) (by lia) (by decide)
-      (V := 5040 * c₇ + 221760 * c₈ + 5594400 * c₉) v₉q₄₈ v₈q₄₈ (by lia)
-  rw [← (show q₄₉ = R.subMulWin q₄₈ (8 * L) L (7 * L) L 1 from rfl)] at w₄₉ e₄₉
+      (V := c₇ + 21 * c₈ + 266 * c₉) v₇q₄₈ e₄₈ (by lia)
+  rw [← (show q₄₉ = R.subMulWin q₄₈ (6 * L) L (7 * L) L 7 from rfl)] at w₄₉ e₄₉
   clear_value q₄₉
   have s₄₉ := w₄₉.1.trans s₄₈
   have v₁q₄₉ := (w₄₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₄₈
@@ -4953,14 +4764,14 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₃q₄₉ := (w₄₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₄₈
   have v₄q₄₉ := (w₄₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₄₈
   have v₅q₄₉ := (w₄₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₄₈
-  have v₆q₄₉ := (w₄₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₄₈
-  have v₇q₄₉ := (w₄₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₄₈
-  have v₈q₄₉ := (w₄₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₄₈
-  clear w₄₉ v₉q₄₈ s₄₈ v₁q₄₈ v₂q₄₈ v₃q₄₈ v₄q₄₈ v₅q₄₈ e₄₈ v₇q₄₈ v₈q₄₈
-  obtain ⟨w₅₀, e₅₀⟩ := subMulWin_val (q := q₄₉) (o := (7 * L)) (len := L) (by rw [s₄₉]; lia) (6 * L) L 1
+  have v₆q₄₉ := (w₄₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₄₈
+  have v₈q₄₉ := (w₄₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₄₈
+  have v₉q₄₉ := (w₄₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₄₈
+  clear w₄₉ v₇q₄₈ s₄₈ v₁q₄₈ v₂q₄₈ v₃q₄₈ v₄q₄₈ v₅q₄₈ v₆q₄₈ e₄₈ v₉q₄₈
+  obtain ⟨w₅₀, e₅₀⟩ := subMulWin_val (q := q₄₉) (o := (7 * L)) (len := L) (by rw [s₄₉]; lia) (8 * L) L 7
       (by rw [s₄₉]; lia) (by lia) (by lia) (by decide)
-      (V := 5040 * c₇ + 181440 * c₈ + 3780000 * c₉) v₈q₄₉ v₇q₄₉ (by lia)
-  rw [← (show q₅₀ = R.subMulWin q₄₉ (7 * L) L (6 * L) L 1 from rfl)] at w₅₀ e₅₀
+      (V := c₈ + 21 * c₉) v₈q₄₉ v₉q₄₉ (by lia)
+  rw [← (show q₅₀ = R.subMulWin q₄₉ (7 * L) L (8 * L) L 7 from rfl)] at w₅₀ e₅₀
   clear_value q₅₀
   have s₅₀ := w₅₀.1.trans s₄₉
   have v₁q₅₀ := (w₅₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₄₉
@@ -4969,13 +4780,14 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₄q₅₀ := (w₅₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₄₉
   have v₅q₅₀ := (w₅₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₄₉
   have v₆q₅₀ := (w₅₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₄₉
-  have v₇q₅₀ := (w₅₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₄₉
-  have v₉q₅₀ := (w₅₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₄₉
-  clear w₅₀ v₈q₄₉ s₄₉ v₁q₄₉ v₂q₄₉ v₃q₄₉ v₄q₄₉ v₅q₄₉ v₆q₄₉ v₇q₄₉ e₄₉
-  obtain ⟨w₅₁, e₅₁⟩ := subMulWin_val (q := q₅₀) (o := (6 * L)) (len := L) (by rw [s₅₀]; lia) (5 * L) L 1
-      (by rw [s₅₀]; lia) (by lia) (by lia) (by decide)
-      (V := 5040 * c₇ + 141120 * c₈ + 2328480 * c₉) v₇q₅₀ v₆q₅₀ (by lia)
-  rw [← (show q₅₁ = R.subMulWin q₅₀ (6 * L) L (5 * L) L 1 from rfl)] at w₅₁ e₅₁
+  have v₇q₅₀ := (w₅₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₄₉
+  have v₉q₅₀ := (w₅₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₄₉
+  clear w₅₀ v₈q₄₉ s₄₉ v₁q₄₉ v₂q₄₉ v₃q₄₉ v₄q₄₉ v₅q₄₉ v₆q₄₉ e₄₉ v₉q₄₉
+  obtain ⟨w₅₁, e₅₁a, e₅₁b, e₅₁c⟩ := sub3ChainW_val (q := q₅₀) (o₁ := (5 * L)) (o₂ := (6 * L))
+      (o₃ := (7 * L)) (o₄ := (8 * L)) (len := L) (5 * L) (3 * L) (by rw [s₅₀]; lia) (by lia) (by lia) 6
+      (V₁ := c₆ + 15 * c₇ + 140 * c₈ + 1050 * c₉) (V₂ := c₇ + 15 * c₈ + 140 * c₉) (V₃ := c₈ + 15 * c₉)
+      v₆q₅₀ v₇q₅₀ e₅₀ v₉q₅₀ (by lia) (by lia) (by lia)
+  rw [← (show q₅₁ = R.sub3Chain q₅₀ (5 * L) (6 * L) (7 * L) (8 * L) L 6 from rfl)] at w₅₁ e₅₁a e₅₁b e₅₁c
   clear_value q₅₁
   have s₅₁ := w₅₁.1.trans s₅₀
   have v₁q₅₁ := (w₅₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₅₀
@@ -4983,198 +4795,199 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₃q₅₁ := (w₅₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₅₀
   have v₄q₅₁ := (w₅₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₅₀
   have v₅q₅₁ := (w₅₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₅₀
-  have v₆q₅₁ := (w₅₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₅₀
-  have v₈q₅₁ := (w₅₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₅₀
   have v₉q₅₁ := (w₅₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₅₀
-  clear w₅₁ v₇q₅₀ s₅₀ v₁q₅₀ v₂q₅₀ v₃q₅₀ v₄q₅₀ v₅q₅₀ v₆q₅₀ e₅₀ v₉q₅₀
-  obtain ⟨w₅₂, e₅₂⟩ := subMulWin_val (q := q₅₁) (o := (8 * L)) (len := L) (by rw [s₅₁]; lia) (7 * L) L 1
-      (by rw [s₅₁]; lia) (by lia) (by lia) (by decide)
-      (V := 40320 * c₈ + 1814400 * c₉) v₉q₅₁ v₈q₅₁ (by lia)
-  rw [← (show q₅₂ = R.subMulWin q₅₁ (8 * L) L (7 * L) L 1 from rfl)] at w₅₂ e₅₂
+  clear w₅₁ v₆q₅₀ v₇q₅₀ e₅₀ s₅₀ v₁q₅₀ v₂q₅₀ v₃q₅₀ v₄q₅₀ v₅q₅₀ v₉q₅₀
+  obtain ⟨w₅₂, e₅₂a, e₅₂b, e₅₂c⟩ := sub3ChainW_val (q := q₅₁) (o₁ := (4 * L)) (o₂ := (5 * L))
+      (o₃ := (6 * L)) (o₄ := (7 * L)) (len := L) (4 * L) (3 * L) (by rw [s₅₁]; lia) (by lia) (by lia) 5
+      (V₁ := c₅ + 10 * c₆ + 65 * c₇ + 350 * c₈ + 1701 * c₉) (V₂ := c₆ + 10 * c₇ + 65 * c₈ + 350 * c₉) (V₃ := c₇ + 10 * c₈ + 65 * c₉)
+      v₅q₅₁ e₅₁a e₅₁b e₅₁c (by lia) (by lia) (by lia)
+  rw [← (show q₅₂ = R.sub3Chain q₅₁ (4 * L) (5 * L) (6 * L) (7 * L) L 5 from rfl)] at w₅₂ e₅₂a e₅₂b e₅₂c
   clear_value q₅₂
   have s₅₂ := w₅₂.1.trans s₅₁
   have v₁q₅₂ := (w₅₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₅₁
   have v₂q₅₂ := (w₅₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₅₁
   have v₃q₅₂ := (w₅₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₅₁
   have v₄q₅₂ := (w₅₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₅₁
-  have v₅q₅₂ := (w₅₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₅₁
-  have v₆q₅₂ := (w₅₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₅₁
-  have v₇q₅₂ := (w₅₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₅₁
-  have v₈q₅₂ := (w₅₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₅₁
-  clear w₅₂ v₉q₅₁ s₅₁ v₁q₅₁ v₂q₅₁ v₃q₅₁ v₄q₅₁ v₅q₅₁ v₆q₅₁ e₅₁ v₈q₅₁
-  obtain ⟨w₅₃, e₅₃⟩ := subMulWin_val (q := q₅₂) (o := (7 * L)) (len := L) (by rw [s₅₂]; lia) (6 * L) L 1
+  have v₈q₅₂ := (w₅₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₅₁c
+  have v₉q₅₂ := (w₅₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₅₁
+  clear w₅₂ v₅q₅₁ e₅₁a e₅₁b s₅₁ v₁q₅₁ v₂q₅₁ v₃q₅₁ v₄q₅₁ e₅₁c v₉q₅₁
+  obtain ⟨w₅₃, e₅₃⟩ := subMulWin_val (q := q₅₂) (o := (7 * L)) (len := L) (by rw [s₅₂]; lia) (8 * L) L 5
       (by rw [s₅₂]; lia) (by lia) (by lia) (by decide)
-      (V := 40320 * c₈ + 1451520 * c₉) v₈q₅₂ v₇q₅₂ (by lia)
-  rw [← (show q₅₃ = R.subMulWin q₅₂ (7 * L) L (6 * L) L 1 from rfl)] at w₅₃ e₅₃
+      (V := c₈ + 10 * c₉) v₈q₅₂ v₉q₅₂ (by lia)
+  rw [← (show q₅₃ = R.subMulWin q₅₂ (7 * L) L (8 * L) L 5 from rfl)] at w₅₃ e₅₃
   clear_value q₅₃
   have s₅₃ := w₅₃.1.trans s₅₂
   have v₁q₅₃ := (w₅₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₅₂
   have v₂q₅₃ := (w₅₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₅₂
   have v₃q₅₃ := (w₅₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₅₂
   have v₄q₅₃ := (w₅₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₅₂
-  have v₅q₅₃ := (w₅₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₅₂
-  have v₆q₅₃ := (w₅₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₅₂
-  have v₇q₅₃ := (w₅₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₅₂
-  have v₉q₅₃ := (w₅₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₅₂
-  clear w₅₃ v₈q₅₂ s₅₂ v₁q₅₂ v₂q₅₂ v₃q₅₂ v₄q₅₂ v₅q₅₂ v₆q₅₂ v₇q₅₂ e₅₂
-  obtain ⟨w₅₄, e₅₄⟩ := subMulWin_val (q := q₅₃) (o := (8 * L)) (len := L) (by rw [s₅₃]; lia) (7 * L) L 1
-      (by rw [s₅₃]; lia) (by lia) (by lia) (by decide)
-      (V := 362880 * c₉) v₉q₅₃ e₅₃ (by lia)
-  rw [← (show q₅₄ = R.subMulWin q₅₃ (8 * L) L (7 * L) L 1 from rfl)] at w₅₄ e₅₄
+  have v₅q₅₃ := (w₅₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₅₂a
+  have v₆q₅₃ := (w₅₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₅₂b
+  have v₇q₅₃ := (w₅₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₅₂c
+  have v₉q₅₃ := (w₅₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₅₂
+  clear w₅₃ v₈q₅₂ s₅₂ v₁q₅₂ v₂q₅₂ v₃q₅₂ v₄q₅₂ e₅₂a e₅₂b e₅₂c v₉q₅₂
+  obtain ⟨w₅₄, e₅₄a, e₅₄b, e₅₄c⟩ := sub3ChainW_val (q := q₅₃) (o₁ := (3 * L)) (o₂ := (4 * L))
+      (o₃ := (5 * L)) (o₄ := (6 * L)) (len := L) (3 * L) (3 * L) (by rw [s₅₃]; lia) (by lia) (by lia) 4
+      (V₁ := c₄ + 6 * c₅ + 25 * c₆ + 90 * c₇ + 301 * c₈ + 966 * c₉) (V₂ := c₅ + 6 * c₆ + 25 * c₇ + 90 * c₈ + 301 * c₉) (V₃ := c₆ + 6 * c₇ + 25 * c₈ + 90 * c₉)
+      v₄q₅₃ v₅q₅₃ v₆q₅₃ v₇q₅₃ (by lia) (by lia) (by lia)
+  rw [← (show q₅₄ = R.sub3Chain q₅₃ (3 * L) (4 * L) (5 * L) (6 * L) L 4 from rfl)] at w₅₄ e₅₄a e₅₄b e₅₄c
   clear_value q₅₄
   have s₅₄ := w₅₄.1.trans s₅₃
   have v₁q₅₄ := (w₅₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₅₃
   have v₂q₅₄ := (w₅₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₅₃
   have v₃q₅₄ := (w₅₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₅₃
-  have v₄q₅₄ := (w₅₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₅₃
-  have v₅q₅₄ := (w₅₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₅₃
-  have v₆q₅₄ := (w₅₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₅₃
   have v₇q₅₄ := (w₅₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₅₃
   have v₈q₅₄ := (w₅₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₅₃
-  clear w₅₄ v₉q₅₃ s₅₃ v₁q₅₃ v₂q₅₃ v₃q₅₃ v₄q₅₃ v₅q₅₃ v₆q₅₃ v₇q₅₃ e₅₃
-  obtain ⟨w₅₅, e₅₅⟩ := shrW_val (q := q₅₄) (o := L) (len := L) (by rw [s₅₄]; lia) 1 (by decide) (by decide)
-      (V := c₂ + 3 * c₃ + 7 * c₄ + 15 * c₅ + 31 * c₆ + 63 * c₇ + 127 * c₈ + 255 * c₉) v₂q₅₄ (by lia)
-  rw [← (show q₅₅ = R.shr q₅₄ L L 1 from rfl)] at w₅₅ e₅₅
+  have v₉q₅₄ := (w₅₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₅₃
+  clear w₅₄ v₄q₅₃ v₅q₅₃ v₆q₅₃ s₅₃ v₁q₅₃ v₂q₅₃ v₃q₅₃ v₇q₅₃ e₅₃ v₉q₅₃
+  obtain ⟨w₅₅, e₅₅⟩ := subMulWin_val (q := q₅₄) (o := (6 * L)) (len := L) (by rw [s₅₄]; lia) (7 * L) L 4
+      (by rw [s₅₄]; lia) (by lia) (by lia) (by decide)
+      (V := c₇ + 6 * c₈ + 25 * c₉) v₇q₅₄ v₈q₅₄ (by lia)
+  rw [← (show q₅₅ = R.subMulWin q₅₄ (6 * L) L (7 * L) L 4 from rfl)] at w₅₅ e₅₅
   clear_value q₅₅
   have s₅₅ := w₅₅.1.trans s₅₄
   have v₁q₅₅ := (w₅₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₅₄
+  have v₂q₅₅ := (w₅₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₅₄
   have v₃q₅₅ := (w₅₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₅₄
-  have v₄q₅₅ := (w₅₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₅₄
-  have v₅q₅₅ := (w₅₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₅₄
-  have v₆q₅₅ := (w₅₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₅₄
-  have v₇q₅₅ := (w₅₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₅₄
+  have v₄q₅₅ := (w₅₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₅₄a
+  have v₅q₅₅ := (w₅₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₅₄b
+  have v₆q₅₅ := (w₅₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₅₄c
   have v₈q₅₅ := (w₅₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₅₄
-  have v₉q₅₅ := (w₅₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₅₄
-  clear w₅₅ v₂q₅₄ s₅₄ v₁q₅₄ v₃q₅₄ v₄q₅₄ v₅q₅₄ v₆q₅₄ v₇q₅₄ v₈q₅₄ e₅₄
-  obtain ⟨w₅₆, e₅₆⟩ := divW_val (q := q₅₅) (o := (2 * L)) (len := L) (by rw [s₅₅]; lia) 3 (by decide) (by decide)
-      (V := 2 * c₃ + 12 * c₄ + 50 * c₅ + 180 * c₆ + 602 * c₇ + 1932 * c₈ + 6050 * c₉) v₃q₅₅ (by lia)
-  rw [← (show q₅₆ = R.divExact q₅₅ (2 * L) L 3 from rfl)] at w₅₆ e₅₆
+  have v₉q₅₅ := (w₅₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₅₄
+  clear w₅₅ v₇q₅₄ s₅₄ v₁q₅₄ v₂q₅₄ v₃q₅₄ e₅₄a e₅₄b e₅₄c v₈q₅₄ v₉q₅₄
+  obtain ⟨w₅₆, e₅₆⟩ := subMulWin_val (q := q₅₅) (o := (7 * L)) (len := L) (by rw [s₅₅]; lia) (8 * L) L 4
+      (by rw [s₅₅]; lia) (by lia) (by lia) (by decide)
+      (V := c₈ + 6 * c₉) v₈q₅₅ v₉q₅₅ (by lia)
+  rw [← (show q₅₆ = R.subMulWin q₅₅ (7 * L) L (8 * L) L 4 from rfl)] at w₅₆ e₅₆
   clear_value q₅₆
   have s₅₆ := w₅₆.1.trans s₅₅
   have v₁q₅₆ := (w₅₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₅₅
-  have v₂q₅₆ := (w₅₆.valAt_eq (lo := L) (n := L) (by lia)).trans e₅₅
+  have v₂q₅₆ := (w₅₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₅₅
+  have v₃q₅₆ := (w₅₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₅₅
   have v₄q₅₆ := (w₅₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₅₅
   have v₅q₅₆ := (w₅₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₅₅
   have v₆q₅₆ := (w₅₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₅₅
-  have v₇q₅₆ := (w₅₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₅₅
-  have v₈q₅₆ := (w₅₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₅₅
+  have v₇q₅₆ := (w₅₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₅₅
   have v₉q₅₆ := (w₅₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₅₅
-  clear w₅₆ v₃q₅₅ s₅₅ v₁q₅₅ e₅₅ v₄q₅₅ v₅q₅₅ v₆q₅₅ v₇q₅₅ v₈q₅₅ v₉q₅₅
-  obtain ⟨w₅₇, e₅₇⟩ := shrW_val (q := q₅₆) (o := (2 * L)) (len := L) (by rw [s₅₆]; lia) 1 (by decide) (by decide)
-      (V := c₃ + 6 * c₄ + 25 * c₅ + 90 * c₆ + 301 * c₇ + 966 * c₈ + 3025 * c₉) e₅₆ (by lia)
-  rw [← (show q₅₇ = R.shr q₅₆ (2 * L) L 1 from rfl)] at w₅₇ e₅₇
+  clear w₅₆ v₈q₅₅ s₅₅ v₁q₅₅ v₂q₅₅ v₃q₅₅ v₄q₅₅ v₅q₅₅ v₆q₅₅ e₅₅ v₉q₅₅
+  obtain ⟨w₅₇, e₅₇a, e₅₇b, e₅₇c⟩ := sub3ChainW_val (q := q₅₆) (o₁ := (2 * L)) (o₂ := (3 * L))
+      (o₃ := (4 * L)) (o₄ := (5 * L)) (len := L) (2 * L) (3 * L) (by rw [s₅₆]; lia) (by lia) (by lia) 3
+      (V₁ := c₃ + 3 * c₄ + 7 * c₅ + 15 * c₆ + 31 * c₇ + 63 * c₈ + 127 * c₉) (V₂ := c₄ + 3 * c₅ + 7 * c₆ + 15 * c₇ + 31 * c₈ + 63 * c₉) (V₃ := c₅ + 3 * c₆ + 7 * c₇ + 15 * c₈ + 31 * c₉)
+      v₃q₅₆ v₄q₅₆ v₅q₅₆ v₆q₅₆ (by lia) (by lia) (by lia)
+  rw [← (show q₅₇ = R.sub3Chain q₅₆ (2 * L) (3 * L) (4 * L) (5 * L) L 3 from rfl)] at w₅₇ e₅₇a e₅₇b e₅₇c
   clear_value q₅₇
   have s₅₇ := w₅₇.1.trans s₅₆
   have v₁q₅₇ := (w₅₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₅₆
   have v₂q₅₇ := (w₅₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₅₆
-  have v₄q₅₇ := (w₅₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₅₆
-  have v₅q₅₇ := (w₅₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₅₆
   have v₆q₅₇ := (w₅₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₅₆
   have v₇q₅₇ := (w₅₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₅₆
-  have v₈q₅₇ := (w₅₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₅₆
+  have v₈q₅₇ := (w₅₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₅₆
   have v₉q₅₇ := (w₅₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₅₆
-  clear w₅₇ e₅₆ s₅₆ v₁q₅₆ v₂q₅₆ v₄q₅₆ v₅q₅₆ v₆q₅₆ v₇q₅₆ v₈q₅₆ v₉q₅₆
-  obtain ⟨w₅₈, e₅₈⟩ := divW_val (q := q₅₇) (o := (3 * L)) (len := L) (by rw [s₅₇]; lia) 3 (by decide) (by decide)
-      (V := 8 * c₄ + 80 * c₅ + 520 * c₆ + 2800 * c₇ + 13608 * c₈ + 62160 * c₉) v₄q₅₇ (by lia)
-  rw [← (show q₅₈ = R.divExact q₅₇ (3 * L) L 3 from rfl)] at w₅₈ e₅₈
+  clear w₅₇ v₃q₅₆ v₄q₅₆ v₅q₅₆ s₅₆ v₁q₅₆ v₂q₅₆ v₆q₅₆ v₇q₅₆ e₅₆ v₉q₅₆
+  obtain ⟨w₅₈, e₅₈a, e₅₈b, e₅₈c⟩ := sub3ChainW_val (q := q₅₇) (o₁ := (5 * L)) (o₂ := (6 * L))
+      (o₃ := (7 * L)) (o₄ := (8 * L)) (len := L) (5 * L) (3 * L) (by rw [s₅₇]; lia) (by lia) (by lia) 3
+      (V₁ := c₆ + 3 * c₇ + 7 * c₈ + 15 * c₉) (V₂ := c₇ + 3 * c₈ + 7 * c₉) (V₃ := c₈ + 3 * c₉)
+      v₆q₅₇ v₇q₅₇ v₈q₅₇ v₉q₅₇ (by lia) (by lia) (by lia)
+  rw [← (show q₅₈ = R.sub3Chain q₅₇ (5 * L) (6 * L) (7 * L) (8 * L) L 3 from rfl)] at w₅₈ e₅₈a e₅₈b e₅₈c
   clear_value q₅₈
   have s₅₈ := w₅₈.1.trans s₅₇
   have v₁q₅₈ := (w₅₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₅₇
   have v₂q₅₈ := (w₅₈.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₅₇
-  have v₃q₅₈ := (w₅₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₅₇
-  have v₅q₅₈ := (w₅₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₅₇
-  have v₆q₅₈ := (w₅₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₅₇
-  have v₇q₅₈ := (w₅₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₅₇
-  have v₈q₅₈ := (w₅₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₅₇
+  have v₃q₅₈ := (w₅₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₅₇a
+  have v₄q₅₈ := (w₅₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₅₇b
+  have v₅q₅₈ := (w₅₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₅₇c
   have v₉q₅₈ := (w₅₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₅₇
-  clear w₅₈ v₄q₅₇ s₅₇ v₁q₅₇ v₂q₅₇ e₅₇ v₅q₅₇ v₆q₅₇ v₇q₅₇ v₈q₅₇ v₉q₅₇
-  obtain ⟨w₅₉, e₅₉⟩ := shrW_val (q := q₅₈) (o := (3 * L)) (len := L) (by rw [s₅₈]; lia) 3 (by decide) (by decide)
-      (V := c₄ + 10 * c₅ + 65 * c₆ + 350 * c₇ + 1701 * c₈ + 7770 * c₉) e₅₈ (by lia)
-  rw [← (show q₅₉ = R.shr q₅₈ (3 * L) L 3 from rfl)] at w₅₉ e₅₉
+  clear w₅₈ v₆q₅₇ v₇q₅₇ v₈q₅₇ s₅₇ v₁q₅₇ v₂q₅₇ e₅₇a e₅₇b e₅₇c v₉q₅₇
+  obtain ⟨w₅₉, e₅₉a, e₅₉b, e₅₉c⟩ := sub3ChainW_val (q := q₅₈) (o₁ := L) (o₂ := (2 * L))
+      (o₃ := (3 * L)) (o₄ := (4 * L)) (len := L) L (3 * L) (by rw [s₅₈]; lia) (by lia) (by lia) 2
+      (V₁ := c₂ + c₃ + c₄ + c₅ + c₆ + c₇ + c₈ + c₉) (V₂ := c₃ + c₄ + c₅ + c₆ + c₇ + c₈ + c₉) (V₃ := c₄ + c₅ + c₆ + c₇ + c₈ + c₉)
+      v₂q₅₈ v₃q₅₈ v₄q₅₈ v₅q₅₈ (by lia) (by lia) (by lia)
+  rw [← (show q₅₉ = R.sub3Chain q₅₈ L (2 * L) (3 * L) (4 * L) L 2 from rfl)] at w₅₉ e₅₉a e₅₉b e₅₉c
   clear_value q₅₉
   have s₅₉ := w₅₉.1.trans s₅₈
   have v₁q₅₉ := (w₅₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₅₈
-  have v₂q₅₉ := (w₅₉.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₅₈
-  have v₃q₅₉ := (w₅₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₅₈
   have v₅q₅₉ := (w₅₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₅₈
-  have v₆q₅₉ := (w₅₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₅₈
-  have v₇q₅₉ := (w₅₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₅₈
-  have v₈q₅₉ := (w₅₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₅₈
+  have v₆q₅₉ := (w₅₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₅₈a
+  have v₇q₅₉ := (w₅₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₅₈b
+  have v₈q₅₉ := (w₅₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₅₈c
   have v₉q₅₉ := (w₅₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₅₈
-  clear w₅₉ e₅₈ s₅₈ v₁q₅₈ v₂q₅₈ v₃q₅₈ v₅q₅₈ v₆q₅₈ v₇q₅₈ v₈q₅₈ v₉q₅₈
-  obtain ⟨w₆₀, e₆₀⟩ := divW_val (q := q₅₉) (o := (4 * L)) (len := L) (by rw [s₅₉]; lia) 15 (by decide) (by decide)
-      (V := 8 * c₅ + 120 * c₆ + 1120 * c₇ + 8400 * c₈ + 55608 * c₉) v₅q₅₉ (by lia)
-  rw [← (show q₆₀ = R.divExact q₅₉ (4 * L) L 15 from rfl)] at w₆₀ e₆₀
+  clear w₅₉ v₂q₅₈ v₃q₅₈ v₄q₅₈ s₅₈ v₁q₅₈ v₅q₅₈ e₅₈a e₅₈b e₅₈c v₉q₅₈
+  obtain ⟨w₆₀, e₆₀a, e₆₀b, e₆₀c⟩ := sub3ChainW_val (q := q₅₉) (o₁ := (4 * L)) (o₂ := (5 * L))
+      (o₃ := (6 * L)) (o₄ := (7 * L)) (len := L) (4 * L) (3 * L) (by rw [s₅₉]; lia) (by lia) (by lia) 2
+      (V₁ := c₅ + c₆ + c₇ + c₈ + c₉) (V₂ := c₆ + c₇ + c₈ + c₉) (V₃ := c₇ + c₈ + c₉)
+      v₅q₅₉ v₆q₅₉ v₇q₅₉ v₈q₅₉ (by lia) (by lia) (by lia)
+  rw [← (show q₆₀ = R.sub3Chain q₅₉ (4 * L) (5 * L) (6 * L) (7 * L) L 2 from rfl)] at w₆₀ e₆₀a e₆₀b e₆₀c
   clear_value q₆₀
   have s₆₀ := w₆₀.1.trans s₅₉
   have v₁q₆₀ := (w₆₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₅₉
-  have v₂q₆₀ := (w₆₀.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₅₉
-  have v₃q₆₀ := (w₆₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₅₉
-  have v₄q₆₀ := (w₆₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₅₉
-  have v₆q₆₀ := (w₆₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₅₉
-  have v₇q₆₀ := (w₆₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₅₉
+  have v₂q₆₀ := (w₆₀.valAt_eq (lo := L) (n := L) (by lia)).trans e₅₉a
+  have v₃q₆₀ := (w₆₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₅₉b
+  have v₄q₆₀ := (w₆₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₅₉c
   have v₈q₆₀ := (w₆₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₅₉
   have v₉q₆₀ := (w₆₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₅₉
-  clear w₆₀ v₅q₅₉ s₅₉ v₁q₅₉ v₂q₅₉ v₃q₅₉ e₅₉ v₆q₅₉ v₇q₅₉ v₈q₅₉ v₉q₅₉
-  obtain ⟨w₆₁, e₆₁⟩ := shrW_val (q := q₆₀) (o := (4 * L)) (len := L) (by rw [s₆₀]; lia) 3 (by decide) (by decide)
-      (V := c₅ + 15 * c₆ + 140 * c₇ + 1050 * c₈ + 6951 * c₉) e₆₀ (by lia)
-  rw [← (show q₆₁ = R.shr q₆₀ (4 * L) L 3 from rfl)] at w₆₁ e₆₁
+  clear w₆₀ v₅q₅₉ v₆q₅₉ v₇q₅₉ s₅₉ v₁q₅₉ e₅₉a e₅₉b e₅₉c v₈q₅₉ v₉q₅₉
+  obtain ⟨w₆₁, e₆₁⟩ := subMulWin_val (q := q₆₀) (o := (7 * L)) (len := L) (by rw [s₆₀]; lia) (8 * L) L 2
+      (by rw [s₆₀]; lia) (by lia) (by lia) (by decide)
+      (V := c₈ + c₉) v₈q₆₀ v₉q₆₀ (by lia)
+  rw [← (show q₆₁ = R.subMulWin q₆₀ (7 * L) L (8 * L) L 2 from rfl)] at w₆₁ e₆₁
   clear_value q₆₁
   have s₆₁ := w₆₁.1.trans s₆₀
   have v₁q₆₁ := (w₆₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₆₀
   have v₂q₆₁ := (w₆₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₆₀
   have v₃q₆₁ := (w₆₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₆₀
   have v₄q₆₁ := (w₆₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₆₀
-  have v₆q₆₁ := (w₆₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₆₀
-  have v₇q₆₁ := (w₆₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₆₀
-  have v₈q₆₁ := (w₆₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₆₀
+  have v₅q₆₁ := (w₆₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₆₀a
+  have v₆q₆₁ := (w₆₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₆₀b
+  have v₇q₆₁ := (w₆₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₆₀c
   have v₉q₆₁ := (w₆₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₆₀
-  clear w₆₁ e₆₀ s₆₀ v₁q₆₀ v₂q₆₀ v₃q₆₀ v₄q₆₀ v₆q₆₀ v₇q₆₀ v₈q₆₀ v₉q₆₀
-  obtain ⟨w₆₂, e₆₂⟩ := divW_val (q := q₆₁) (o := (5 * L)) (len := L) (by rw [s₆₁]; lia) 45 (by decide) (by decide)
-      (V := 16 * c₆ + 336 * c₇ + 4256 * c₈ + 42336 * c₉) v₆q₆₁ (by lia)
-  rw [← (show q₆₂ = R.divExact q₆₁ (5 * L) L 45 from rfl)] at w₆₂ e₆₂
+  clear w₆₁ v₈q₆₀ s₆₀ v₁q₆₀ v₂q₆₀ v₃q₆₀ v₄q₆₀ e₆₀a e₆₀b e₆₀c v₉q₆₀
+  obtain ⟨w₆₂, e₆₂a, e₆₂b, e₆₂c⟩ := sub3ChainW_val (q := q₆₁) (o₁ := 0) (o₂ := L)
+      (o₃ := (2 * L)) (o₄ := (3 * L)) (len := L) 0 (3 * L) (by rw [s₆₁]; lia) (by lia) (by lia) 1
+      (V₁ := c₁) (V₂ := c₂) (V₃ := c₃)
+      v₁q₆₁ v₂q₆₁ v₃q₆₁ v₄q₆₁ (by lia) (by lia) (by lia)
+  rw [← (show q₆₂ = R.sub3Chain q₆₁ 0 L (2 * L) (3 * L) L 1 from rfl)] at w₆₂ e₆₂a e₆₂b e₆₂c
   clear_value q₆₂
   have s₆₂ := w₆₂.1.trans s₆₁
-  have v₁q₆₂ := (w₆₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₆₁
-  have v₂q₆₂ := (w₆₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₆₁
-  have v₃q₆₂ := (w₆₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₆₁
   have v₄q₆₂ := (w₆₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₆₁
-  have v₅q₆₂ := (w₆₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₆₁
+  have v₅q₆₂ := (w₆₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₆₁
+  have v₆q₆₂ := (w₆₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₆₁
   have v₇q₆₂ := (w₆₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₆₁
-  have v₈q₆₂ := (w₆₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₆₁
+  have v₈q₆₂ := (w₆₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₆₁
   have v₉q₆₂ := (w₆₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₆₁
-  clear w₆₂ v₆q₆₁ s₆₁ v₁q₆₁ v₂q₆₁ v₃q₆₁ v₄q₆₁ e₆₁ v₇q₆₁ v₈q₆₁ v₉q₆₁
-  obtain ⟨w₆₃, e₆₃⟩ := shrW_val (q := q₆₂) (o := (5 * L)) (len := L) (by rw [s₆₂]; lia) 4 (by decide) (by decide)
-      (V := c₆ + 21 * c₇ + 266 * c₈ + 2646 * c₉) e₆₂ (by lia)
-  rw [← (show q₆₃ = R.shr q₆₂ (5 * L) L 4 from rfl)] at w₆₃ e₆₃
+  clear w₆₂ v₁q₆₁ v₂q₆₁ v₃q₆₁ s₆₁ v₄q₆₁ v₅q₆₁ v₆q₆₁ v₇q₆₁ e₆₁ v₉q₆₁
+  obtain ⟨w₆₃, e₆₃a, e₆₃b, e₆₃c⟩ := sub3ChainW_val (q := q₆₂) (o₁ := (3 * L)) (o₂ := (4 * L))
+      (o₃ := (5 * L)) (o₄ := (6 * L)) (len := L) (3 * L) (3 * L) (by rw [s₆₂]; lia) (by lia) (by lia) 1
+      (V₁ := c₄) (V₂ := c₅) (V₃ := c₆)
+      v₄q₆₂ v₅q₆₂ v₆q₆₂ v₇q₆₂ (by lia) (by lia) (by lia)
+  rw [← (show q₆₃ = R.sub3Chain q₆₂ (3 * L) (4 * L) (5 * L) (6 * L) L 1 from rfl)] at w₆₃ e₆₃a e₆₃b e₆₃c
   clear_value q₆₃
   have s₆₃ := w₆₃.1.trans s₆₂
-  have v₁q₆₃ := (w₆₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₆₂
-  have v₂q₆₃ := (w₆₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₆₂
-  have v₃q₆₃ := (w₆₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₆₂
-  have v₄q₆₃ := (w₆₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₆₂
-  have v₅q₆₃ := (w₆₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₆₂
+  have v₁q₆₃ := (w₆₃.valAt_eq (lo := 0) (n := L) (by lia)).trans e₆₂a
+  have v₂q₆₃ := (w₆₃.valAt_eq (lo := L) (n := L) (by lia)).trans e₆₂b
+  have v₃q₆₃ := (w₆₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₆₂c
   have v₇q₆₃ := (w₆₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₆₂
   have v₈q₆₃ := (w₆₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₆₂
   have v₉q₆₃ := (w₆₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₆₂
-  clear w₆₃ e₆₂ s₆₂ v₁q₆₂ v₂q₆₂ v₃q₆₂ v₄q₆₂ v₅q₆₂ v₇q₆₂ v₈q₆₂ v₉q₆₂
-  obtain ⟨w₆₄, e₆₄⟩ := divW_val (q := q₆₃) (o := (6 * L)) (len := L) (by rw [s₆₃]; lia) 315 (by decide) (by decide)
-      (V := 16 * c₇ + 448 * c₈ + 7392 * c₉) v₇q₆₃ (by lia)
-  rw [← (show q₆₄ = R.divExact q₆₃ (6 * L) L 315 from rfl)] at w₆₄ e₆₄
+  clear w₆₃ v₄q₆₂ v₅q₆₂ v₆q₆₂ s₆₂ e₆₂a e₆₂b e₆₂c v₇q₆₂ v₈q₆₂ v₉q₆₂
+  obtain ⟨w₆₄, e₆₄⟩ := subMulWin_val (q := q₆₃) (o := (6 * L)) (len := L) (by rw [s₆₃]; lia) (7 * L) L 1
+      (by rw [s₆₃]; lia) (by lia) (by lia) (by decide)
+      (V := c₇) v₇q₆₃ v₈q₆₃ (by lia)
+  rw [← (show q₆₄ = R.subMulWin q₆₃ (6 * L) L (7 * L) L 1 from rfl)] at w₆₄ e₆₄
   clear_value q₆₄
   have s₆₄ := w₆₄.1.trans s₆₃
   have v₁q₆₄ := (w₆₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₆₃
   have v₂q₆₄ := (w₆₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₆₃
   have v₃q₆₄ := (w₆₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₆₃
-  have v₄q₆₄ := (w₆₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₆₃
-  have v₅q₆₄ := (w₆₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₆₃
-  have v₆q₆₄ := (w₆₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₆₃
+  have v₄q₆₄ := (w₆₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₆₃a
+  have v₅q₆₄ := (w₆₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₆₃b
+  have v₆q₆₄ := (w₆₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₆₃c
   have v₈q₆₄ := (w₆₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₆₃
   have v₉q₆₄ := (w₆₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₆₃
-  clear w₆₄ v₇q₆₃ s₆₃ v₁q₆₃ v₂q₆₃ v₃q₆₃ v₄q₆₃ v₅q₆₃ e₆₃ v₈q₆₃ v₉q₆₃
-  obtain ⟨w₆₅, e₆₅⟩ := shrW_val (q := q₆₄) (o := (6 * L)) (len := L) (by rw [s₆₄]; lia) 4 (by decide) (by decide)
-      (V := c₇ + 28 * c₈ + 462 * c₉) e₆₄ (by lia)
-  rw [← (show q₆₅ = R.shr q₆₄ (6 * L) L 4 from rfl)] at w₆₅ e₆₅
+  clear w₆₄ v₇q₆₃ s₆₃ v₁q₆₃ v₂q₆₃ v₃q₆₃ e₆₃a e₆₃b e₆₃c v₈q₆₃ v₉q₆₃
+  obtain ⟨w₆₅, e₆₅⟩ := subMulWin_val (q := q₆₄) (o := (7 * L)) (len := L) (by rw [s₆₄]; lia) (8 * L) L 1
+      (by rw [s₆₄]; lia) (by lia) (by lia) (by decide)
+      (V := c₈) v₈q₆₄ v₉q₆₄ (by lia)
+  rw [← (show q₆₅ = R.subMulWin q₆₄ (7 * L) L (8 * L) L 1 from rfl)] at w₆₅ e₆₅
   clear_value q₆₅
   have s₆₅ := w₆₅.1.trans s₆₄
   have v₁q₆₅ := (w₆₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₆₄
@@ -5183,612 +4996,16 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₄q₆₅ := (w₆₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₆₄
   have v₅q₆₅ := (w₆₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₆₄
   have v₆q₆₅ := (w₆₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₆₄
-  have v₈q₆₅ := (w₆₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₆₄
+  have v₇q₆₅ := (w₆₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₆₄
   have v₉q₆₅ := (w₆₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₆₄
-  clear w₆₅ e₆₄ s₆₄ v₁q₆₄ v₂q₆₄ v₃q₆₄ v₄q₆₄ v₅q₆₄ v₆q₆₄ v₈q₆₄ v₉q₆₄
-  obtain ⟨w₆₆, e₆₆⟩ := divW_val (q := q₆₅) (o := (7 * L)) (len := L) (by rw [s₆₅]; lia) 315 (by decide) (by decide)
-      (V := 128 * c₈ + 4608 * c₉) v₈q₆₅ (by lia)
-  rw [← (show q₆₆ = R.divExact q₆₅ (7 * L) L 315 from rfl)] at w₆₆ e₆₆
-  clear_value q₆₆
-  have s₆₆ := w₆₆.1.trans s₆₅
-  have v₁q₆₆ := (w₆₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₆₅
-  have v₂q₆₆ := (w₆₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₆₅
-  have v₃q₆₆ := (w₆₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₆₅
-  have v₄q₆₆ := (w₆₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₆₅
-  have v₅q₆₆ := (w₆₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₆₅
-  have v₆q₆₆ := (w₆₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₆₅
-  have v₇q₆₆ := (w₆₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₆₅
-  have v₉q₆₆ := (w₆₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₆₅
-  clear w₆₆ v₈q₆₅ s₆₅ v₁q₆₅ v₂q₆₅ v₃q₆₅ v₄q₆₅ v₅q₆₅ v₆q₆₅ e₆₅ v₉q₆₅
-  obtain ⟨w₆₇, e₆₇⟩ := shrW_val (q := q₆₆) (o := (7 * L)) (len := L) (by rw [s₆₆]; lia) 7 (by decide) (by decide)
-      (V := c₈ + 36 * c₉) e₆₆ (by lia)
-  rw [← (show q₆₇ = R.shr q₆₆ (7 * L) L 7 from rfl)] at w₆₇ e₆₇
-  clear_value q₆₇
-  have s₆₇ := w₆₇.1.trans s₆₆
-  have v₁q₆₇ := (w₆₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₆₆
-  have v₂q₆₇ := (w₆₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₆₆
-  have v₃q₆₇ := (w₆₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₆₆
-  have v₄q₆₇ := (w₆₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₆₆
-  have v₅q₆₇ := (w₆₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₆₆
-  have v₆q₆₇ := (w₆₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₆₆
-  have v₇q₆₇ := (w₆₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₆₆
-  have v₉q₆₇ := (w₆₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₆₆
-  clear w₆₇ e₆₆ s₆₆ v₁q₆₆ v₂q₆₆ v₃q₆₆ v₄q₆₆ v₅q₆₆ v₆q₆₆ v₇q₆₆ v₉q₆₆
-  obtain ⟨w₆₈, e₆₈⟩ := divW_val (q := q₆₇) (o := (8 * L)) (len := L) (by rw [s₆₇]; lia) 2835 (by decide) (by decide)
-      (V := 128 * c₉) v₉q₆₇ (by lia)
-  rw [← (show q₆₈ = R.divExact q₆₇ (8 * L) L 2835 from rfl)] at w₆₈ e₆₈
-  clear_value q₆₈
-  have s₆₈ := w₆₈.1.trans s₆₇
-  have v₁q₆₈ := (w₆₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₆₇
-  have v₂q₆₈ := (w₆₈.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₆₇
-  have v₃q₆₈ := (w₆₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₆₇
-  have v₄q₆₈ := (w₆₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₆₇
-  have v₅q₆₈ := (w₆₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₆₇
-  have v₆q₆₈ := (w₆₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₆₇
-  have v₇q₆₈ := (w₆₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₆₇
-  have v₈q₆₈ := (w₆₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₆₇
-  clear w₆₈ v₉q₆₇ s₆₇ v₁q₆₇ v₂q₆₇ v₃q₆₇ v₄q₆₇ v₅q₆₇ v₆q₆₇ v₇q₆₇ e₆₇
-  obtain ⟨w₆₉, e₆₉⟩ := shrW_val (q := q₆₈) (o := (8 * L)) (len := L) (by rw [s₆₈]; lia) 7 (by decide) (by decide)
-      (V := c₉) e₆₈ (by lia)
-  rw [← (show q₆₉ = R.shr q₆₈ (8 * L) L 7 from rfl)] at w₆₉ e₆₉
-  clear_value q₆₉
-  have s₆₉ := w₆₉.1.trans s₆₈
-  have v₁q₆₉ := (w₆₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₆₈
-  have v₂q₆₉ := (w₆₉.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₆₈
-  have v₃q₆₉ := (w₆₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₆₈
-  have v₄q₆₉ := (w₆₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₆₈
-  have v₅q₆₉ := (w₆₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₆₈
-  have v₆q₆₉ := (w₆₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₆₈
-  have v₇q₆₉ := (w₆₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₆₈
-  have v₈q₆₉ := (w₆₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₆₈
-  clear w₆₉ e₆₈ s₆₈ v₁q₆₈ v₂q₆₈ v₃q₆₈ v₄q₆₈ v₅q₆₈ v₆q₆₈ v₇q₆₈ v₈q₆₈
-  obtain ⟨w₇₀, e₇₀⟩ := subMulWin_val (q := q₆₉) (o := (7 * L)) (len := L) (by rw [s₆₉]; lia) (8 * L) L 8
-      (by rw [s₆₉]; lia) (by lia) (by lia) (by decide)
-      (V := c₈ + 28 * c₉) v₈q₆₉ e₆₉ (by lia)
-  rw [← (show q₇₀ = R.subMulWin q₆₉ (7 * L) L (8 * L) L 8 from rfl)] at w₇₀ e₇₀
-  clear_value q₇₀
-  have s₇₀ := w₇₀.1.trans s₆₉
-  have v₁q₇₀ := (w₇₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₆₉
-  have v₂q₇₀ := (w₇₀.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₆₉
-  have v₃q₇₀ := (w₇₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₆₉
-  have v₄q₇₀ := (w₇₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₆₉
-  have v₅q₇₀ := (w₇₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₆₉
-  have v₆q₇₀ := (w₇₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₆₉
-  have v₇q₇₀ := (w₇₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₆₉
-  have v₉q₇₀ := (w₇₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₆₉
-  clear w₇₀ v₈q₆₉ s₆₉ v₁q₆₉ v₂q₆₉ v₃q₆₉ v₄q₆₉ v₅q₆₉ v₆q₆₉ v₇q₆₉ e₆₉
-  obtain ⟨w₇₁, e₇₁⟩ := subMulWin_val (q := q₇₀) (o := (6 * L)) (len := L) (by rw [s₇₀]; lia) (7 * L) L 7
-      (by rw [s₇₀]; lia) (by lia) (by lia) (by decide)
-      (V := c₇ + 21 * c₈ + 266 * c₉) v₇q₇₀ e₇₀ (by lia)
-  rw [← (show q₇₁ = R.subMulWin q₇₀ (6 * L) L (7 * L) L 7 from rfl)] at w₇₁ e₇₁
-  clear_value q₇₁
-  have s₇₁ := w₇₁.1.trans s₇₀
-  have v₁q₇₁ := (w₇₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₇₀
-  have v₂q₇₁ := (w₇₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₇₀
-  have v₃q₇₁ := (w₇₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₇₀
-  have v₄q₇₁ := (w₇₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₇₀
-  have v₅q₇₁ := (w₇₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₇₀
-  have v₆q₇₁ := (w₇₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₇₀
-  have v₈q₇₁ := (w₇₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₇₀
-  have v₉q₇₁ := (w₇₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₇₀
-  clear w₇₁ v₇q₇₀ s₇₀ v₁q₇₀ v₂q₇₀ v₃q₇₀ v₄q₇₀ v₅q₇₀ v₆q₇₀ e₇₀ v₉q₇₀
-  obtain ⟨w₇₂, e₇₂⟩ := subMulWin_val (q := q₇₁) (o := (7 * L)) (len := L) (by rw [s₇₁]; lia) (8 * L) L 7
-      (by rw [s₇₁]; lia) (by lia) (by lia) (by decide)
-      (V := c₈ + 21 * c₉) v₈q₇₁ v₉q₇₁ (by lia)
-  rw [← (show q₇₂ = R.subMulWin q₇₁ (7 * L) L (8 * L) L 7 from rfl)] at w₇₂ e₇₂
-  clear_value q₇₂
-  have s₇₂ := w₇₂.1.trans s₇₁
-  have v₁q₇₂ := (w₇₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₇₁
-  have v₂q₇₂ := (w₇₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₇₁
-  have v₃q₇₂ := (w₇₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₇₁
-  have v₄q₇₂ := (w₇₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₇₁
-  have v₅q₇₂ := (w₇₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₇₁
-  have v₆q₇₂ := (w₇₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₇₁
-  have v₇q₇₂ := (w₇₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₇₁
-  have v₉q₇₂ := (w₇₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₇₁
-  clear w₇₂ v₈q₇₁ s₇₁ v₁q₇₁ v₂q₇₁ v₃q₇₁ v₄q₇₁ v₅q₇₁ v₆q₇₁ e₇₁ v₉q₇₁
-  obtain ⟨w₇₃, e₇₃⟩ := subMulWin_val (q := q₇₂) (o := (5 * L)) (len := L) (by rw [s₇₂]; lia) (6 * L) L 6
-      (by rw [s₇₂]; lia) (by lia) (by lia) (by decide)
-      (V := c₆ + 15 * c₇ + 140 * c₈ + 1050 * c₉) v₆q₇₂ v₇q₇₂ (by lia)
-  rw [← (show q₇₃ = R.subMulWin q₇₂ (5 * L) L (6 * L) L 6 from rfl)] at w₇₃ e₇₃
-  clear_value q₇₃
-  have s₇₃ := w₇₃.1.trans s₇₂
-  have v₁q₇₃ := (w₇₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₇₂
-  have v₂q₇₃ := (w₇₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₇₂
-  have v₃q₇₃ := (w₇₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₇₂
-  have v₄q₇₃ := (w₇₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₇₂
-  have v₅q₇₃ := (w₇₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₇₂
-  have v₇q₇₃ := (w₇₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₇₂
-  have v₈q₇₃ := (w₇₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₇₂
-  have v₉q₇₃ := (w₇₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₇₂
-  clear w₇₃ v₆q₇₂ s₇₂ v₁q₇₂ v₂q₇₂ v₃q₇₂ v₄q₇₂ v₅q₇₂ v₇q₇₂ e₇₂ v₉q₇₂
-  obtain ⟨w₇₄, e₇₄⟩ := subMulWin_val (q := q₇₃) (o := (6 * L)) (len := L) (by rw [s₇₃]; lia) (7 * L) L 6
-      (by rw [s₇₃]; lia) (by lia) (by lia) (by decide)
-      (V := c₇ + 15 * c₈ + 140 * c₉) v₇q₇₃ v₈q₇₃ (by lia)
-  rw [← (show q₇₄ = R.subMulWin q₇₃ (6 * L) L (7 * L) L 6 from rfl)] at w₇₄ e₇₄
-  clear_value q₇₄
-  have s₇₄ := w₇₄.1.trans s₇₃
-  have v₁q₇₄ := (w₇₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₇₃
-  have v₂q₇₄ := (w₇₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₇₃
-  have v₃q₇₄ := (w₇₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₇₃
-  have v₄q₇₄ := (w₇₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₇₃
-  have v₅q₇₄ := (w₇₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₇₃
-  have v₆q₇₄ := (w₇₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₇₃
-  have v₈q₇₄ := (w₇₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₇₃
-  have v₉q₇₄ := (w₇₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₇₃
-  clear w₇₄ v₇q₇₃ s₇₃ v₁q₇₃ v₂q₇₃ v₃q₇₃ v₄q₇₃ v₅q₇₃ e₇₃ v₈q₇₃ v₉q₇₃
-  obtain ⟨w₇₅, e₇₅⟩ := subMulWin_val (q := q₇₄) (o := (7 * L)) (len := L) (by rw [s₇₄]; lia) (8 * L) L 6
-      (by rw [s₇₄]; lia) (by lia) (by lia) (by decide)
-      (V := c₈ + 15 * c₉) v₈q₇₄ v₉q₇₄ (by lia)
-  rw [← (show q₇₅ = R.subMulWin q₇₄ (7 * L) L (8 * L) L 6 from rfl)] at w₇₅ e₇₅
-  clear_value q₇₅
-  have s₇₅ := w₇₅.1.trans s₇₄
-  have v₁q₇₅ := (w₇₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₇₄
-  have v₂q₇₅ := (w₇₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₇₄
-  have v₃q₇₅ := (w₇₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₇₄
-  have v₄q₇₅ := (w₇₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₇₄
-  have v₅q₇₅ := (w₇₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₇₄
-  have v₆q₇₅ := (w₇₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₇₄
-  have v₇q₇₅ := (w₇₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₇₄
-  have v₉q₇₅ := (w₇₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₇₄
-  clear w₇₅ v₈q₇₄ s₇₄ v₁q₇₄ v₂q₇₄ v₃q₇₄ v₄q₇₄ v₅q₇₄ v₆q₇₄ e₇₄ v₉q₇₄
-  obtain ⟨w₇₆, e₇₆⟩ := subMulWin_val (q := q₇₅) (o := (4 * L)) (len := L) (by rw [s₇₅]; lia) (5 * L) L 5
-      (by rw [s₇₅]; lia) (by lia) (by lia) (by decide)
-      (V := c₅ + 10 * c₆ + 65 * c₇ + 350 * c₈ + 1701 * c₉) v₅q₇₅ v₆q₇₅ (by lia)
-  rw [← (show q₇₆ = R.subMulWin q₇₅ (4 * L) L (5 * L) L 5 from rfl)] at w₇₆ e₇₆
-  clear_value q₇₆
-  have s₇₆ := w₇₆.1.trans s₇₅
-  have v₁q₇₆ := (w₇₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₇₅
-  have v₂q₇₆ := (w₇₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₇₅
-  have v₃q₇₆ := (w₇₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₇₅
-  have v₄q₇₆ := (w₇₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₇₅
-  have v₆q₇₆ := (w₇₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₇₅
-  have v₇q₇₆ := (w₇₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₇₅
-  have v₈q₇₆ := (w₇₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₇₅
-  have v₉q₇₆ := (w₇₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₇₅
-  clear w₇₆ v₅q₇₅ s₇₅ v₁q₇₅ v₂q₇₅ v₃q₇₅ v₄q₇₅ v₆q₇₅ v₇q₇₅ e₇₅ v₉q₇₅
-  obtain ⟨w₇₇, e₇₇⟩ := subMulWin_val (q := q₇₆) (o := (5 * L)) (len := L) (by rw [s₇₆]; lia) (6 * L) L 5
-      (by rw [s₇₆]; lia) (by lia) (by lia) (by decide)
-      (V := c₆ + 10 * c₇ + 65 * c₈ + 350 * c₉) v₆q₇₆ v₇q₇₆ (by lia)
-  rw [← (show q₇₇ = R.subMulWin q₇₆ (5 * L) L (6 * L) L 5 from rfl)] at w₇₇ e₇₇
-  clear_value q₇₇
-  have s₇₇ := w₇₇.1.trans s₇₆
-  have v₁q₇₇ := (w₇₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₇₆
-  have v₂q₇₇ := (w₇₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₇₆
-  have v₃q₇₇ := (w₇₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₇₆
-  have v₄q₇₇ := (w₇₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₇₆
-  have v₅q₇₇ := (w₇₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₇₆
-  have v₇q₇₇ := (w₇₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₇₆
-  have v₈q₇₇ := (w₇₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₇₆
-  have v₉q₇₇ := (w₇₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₇₆
-  clear w₇₇ v₆q₇₆ s₇₆ v₁q₇₆ v₂q₇₆ v₃q₇₆ v₄q₇₆ e₇₆ v₇q₇₆ v₈q₇₆ v₉q₇₆
-  obtain ⟨w₇₈, e₇₈⟩ := subMulWin_val (q := q₇₇) (o := (6 * L)) (len := L) (by rw [s₇₇]; lia) (7 * L) L 5
-      (by rw [s₇₇]; lia) (by lia) (by lia) (by decide)
-      (V := c₇ + 10 * c₈ + 65 * c₉) v₇q₇₇ v₈q₇₇ (by lia)
-  rw [← (show q₇₈ = R.subMulWin q₇₇ (6 * L) L (7 * L) L 5 from rfl)] at w₇₈ e₇₈
-  clear_value q₇₈
-  have s₇₈ := w₇₈.1.trans s₇₇
-  have v₁q₇₈ := (w₇₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₇₇
-  have v₂q₇₈ := (w₇₈.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₇₇
-  have v₃q₇₈ := (w₇₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₇₇
-  have v₄q₇₈ := (w₇₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₇₇
-  have v₅q₇₈ := (w₇₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₇₇
-  have v₆q₇₈ := (w₇₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₇₇
-  have v₈q₇₈ := (w₇₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₇₇
-  have v₉q₇₈ := (w₇₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₇₇
-  clear w₇₈ v₇q₇₇ s₇₇ v₁q₇₇ v₂q₇₇ v₃q₇₇ v₄q₇₇ v₅q₇₇ e₇₇ v₈q₇₇ v₉q₇₇
-  obtain ⟨w₇₉, e₇₉⟩ := subMulWin_val (q := q₇₈) (o := (7 * L)) (len := L) (by rw [s₇₈]; lia) (8 * L) L 5
-      (by rw [s₇₈]; lia) (by lia) (by lia) (by decide)
-      (V := c₈ + 10 * c₉) v₈q₇₈ v₉q₇₈ (by lia)
-  rw [← (show q₇₉ = R.subMulWin q₇₈ (7 * L) L (8 * L) L 5 from rfl)] at w₇₉ e₇₉
-  clear_value q₇₉
-  have s₇₉ := w₇₉.1.trans s₇₈
-  have v₁q₇₉ := (w₇₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₇₈
-  have v₂q₇₉ := (w₇₉.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₇₈
-  have v₃q₇₉ := (w₇₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₇₈
-  have v₄q₇₉ := (w₇₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₇₈
-  have v₅q₇₉ := (w₇₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₇₈
-  have v₆q₇₉ := (w₇₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₇₈
-  have v₇q₇₉ := (w₇₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₇₈
-  have v₉q₇₉ := (w₇₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₇₈
-  clear w₇₉ v₈q₇₈ s₇₈ v₁q₇₈ v₂q₇₈ v₃q₇₈ v₄q₇₈ v₅q₇₈ v₆q₇₈ e₇₈ v₉q₇₈
-  obtain ⟨w₈₀, e₈₀⟩ := subMulWin_val (q := q₇₉) (o := (3 * L)) (len := L) (by rw [s₇₉]; lia) (4 * L) L 4
-      (by rw [s₇₉]; lia) (by lia) (by lia) (by decide)
-      (V := c₄ + 6 * c₅ + 25 * c₆ + 90 * c₇ + 301 * c₈ + 966 * c₉) v₄q₇₉ v₅q₇₉ (by lia)
-  rw [← (show q₈₀ = R.subMulWin q₇₉ (3 * L) L (4 * L) L 4 from rfl)] at w₈₀ e₈₀
-  clear_value q₈₀
-  have s₈₀ := w₈₀.1.trans s₇₉
-  have v₁q₈₀ := (w₈₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₇₉
-  have v₂q₈₀ := (w₈₀.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₇₉
-  have v₃q₈₀ := (w₈₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₇₉
-  have v₅q₈₀ := (w₈₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₇₉
-  have v₆q₈₀ := (w₈₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₇₉
-  have v₇q₈₀ := (w₈₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₇₉
-  have v₈q₈₀ := (w₈₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₇₉
-  have v₉q₈₀ := (w₈₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₇₉
-  clear w₈₀ v₄q₇₉ s₇₉ v₁q₇₉ v₂q₇₉ v₃q₇₉ v₅q₇₉ v₆q₇₉ v₇q₇₉ e₇₉ v₉q₇₉
-  obtain ⟨w₈₁, e₈₁⟩ := subMulWin_val (q := q₈₀) (o := (4 * L)) (len := L) (by rw [s₈₀]; lia) (5 * L) L 4
-      (by rw [s₈₀]; lia) (by lia) (by lia) (by decide)
-      (V := c₅ + 6 * c₆ + 25 * c₇ + 90 * c₈ + 301 * c₉) v₅q₈₀ v₆q₈₀ (by lia)
-  rw [← (show q₈₁ = R.subMulWin q₈₀ (4 * L) L (5 * L) L 4 from rfl)] at w₈₁ e₈₁
-  clear_value q₈₁
-  have s₈₁ := w₈₁.1.trans s₈₀
-  have v₁q₈₁ := (w₈₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₈₀
-  have v₂q₈₁ := (w₈₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₈₀
-  have v₃q₈₁ := (w₈₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₈₀
-  have v₄q₈₁ := (w₈₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₈₀
-  have v₆q₈₁ := (w₈₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₈₀
-  have v₇q₈₁ := (w₈₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₈₀
-  have v₈q₈₁ := (w₈₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₈₀
-  have v₉q₈₁ := (w₈₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₈₀
-  clear w₈₁ v₅q₈₀ s₈₀ v₁q₈₀ v₂q₈₀ v₃q₈₀ e₈₀ v₆q₈₀ v₇q₈₀ v₈q₈₀ v₉q₈₀
-  obtain ⟨w₈₂, e₈₂⟩ := subMulWin_val (q := q₈₁) (o := (5 * L)) (len := L) (by rw [s₈₁]; lia) (6 * L) L 4
-      (by rw [s₈₁]; lia) (by lia) (by lia) (by decide)
-      (V := c₆ + 6 * c₇ + 25 * c₈ + 90 * c₉) v₆q₈₁ v₇q₈₁ (by lia)
-  rw [← (show q₈₂ = R.subMulWin q₈₁ (5 * L) L (6 * L) L 4 from rfl)] at w₈₂ e₈₂
-  clear_value q₈₂
-  have s₈₂ := w₈₂.1.trans s₈₁
-  have v₁q₈₂ := (w₈₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₈₁
-  have v₂q₈₂ := (w₈₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₈₁
-  have v₃q₈₂ := (w₈₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₈₁
-  have v₄q₈₂ := (w₈₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₈₁
-  have v₅q₈₂ := (w₈₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₈₁
-  have v₇q₈₂ := (w₈₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₈₁
-  have v₈q₈₂ := (w₈₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₈₁
-  have v₉q₈₂ := (w₈₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₈₁
-  clear w₈₂ v₆q₈₁ s₈₁ v₁q₈₁ v₂q₈₁ v₃q₈₁ v₄q₈₁ e₈₁ v₇q₈₁ v₈q₈₁ v₉q₈₁
-  obtain ⟨w₈₃, e₈₃⟩ := subMulWin_val (q := q₈₂) (o := (6 * L)) (len := L) (by rw [s₈₂]; lia) (7 * L) L 4
-      (by rw [s₈₂]; lia) (by lia) (by lia) (by decide)
-      (V := c₇ + 6 * c₈ + 25 * c₉) v₇q₈₂ v₈q₈₂ (by lia)
-  rw [← (show q₈₃ = R.subMulWin q₈₂ (6 * L) L (7 * L) L 4 from rfl)] at w₈₃ e₈₃
-  clear_value q₈₃
-  have s₈₃ := w₈₃.1.trans s₈₂
-  have v₁q₈₃ := (w₈₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₈₂
-  have v₂q₈₃ := (w₈₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₈₂
-  have v₃q₈₃ := (w₈₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₈₂
-  have v₄q₈₃ := (w₈₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₈₂
-  have v₅q₈₃ := (w₈₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₈₂
-  have v₆q₈₃ := (w₈₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₈₂
-  have v₈q₈₃ := (w₈₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₈₂
-  have v₉q₈₃ := (w₈₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₈₂
-  clear w₈₃ v₇q₈₂ s₈₂ v₁q₈₂ v₂q₈₂ v₃q₈₂ v₄q₈₂ v₅q₈₂ e₈₂ v₈q₈₂ v₉q₈₂
-  obtain ⟨w₈₄, e₈₄⟩ := subMulWin_val (q := q₈₃) (o := (7 * L)) (len := L) (by rw [s₈₃]; lia) (8 * L) L 4
-      (by rw [s₈₃]; lia) (by lia) (by lia) (by decide)
-      (V := c₈ + 6 * c₉) v₈q₈₃ v₉q₈₃ (by lia)
-  rw [← (show q₈₄ = R.subMulWin q₈₃ (7 * L) L (8 * L) L 4 from rfl)] at w₈₄ e₈₄
-  clear_value q₈₄
-  have s₈₄ := w₈₄.1.trans s₈₃
-  have v₁q₈₄ := (w₈₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₈₃
-  have v₂q₈₄ := (w₈₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₈₃
-  have v₃q₈₄ := (w₈₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₈₃
-  have v₄q₈₄ := (w₈₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₈₃
-  have v₅q₈₄ := (w₈₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₈₃
-  have v₆q₈₄ := (w₈₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₈₃
-  have v₇q₈₄ := (w₈₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₈₃
-  have v₉q₈₄ := (w₈₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₈₃
-  clear w₈₄ v₈q₈₃ s₈₃ v₁q₈₃ v₂q₈₃ v₃q₈₃ v₄q₈₃ v₅q₈₃ v₆q₈₃ e₈₃ v₉q₈₃
-  obtain ⟨w₈₅, e₈₅⟩ := subMulWin_val (q := q₈₄) (o := (2 * L)) (len := L) (by rw [s₈₄]; lia) (3 * L) L 3
-      (by rw [s₈₄]; lia) (by lia) (by lia) (by decide)
-      (V := c₃ + 3 * c₄ + 7 * c₅ + 15 * c₆ + 31 * c₇ + 63 * c₈ + 127 * c₉) v₃q₈₄ v₄q₈₄ (by lia)
-  rw [← (show q₈₅ = R.subMulWin q₈₄ (2 * L) L (3 * L) L 3 from rfl)] at w₈₅ e₈₅
-  clear_value q₈₅
-  have s₈₅ := w₈₅.1.trans s₈₄
-  have v₁q₈₅ := (w₈₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₈₄
-  have v₂q₈₅ := (w₈₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₈₄
-  have v₄q₈₅ := (w₈₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₈₄
-  have v₅q₈₅ := (w₈₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₈₄
-  have v₆q₈₅ := (w₈₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₈₄
-  have v₇q₈₅ := (w₈₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₈₄
-  have v₈q₈₅ := (w₈₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₈₄
-  have v₉q₈₅ := (w₈₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₈₄
-  clear w₈₅ v₃q₈₄ s₈₄ v₁q₈₄ v₂q₈₄ v₄q₈₄ v₅q₈₄ v₆q₈₄ v₇q₈₄ e₈₄ v₉q₈₄
-  obtain ⟨w₈₆, e₈₆⟩ := subMulWin_val (q := q₈₅) (o := (3 * L)) (len := L) (by rw [s₈₅]; lia) (4 * L) L 3
-      (by rw [s₈₅]; lia) (by lia) (by lia) (by decide)
-      (V := c₄ + 3 * c₅ + 7 * c₆ + 15 * c₇ + 31 * c₈ + 63 * c₉) v₄q₈₅ v₅q₈₅ (by lia)
-  rw [← (show q₈₆ = R.subMulWin q₈₅ (3 * L) L (4 * L) L 3 from rfl)] at w₈₆ e₈₆
-  clear_value q₈₆
-  have s₈₆ := w₈₆.1.trans s₈₅
-  have v₁q₈₆ := (w₈₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₈₅
-  have v₂q₈₆ := (w₈₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₈₅
-  have v₃q₈₆ := (w₈₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₈₅
-  have v₅q₈₆ := (w₈₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₈₅
-  have v₆q₈₆ := (w₈₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₈₅
-  have v₇q₈₆ := (w₈₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₈₅
-  have v₈q₈₆ := (w₈₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₈₅
-  have v₉q₈₆ := (w₈₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₈₅
-  clear w₈₆ v₄q₈₅ s₈₅ v₁q₈₅ v₂q₈₅ e₈₅ v₅q₈₅ v₆q₈₅ v₇q₈₅ v₈q₈₅ v₉q₈₅
-  obtain ⟨w₈₇, e₈₇⟩ := subMulWin_val (q := q₈₆) (o := (4 * L)) (len := L) (by rw [s₈₆]; lia) (5 * L) L 3
-      (by rw [s₈₆]; lia) (by lia) (by lia) (by decide)
-      (V := c₅ + 3 * c₆ + 7 * c₇ + 15 * c₈ + 31 * c₉) v₅q₈₆ v₆q₈₆ (by lia)
-  rw [← (show q₈₇ = R.subMulWin q₈₆ (4 * L) L (5 * L) L 3 from rfl)] at w₈₇ e₈₇
-  clear_value q₈₇
-  have s₈₇ := w₈₇.1.trans s₈₆
-  have v₁q₈₇ := (w₈₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₈₆
-  have v₂q₈₇ := (w₈₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₈₆
-  have v₃q₈₇ := (w₈₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₈₆
-  have v₄q₈₇ := (w₈₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₈₆
-  have v₆q₈₇ := (w₈₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₈₆
-  have v₇q₈₇ := (w₈₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₈₆
-  have v₈q₈₇ := (w₈₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₈₆
-  have v₉q₈₇ := (w₈₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₈₆
-  clear w₈₇ v₅q₈₆ s₈₆ v₁q₈₆ v₂q₈₆ v₃q₈₆ e₈₆ v₆q₈₆ v₇q₈₆ v₈q₈₆ v₉q₈₆
-  obtain ⟨w₈₈, e₈₈⟩ := subMulWin_val (q := q₈₇) (o := (5 * L)) (len := L) (by rw [s₈₇]; lia) (6 * L) L 3
-      (by rw [s₈₇]; lia) (by lia) (by lia) (by decide)
-      (V := c₆ + 3 * c₇ + 7 * c₈ + 15 * c₉) v₆q₈₇ v₇q₈₇ (by lia)
-  rw [← (show q₈₈ = R.subMulWin q₈₇ (5 * L) L (6 * L) L 3 from rfl)] at w₈₈ e₈₈
-  clear_value q₈₈
-  have s₈₈ := w₈₈.1.trans s₈₇
-  have v₁q₈₈ := (w₈₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₈₇
-  have v₂q₈₈ := (w₈₈.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₈₇
-  have v₃q₈₈ := (w₈₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₈₇
-  have v₄q₈₈ := (w₈₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₈₇
-  have v₅q₈₈ := (w₈₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₈₇
-  have v₇q₈₈ := (w₈₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₈₇
-  have v₈q₈₈ := (w₈₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₈₇
-  have v₉q₈₈ := (w₈₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₈₇
-  clear w₈₈ v₆q₈₇ s₈₇ v₁q₈₇ v₂q₈₇ v₃q₈₇ v₄q₈₇ e₈₇ v₇q₈₇ v₈q₈₇ v₉q₈₇
-  obtain ⟨w₈₉, e₈₉⟩ := subMulWin_val (q := q₈₈) (o := (6 * L)) (len := L) (by rw [s₈₈]; lia) (7 * L) L 3
-      (by rw [s₈₈]; lia) (by lia) (by lia) (by decide)
-      (V := c₇ + 3 * c₈ + 7 * c₉) v₇q₈₈ v₈q₈₈ (by lia)
-  rw [← (show q₈₉ = R.subMulWin q₈₈ (6 * L) L (7 * L) L 3 from rfl)] at w₈₉ e₈₉
-  clear_value q₈₉
-  have s₈₉ := w₈₉.1.trans s₈₈
-  have v₁q₈₉ := (w₈₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₈₈
-  have v₂q₈₉ := (w₈₉.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₈₈
-  have v₃q₈₉ := (w₈₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₈₈
-  have v₄q₈₉ := (w₈₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₈₈
-  have v₅q₈₉ := (w₈₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₈₈
-  have v₆q₈₉ := (w₈₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₈₈
-  have v₈q₈₉ := (w₈₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₈₈
-  have v₉q₈₉ := (w₈₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₈₈
-  clear w₈₉ v₇q₈₈ s₈₈ v₁q₈₈ v₂q₈₈ v₃q₈₈ v₄q₈₈ v₅q₈₈ e₈₈ v₈q₈₈ v₉q₈₈
-  obtain ⟨w₉₀, e₉₀⟩ := subMulWin_val (q := q₈₉) (o := (7 * L)) (len := L) (by rw [s₈₉]; lia) (8 * L) L 3
-      (by rw [s₈₉]; lia) (by lia) (by lia) (by decide)
-      (V := c₈ + 3 * c₉) v₈q₈₉ v₉q₈₉ (by lia)
-  rw [← (show q₉₀ = R.subMulWin q₈₉ (7 * L) L (8 * L) L 3 from rfl)] at w₉₀ e₉₀
-  clear_value q₉₀
-  have s₉₀ := w₉₀.1.trans s₈₉
-  have v₁q₉₀ := (w₉₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₈₉
-  have v₂q₉₀ := (w₉₀.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₈₉
-  have v₃q₉₀ := (w₉₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₈₉
-  have v₄q₉₀ := (w₉₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₈₉
-  have v₅q₉₀ := (w₉₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₈₉
-  have v₆q₉₀ := (w₉₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₈₉
-  have v₇q₉₀ := (w₉₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₈₉
-  have v₉q₉₀ := (w₉₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₈₉
-  clear w₉₀ v₈q₈₉ s₈₉ v₁q₈₉ v₂q₈₉ v₃q₈₉ v₄q₈₉ v₅q₈₉ v₆q₈₉ e₈₉ v₉q₈₉
-  obtain ⟨w₉₁, e₉₁⟩ := subMulWin_val (q := q₉₀) (o := L) (len := L) (by rw [s₉₀]; lia) (2 * L) L 2
-      (by rw [s₉₀]; lia) (by lia) (by lia) (by decide)
-      (V := c₂ + c₃ + c₄ + c₅ + c₆ + c₇ + c₈ + c₉) v₂q₉₀ v₃q₉₀ (by lia)
-  rw [← (show q₉₁ = R.subMulWin q₉₀ L L (2 * L) L 2 from rfl)] at w₉₁ e₉₁
-  clear_value q₉₁
-  have s₉₁ := w₉₁.1.trans s₉₀
-  have v₁q₉₁ := (w₉₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₉₀
-  have v₃q₉₁ := (w₉₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₉₀
-  have v₄q₉₁ := (w₉₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₉₀
-  have v₅q₉₁ := (w₉₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₉₀
-  have v₆q₉₁ := (w₉₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₉₀
-  have v₇q₉₁ := (w₉₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₉₀
-  have v₈q₉₁ := (w₉₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₉₀
-  have v₉q₉₁ := (w₉₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₉₀
-  clear w₉₁ v₂q₉₀ s₉₀ v₁q₉₀ v₃q₉₀ v₄q₉₀ v₅q₉₀ v₆q₉₀ v₇q₉₀ e₉₀ v₉q₉₀
-  obtain ⟨w₉₂, e₉₂⟩ := subMulWin_val (q := q₉₁) (o := (2 * L)) (len := L) (by rw [s₉₁]; lia) (3 * L) L 2
-      (by rw [s₉₁]; lia) (by lia) (by lia) (by decide)
-      (V := c₃ + c₄ + c₅ + c₆ + c₇ + c₈ + c₉) v₃q₉₁ v₄q₉₁ (by lia)
-  rw [← (show q₉₂ = R.subMulWin q₉₁ (2 * L) L (3 * L) L 2 from rfl)] at w₉₂ e₉₂
-  clear_value q₉₂
-  have s₉₂ := w₉₂.1.trans s₉₁
-  have v₁q₉₂ := (w₉₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₉₁
-  have v₂q₉₂ := (w₉₂.valAt_eq (lo := L) (n := L) (by lia)).trans e₉₁
-  have v₄q₉₂ := (w₉₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₉₁
-  have v₅q₉₂ := (w₉₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₉₁
-  have v₆q₉₂ := (w₉₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₉₁
-  have v₇q₉₂ := (w₉₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₉₁
-  have v₈q₉₂ := (w₉₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₉₁
-  have v₉q₉₂ := (w₉₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₉₁
-  clear w₉₂ v₃q₉₁ s₉₁ v₁q₉₁ e₉₁ v₄q₉₁ v₅q₉₁ v₆q₉₁ v₇q₉₁ v₈q₉₁ v₉q₉₁
-  obtain ⟨w₉₃, e₉₃⟩ := subMulWin_val (q := q₉₂) (o := (3 * L)) (len := L) (by rw [s₉₂]; lia) (4 * L) L 2
-      (by rw [s₉₂]; lia) (by lia) (by lia) (by decide)
-      (V := c₄ + c₅ + c₆ + c₇ + c₈ + c₉) v₄q₉₂ v₅q₉₂ (by lia)
-  rw [← (show q₉₃ = R.subMulWin q₉₂ (3 * L) L (4 * L) L 2 from rfl)] at w₉₃ e₉₃
-  clear_value q₉₃
-  have s₉₃ := w₉₃.1.trans s₉₂
-  have v₁q₉₃ := (w₉₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₉₂
-  have v₂q₉₃ := (w₉₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₉₂
-  have v₃q₉₃ := (w₉₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₉₂
-  have v₅q₉₃ := (w₉₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₉₂
-  have v₆q₉₃ := (w₉₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₉₂
-  have v₇q₉₃ := (w₉₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₉₂
-  have v₈q₉₃ := (w₉₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₉₂
-  have v₉q₉₃ := (w₉₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₉₂
-  clear w₉₃ v₄q₉₂ s₉₂ v₁q₉₂ v₂q₉₂ e₉₂ v₅q₉₂ v₆q₉₂ v₇q₉₂ v₈q₉₂ v₉q₉₂
-  obtain ⟨w₉₄, e₉₄⟩ := subMulWin_val (q := q₉₃) (o := (4 * L)) (len := L) (by rw [s₉₃]; lia) (5 * L) L 2
-      (by rw [s₉₃]; lia) (by lia) (by lia) (by decide)
-      (V := c₅ + c₆ + c₇ + c₈ + c₉) v₅q₉₃ v₆q₉₃ (by lia)
-  rw [← (show q₉₄ = R.subMulWin q₉₃ (4 * L) L (5 * L) L 2 from rfl)] at w₉₄ e₉₄
-  clear_value q₉₄
-  have s₉₄ := w₉₄.1.trans s₉₃
-  have v₁q₉₄ := (w₉₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₉₃
-  have v₂q₉₄ := (w₉₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₉₃
-  have v₃q₉₄ := (w₉₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₉₃
-  have v₄q₉₄ := (w₉₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₉₃
-  have v₆q₉₄ := (w₉₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₉₃
-  have v₇q₉₄ := (w₉₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₉₃
-  have v₈q₉₄ := (w₉₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₉₃
-  have v₉q₉₄ := (w₉₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₉₃
-  clear w₉₄ v₅q₉₃ s₉₃ v₁q₉₃ v₂q₉₃ v₃q₉₃ e₉₃ v₆q₉₃ v₇q₉₃ v₈q₉₃ v₉q₉₃
-  obtain ⟨w₉₅, e₉₅⟩ := subMulWin_val (q := q₉₄) (o := (5 * L)) (len := L) (by rw [s₉₄]; lia) (6 * L) L 2
-      (by rw [s₉₄]; lia) (by lia) (by lia) (by decide)
-      (V := c₆ + c₇ + c₈ + c₉) v₆q₉₄ v₇q₉₄ (by lia)
-  rw [← (show q₉₅ = R.subMulWin q₉₄ (5 * L) L (6 * L) L 2 from rfl)] at w₉₅ e₉₅
-  clear_value q₉₅
-  have s₉₅ := w₉₅.1.trans s₉₄
-  have v₁q₉₅ := (w₉₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₉₄
-  have v₂q₉₅ := (w₉₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₉₄
-  have v₃q₉₅ := (w₉₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₉₄
-  have v₄q₉₅ := (w₉₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₉₄
-  have v₅q₉₅ := (w₉₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₉₄
-  have v₇q₉₅ := (w₉₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₉₄
-  have v₈q₉₅ := (w₉₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₉₄
-  have v₉q₉₅ := (w₉₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₉₄
-  clear w₉₅ v₆q₉₄ s₉₄ v₁q₉₄ v₂q₉₄ v₃q₉₄ v₄q₉₄ e₉₄ v₇q₉₄ v₈q₉₄ v₉q₉₄
-  obtain ⟨w₉₆, e₉₆⟩ := subMulWin_val (q := q₉₅) (o := (6 * L)) (len := L) (by rw [s₉₅]; lia) (7 * L) L 2
-      (by rw [s₉₅]; lia) (by lia) (by lia) (by decide)
-      (V := c₇ + c₈ + c₉) v₇q₉₅ v₈q₉₅ (by lia)
-  rw [← (show q₉₆ = R.subMulWin q₉₅ (6 * L) L (7 * L) L 2 from rfl)] at w₉₆ e₉₆
-  clear_value q₉₆
-  have s₉₆ := w₉₆.1.trans s₉₅
-  have v₁q₉₆ := (w₉₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₉₅
-  have v₂q₉₆ := (w₉₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₉₅
-  have v₃q₉₆ := (w₉₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₉₅
-  have v₄q₉₆ := (w₉₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₉₅
-  have v₅q₉₆ := (w₉₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₉₅
-  have v₆q₉₆ := (w₉₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₉₅
-  have v₈q₉₆ := (w₉₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₉₅
-  have v₉q₉₆ := (w₉₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₉₅
-  clear w₉₆ v₇q₉₅ s₉₅ v₁q₉₅ v₂q₉₅ v₃q₉₅ v₄q₉₅ v₅q₉₅ e₉₅ v₈q₉₅ v₉q₉₅
-  obtain ⟨w₉₇, e₉₇⟩ := subMulWin_val (q := q₉₆) (o := (7 * L)) (len := L) (by rw [s₉₆]; lia) (8 * L) L 2
-      (by rw [s₉₆]; lia) (by lia) (by lia) (by decide)
-      (V := c₈ + c₉) v₈q₉₆ v₉q₉₆ (by lia)
-  rw [← (show q₉₇ = R.subMulWin q₉₆ (7 * L) L (8 * L) L 2 from rfl)] at w₉₇ e₉₇
-  clear_value q₉₇
-  have s₉₇ := w₉₇.1.trans s₉₆
-  have v₁q₉₇ := (w₉₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₉₆
-  have v₂q₉₇ := (w₉₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₉₆
-  have v₃q₉₇ := (w₉₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₉₆
-  have v₄q₉₇ := (w₉₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₉₆
-  have v₅q₉₇ := (w₉₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₉₆
-  have v₆q₉₇ := (w₉₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₉₆
-  have v₇q₉₇ := (w₉₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₉₆
-  have v₉q₉₇ := (w₉₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₉₆
-  clear w₉₇ v₈q₉₆ s₉₆ v₁q₉₆ v₂q₉₆ v₃q₉₆ v₄q₉₆ v₅q₉₆ v₆q₉₆ e₉₆ v₉q₉₆
-  obtain ⟨w₉₈, e₉₈⟩ := subMulWin_val (q := q₉₇) (o := 0) (len := L) (by rw [s₉₇]; lia) L L 1
-      (by rw [s₉₇]; lia) (by lia) (by lia) (by decide)
-      (V := c₁) v₁q₉₇ v₂q₉₇ (by lia)
-  rw [← (show q₉₈ = R.subMulWin q₉₇ 0 L L L 1 from rfl)] at w₉₈ e₉₈
-  clear_value q₉₈
-  have s₉₈ := w₉₈.1.trans s₉₇
-  have v₂q₉₈ := (w₉₈.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₉₇
-  have v₃q₉₈ := (w₉₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₉₇
-  have v₄q₉₈ := (w₉₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₉₇
-  have v₅q₉₈ := (w₉₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₉₇
-  have v₆q₉₈ := (w₉₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₉₇
-  have v₇q₉₈ := (w₉₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₉₇
-  have v₈q₉₈ := (w₉₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₉₇
-  have v₉q₉₈ := (w₉₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₉₇
-  clear w₉₈ v₁q₉₇ s₉₇ v₂q₉₇ v₃q₉₇ v₄q₉₇ v₅q₉₇ v₆q₉₇ v₇q₉₇ e₉₇ v₉q₉₇
-  obtain ⟨w₉₉, e₉₉⟩ := subMulWin_val (q := q₉₈) (o := L) (len := L) (by rw [s₉₈]; lia) (2 * L) L 1
-      (by rw [s₉₈]; lia) (by lia) (by lia) (by decide)
-      (V := c₂) v₂q₉₈ v₃q₉₈ (by lia)
-  rw [← (show q₉₉ = R.subMulWin q₉₈ L L (2 * L) L 1 from rfl)] at w₉₉ e₉₉
-  clear_value q₉₉
-  have s₉₉ := w₉₉.1.trans s₉₈
-  have v₁q₉₉ := (w₉₉.valAt_eq (lo := 0) (n := L) (by lia)).trans e₉₈
-  have v₃q₉₉ := (w₉₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₉₈
-  have v₄q₉₉ := (w₉₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₉₈
-  have v₅q₉₉ := (w₉₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₉₈
-  have v₆q₉₉ := (w₉₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₉₈
-  have v₇q₉₉ := (w₉₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₉₈
-  have v₈q₉₉ := (w₉₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₉₈
-  have v₉q₉₉ := (w₉₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₉₈
-  clear w₉₉ v₂q₉₈ s₉₈ e₉₈ v₃q₉₈ v₄q₉₈ v₅q₉₈ v₆q₉₈ v₇q₉₈ v₈q₉₈ v₉q₉₈
-  obtain ⟨w₁₀₀, e₁₀₀⟩ := subMulWin_val (q := q₉₉) (o := (2 * L)) (len := L) (by rw [s₉₉]; lia) (3 * L) L 1
-      (by rw [s₉₉]; lia) (by lia) (by lia) (by decide)
-      (V := c₃) v₃q₉₉ v₄q₉₉ (by lia)
-  rw [← (show q₁₀₀ = R.subMulWin q₉₉ (2 * L) L (3 * L) L 1 from rfl)] at w₁₀₀ e₁₀₀
-  clear_value q₁₀₀
-  have s₁₀₀ := w₁₀₀.1.trans s₉₉
-  have v₁q₁₀₀ := (w₁₀₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₉₉
-  have v₂q₁₀₀ := (w₁₀₀.valAt_eq (lo := L) (n := L) (by lia)).trans e₉₉
-  have v₄q₁₀₀ := (w₁₀₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₉₉
-  have v₅q₁₀₀ := (w₁₀₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₉₉
-  have v₆q₁₀₀ := (w₁₀₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₉₉
-  have v₇q₁₀₀ := (w₁₀₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₉₉
-  have v₈q₁₀₀ := (w₁₀₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₉₉
-  have v₉q₁₀₀ := (w₁₀₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₉₉
-  clear w₁₀₀ v₃q₉₉ s₉₉ v₁q₉₉ e₉₉ v₄q₉₉ v₅q₉₉ v₆q₉₉ v₇q₉₉ v₈q₉₉ v₉q₉₉
-  obtain ⟨w₁₀₁, e₁₀₁⟩ := subMulWin_val (q := q₁₀₀) (o := (3 * L)) (len := L) (by rw [s₁₀₀]; lia) (4 * L) L 1
-      (by rw [s₁₀₀]; lia) (by lia) (by lia) (by decide)
-      (V := c₄) v₄q₁₀₀ v₅q₁₀₀ (by lia)
-  rw [← (show q₁₀₁ = R.subMulWin q₁₀₀ (3 * L) L (4 * L) L 1 from rfl)] at w₁₀₁ e₁₀₁
-  clear_value q₁₀₁
-  have s₁₀₁ := w₁₀₁.1.trans s₁₀₀
-  have v₁q₁₀₁ := (w₁₀₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₀₀
-  have v₂q₁₀₁ := (w₁₀₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₀₀
-  have v₃q₁₀₁ := (w₁₀₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₁₀₀
-  have v₅q₁₀₁ := (w₁₀₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₀₀
-  have v₆q₁₀₁ := (w₁₀₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₀₀
-  have v₇q₁₀₁ := (w₁₀₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₀₀
-  have v₈q₁₀₁ := (w₁₀₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₀₀
-  have v₉q₁₀₁ := (w₁₀₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₀₀
-  clear w₁₀₁ v₄q₁₀₀ s₁₀₀ v₁q₁₀₀ v₂q₁₀₀ e₁₀₀ v₅q₁₀₀ v₆q₁₀₀ v₇q₁₀₀ v₈q₁₀₀ v₉q₁₀₀
-  obtain ⟨w₁₀₂, e₁₀₂⟩ := subMulWin_val (q := q₁₀₁) (o := (4 * L)) (len := L) (by rw [s₁₀₁]; lia) (5 * L) L 1
-      (by rw [s₁₀₁]; lia) (by lia) (by lia) (by decide)
-      (V := c₅) v₅q₁₀₁ v₆q₁₀₁ (by lia)
-  rw [← (show q₁₀₂ = R.subMulWin q₁₀₁ (4 * L) L (5 * L) L 1 from rfl)] at w₁₀₂ e₁₀₂
-  clear_value q₁₀₂
-  have s₁₀₂ := w₁₀₂.1.trans s₁₀₁
-  have v₁q₁₀₂ := (w₁₀₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₀₁
-  have v₂q₁₀₂ := (w₁₀₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₀₁
-  have v₃q₁₀₂ := (w₁₀₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₀₁
-  have v₄q₁₀₂ := (w₁₀₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₁₀₁
-  have v₆q₁₀₂ := (w₁₀₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₀₁
-  have v₇q₁₀₂ := (w₁₀₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₀₁
-  have v₈q₁₀₂ := (w₁₀₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₀₁
-  have v₉q₁₀₂ := (w₁₀₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₀₁
-  clear w₁₀₂ v₅q₁₀₁ s₁₀₁ v₁q₁₀₁ v₂q₁₀₁ v₃q₁₀₁ e₁₀₁ v₆q₁₀₁ v₇q₁₀₁ v₈q₁₀₁ v₉q₁₀₁
-  obtain ⟨w₁₀₃, e₁₀₃⟩ := subMulWin_val (q := q₁₀₂) (o := (5 * L)) (len := L) (by rw [s₁₀₂]; lia) (6 * L) L 1
-      (by rw [s₁₀₂]; lia) (by lia) (by lia) (by decide)
-      (V := c₆) v₆q₁₀₂ v₇q₁₀₂ (by lia)
-  rw [← (show q₁₀₃ = R.subMulWin q₁₀₂ (5 * L) L (6 * L) L 1 from rfl)] at w₁₀₃ e₁₀₃
-  clear_value q₁₀₃
-  have s₁₀₃ := w₁₀₃.1.trans s₁₀₂
-  have v₁q₁₀₃ := (w₁₀₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₀₂
-  have v₂q₁₀₃ := (w₁₀₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₀₂
-  have v₃q₁₀₃ := (w₁₀₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₀₂
-  have v₄q₁₀₃ := (w₁₀₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₀₂
-  have v₅q₁₀₃ := (w₁₀₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₁₀₂
-  have v₇q₁₀₃ := (w₁₀₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₀₂
-  have v₈q₁₀₃ := (w₁₀₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₀₂
-  have v₉q₁₀₃ := (w₁₀₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₀₂
-  clear w₁₀₃ v₆q₁₀₂ s₁₀₂ v₁q₁₀₂ v₂q₁₀₂ v₃q₁₀₂ v₄q₁₀₂ e₁₀₂ v₇q₁₀₂ v₈q₁₀₂ v₉q₁₀₂
-  obtain ⟨w₁₀₄, e₁₀₄⟩ := subMulWin_val (q := q₁₀₃) (o := (6 * L)) (len := L) (by rw [s₁₀₃]; lia) (7 * L) L 1
-      (by rw [s₁₀₃]; lia) (by lia) (by lia) (by decide)
-      (V := c₇) v₇q₁₀₃ v₈q₁₀₃ (by lia)
-  rw [← (show q₁₀₄ = R.subMulWin q₁₀₃ (6 * L) L (7 * L) L 1 from rfl)] at w₁₀₄ e₁₀₄
-  clear_value q₁₀₄
-  have s₁₀₄ := w₁₀₄.1.trans s₁₀₃
-  have v₁q₁₀₄ := (w₁₀₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₀₃
-  have v₂q₁₀₄ := (w₁₀₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₀₃
-  have v₃q₁₀₄ := (w₁₀₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₀₃
-  have v₄q₁₀₄ := (w₁₀₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₀₃
-  have v₅q₁₀₄ := (w₁₀₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₀₃
-  have v₆q₁₀₄ := (w₁₀₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₁₀₃
-  have v₈q₁₀₄ := (w₁₀₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₀₃
-  have v₉q₁₀₄ := (w₁₀₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₀₃
-  clear w₁₀₄ v₇q₁₀₃ s₁₀₃ v₁q₁₀₃ v₂q₁₀₃ v₃q₁₀₃ v₄q₁₀₃ v₅q₁₀₃ e₁₀₃ v₈q₁₀₃ v₉q₁₀₃
-  obtain ⟨w₁₀₅, e₁₀₅⟩ := subMulWin_val (q := q₁₀₄) (o := (7 * L)) (len := L) (by rw [s₁₀₄]; lia) (8 * L) L 1
-      (by rw [s₁₀₄]; lia) (by lia) (by lia) (by decide)
-      (V := c₈) v₈q₁₀₄ v₉q₁₀₄ (by lia)
-  rw [← (show q₁₀₅ = R.subMulWin q₁₀₄ (7 * L) L (8 * L) L 1 from rfl)] at w₁₀₅ e₁₀₅
-  clear_value q₁₀₅
-  have s₁₀₅ := w₁₀₅.1.trans s₁₀₄
-  have v₁q₁₀₅ := (w₁₀₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₀₄
-  have v₂q₁₀₅ := (w₁₀₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₀₄
-  have v₃q₁₀₅ := (w₁₀₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₀₄
-  have v₄q₁₀₅ := (w₁₀₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₀₄
-  have v₅q₁₀₅ := (w₁₀₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₀₄
-  have v₆q₁₀₅ := (w₁₀₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₀₄
-  have v₇q₁₀₅ := (w₁₀₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₁₀₄
-  have v₉q₁₀₅ := (w₁₀₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₀₄
-  clear w₁₀₅ v₈q₁₀₄ s₁₀₄ v₁q₁₀₄ v₂q₁₀₄ v₃q₁₀₄ v₄q₁₀₄ v₅q₁₀₄ v₆q₁₀₄ e₁₀₄ v₉q₁₀₄
+  clear w₆₅ v₈q₆₄ s₆₄ v₁q₆₄ v₂q₆₄ v₃q₆₄ v₄q₆₄ v₅q₆₄ v₆q₆₄ e₆₄ v₉q₆₄
   -- The recombination.
   obtain ⟨z₁, z₂⟩ := zero_mid d o n (k + k) (10 * k) hd (by lia) (by lia)
   rw [hc₀, hc₁₀] at z₂
   rw [← (show A₀ = R.zeroInto d (o + (k + k)) (10 * k - (k + k)) from rfl)] at z₁ z₂
   replace z₁ := z₁.mono (o' := o) (len' := n) (by lia) (by lia)
   obtain ⟨a₁w, a₁v⟩ := add_coef A₀ o n k (by rw [z₁.1]; exact hd) (by lia)
-      q₁₀₅ 0 L c₁ v₁q₁₀₅ (by
+      q₆₅ 0 L c₁ v₁q₆₅ (by
     rw [z₂]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -5802,10 +5019,10 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (10 * k)) * c₁₀ = T₁₀ at htot ⊢
     lia)
   rw [z₂] at a₁v
-  rw [← (show A₁ = R.addInto A₀ (o + k) (n - k) q₁₀₅ 0 (min (n - k) L) from rfl)] at a₁w a₁v
+  rw [← (show A₁ = R.addInto A₀ (o + k) (n - k) q₆₅ 0 (min (n - k) L) from rfl)] at a₁w a₁v
   have a₁w' := a₁w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans z₁
   obtain ⟨a₂w, a₂v⟩ := add_coef A₁ o n (2 * k) (by rw [a₁w'.1]; exact hd) (by lia)
-      q₁₀₅ L L c₂ v₂q₁₀₅ (by
+      q₆₅ L L c₂ v₂q₆₅ (by
     rw [a₁v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -5819,10 +5036,10 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (10 * k)) * c₁₀ = T₁₀ at htot ⊢
     lia)
   rw [a₁v] at a₂v
-  rw [← (show A₂ = R.addInto A₁ (o + (2 * k)) (n - (2 * k)) q₁₀₅ L (min (n - (2 * k)) L) from rfl)] at a₂w a₂v
+  rw [← (show A₂ = R.addInto A₁ (o + (2 * k)) (n - (2 * k)) q₆₅ L (min (n - (2 * k)) L) from rfl)] at a₂w a₂v
   have a₂w' := a₂w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₁w'
   obtain ⟨a₃w, a₃v⟩ := add_coef A₂ o n (3 * k) (by rw [a₂w'.1]; exact hd) (by lia)
-      q₁₀₅ (2 * L) L c₃ v₃q₁₀₅ (by
+      q₆₅ (2 * L) L c₃ v₃q₆₅ (by
     rw [a₂v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -5836,10 +5053,10 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (10 * k)) * c₁₀ = T₁₀ at htot ⊢
     lia)
   rw [a₂v] at a₃v
-  rw [← (show A₃ = R.addInto A₂ (o + (3 * k)) (n - (3 * k)) q₁₀₅ (2 * L) (min (n - (3 * k)) L) from rfl)] at a₃w a₃v
+  rw [← (show A₃ = R.addInto A₂ (o + (3 * k)) (n - (3 * k)) q₆₅ (2 * L) (min (n - (3 * k)) L) from rfl)] at a₃w a₃v
   have a₃w' := a₃w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₂w'
   obtain ⟨a₄w, a₄v⟩ := add_coef A₃ o n (4 * k) (by rw [a₃w'.1]; exact hd) (by lia)
-      q₁₀₅ (3 * L) L c₄ v₄q₁₀₅ (by
+      q₆₅ (3 * L) L c₄ v₄q₆₅ (by
     rw [a₃v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -5853,10 +5070,10 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (10 * k)) * c₁₀ = T₁₀ at htot ⊢
     lia)
   rw [a₃v] at a₄v
-  rw [← (show A₄ = R.addInto A₃ (o + (4 * k)) (n - (4 * k)) q₁₀₅ (3 * L) (min (n - (4 * k)) L) from rfl)] at a₄w a₄v
+  rw [← (show A₄ = R.addInto A₃ (o + (4 * k)) (n - (4 * k)) q₆₅ (3 * L) (min (n - (4 * k)) L) from rfl)] at a₄w a₄v
   have a₄w' := a₄w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₃w'
   obtain ⟨a₅w, a₅v⟩ := add_coef A₄ o n (5 * k) (by rw [a₄w'.1]; exact hd) (by lia)
-      q₁₀₅ (4 * L) L c₅ v₅q₁₀₅ (by
+      q₆₅ (4 * L) L c₅ v₅q₆₅ (by
     rw [a₄v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -5870,10 +5087,10 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (10 * k)) * c₁₀ = T₁₀ at htot ⊢
     lia)
   rw [a₄v] at a₅v
-  rw [← (show A₅ = R.addInto A₄ (o + (5 * k)) (n - (5 * k)) q₁₀₅ (4 * L) (min (n - (5 * k)) L) from rfl)] at a₅w a₅v
+  rw [← (show A₅ = R.addInto A₄ (o + (5 * k)) (n - (5 * k)) q₆₅ (4 * L) (min (n - (5 * k)) L) from rfl)] at a₅w a₅v
   have a₅w' := a₅w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₄w'
   obtain ⟨a₆w, a₆v⟩ := add_coef A₅ o n (6 * k) (by rw [a₅w'.1]; exact hd) (by lia)
-      q₁₀₅ (5 * L) L c₆ v₆q₁₀₅ (by
+      q₆₅ (5 * L) L c₆ v₆q₆₅ (by
     rw [a₅v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -5887,10 +5104,10 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (10 * k)) * c₁₀ = T₁₀ at htot ⊢
     lia)
   rw [a₅v] at a₆v
-  rw [← (show A₆ = R.addInto A₅ (o + (6 * k)) (n - (6 * k)) q₁₀₅ (5 * L) (min (n - (6 * k)) L) from rfl)] at a₆w a₆v
+  rw [← (show A₆ = R.addInto A₅ (o + (6 * k)) (n - (6 * k)) q₆₅ (5 * L) (min (n - (6 * k)) L) from rfl)] at a₆w a₆v
   have a₆w' := a₆w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₅w'
   obtain ⟨a₇w, a₇v⟩ := add_coef A₆ o n (7 * k) (by rw [a₆w'.1]; exact hd) (by lia)
-      q₁₀₅ (6 * L) L c₇ v₇q₁₀₅ (by
+      q₆₅ (6 * L) L c₇ v₇q₆₅ (by
     rw [a₆v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -5904,10 +5121,10 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (10 * k)) * c₁₀ = T₁₀ at htot ⊢
     lia)
   rw [a₆v] at a₇v
-  rw [← (show A₇ = R.addInto A₆ (o + (7 * k)) (n - (7 * k)) q₁₀₅ (6 * L) (min (n - (7 * k)) L) from rfl)] at a₇w a₇v
+  rw [← (show A₇ = R.addInto A₆ (o + (7 * k)) (n - (7 * k)) q₆₅ (6 * L) (min (n - (7 * k)) L) from rfl)] at a₇w a₇v
   have a₇w' := a₇w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₆w'
   obtain ⟨a₈w, a₈v⟩ := add_coef A₇ o n (8 * k) (by rw [a₇w'.1]; exact hd) (by lia)
-      q₁₀₅ (7 * L) L c₈ e₁₀₅ (by
+      q₆₅ (7 * L) L c₈ e₆₅ (by
     rw [a₇v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -5921,10 +5138,10 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (10 * k)) * c₁₀ = T₁₀ at htot ⊢
     lia)
   rw [a₇v] at a₈v
-  rw [← (show A₈ = R.addInto A₇ (o + (8 * k)) (n - (8 * k)) q₁₀₅ (7 * L) (min (n - (8 * k)) L) from rfl)] at a₈w a₈v
+  rw [← (show A₈ = R.addInto A₇ (o + (8 * k)) (n - (8 * k)) q₆₅ (7 * L) (min (n - (8 * k)) L) from rfl)] at a₈w a₈v
   have a₈w' := a₈w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₇w'
   obtain ⟨a₉w, a₉v⟩ := add_coef A₈ o n (9 * k) (by rw [a₈w'.1]; exact hd) (by lia)
-      q₁₀₅ (8 * L) L c₉ v₉q₁₀₅ (by
+      q₆₅ (8 * L) L c₉ v₉q₆₅ (by
     rw [a₈v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -5957,94 +5174,42 @@ public theorem interp10W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
 at `0, L, …, 12 L`, and the passes between two of them by `subMulWin`.
 -/
 @[expose, specialize] public def interp14W (d : A) (o n k L : Nat) (W : A) : A :=
-  let W := R.subMulWin W (12 * L) L (11 * L) L 1
-  let W := R.subMulWin W (11 * L) L (10 * L) L 1
-  let W := R.subMulWin W (10 * L) L (9 * L) L 1
-  let W := R.subMulWin W (9 * L) L (8 * L) L 1
-  let W := R.subMulWin W (8 * L) L (7 * L) L 1
-  let W := R.subMulWin W (7 * L) L (6 * L) L 1
-  let W := R.subMulWin W (6 * L) L (5 * L) L 1
-  let W := R.subMulWin W (5 * L) L (4 * L) L 1
-  let W := R.subMulWin W (4 * L) L (3 * L) L 1
-  let W := R.subMulWin W (3 * L) L (2 * L) L 1
-  let W := R.subMulWin W (2 * L) L L L 1
-  let W := R.subMulWin W L L 0 L 1
+  let W := R.sub3Chain W (12 * L) (11 * L) (10 * L) (9 * L) L 1
+  let W := R.sub3Chain W (9 * L) (8 * L) (7 * L) (6 * L) L 1
+  let W := R.sub3Chain W (6 * L) (5 * L) (4 * L) (3 * L) L 1
+  let W := R.sub3Chain W (3 * L) (2 * L) L 0 L 1
   let W := R.subInto W 0 L d o (k + k)
-  let W := R.subMulWin W (12 * L) L (11 * L) L 1
-  let W := R.subMulWin W (11 * L) L (10 * L) L 1
-  let W := R.subMulWin W (10 * L) L (9 * L) L 1
-  let W := R.subMulWin W (9 * L) L (8 * L) L 1
-  let W := R.subMulWin W (8 * L) L (7 * L) L 1
-  let W := R.subMulWin W (7 * L) L (6 * L) L 1
-  let W := R.subMulWin W (6 * L) L (5 * L) L 1
-  let W := R.subMulWin W (5 * L) L (4 * L) L 1
-  let W := R.subMulWin W (4 * L) L (3 * L) L 1
+  let W := R.sub3Chain W (12 * L) (11 * L) (10 * L) (9 * L) L 1
+  let W := R.sub3Chain W (9 * L) (8 * L) (7 * L) (6 * L) L 1
+  let W := R.sub3Chain W (6 * L) (5 * L) (4 * L) (3 * L) L 1
+  let W := R.sub3Chain W (3 * L) (2 * L) L 0 L 1
+  let W := R.sub3Chain W (12 * L) (11 * L) (10 * L) (9 * L) L 1
+  let W := R.sub3Chain W (9 * L) (8 * L) (7 * L) (6 * L) L 1
+  let W := R.sub3Chain W (6 * L) (5 * L) (4 * L) (3 * L) L 1
   let W := R.subMulWin W (3 * L) L (2 * L) L 1
   let W := R.subMulWin W (2 * L) L L L 1
-  let W := R.subMulWin W L L 0 L 1
-  let W := R.subMulWin W (12 * L) L (11 * L) L 1
-  let W := R.subMulWin W (11 * L) L (10 * L) L 1
-  let W := R.subMulWin W (10 * L) L (9 * L) L 1
-  let W := R.subMulWin W (9 * L) L (8 * L) L 1
-  let W := R.subMulWin W (8 * L) L (7 * L) L 1
-  let W := R.subMulWin W (7 * L) L (6 * L) L 1
-  let W := R.subMulWin W (6 * L) L (5 * L) L 1
-  let W := R.subMulWin W (5 * L) L (4 * L) L 1
-  let W := R.subMulWin W (4 * L) L (3 * L) L 1
+  let W := R.sub3Chain W (12 * L) (11 * L) (10 * L) (9 * L) L 1
+  let W := R.sub3Chain W (9 * L) (8 * L) (7 * L) (6 * L) L 1
+  let W := R.sub3Chain W (6 * L) (5 * L) (4 * L) (3 * L) L 1
   let W := R.subMulWin W (3 * L) L (2 * L) L 1
-  let W := R.subMulWin W (2 * L) L L L 1
-  let W := R.subMulWin W (12 * L) L (11 * L) L 1
-  let W := R.subMulWin W (11 * L) L (10 * L) L 1
-  let W := R.subMulWin W (10 * L) L (9 * L) L 1
-  let W := R.subMulWin W (9 * L) L (8 * L) L 1
-  let W := R.subMulWin W (8 * L) L (7 * L) L 1
-  let W := R.subMulWin W (7 * L) L (6 * L) L 1
+  let W := R.sub3Chain W (12 * L) (11 * L) (10 * L) (9 * L) L 1
+  let W := R.sub3Chain W (9 * L) (8 * L) (7 * L) (6 * L) L 1
+  let W := R.sub3Chain W (6 * L) (5 * L) (4 * L) (3 * L) L 1
+  let W := R.sub3Chain W (12 * L) (11 * L) (10 * L) (9 * L) L 1
+  let W := R.sub3Chain W (9 * L) (8 * L) (7 * L) (6 * L) L 1
   let W := R.subMulWin W (6 * L) L (5 * L) L 1
   let W := R.subMulWin W (5 * L) L (4 * L) L 1
-  let W := R.subMulWin W (4 * L) L (3 * L) L 1
-  let W := R.subMulWin W (3 * L) L (2 * L) L 1
-  let W := R.subMulWin W (12 * L) L (11 * L) L 1
-  let W := R.subMulWin W (11 * L) L (10 * L) L 1
-  let W := R.subMulWin W (10 * L) L (9 * L) L 1
-  let W := R.subMulWin W (9 * L) L (8 * L) L 1
-  let W := R.subMulWin W (8 * L) L (7 * L) L 1
-  let W := R.subMulWin W (7 * L) L (6 * L) L 1
+  let W := R.sub3Chain W (12 * L) (11 * L) (10 * L) (9 * L) L 1
+  let W := R.sub3Chain W (9 * L) (8 * L) (7 * L) (6 * L) L 1
   let W := R.subMulWin W (6 * L) L (5 * L) L 1
-  let W := R.subMulWin W (5 * L) L (4 * L) L 1
-  let W := R.subMulWin W (4 * L) L (3 * L) L 1
-  let W := R.subMulWin W (12 * L) L (11 * L) L 1
-  let W := R.subMulWin W (11 * L) L (10 * L) L 1
-  let W := R.subMulWin W (10 * L) L (9 * L) L 1
+  let W := R.sub3Chain W (12 * L) (11 * L) (10 * L) (9 * L) L 1
+  let W := R.sub3Chain W (9 * L) (8 * L) (7 * L) (6 * L) L 1
+  let W := R.sub3Chain W (12 * L) (11 * L) (10 * L) (9 * L) L 1
   let W := R.subMulWin W (9 * L) L (8 * L) L 1
   let W := R.subMulWin W (8 * L) L (7 * L) L 1
-  let W := R.subMulWin W (7 * L) L (6 * L) L 1
-  let W := R.subMulWin W (6 * L) L (5 * L) L 1
-  let W := R.subMulWin W (5 * L) L (4 * L) L 1
-  let W := R.subMulWin W (12 * L) L (11 * L) L 1
-  let W := R.subMulWin W (11 * L) L (10 * L) L 1
-  let W := R.subMulWin W (10 * L) L (9 * L) L 1
+  let W := R.sub3Chain W (12 * L) (11 * L) (10 * L) (9 * L) L 1
   let W := R.subMulWin W (9 * L) L (8 * L) L 1
-  let W := R.subMulWin W (8 * L) L (7 * L) L 1
-  let W := R.subMulWin W (7 * L) L (6 * L) L 1
-  let W := R.subMulWin W (6 * L) L (5 * L) L 1
-  let W := R.subMulWin W (12 * L) L (11 * L) L 1
-  let W := R.subMulWin W (11 * L) L (10 * L) L 1
-  let W := R.subMulWin W (10 * L) L (9 * L) L 1
-  let W := R.subMulWin W (9 * L) L (8 * L) L 1
-  let W := R.subMulWin W (8 * L) L (7 * L) L 1
-  let W := R.subMulWin W (7 * L) L (6 * L) L 1
-  let W := R.subMulWin W (12 * L) L (11 * L) L 1
-  let W := R.subMulWin W (11 * L) L (10 * L) L 1
-  let W := R.subMulWin W (10 * L) L (9 * L) L 1
-  let W := R.subMulWin W (9 * L) L (8 * L) L 1
-  let W := R.subMulWin W (8 * L) L (7 * L) L 1
-  let W := R.subMulWin W (12 * L) L (11 * L) L 1
-  let W := R.subMulWin W (11 * L) L (10 * L) L 1
-  let W := R.subMulWin W (10 * L) L (9 * L) L 1
-  let W := R.subMulWin W (9 * L) L (8 * L) L 1
-  let W := R.subMulWin W (12 * L) L (11 * L) L 1
-  let W := R.subMulWin W (11 * L) L (10 * L) L 1
-  let W := R.subMulWin W (10 * L) L (9 * L) L 1
+  let W := R.sub3Chain W (12 * L) (11 * L) (10 * L) (9 * L) L 1
   let W := R.subMulWin W (12 * L) L (11 * L) L 1
   let W := R.subMulWin W (11 * L) L (10 * L) L 1
   let W := R.subMulWin W (12 * L) L (11 * L) L 1
@@ -6077,90 +5242,46 @@ at `0, L, …, 12 L`, and the passes between two of them by `subMulWin`.
   let W := R.subMulWin W (10 * L) L (11 * L) L 11
   let W := R.subMulWin W (11 * L) L (12 * L) L 11
   let W := R.subMulInto W (12 * L) L d (o + 14 * k) (n - 14 * k) 11
-  let W := R.subMulWin W (9 * L) L (10 * L) L 10
-  let W := R.subMulWin W (10 * L) L (11 * L) L 10
-  let W := R.subMulWin W (11 * L) L (12 * L) L 10
+  let W := R.sub3Chain W (9 * L) (10 * L) (11 * L) (12 * L) L 10
   let W := R.subMulInto W (12 * L) L d (o + 14 * k) (n - 14 * k) 10
-  let W := R.subMulWin W (8 * L) L (9 * L) L 9
-  let W := R.subMulWin W (9 * L) L (10 * L) L 9
-  let W := R.subMulWin W (10 * L) L (11 * L) L 9
+  let W := R.sub3Chain W (8 * L) (9 * L) (10 * L) (11 * L) L 9
   let W := R.subMulWin W (11 * L) L (12 * L) L 9
   let W := R.subMulInto W (12 * L) L d (o + 14 * k) (n - 14 * k) 9
-  let W := R.subMulWin W (7 * L) L (8 * L) L 8
-  let W := R.subMulWin W (8 * L) L (9 * L) L 8
-  let W := R.subMulWin W (9 * L) L (10 * L) L 8
+  let W := R.sub3Chain W (7 * L) (8 * L) (9 * L) (10 * L) L 8
   let W := R.subMulWin W (10 * L) L (11 * L) L 8
   let W := R.subMulWin W (11 * L) L (12 * L) L 8
   let W := R.subMulInto W (12 * L) L d (o + 14 * k) (n - 14 * k) 8
-  let W := R.subMulWin W (6 * L) L (7 * L) L 7
-  let W := R.subMulWin W (7 * L) L (8 * L) L 7
-  let W := R.subMulWin W (8 * L) L (9 * L) L 7
-  let W := R.subMulWin W (9 * L) L (10 * L) L 7
-  let W := R.subMulWin W (10 * L) L (11 * L) L 7
-  let W := R.subMulWin W (11 * L) L (12 * L) L 7
+  let W := R.sub3Chain W (6 * L) (7 * L) (8 * L) (9 * L) L 7
+  let W := R.sub3Chain W (9 * L) (10 * L) (11 * L) (12 * L) L 7
   let W := R.subMulInto W (12 * L) L d (o + 14 * k) (n - 14 * k) 7
-  let W := R.subMulWin W (5 * L) L (6 * L) L 6
-  let W := R.subMulWin W (6 * L) L (7 * L) L 6
-  let W := R.subMulWin W (7 * L) L (8 * L) L 6
-  let W := R.subMulWin W (8 * L) L (9 * L) L 6
-  let W := R.subMulWin W (9 * L) L (10 * L) L 6
-  let W := R.subMulWin W (10 * L) L (11 * L) L 6
+  let W := R.sub3Chain W (5 * L) (6 * L) (7 * L) (8 * L) L 6
+  let W := R.sub3Chain W (8 * L) (9 * L) (10 * L) (11 * L) L 6
   let W := R.subMulWin W (11 * L) L (12 * L) L 6
   let W := R.subMulInto W (12 * L) L d (o + 14 * k) (n - 14 * k) 6
-  let W := R.subMulWin W (4 * L) L (5 * L) L 5
-  let W := R.subMulWin W (5 * L) L (6 * L) L 5
-  let W := R.subMulWin W (6 * L) L (7 * L) L 5
-  let W := R.subMulWin W (7 * L) L (8 * L) L 5
-  let W := R.subMulWin W (8 * L) L (9 * L) L 5
-  let W := R.subMulWin W (9 * L) L (10 * L) L 5
+  let W := R.sub3Chain W (4 * L) (5 * L) (6 * L) (7 * L) L 5
+  let W := R.sub3Chain W (7 * L) (8 * L) (9 * L) (10 * L) L 5
   let W := R.subMulWin W (10 * L) L (11 * L) L 5
   let W := R.subMulWin W (11 * L) L (12 * L) L 5
   let W := R.subMulInto W (12 * L) L d (o + 14 * k) (n - 14 * k) 5
-  let W := R.subMulWin W (3 * L) L (4 * L) L 4
-  let W := R.subMulWin W (4 * L) L (5 * L) L 4
-  let W := R.subMulWin W (5 * L) L (6 * L) L 4
-  let W := R.subMulWin W (6 * L) L (7 * L) L 4
-  let W := R.subMulWin W (7 * L) L (8 * L) L 4
-  let W := R.subMulWin W (8 * L) L (9 * L) L 4
-  let W := R.subMulWin W (9 * L) L (10 * L) L 4
-  let W := R.subMulWin W (10 * L) L (11 * L) L 4
-  let W := R.subMulWin W (11 * L) L (12 * L) L 4
+  let W := R.sub3Chain W (3 * L) (4 * L) (5 * L) (6 * L) L 4
+  let W := R.sub3Chain W (6 * L) (7 * L) (8 * L) (9 * L) L 4
+  let W := R.sub3Chain W (9 * L) (10 * L) (11 * L) (12 * L) L 4
   let W := R.subMulInto W (12 * L) L d (o + 14 * k) (n - 14 * k) 4
-  let W := R.subMulWin W (2 * L) L (3 * L) L 3
-  let W := R.subMulWin W (3 * L) L (4 * L) L 3
-  let W := R.subMulWin W (4 * L) L (5 * L) L 3
-  let W := R.subMulWin W (5 * L) L (6 * L) L 3
-  let W := R.subMulWin W (6 * L) L (7 * L) L 3
-  let W := R.subMulWin W (7 * L) L (8 * L) L 3
-  let W := R.subMulWin W (8 * L) L (9 * L) L 3
-  let W := R.subMulWin W (9 * L) L (10 * L) L 3
-  let W := R.subMulWin W (10 * L) L (11 * L) L 3
+  let W := R.sub3Chain W (2 * L) (3 * L) (4 * L) (5 * L) L 3
+  let W := R.sub3Chain W (5 * L) (6 * L) (7 * L) (8 * L) L 3
+  let W := R.sub3Chain W (8 * L) (9 * L) (10 * L) (11 * L) L 3
   let W := R.subMulWin W (11 * L) L (12 * L) L 3
   let W := R.subMulInto W (12 * L) L d (o + 14 * k) (n - 14 * k) 3
-  let W := R.subMulWin W L L (2 * L) L 2
-  let W := R.subMulWin W (2 * L) L (3 * L) L 2
-  let W := R.subMulWin W (3 * L) L (4 * L) L 2
-  let W := R.subMulWin W (4 * L) L (5 * L) L 2
-  let W := R.subMulWin W (5 * L) L (6 * L) L 2
-  let W := R.subMulWin W (6 * L) L (7 * L) L 2
-  let W := R.subMulWin W (7 * L) L (8 * L) L 2
-  let W := R.subMulWin W (8 * L) L (9 * L) L 2
-  let W := R.subMulWin W (9 * L) L (10 * L) L 2
+  let W := R.sub3Chain W L (2 * L) (3 * L) (4 * L) L 2
+  let W := R.sub3Chain W (4 * L) (5 * L) (6 * L) (7 * L) L 2
+  let W := R.sub3Chain W (7 * L) (8 * L) (9 * L) (10 * L) L 2
   let W := R.subMulWin W (10 * L) L (11 * L) L 2
   let W := R.subMulWin W (11 * L) L (12 * L) L 2
   let W := R.subMulInto W (12 * L) L d (o + 14 * k) (n - 14 * k) 2
-  let W := R.subMulWin W 0 L L L 1
-  let W := R.subMulWin W L L (2 * L) L 1
-  let W := R.subMulWin W (2 * L) L (3 * L) L 1
-  let W := R.subMulWin W (3 * L) L (4 * L) L 1
-  let W := R.subMulWin W (4 * L) L (5 * L) L 1
-  let W := R.subMulWin W (5 * L) L (6 * L) L 1
-  let W := R.subMulWin W (6 * L) L (7 * L) L 1
-  let W := R.subMulWin W (7 * L) L (8 * L) L 1
-  let W := R.subMulWin W (8 * L) L (9 * L) L 1
-  let W := R.subMulWin W (9 * L) L (10 * L) L 1
-  let W := R.subMulWin W (10 * L) L (11 * L) L 1
-  let W := R.subMulWin W (11 * L) L (12 * L) L 1
+  let W := R.sub3Chain W 0 L (2 * L) (3 * L) L 1
+  let W := R.sub3Chain W (3 * L) (4 * L) (5 * L) (6 * L) L 1
+  let W := R.sub3Chain W (6 * L) (7 * L) (8 * L) (9 * L) L 1
+  let W := R.sub3Chain W (9 * L) (10 * L) (11 * L) (12 * L) L 1
   let W := R.subInto W (12 * L) L d (o + 14 * k) (n - 14 * k)
   -- The recombination.
   let d := R.zeroInto d (o + (k + k)) (14 * k - (k + k))
@@ -6237,17 +5358,13 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
      q₂₄ q₂₅ q₂₆ q₂₇ q₂₈ q₂₉ q₃₀ q₃₁ q₃₂ q₃₃ q₃₄ q₃₅ q₃₆ q₃₇ q₃₈ q₃₉ q₄₀ q₄₁ q₄₂ q₄₃ q₄₄ q₄₅ q₄₆ q₄₇
      q₄₈ q₄₉ q₅₀ q₅₁ q₅₂ q₅₃ q₅₄ q₅₅ q₅₆ q₅₇ q₅₈ q₅₉ q₆₀ q₆₁ q₆₂ q₆₃ q₆₄ q₆₅ q₆₆ q₆₇ q₆₈ q₆₉ q₇₀ q₇₁
      q₇₂ q₇₃ q₇₄ q₇₅ q₇₆ q₇₇ q₇₈ q₇₉ q₈₀ q₈₁ q₈₂ q₈₃ q₈₄ q₈₅ q₈₆ q₈₇ q₈₈ q₈₉ q₉₀ q₉₁ q₉₂ q₉₃ q₉₄ q₉₅
-     q₉₆ q₉₇ q₉₈ q₉₉ q₁₀₀ q₁₀₁ q₁₀₂ q₁₀₃ q₁₀₄ q₁₀₅ q₁₀₆ q₁₀₇ q₁₀₈ q₁₀₉ q₁₁₀ q₁₁₁ q₁₁₂ q₁₁₃ q₁₁₄ q₁₁₅
-     q₁₁₆ q₁₁₇ q₁₁₈ q₁₁₉ q₁₂₀ q₁₂₁ q₁₂₂ q₁₂₃ q₁₂₄ q₁₂₅ q₁₂₆ q₁₂₇ q₁₂₈ q₁₂₉ q₁₃₀ q₁₃₁ q₁₃₂ q₁₃₃ q₁₃₄
-     q₁₃₅ q₁₃₆ q₁₃₇ q₁₃₈ q₁₃₉ q₁₄₀ q₁₄₁ q₁₄₂ q₁₄₃ q₁₄₄ q₁₄₅ q₁₄₆ q₁₄₇ q₁₄₈ q₁₄₉ q₁₅₀ q₁₅₁ q₁₅₂ q₁₅₃
-     q₁₅₄ q₁₅₅ q₁₅₆ q₁₅₇ q₁₅₈ q₁₅₉ q₁₆₀ q₁₆₁ q₁₆₂ q₁₆₃ q₁₆₄ q₁₆₅ q₁₆₆ q₁₆₇ q₁₆₈ q₁₆₉ q₁₇₀ q₁₇₁ q₁₇₂
-     q₁₇₃ q₁₇₄ q₁₇₅ q₁₇₆ q₁₇₇ q₁₇₈ q₁₇₉ q₁₈₀ q₁₈₁ q₁₈₂ q₁₈₃ q₁₈₄ q₁₈₅ q₁₈₆ q₁₈₇ q₁₈₈ q₁₈₉ q₁₉₀ q₁₉₁
-     q₁₉₂ q₁₉₃ q₁₉₄ q₁₉₅ q₁₉₆ q₁₉₇ q₁₉₈ q₁₉₉ q₂₀₀ q₂₀₁ q₂₀₂ q₂₀₃ q₂₀₄ q₂₀₅ A₀ A₁ A₂ A₃ A₄ A₅ A₆ A₇
-     A₈ A₉ A₁₀ A₁₁ A₁₂
-  obtain ⟨w₁, e₁⟩ := subMulWin_val (q := W) (o := (12 * L)) (len := L) (by rw [hW]; lia) (11 * L) L 1
-      (by rw [hW]; lia) (by lia) (by lia) (by decide)
-      (V := c₁ + 25 * c₂ + 469 * c₃ + 7825 * c₄ + 122461 * c₅ + 1840825 * c₆ + 26916709 * c₇ + 385749025 * c₈ + 5444719021 * c₉ + 75941127625 * c₁₀ + 1049152023349 * c₁₁ + 14381984674225 * c₁₂ + 195881901213181 * c₁₃ + 2653457921150425 * c₁₄) hv₁₃ hv₁₂ (by lia)
-  rw [← (show q₁ = R.subMulWin W (12 * L) L (11 * L) L 1 from rfl)] at w₁ e₁
+     q₉₆ q₉₇ q₉₈ q₉₉ q₁₀₀ q₁₀₁ q₁₀₂ q₁₀₃ q₁₀₄ q₁₀₅ q₁₀₆ q₁₀₇ q₁₀₈ q₁₀₉ A₀ A₁ A₂ A₃ A₄ A₅ A₆ A₇ A₈ A₉
+     A₁₀ A₁₁ A₁₂
+  obtain ⟨w₁, e₁a, e₁b, e₁c⟩ := sub3ChainW_val (q := W) (o₁ := (12 * L)) (o₂ := (11 * L))
+      (o₃ := (10 * L)) (o₄ := (9 * L)) (len := L) (10 * L) (3 * L) (by rw [hW]; lia) (by lia) (by lia) 1
+      (V₁ := c₁ + 25 * c₂ + 469 * c₃ + 7825 * c₄ + 122461 * c₅ + 1840825 * c₆ + 26916709 * c₇ + 385749025 * c₈ + 5444719021 * c₉ + 75941127625 * c₁₀ + 1049152023349 * c₁₁ + 14381984674225 * c₁₂ + 195881901213181 * c₁₃ + 2653457921150425 * c₁₄) (V₂ := c₁ + 23 * c₂ + 397 * c₃ + 6095 * c₄ + 87781 * c₅ + 1214423 * c₆ + 16344637 * c₇ + 215622815 * c₈ + 2801832661 * c₉ + 35979939623 * c₁₀ + 457696700077 * c₁₁ + 5777672071535 * c₁₂ + 72470493235141 * c₁₃ + 904168630965623 * c₁₄) (V₃ := c₁ + 21 * c₂ + 331 * c₃ + 4641 * c₄ + 61051 * c₅ + 771561 * c₆ + 9487171 * c₇ + 114358881 * c₈ + 1357947691 * c₉ + 15937424601 * c₁₀ + 185311670611 * c₁₁ + 2138428376721 * c₁₂ + 24522712143931 * c₁₃ + 279749833583241 * c₁₄)
+      hv₁₃ hv₁₂ hv₁₁ hv₁₀ (by lia) (by lia) (by lia)
+  rw [← (show q₁ = R.sub3Chain W (12 * L) (11 * L) (10 * L) (9 * L) L 1 from rfl)] at w₁ e₁a e₁b e₁c
   clear_value q₁
   have s₁ := w₁.1.trans hW
   have v₁q₁ := (w₁.valAt_eq (lo := 0) (n := L) (by lia)).trans hv₁
@@ -6260,13 +5377,12 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₈q₁ := (w₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans hv₈
   have v₉q₁ := (w₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans hv₉
   have v₁₀q₁ := (w₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans hv₁₀
-  have v₁₁q₁ := (w₁.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans hv₁₁
-  have v₁₂q₁ := (w₁.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans hv₁₂
-  clear w₁ hv₁₃ hv₁ hv₂ hv₃ hv₄ hv₅ hv₆ hv₇ hv₈ hv₉ hv₁₀ hv₁₁ hv₁₂
-  obtain ⟨w₂, e₂⟩ := subMulWin_val (q := q₁) (o := (11 * L)) (len := L) (by rw [s₁]; lia) (10 * L) L 1
-      (by rw [s₁]; lia) (by lia) (by lia) (by decide)
-      (V := c₁ + 23 * c₂ + 397 * c₃ + 6095 * c₄ + 87781 * c₅ + 1214423 * c₆ + 16344637 * c₇ + 215622815 * c₈ + 2801832661 * c₉ + 35979939623 * c₁₀ + 457696700077 * c₁₁ + 5777672071535 * c₁₂ + 72470493235141 * c₁₃ + 904168630965623 * c₁₄) v₁₂q₁ v₁₁q₁ (by lia)
-  rw [← (show q₂ = R.subMulWin q₁ (11 * L) L (10 * L) L 1 from rfl)] at w₂ e₂
+  clear w₁ hv₁₃ hv₁₂ hv₁₁ hv₁ hv₂ hv₃ hv₄ hv₅ hv₆ hv₇ hv₈ hv₉ hv₁₀
+  obtain ⟨w₂, e₂a, e₂b, e₂c⟩ := sub3ChainW_val (q := q₁) (o₁ := (9 * L)) (o₂ := (8 * L))
+      (o₃ := (7 * L)) (o₄ := (6 * L)) (len := L) (7 * L) (3 * L) (by rw [s₁]; lia) (by lia) (by lia) 1
+      (V₁ := c₁ + 19 * c₂ + 271 * c₃ + 3439 * c₄ + 40951 * c₅ + 468559 * c₆ + 5217031 * c₇ + 56953279 * c₈ + 612579511 * c₉ + 6513215599 * c₁₀ + 68618940391 * c₁₁ + 717570463519 * c₁₂ + 7458134171671 * c₁₃ + 77123207545039 * c₁₄) (V₂ := c₁ + 17 * c₂ + 217 * c₃ + 2465 * c₄ + 26281 * c₅ + 269297 * c₆ + 2685817 * c₇ + 26269505 * c₈ + 253202761 * c₉ + 2413042577 * c₁₀ + 22791125017 * c₁₁ + 213710059745 * c₁₂ + 1992110014441 * c₁₃ + 18478745943857 * c₁₄) (V₃ := c₁ + 15 * c₂ + 169 * c₃ + 1695 * c₄ + 15961 * c₅ + 144495 * c₆ + 1273609 * c₇ + 11012415 * c₈ + 93864121 * c₉ + 791266575 * c₁₀ + 6612607849 * c₁₁ + 54878189535 * c₁₂ + 452866803481 * c₁₃ + 3719823438255 * c₁₄)
+      v₁₀q₁ v₉q₁ v₈q₁ v₇q₁ (by lia) (by lia) (by lia)
+  rw [← (show q₂ = R.sub3Chain q₁ (9 * L) (8 * L) (7 * L) (6 * L) L 1 from rfl)] at w₂ e₂a e₂b e₂c
   clear_value q₂
   have s₂ := w₂.1.trans s₁
   have v₁q₂ := (w₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁
@@ -6276,92 +5392,87 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₅q₂ := (w₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁
   have v₆q₂ := (w₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁
   have v₇q₂ := (w₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁
-  have v₈q₂ := (w₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁
-  have v₉q₂ := (w₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁
-  have v₁₀q₂ := (w₂.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁
-  have v₁₁q₂ := (w₂.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁
-  have v₁₃q₂ := (w₂.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₁
-  clear w₂ v₁₂q₁ s₁ v₁q₁ v₂q₁ v₃q₁ v₄q₁ v₅q₁ v₆q₁ v₇q₁ v₈q₁ v₉q₁ v₁₀q₁ v₁₁q₁ e₁
-  obtain ⟨w₃, e₃⟩ := subMulWin_val (q := q₂) (o := (10 * L)) (len := L) (by rw [s₂]; lia) (9 * L) L 1
-      (by rw [s₂]; lia) (by lia) (by lia) (by decide)
-      (V := c₁ + 21 * c₂ + 331 * c₃ + 4641 * c₄ + 61051 * c₅ + 771561 * c₆ + 9487171 * c₇ + 114358881 * c₈ + 1357947691 * c₉ + 15937424601 * c₁₀ + 185311670611 * c₁₁ + 2138428376721 * c₁₂ + 24522712143931 * c₁₃ + 279749833583241 * c₁₄) v₁₁q₂ v₁₀q₂ (by lia)
-  rw [← (show q₃ = R.subMulWin q₂ (10 * L) L (9 * L) L 1 from rfl)] at w₃ e₃
+  have v₁₁q₂ := (w₂.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₁c
+  have v₁₂q₂ := (w₂.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₁b
+  have v₁₃q₂ := (w₂.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₁a
+  clear w₂ v₁₀q₁ v₉q₁ v₈q₁ s₁ v₁q₁ v₂q₁ v₃q₁ v₄q₁ v₅q₁ v₆q₁ v₇q₁ e₁c e₁b e₁a
+  obtain ⟨w₃, e₃a, e₃b, e₃c⟩ := sub3ChainW_val (q := q₂) (o₁ := (6 * L)) (o₂ := (5 * L))
+      (o₃ := (4 * L)) (o₄ := (3 * L)) (len := L) (4 * L) (3 * L) (by rw [s₂]; lia) (by lia) (by lia) 1
+      (V₁ := c₁ + 13 * c₂ + 127 * c₃ + 1105 * c₄ + 9031 * c₅ + 70993 * c₆ + 543607 * c₇ + 4085185 * c₈ + 30275911 * c₉ + 222009073 * c₁₀ + 1614529687 * c₁₁ + 11664504865 * c₁₂ + 83828316391 * c₁₃ + 599858908753 * c₁₄) (V₂ := c₁ + 11 * c₂ + 91 * c₃ + 671 * c₄ + 4651 * c₅ + 31031 * c₆ + 201811 * c₇ + 1288991 * c₈ + 8124571 * c₉ + 50700551 * c₁₀ + 313968931 * c₁₁ + 1932641711 * c₁₂ + 11839990891 * c₁₃ + 72260648471 * c₁₄) (V₃ := c₁ + 9 * c₂ + 61 * c₃ + 369 * c₄ + 2101 * c₅ + 11529 * c₆ + 61741 * c₇ + 325089 * c₈ + 1690981 * c₉ + 8717049 * c₁₀ + 44633821 * c₁₁ + 227363409 * c₁₂ + 1153594261 * c₁₃ + 5835080169 * c₁₄)
+      v₇q₂ v₆q₂ v₅q₂ v₄q₂ (by lia) (by lia) (by lia)
+  rw [← (show q₃ = R.sub3Chain q₂ (6 * L) (5 * L) (4 * L) (3 * L) L 1 from rfl)] at w₃ e₃a e₃b e₃c
   clear_value q₃
   have s₃ := w₃.1.trans s₂
   have v₁q₃ := (w₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂
   have v₂q₃ := (w₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂
   have v₃q₃ := (w₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂
   have v₄q₃ := (w₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂
-  have v₅q₃ := (w₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂
-  have v₆q₃ := (w₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₂
-  have v₇q₃ := (w₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₂
-  have v₈q₃ := (w₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₂
-  have v₉q₃ := (w₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₂
-  have v₁₀q₃ := (w₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₂
-  have v₁₂q₃ := (w₃.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₂
+  have v₈q₃ := (w₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₂c
+  have v₉q₃ := (w₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₂b
+  have v₁₀q₃ := (w₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₂a
+  have v₁₁q₃ := (w₃.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₂
+  have v₁₂q₃ := (w₃.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₂
   have v₁₃q₃ := (w₃.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₂
-  clear w₃ v₁₁q₂ s₂ v₁q₂ v₂q₂ v₃q₂ v₄q₂ v₅q₂ v₆q₂ v₇q₂ v₈q₂ v₉q₂ v₁₀q₂ e₂ v₁₃q₂
-  obtain ⟨w₄, e₄⟩ := subMulWin_val (q := q₃) (o := (9 * L)) (len := L) (by rw [s₃]; lia) (8 * L) L 1
-      (by rw [s₃]; lia) (by lia) (by lia) (by decide)
-      (V := c₁ + 19 * c₂ + 271 * c₃ + 3439 * c₄ + 40951 * c₅ + 468559 * c₆ + 5217031 * c₇ + 56953279 * c₈ + 612579511 * c₉ + 6513215599 * c₁₀ + 68618940391 * c₁₁ + 717570463519 * c₁₂ + 7458134171671 * c₁₃ + 77123207545039 * c₁₄) v₁₀q₃ v₉q₃ (by lia)
-  rw [← (show q₄ = R.subMulWin q₃ (9 * L) L (8 * L) L 1 from rfl)] at w₄ e₄
+  clear w₃ v₇q₂ v₆q₂ v₅q₂ s₂ v₁q₂ v₂q₂ v₃q₂ v₄q₂ e₂c e₂b e₂a v₁₁q₂ v₁₂q₂ v₁₃q₂
+  obtain ⟨w₄, e₄a, e₄b, e₄c⟩ := sub3ChainW_val (q := q₃) (o₁ := (3 * L)) (o₂ := (2 * L))
+      (o₃ := L) (o₄ := 0) (len := L) L (3 * L) (by rw [s₃]; lia) (by lia) (by lia) 1
+      (V₁ := c₁ + 7 * c₂ + 37 * c₃ + 175 * c₄ + 781 * c₅ + 3367 * c₆ + 14197 * c₇ + 58975 * c₈ + 242461 * c₉ + 989527 * c₁₀ + 4017157 * c₁₁ + 16245775 * c₁₂ + 65514541 * c₁₃ + 263652487 * c₁₄) (V₂ := c₁ + 5 * c₂ + 19 * c₃ + 65 * c₄ + 211 * c₅ + 665 * c₆ + 2059 * c₇ + 6305 * c₈ + 19171 * c₉ + 58025 * c₁₀ + 175099 * c₁₁ + 527345 * c₁₂ + 1586131 * c₁₃ + 4766585 * c₁₄) (V₃ := c₁ + 3 * c₂ + 7 * c₃ + 15 * c₄ + 31 * c₅ + 63 * c₆ + 127 * c₇ + 255 * c₈ + 511 * c₉ + 1023 * c₁₀ + 2047 * c₁₁ + 4095 * c₁₂ + 8191 * c₁₃ + 16383 * c₁₄)
+      v₄q₃ v₃q₃ v₂q₃ v₁q₃ (by lia) (by lia) (by lia)
+  rw [← (show q₄ = R.sub3Chain q₃ (3 * L) (2 * L) L 0 L 1 from rfl)] at w₄ e₄a e₄b e₄c
   clear_value q₄
   have s₄ := w₄.1.trans s₃
   have v₁q₄ := (w₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₃
-  have v₂q₄ := (w₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₃
-  have v₃q₄ := (w₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₃
-  have v₄q₄ := (w₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₃
-  have v₅q₄ := (w₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₃
-  have v₆q₄ := (w₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₃
-  have v₇q₄ := (w₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₃
+  have v₅q₄ := (w₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₃c
+  have v₆q₄ := (w₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₃b
+  have v₇q₄ := (w₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₃a
   have v₈q₄ := (w₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₃
   have v₉q₄ := (w₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₃
-  have v₁₁q₄ := (w₄.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₃
+  have v₁₀q₄ := (w₄.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₃
+  have v₁₁q₄ := (w₄.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₃
   have v₁₂q₄ := (w₄.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₃
   have v₁₃q₄ := (w₄.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₃
-  clear w₄ v₁₀q₃ s₃ v₁q₃ v₂q₃ v₃q₃ v₄q₃ v₅q₃ v₆q₃ v₇q₃ v₈q₃ v₉q₃ e₃ v₁₂q₃ v₁₃q₃
-  obtain ⟨w₅, e₅⟩ := subMulWin_val (q := q₄) (o := (8 * L)) (len := L) (by rw [s₄]; lia) (7 * L) L 1
-      (by rw [s₄]; lia) (by lia) (by lia) (by decide)
-      (V := c₁ + 17 * c₂ + 217 * c₃ + 2465 * c₄ + 26281 * c₅ + 269297 * c₆ + 2685817 * c₇ + 26269505 * c₈ + 253202761 * c₉ + 2413042577 * c₁₀ + 22791125017 * c₁₁ + 213710059745 * c₁₂ + 1992110014441 * c₁₃ + 18478745943857 * c₁₄) v₉q₄ v₈q₄ (by lia)
-  rw [← (show q₅ = R.subMulWin q₄ (8 * L) L (7 * L) L 1 from rfl)] at w₅ e₅
+  clear w₄ v₄q₃ v₃q₃ v₂q₃ s₃ v₁q₃ e₃c e₃b e₃a v₈q₃ v₉q₃ v₁₀q₃ v₁₁q₃ v₁₂q₃ v₁₃q₃
+  obtain ⟨w₅, e₅⟩ := subW_val (q := q₄) (o := 0) (len := L) (by rw [s₄]; lia) d o (k + k)
+      (V := c₁ + c₂ + c₃ + c₄ + c₅ + c₆ + c₇ + c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) v₁q₄ hc₀ (by lia)
+  rw [← (show q₅ = R.subInto q₄ 0 L d o (k + k) from rfl)] at w₅ e₅
   clear_value q₅
   have s₅ := w₅.1.trans s₄
-  have v₁q₅ := (w₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₄
-  have v₂q₅ := (w₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₄
-  have v₃q₅ := (w₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₄
-  have v₄q₅ := (w₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₄
+  have v₂q₅ := (w₅.valAt_eq (lo := L) (n := L) (by lia)).trans e₄c
+  have v₃q₅ := (w₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₄b
+  have v₄q₅ := (w₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₄a
   have v₅q₅ := (w₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₄
   have v₆q₅ := (w₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₄
   have v₇q₅ := (w₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₄
   have v₈q₅ := (w₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₄
-  have v₁₀q₅ := (w₅.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₄
+  have v₉q₅ := (w₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₄
+  have v₁₀q₅ := (w₅.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₄
   have v₁₁q₅ := (w₅.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₄
   have v₁₂q₅ := (w₅.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₄
   have v₁₃q₅ := (w₅.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₄
-  clear w₅ v₉q₄ s₄ v₁q₄ v₂q₄ v₃q₄ v₄q₄ v₅q₄ v₆q₄ v₇q₄ v₈q₄ e₄ v₁₁q₄ v₁₂q₄ v₁₃q₄
-  obtain ⟨w₆, e₆⟩ := subMulWin_val (q := q₅) (o := (7 * L)) (len := L) (by rw [s₅]; lia) (6 * L) L 1
-      (by rw [s₅]; lia) (by lia) (by lia) (by decide)
-      (V := c₁ + 15 * c₂ + 169 * c₃ + 1695 * c₄ + 15961 * c₅ + 144495 * c₆ + 1273609 * c₇ + 11012415 * c₈ + 93864121 * c₉ + 791266575 * c₁₀ + 6612607849 * c₁₁ + 54878189535 * c₁₂ + 452866803481 * c₁₃ + 3719823438255 * c₁₄) v₈q₅ v₇q₅ (by lia)
-  rw [← (show q₆ = R.subMulWin q₅ (7 * L) L (6 * L) L 1 from rfl)] at w₆ e₆
+  clear w₅ v₁q₄ s₄ e₄c e₄b e₄a v₅q₄ v₆q₄ v₇q₄ v₈q₄ v₉q₄ v₁₀q₄ v₁₁q₄ v₁₂q₄ v₁₃q₄
+  obtain ⟨w₆, e₆a, e₆b, e₆c⟩ := sub3ChainW_val (q := q₅) (o₁ := (12 * L)) (o₂ := (11 * L))
+      (o₃ := (10 * L)) (o₄ := (9 * L)) (len := L) (10 * L) (3 * L) (by rw [s₅]; lia) (by lia) (by lia) 1
+      (V₁ := 2 * c₂ + 72 * c₃ + 1730 * c₄ + 34680 * c₅ + 626402 * c₆ + 10572072 * c₇ + 170126210 * c₈ + 2642886360 * c₉ + 39961188002 * c₁₀ + 591455323272 * c₁₁ + 8604312602690 * c₁₂ + 123411407978040 * c₁₃ + 1749289290184802 * c₁₄) (V₂ := 2 * c₂ + 66 * c₃ + 1454 * c₄ + 26730 * c₅ + 442862 * c₆ + 6857466 * c₇ + 101263934 * c₈ + 1443884970 * c₉ + 20042515022 * c₁₀ + 272385029466 * c₁₁ + 3639243694814 * c₁₂ + 47947781091210 * c₁₃ + 624418797382382 * c₁₄) (V₃ := 2 * c₂ + 60 * c₃ + 1202 * c₄ + 20100 * c₅ + 303002 * c₆ + 4270140 * c₇ + 57405602 * c₈ + 745368180 * c₉ + 9424209002 * c₁₀ + 116692730220 * c₁₁ + 1420857913202 * c₁₂ + 17064577972260 * c₁₃ + 202626626038202 * c₁₄)
+      v₁₃q₅ v₁₂q₅ v₁₁q₅ v₁₀q₅ (by lia) (by lia) (by lia)
+  rw [← (show q₆ = R.sub3Chain q₅ (12 * L) (11 * L) (10 * L) (9 * L) L 1 from rfl)] at w₆ e₆a e₆b e₆c
   clear_value q₆
   have s₆ := w₆.1.trans s₅
-  have v₁q₆ := (w₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₅
+  have v₁q₆ := (w₆.valAt_eq (lo := 0) (n := L) (by lia)).trans e₅
   have v₂q₆ := (w₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₅
   have v₃q₆ := (w₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₅
   have v₄q₆ := (w₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₅
   have v₅q₆ := (w₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₅
   have v₆q₆ := (w₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₅
   have v₇q₆ := (w₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₅
-  have v₉q₆ := (w₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₅
+  have v₈q₆ := (w₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₅
+  have v₉q₆ := (w₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₅
   have v₁₀q₆ := (w₆.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₅
-  have v₁₁q₆ := (w₆.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₅
-  have v₁₂q₆ := (w₆.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₅
-  have v₁₃q₆ := (w₆.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₅
-  clear w₆ v₈q₅ s₅ v₁q₅ v₂q₅ v₃q₅ v₄q₅ v₅q₅ v₆q₅ v₇q₅ e₅ v₁₀q₅ v₁₁q₅ v₁₂q₅ v₁₃q₅
-  obtain ⟨w₇, e₇⟩ := subMulWin_val (q := q₆) (o := (6 * L)) (len := L) (by rw [s₆]; lia) (5 * L) L 1
-      (by rw [s₆]; lia) (by lia) (by lia) (by decide)
-      (V := c₁ + 13 * c₂ + 127 * c₃ + 1105 * c₄ + 9031 * c₅ + 70993 * c₆ + 543607 * c₇ + 4085185 * c₈ + 30275911 * c₉ + 222009073 * c₁₀ + 1614529687 * c₁₁ + 11664504865 * c₁₂ + 83828316391 * c₁₃ + 599858908753 * c₁₄) v₇q₆ v₆q₆ (by lia)
-  rw [← (show q₇ = R.subMulWin q₆ (6 * L) L (5 * L) L 1 from rfl)] at w₇ e₇
+  clear w₆ v₁₃q₅ v₁₂q₅ v₁₁q₅ s₅ e₅ v₂q₅ v₃q₅ v₄q₅ v₅q₅ v₆q₅ v₇q₅ v₈q₅ v₉q₅ v₁₀q₅
+  obtain ⟨w₇, e₇a, e₇b, e₇c⟩ := sub3ChainW_val (q := q₆) (o₁ := (9 * L)) (o₂ := (8 * L))
+      (o₃ := (7 * L)) (o₄ := (6 * L)) (len := L) (7 * L) (3 * L) (by rw [s₆]; lia) (by lia) (by lia) 1
+      (V₁ := 2 * c₂ + 54 * c₃ + 974 * c₄ + 14670 * c₅ + 199262 * c₆ + 2531214 * c₇ + 30683774 * c₈ + 359376750 * c₉ + 4100173022 * c₁₀ + 45827815374 * c₁₁ + 503860403774 * c₁₂ + 5466024157230 * c₁₃ + 58644461601182 * c₁₄) (V₂ := 2 * c₂ + 48 * c₃ + 770 * c₄ + 10320 * c₅ + 124802 * c₆ + 1412208 * c₇ + 15257090 * c₈ + 159338640 * c₉ + 1621776002 * c₁₀ + 16178517168 * c₁₁ + 158831870210 * c₁₂ + 1539243210960 * c₁₃ + 14758922505602 * c₁₄) (V₃ := 2 * c₂ + 42 * c₃ + 590 * c₄ + 6930 * c₅ + 73502 * c₆ + 730002 * c₇ + 6927230 * c₈ + 63588210 * c₉ + 569257502 * c₁₀ + 4998078162 * c₁₁ + 43213684670 * c₁₂ + 369038487090 * c₁₃ + 3119964529502 * c₁₄)
+      v₁₀q₆ v₉q₆ v₈q₆ v₇q₆ (by lia) (by lia) (by lia)
+  rw [← (show q₇ = R.sub3Chain q₆ (9 * L) (8 * L) (7 * L) (6 * L) L 1 from rfl)] at w₇ e₇a e₇b e₇c
   clear_value q₇
   have s₇ := w₇.1.trans s₆
   have v₁q₇ := (w₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₆
@@ -6370,136 +5481,129 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₄q₇ := (w₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₆
   have v₅q₇ := (w₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₆
   have v₆q₇ := (w₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₆
-  have v₈q₇ := (w₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₆
-  have v₉q₇ := (w₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₆
-  have v₁₀q₇ := (w₇.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₆
-  have v₁₁q₇ := (w₇.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₆
-  have v₁₂q₇ := (w₇.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₆
-  have v₁₃q₇ := (w₇.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₆
-  clear w₇ v₇q₆ s₆ v₁q₆ v₂q₆ v₃q₆ v₄q₆ v₅q₆ v₆q₆ e₆ v₉q₆ v₁₀q₆ v₁₁q₆ v₁₂q₆ v₁₃q₆
-  obtain ⟨w₈, e₈⟩ := subMulWin_val (q := q₇) (o := (5 * L)) (len := L) (by rw [s₇]; lia) (4 * L) L 1
-      (by rw [s₇]; lia) (by lia) (by lia) (by decide)
-      (V := c₁ + 11 * c₂ + 91 * c₃ + 671 * c₄ + 4651 * c₅ + 31031 * c₆ + 201811 * c₇ + 1288991 * c₈ + 8124571 * c₉ + 50700551 * c₁₀ + 313968931 * c₁₁ + 1932641711 * c₁₂ + 11839990891 * c₁₃ + 72260648471 * c₁₄) v₆q₇ v₅q₇ (by lia)
-  rw [← (show q₈ = R.subMulWin q₇ (5 * L) L (4 * L) L 1 from rfl)] at w₈ e₈
+  have v₇q₇ := (w₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₆
+  have v₁₁q₇ := (w₇.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₆c
+  have v₁₂q₇ := (w₇.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₆b
+  have v₁₃q₇ := (w₇.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₆a
+  clear w₇ v₁₀q₆ v₉q₆ v₈q₆ s₆ v₁q₆ v₂q₆ v₃q₆ v₄q₆ v₅q₆ v₆q₆ v₇q₆ e₆c e₆b e₆a
+  obtain ⟨w₈, e₈a, e₈b, e₈c⟩ := sub3ChainW_val (q := q₇) (o₁ := (6 * L)) (o₂ := (5 * L))
+      (o₃ := (4 * L)) (o₄ := (3 * L)) (len := L) (4 * L) (3 * L) (by rw [s₇]; lia) (by lia) (by lia) 1
+      (V₁ := 2 * c₂ + 36 * c₃ + 434 * c₄ + 4380 * c₅ + 39962 * c₆ + 341796 * c₇ + 2796194 * c₈ + 22151340 * c₉ + 171308522 * c₁₀ + 1300560756 * c₁₁ + 9731863154 * c₁₂ + 71988325500 * c₁₃ + 527598260282 * c₁₄) (V₂ := 2 * c₂ + 30 * c₃ + 302 * c₄ + 2550 * c₅ + 19502 * c₆ + 140070 * c₇ + 963902 * c₈ + 6433590 * c₉ + 41983502 * c₁₀ + 269335110 * c₁₁ + 1705278302 * c₁₂ + 10686396630 * c₁₃ + 66425568302 * c₁₄) (V₃ := 2 * c₂ + 24 * c₃ + 194 * c₄ + 1320 * c₅ + 8162 * c₆ + 47544 * c₇ + 266114 * c₈ + 1448520 * c₉ + 7727522 * c₁₀ + 40616664 * c₁₁ + 211117634 * c₁₂ + 1088079720 * c₁₃ + 5571427682 * c₁₄)
+      v₇q₇ v₆q₇ v₅q₇ v₄q₇ (by lia) (by lia) (by lia)
+  rw [← (show q₈ = R.sub3Chain q₇ (6 * L) (5 * L) (4 * L) (3 * L) L 1 from rfl)] at w₈ e₈a e₈b e₈c
   clear_value q₈
   have s₈ := w₈.1.trans s₇
   have v₁q₈ := (w₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₇
   have v₂q₈ := (w₈.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₇
   have v₃q₈ := (w₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₇
   have v₄q₈ := (w₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₇
-  have v₅q₈ := (w₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₇
-  have v₇q₈ := (w₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₇
-  have v₈q₈ := (w₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₇
-  have v₉q₈ := (w₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₇
-  have v₁₀q₈ := (w₈.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₇
+  have v₈q₈ := (w₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₇c
+  have v₉q₈ := (w₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₇b
+  have v₁₀q₈ := (w₈.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₇a
   have v₁₁q₈ := (w₈.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₇
   have v₁₂q₈ := (w₈.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₇
   have v₁₃q₈ := (w₈.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₇
-  clear w₈ v₆q₇ s₇ v₁q₇ v₂q₇ v₃q₇ v₄q₇ v₅q₇ e₇ v₈q₇ v₉q₇ v₁₀q₇ v₁₁q₇ v₁₂q₇ v₁₃q₇
-  obtain ⟨w₉, e₉⟩ := subMulWin_val (q := q₈) (o := (4 * L)) (len := L) (by rw [s₈]; lia) (3 * L) L 1
-      (by rw [s₈]; lia) (by lia) (by lia) (by decide)
-      (V := c₁ + 9 * c₂ + 61 * c₃ + 369 * c₄ + 2101 * c₅ + 11529 * c₆ + 61741 * c₇ + 325089 * c₈ + 1690981 * c₉ + 8717049 * c₁₀ + 44633821 * c₁₁ + 227363409 * c₁₂ + 1153594261 * c₁₃ + 5835080169 * c₁₄) v₅q₈ v₄q₈ (by lia)
-  rw [← (show q₉ = R.subMulWin q₈ (4 * L) L (3 * L) L 1 from rfl)] at w₉ e₉
+  clear w₈ v₇q₇ v₆q₇ v₅q₇ s₇ v₁q₇ v₂q₇ v₃q₇ v₄q₇ e₇c e₇b e₇a v₁₁q₇ v₁₂q₇ v₁₃q₇
+  obtain ⟨w₉, e₉a, e₉b, e₉c⟩ := sub3ChainW_val (q := q₈) (o₁ := (3 * L)) (o₂ := (2 * L))
+      (o₃ := L) (o₄ := 0) (len := L) L (3 * L) (by rw [s₈]; lia) (by lia) (by lia) 1
+      (V₁ := 2 * c₂ + 18 * c₃ + 110 * c₄ + 570 * c₅ + 2702 * c₆ + 12138 * c₇ + 52670 * c₈ + 223290 * c₉ + 931502 * c₁₀ + 3842058 * c₁₁ + 15718430 * c₁₂ + 63928410 * c₁₃ + 258885902 * c₁₄) (V₂ := 2 * c₂ + 12 * c₃ + 50 * c₄ + 180 * c₅ + 602 * c₆ + 1932 * c₇ + 6050 * c₈ + 18660 * c₉ + 57002 * c₁₀ + 173052 * c₁₁ + 523250 * c₁₂ + 1577940 * c₁₃ + 4750202 * c₁₄) (V₃ := 2 * c₂ + 6 * c₃ + 14 * c₄ + 30 * c₅ + 62 * c₆ + 126 * c₇ + 254 * c₈ + 510 * c₉ + 1022 * c₁₀ + 2046 * c₁₁ + 4094 * c₁₂ + 8190 * c₁₃ + 16382 * c₁₄)
+      v₄q₈ v₃q₈ v₂q₈ v₁q₈ (by lia) (by lia) (by lia)
+  rw [← (show q₉ = R.sub3Chain q₈ (3 * L) (2 * L) L 0 L 1 from rfl)] at w₉ e₉a e₉b e₉c
   clear_value q₉
   have s₉ := w₉.1.trans s₈
   have v₁q₉ := (w₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₈
-  have v₂q₉ := (w₉.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₈
-  have v₃q₉ := (w₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₈
-  have v₄q₉ := (w₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₈
-  have v₆q₉ := (w₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₈
-  have v₇q₉ := (w₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₈
+  have v₅q₉ := (w₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₈c
+  have v₆q₉ := (w₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₈b
+  have v₇q₉ := (w₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₈a
   have v₈q₉ := (w₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₈
   have v₉q₉ := (w₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₈
   have v₁₀q₉ := (w₉.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₈
   have v₁₁q₉ := (w₉.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₈
   have v₁₂q₉ := (w₉.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₈
   have v₁₃q₉ := (w₉.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₈
-  clear w₉ v₅q₈ s₈ v₁q₈ v₂q₈ v₃q₈ v₄q₈ e₈ v₇q₈ v₈q₈ v₉q₈ v₁₀q₈ v₁₁q₈ v₁₂q₈ v₁₃q₈
-  obtain ⟨w₁₀, e₁₀⟩ := subMulWin_val (q := q₉) (o := (3 * L)) (len := L) (by rw [s₉]; lia) (2 * L) L 1
-      (by rw [s₉]; lia) (by lia) (by lia) (by decide)
-      (V := c₁ + 7 * c₂ + 37 * c₃ + 175 * c₄ + 781 * c₅ + 3367 * c₆ + 14197 * c₇ + 58975 * c₈ + 242461 * c₉ + 989527 * c₁₀ + 4017157 * c₁₁ + 16245775 * c₁₂ + 65514541 * c₁₃ + 263652487 * c₁₄) v₄q₉ v₃q₉ (by lia)
-  rw [← (show q₁₀ = R.subMulWin q₉ (3 * L) L (2 * L) L 1 from rfl)] at w₁₀ e₁₀
+  clear w₉ v₄q₈ v₃q₈ v₂q₈ s₈ v₁q₈ e₈c e₈b e₈a v₈q₈ v₉q₈ v₁₀q₈ v₁₁q₈ v₁₂q₈ v₁₃q₈
+  obtain ⟨w₁₀, e₁₀a, e₁₀b, e₁₀c⟩ := sub3ChainW_val (q := q₉) (o₁ := (12 * L)) (o₂ := (11 * L))
+      (o₃ := (10 * L)) (o₄ := (9 * L)) (len := L) (10 * L) (3 * L) (by rw [s₉]; lia) (by lia) (by lia) 1
+      (V₁ := 6 * c₃ + 276 * c₄ + 7950 * c₅ + 183540 * c₆ + 3714606 * c₇ + 68862276 * c₈ + 1199001390 * c₉ + 19918672980 * c₁₀ + 319070293806 * c₁₁ + 4965068907876 * c₁₂ + 75463626886830 * c₁₃ + 1124870492802420 * c₁₄) (V₂ := 6 * c₃ + 252 * c₄ + 6630 * c₅ + 139860 * c₆ + 2587326 * c₇ + 43858332 * c₈ + 698516790 * c₉ + 10618306020 * c₁₀ + 155692299246 * c₁₁ + 2218385781612 * c₁₂ + 30883203118950 * c₁₃ + 421792171344180 * c₁₄) (V₃ := 6 * c₃ + 228 * c₄ + 5430 * c₅ + 103740 * c₆ + 1738926 * c₇ + 26721828 * c₈ + 385991430 * c₉ + 5324035980 * c₁₀ + 70864914846 * c₁₁ + 916997509428 * c₁₂ + 11598553815030 * c₁₃ + 143982164437020 * c₁₄)
+      v₁₃q₉ v₁₂q₉ v₁₁q₉ v₁₀q₉ (by lia) (by lia) (by lia)
+  rw [← (show q₁₀ = R.sub3Chain q₉ (12 * L) (11 * L) (10 * L) (9 * L) L 1 from rfl)] at w₁₀ e₁₀a e₁₀b e₁₀c
   clear_value q₁₀
   have s₁₀ := w₁₀.1.trans s₉
   have v₁q₁₀ := (w₁₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₉
-  have v₂q₁₀ := (w₁₀.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₉
-  have v₃q₁₀ := (w₁₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₉
-  have v₅q₁₀ := (w₁₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₉
+  have v₂q₁₀ := (w₁₀.valAt_eq (lo := L) (n := L) (by lia)).trans e₉c
+  have v₃q₁₀ := (w₁₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₉b
+  have v₄q₁₀ := (w₁₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₉a
+  have v₅q₁₀ := (w₁₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₉
   have v₆q₁₀ := (w₁₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₉
   have v₇q₁₀ := (w₁₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₉
   have v₈q₁₀ := (w₁₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₉
   have v₉q₁₀ := (w₁₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₉
   have v₁₀q₁₀ := (w₁₀.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₉
-  have v₁₁q₁₀ := (w₁₀.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₉
-  have v₁₂q₁₀ := (w₁₀.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₉
-  have v₁₃q₁₀ := (w₁₀.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₉
-  clear w₁₀ v₄q₉ s₉ v₁q₉ v₂q₉ v₃q₉ e₉ v₆q₉ v₇q₉ v₈q₉ v₉q₉ v₁₀q₉ v₁₁q₉ v₁₂q₉ v₁₃q₉
-  obtain ⟨w₁₁, e₁₁⟩ := subMulWin_val (q := q₁₀) (o := (2 * L)) (len := L) (by rw [s₁₀]; lia) L L 1
-      (by rw [s₁₀]; lia) (by lia) (by lia) (by decide)
-      (V := c₁ + 5 * c₂ + 19 * c₃ + 65 * c₄ + 211 * c₅ + 665 * c₆ + 2059 * c₇ + 6305 * c₈ + 19171 * c₉ + 58025 * c₁₀ + 175099 * c₁₁ + 527345 * c₁₂ + 1586131 * c₁₃ + 4766585 * c₁₄) v₃q₁₀ v₂q₁₀ (by lia)
-  rw [← (show q₁₁ = R.subMulWin q₁₀ (2 * L) L L L 1 from rfl)] at w₁₁ e₁₁
+  clear w₁₀ v₁₃q₉ v₁₂q₉ v₁₁q₉ s₉ v₁q₉ e₉c e₉b e₉a v₅q₉ v₆q₉ v₇q₉ v₈q₉ v₉q₉ v₁₀q₉
+  obtain ⟨w₁₁, e₁₁a, e₁₁b, e₁₁c⟩ := sub3ChainW_val (q := q₁₀) (o₁ := (9 * L)) (o₂ := (8 * L))
+      (o₃ := (7 * L)) (o₄ := (6 * L)) (len := L) (7 * L) (3 * L) (by rw [s₁₀]; lia) (by lia) (by lia) 1
+      (V₁ := 6 * c₃ + 204 * c₄ + 4350 * c₅ + 74460 * c₆ + 1119006 * c₇ + 15426684 * c₈ + 200038110 * c₉ + 2478397020 * c₁₀ + 29649298206 * c₁₁ + 345028533564 * c₁₂ + 3926780946270 * c₁₃ + 43885539095580 * c₁₄) (V₂ := 6 * c₃ + 180 * c₄ + 3390 * c₅ + 51300 * c₆ + 682206 * c₇ + 8329860 * c₈ + 95750430 * c₉ + 1052518500 * c₁₀ + 11180439006 * c₁₁ + 115618185540 * c₁₂ + 1170204723870 * c₁₃ + 11638957976100 * c₁₄) (V₃ := 6 * c₃ + 156 * c₄ + 2550 * c₅ + 33540 * c₆ + 388206 * c₇ + 4131036 * c₈ + 41436870 * c₉ + 397948980 * c₁₀ + 3697517406 * c₁₁ + 33481821516 * c₁₂ + 297050161590 * c₁₃ + 2592366269220 * c₁₄)
+      v₁₀q₁₀ v₉q₁₀ v₈q₁₀ v₇q₁₀ (by lia) (by lia) (by lia)
+  rw [← (show q₁₁ = R.sub3Chain q₁₀ (9 * L) (8 * L) (7 * L) (6 * L) L 1 from rfl)] at w₁₁ e₁₁a e₁₁b e₁₁c
   clear_value q₁₁
   have s₁₁ := w₁₁.1.trans s₁₀
   have v₁q₁₁ := (w₁₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₀
   have v₂q₁₁ := (w₁₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₀
-  have v₄q₁₁ := (w₁₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₁₀
+  have v₃q₁₁ := (w₁₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₀
+  have v₄q₁₁ := (w₁₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₀
   have v₅q₁₁ := (w₁₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₀
   have v₆q₁₁ := (w₁₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₀
   have v₇q₁₁ := (w₁₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₀
-  have v₈q₁₁ := (w₁₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₀
-  have v₉q₁₁ := (w₁₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₀
-  have v₁₀q₁₁ := (w₁₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₀
-  have v₁₁q₁₁ := (w₁₁.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₀
-  have v₁₂q₁₁ := (w₁₁.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₀
-  have v₁₃q₁₁ := (w₁₁.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₀
-  clear w₁₁ v₃q₁₀ s₁₀ v₁q₁₀ v₂q₁₀ e₁₀ v₅q₁₀ v₆q₁₀ v₇q₁₀ v₈q₁₀ v₉q₁₀ v₁₀q₁₀ v₁₁q₁₀ v₁₂q₁₀ v₁₃q₁₀
-  obtain ⟨w₁₂, e₁₂⟩ := subMulWin_val (q := q₁₁) (o := L) (len := L) (by rw [s₁₁]; lia) 0 L 1
-      (by rw [s₁₁]; lia) (by lia) (by lia) (by decide)
-      (V := c₁ + 3 * c₂ + 7 * c₃ + 15 * c₄ + 31 * c₅ + 63 * c₆ + 127 * c₇ + 255 * c₈ + 511 * c₉ + 1023 * c₁₀ + 2047 * c₁₁ + 4095 * c₁₂ + 8191 * c₁₃ + 16383 * c₁₄) v₂q₁₁ v₁q₁₁ (by lia)
-  rw [← (show q₁₂ = R.subMulWin q₁₁ L L 0 L 1 from rfl)] at w₁₂ e₁₂
+  have v₁₁q₁₁ := (w₁₁.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₁₀c
+  have v₁₂q₁₁ := (w₁₁.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₁₀b
+  have v₁₃q₁₁ := (w₁₁.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₁₀a
+  clear w₁₁ v₁₀q₁₀ v₉q₁₀ v₈q₁₀ s₁₀ v₁q₁₀ v₂q₁₀ v₃q₁₀ v₄q₁₀ v₅q₁₀ v₆q₁₀ v₇q₁₀ e₁₀c e₁₀b e₁₀a
+  obtain ⟨w₁₂, e₁₂a, e₁₂b, e₁₂c⟩ := sub3ChainW_val (q := q₁₁) (o₁ := (6 * L)) (o₂ := (5 * L))
+      (o₃ := (4 * L)) (o₄ := (3 * L)) (len := L) (4 * L) (3 * L) (by rw [s₁₁]; lia) (by lia) (by lia) 1
+      (V₁ := 6 * c₃ + 132 * c₄ + 1830 * c₅ + 20460 * c₆ + 201726 * c₇ + 1832292 * c₈ + 15717750 * c₉ + 129325020 * c₁₀ + 1031225646 * c₁₁ + 8026584852 * c₁₂ + 61301928870 * c₁₃ + 461172691980 * c₁₄) (V₂ := 6 * c₃ + 108 * c₄ + 1230 * c₅ + 11340 * c₆ + 92526 * c₇ + 697788 * c₈ + 4985070 * c₉ + 34255980 * c₁₀ + 228718446 * c₁₁ + 1494160668 * c₁₂ + 9598316910 * c₁₃ + 60854140620 * c₁₄) (V₃ := 6 * c₃ + 84 * c₄ + 750 * c₅ + 5460 * c₆ + 35406 * c₇ + 213444 * c₈ + 1225230 * c₉ + 6796020 * c₁₀ + 36774606 * c₁₁ + 195399204 * c₁₂ + 1024151310 * c₁₃ + 5312541780 * c₁₄)
+      v₇q₁₁ v₆q₁₁ v₅q₁₁ v₄q₁₁ (by lia) (by lia) (by lia)
+  rw [← (show q₁₂ = R.sub3Chain q₁₁ (6 * L) (5 * L) (4 * L) (3 * L) L 1 from rfl)] at w₁₂ e₁₂a e₁₂b e₁₂c
   clear_value q₁₂
   have s₁₂ := w₁₂.1.trans s₁₁
   have v₁q₁₂ := (w₁₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₁
-  have v₃q₁₂ := (w₁₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₁₁
+  have v₂q₁₂ := (w₁₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₁
+  have v₃q₁₂ := (w₁₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₁
   have v₄q₁₂ := (w₁₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₁
-  have v₅q₁₂ := (w₁₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₁
-  have v₆q₁₂ := (w₁₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₁
-  have v₇q₁₂ := (w₁₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₁
-  have v₈q₁₂ := (w₁₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₁
-  have v₉q₁₂ := (w₁₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₁
-  have v₁₀q₁₂ := (w₁₂.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₁
+  have v₈q₁₂ := (w₁₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₁₁c
+  have v₉q₁₂ := (w₁₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₁₁b
+  have v₁₀q₁₂ := (w₁₂.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₁₁a
   have v₁₁q₁₂ := (w₁₂.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₁
   have v₁₂q₁₂ := (w₁₂.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₁
   have v₁₃q₁₂ := (w₁₂.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₁
-  clear w₁₂ v₂q₁₁ s₁₁ v₁q₁₁ e₁₁ v₄q₁₁ v₅q₁₁ v₆q₁₁ v₇q₁₁ v₈q₁₁ v₉q₁₁ v₁₀q₁₁ v₁₁q₁₁ v₁₂q₁₁ v₁₃q₁₁
-  obtain ⟨w₁₃, e₁₃⟩ := subW_val (q := q₁₂) (o := 0) (len := L) (by rw [s₁₂]; lia) d o (k + k)
-      (V := c₁ + c₂ + c₃ + c₄ + c₅ + c₆ + c₇ + c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) v₁q₁₂ hc₀ (by lia)
-  rw [← (show q₁₃ = R.subInto q₁₂ 0 L d o (k + k) from rfl)] at w₁₃ e₁₃
+  clear w₁₂ v₇q₁₁ v₆q₁₁ v₅q₁₁ s₁₁ v₁q₁₁ v₂q₁₁ v₃q₁₁ v₄q₁₁ e₁₁c e₁₁b e₁₁a v₁₁q₁₁ v₁₂q₁₁ v₁₃q₁₁
+  obtain ⟨w₁₃, e₁₃⟩ := subMulWin_val (q := q₁₂) (o := (3 * L)) (len := L) (by rw [s₁₂]; lia) (2 * L) L 1
+      (by rw [s₁₂]; lia) (by lia) (by lia) (by decide)
+      (V := 6 * c₃ + 60 * c₄ + 390 * c₅ + 2100 * c₆ + 10206 * c₇ + 46620 * c₈ + 204630 * c₉ + 874500 * c₁₀ + 3669006 * c₁₁ + 15195180 * c₁₂ + 62350470 * c₁₃ + 254135700 * c₁₄) v₄q₁₂ v₃q₁₂ (by lia)
+  rw [← (show q₁₃ = R.subMulWin q₁₂ (3 * L) L (2 * L) L 1 from rfl)] at w₁₃ e₁₃
   clear_value q₁₃
   have s₁₃ := w₁₃.1.trans s₁₂
-  have v₂q₁₃ := (w₁₃.valAt_eq (lo := L) (n := L) (by lia)).trans e₁₂
+  have v₁q₁₃ := (w₁₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₂
+  have v₂q₁₃ := (w₁₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₂
   have v₃q₁₃ := (w₁₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₂
-  have v₄q₁₃ := (w₁₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₂
-  have v₅q₁₃ := (w₁₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₂
-  have v₆q₁₃ := (w₁₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₂
-  have v₇q₁₃ := (w₁₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₂
+  have v₅q₁₃ := (w₁₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₁₂c
+  have v₆q₁₃ := (w₁₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₁₂b
+  have v₇q₁₃ := (w₁₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₁₂a
   have v₈q₁₃ := (w₁₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₂
   have v₉q₁₃ := (w₁₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₂
   have v₁₀q₁₃ := (w₁₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₂
   have v₁₁q₁₃ := (w₁₃.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₂
   have v₁₂q₁₃ := (w₁₃.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₂
   have v₁₃q₁₃ := (w₁₃.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₂
-  clear w₁₃ v₁q₁₂ s₁₂ e₁₂ v₃q₁₂ v₄q₁₂ v₅q₁₂ v₆q₁₂ v₇q₁₂ v₈q₁₂ v₉q₁₂ v₁₀q₁₂ v₁₁q₁₂ v₁₂q₁₂ v₁₃q₁₂
-  obtain ⟨w₁₄, e₁₄⟩ := subMulWin_val (q := q₁₃) (o := (12 * L)) (len := L) (by rw [s₁₃]; lia) (11 * L) L 1
+  clear w₁₃ v₄q₁₂ s₁₂ v₁q₁₂ v₂q₁₂ v₃q₁₂ e₁₂c e₁₂b e₁₂a v₈q₁₂ v₉q₁₂ v₁₀q₁₂ v₁₁q₁₂ v₁₂q₁₂ v₁₃q₁₂
+  obtain ⟨w₁₄, e₁₄⟩ := subMulWin_val (q := q₁₃) (o := (2 * L)) (len := L) (by rw [s₁₃]; lia) L L 1
       (by rw [s₁₃]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₂ + 72 * c₃ + 1730 * c₄ + 34680 * c₅ + 626402 * c₆ + 10572072 * c₇ + 170126210 * c₈ + 2642886360 * c₉ + 39961188002 * c₁₀ + 591455323272 * c₁₁ + 8604312602690 * c₁₂ + 123411407978040 * c₁₃ + 1749289290184802 * c₁₄) v₁₃q₁₃ v₁₂q₁₃ (by lia)
-  rw [← (show q₁₄ = R.subMulWin q₁₃ (12 * L) L (11 * L) L 1 from rfl)] at w₁₄ e₁₄
+      (V := 6 * c₃ + 36 * c₄ + 150 * c₅ + 540 * c₆ + 1806 * c₇ + 5796 * c₈ + 18150 * c₉ + 55980 * c₁₀ + 171006 * c₁₁ + 519156 * c₁₂ + 1569750 * c₁₃ + 4733820 * c₁₄) v₃q₁₃ v₂q₁₃ (by lia)
+  rw [← (show q₁₄ = R.subMulWin q₁₃ (2 * L) L L L 1 from rfl)] at w₁₄ e₁₄
   clear_value q₁₄
   have s₁₄ := w₁₄.1.trans s₁₃
-  have v₁q₁₄ := (w₁₄.valAt_eq (lo := 0) (n := L) (by lia)).trans e₁₃
+  have v₁q₁₄ := (w₁₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₃
   have v₂q₁₄ := (w₁₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₃
-  have v₃q₁₄ := (w₁₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₃
-  have v₄q₁₄ := (w₁₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₃
+  have v₄q₁₄ := (w₁₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₁₃
   have v₅q₁₄ := (w₁₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₃
   have v₆q₁₄ := (w₁₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₃
   have v₇q₁₄ := (w₁₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₃
@@ -6508,16 +5612,18 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₁₀q₁₄ := (w₁₄.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₃
   have v₁₁q₁₄ := (w₁₄.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₃
   have v₁₂q₁₄ := (w₁₄.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₃
-  clear w₁₄ v₁₃q₁₃ s₁₃ e₁₃ v₂q₁₃ v₃q₁₃ v₄q₁₃ v₅q₁₃ v₆q₁₃ v₇q₁₃ v₈q₁₃ v₉q₁₃ v₁₀q₁₃ v₁₁q₁₃ v₁₂q₁₃
-  obtain ⟨w₁₅, e₁₅⟩ := subMulWin_val (q := q₁₄) (o := (11 * L)) (len := L) (by rw [s₁₄]; lia) (10 * L) L 1
-      (by rw [s₁₄]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₂ + 66 * c₃ + 1454 * c₄ + 26730 * c₅ + 442862 * c₆ + 6857466 * c₇ + 101263934 * c₈ + 1443884970 * c₉ + 20042515022 * c₁₀ + 272385029466 * c₁₁ + 3639243694814 * c₁₂ + 47947781091210 * c₁₃ + 624418797382382 * c₁₄) v₁₂q₁₄ v₁₁q₁₄ (by lia)
-  rw [← (show q₁₅ = R.subMulWin q₁₄ (11 * L) L (10 * L) L 1 from rfl)] at w₁₅ e₁₅
+  have v₁₃q₁₄ := (w₁₄.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₃
+  clear w₁₄ v₃q₁₃ s₁₃ v₁q₁₃ v₂q₁₃ e₁₃ v₅q₁₃ v₆q₁₃ v₇q₁₃ v₈q₁₃ v₉q₁₃ v₁₀q₁₃ v₁₁q₁₃ v₁₂q₁₃ v₁₃q₁₃
+  obtain ⟨w₁₅, e₁₅a, e₁₅b, e₁₅c⟩ := sub3ChainW_val (q := q₁₄) (o₁ := (12 * L)) (o₂ := (11 * L))
+      (o₃ := (10 * L)) (o₄ := (9 * L)) (len := L) (10 * L) (3 * L) (by rw [s₁₄]; lia) (by lia) (by lia) 1
+      (V₁ := 24 * c₄ + 1320 * c₅ + 43680 * c₆ + 1127280 * c₇ + 25003944 * c₈ + 500484600 * c₉ + 9300366960 * c₁₀ + 163377994560 * c₁₁ + 2746683126264 * c₁₂ + 44580423767880 * c₁₃ + 703078321458240 * c₁₄) (V₂ := 24 * c₄ + 1200 * c₅ + 36120 * c₆ + 848400 * c₇ + 17136504 * c₈ + 312525360 * c₉ + 5294270040 * c₁₀ + 84827384400 * c₁₁ + 1301388272184 * c₁₂ + 19284649303920 * c₁₃ + 277810006907160 * c₁₄) (V₃ := 24 * c₄ + 1080 * c₅ + 29280 * c₆ + 619920 * c₇ + 11295144 * c₈ + 185953320 * c₉ + 2845638960 * c₁₀ + 41215616640 * c₁₁ + 571968975864 * c₁₂ + 7671772868760 * c₁₃ + 100096625341440 * c₁₄)
+      v₁₃q₁₄ v₁₂q₁₄ v₁₁q₁₄ v₁₀q₁₄ (by lia) (by lia) (by lia)
+  rw [← (show q₁₅ = R.sub3Chain q₁₄ (12 * L) (11 * L) (10 * L) (9 * L) L 1 from rfl)] at w₁₅ e₁₅a e₁₅b e₁₅c
   clear_value q₁₅
   have s₁₅ := w₁₅.1.trans s₁₄
   have v₁q₁₅ := (w₁₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₄
   have v₂q₁₅ := (w₁₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₄
-  have v₃q₁₅ := (w₁₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₄
+  have v₃q₁₅ := (w₁₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₁₄
   have v₄q₁₅ := (w₁₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₄
   have v₅q₁₅ := (w₁₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₄
   have v₆q₁₅ := (w₁₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₄
@@ -6525,13 +5631,12 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₈q₁₅ := (w₁₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₄
   have v₉q₁₅ := (w₁₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₄
   have v₁₀q₁₅ := (w₁₅.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₄
-  have v₁₁q₁₅ := (w₁₅.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₄
-  have v₁₃q₁₅ := (w₁₅.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₁₄
-  clear w₁₅ v₁₂q₁₄ s₁₄ v₁q₁₄ v₂q₁₄ v₃q₁₄ v₄q₁₄ v₅q₁₄ v₆q₁₄ v₇q₁₄ v₈q₁₄ v₉q₁₄ v₁₀q₁₄ v₁₁q₁₄ e₁₄
-  obtain ⟨w₁₆, e₁₆⟩ := subMulWin_val (q := q₁₅) (o := (10 * L)) (len := L) (by rw [s₁₅]; lia) (9 * L) L 1
-      (by rw [s₁₅]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₂ + 60 * c₃ + 1202 * c₄ + 20100 * c₅ + 303002 * c₆ + 4270140 * c₇ + 57405602 * c₈ + 745368180 * c₉ + 9424209002 * c₁₀ + 116692730220 * c₁₁ + 1420857913202 * c₁₂ + 17064577972260 * c₁₃ + 202626626038202 * c₁₄) v₁₁q₁₅ v₁₀q₁₅ (by lia)
-  rw [← (show q₁₆ = R.subMulWin q₁₅ (10 * L) L (9 * L) L 1 from rfl)] at w₁₆ e₁₆
+  clear w₁₅ v₁₃q₁₄ v₁₂q₁₄ v₁₁q₁₄ s₁₄ v₁q₁₄ v₂q₁₄ e₁₄ v₄q₁₄ v₅q₁₄ v₆q₁₄ v₇q₁₄ v₈q₁₄ v₉q₁₄ v₁₀q₁₄
+  obtain ⟨w₁₆, e₁₆a, e₁₆b, e₁₆c⟩ := sub3ChainW_val (q := q₁₅) (o₁ := (9 * L)) (o₂ := (8 * L))
+      (o₃ := (7 * L)) (o₄ := (6 * L)) (len := L) (7 * L) (3 * L) (by rw [s₁₅]; lia) (by lia) (by lia) 1
+      (V₁ := 24 * c₄ + 960 * c₅ + 23160 * c₆ + 436800 * c₇ + 7096824 * c₈ + 104287680 * c₉ + 1425878520 * c₁₀ + 18468859200 * c₁₁ + 229410348024 * c₁₂ + 2756576222400 * c₁₃ + 32246581119480 * c₁₄) (V₂ := 24 * c₄ + 840 * c₅ + 17760 * c₆ + 294000 * c₇ + 4198824 * c₈ + 54313560 * c₉ + 654569520 * c₁₀ + 7482921600 * c₁₁ + 82136364024 * c₁₂ + 873154562280 * c₁₃ + 9046591706880 * c₁₄) (V₃ := 24 * c₄ + 720 * c₅ + 13080 * c₆ + 186480 * c₇ + 2298744 * c₈ + 25719120 * c₉ + 268623960 * c₁₀ + 2666291760 * c₁₁ + 25455236664 * c₁₂ + 235748232720 * c₁₃ + 2131193577240 * c₁₄)
+      v₁₀q₁₅ v₉q₁₅ v₈q₁₅ v₇q₁₅ (by lia) (by lia) (by lia)
+  rw [← (show q₁₆ = R.sub3Chain q₁₅ (9 * L) (8 * L) (7 * L) (6 * L) L 1 from rfl)] at w₁₆ e₁₆a e₁₆b e₁₆c
   clear_value q₁₆
   have s₁₆ := w₁₆.1.trans s₁₅
   have v₁q₁₆ := (w₁₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₅
@@ -6541,73 +5646,70 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₅q₁₆ := (w₁₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₅
   have v₆q₁₆ := (w₁₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₅
   have v₇q₁₆ := (w₁₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₅
-  have v₈q₁₆ := (w₁₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₅
-  have v₉q₁₆ := (w₁₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₅
-  have v₁₀q₁₆ := (w₁₆.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₅
-  have v₁₂q₁₆ := (w₁₆.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₁₅
-  have v₁₃q₁₆ := (w₁₆.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₅
-  clear w₁₆ v₁₁q₁₅ s₁₅ v₁q₁₅ v₂q₁₅ v₃q₁₅ v₄q₁₅ v₅q₁₅ v₆q₁₅ v₇q₁₅ v₈q₁₅ v₉q₁₅ v₁₀q₁₅ e₁₅ v₁₃q₁₅
-  obtain ⟨w₁₇, e₁₇⟩ := subMulWin_val (q := q₁₆) (o := (9 * L)) (len := L) (by rw [s₁₆]; lia) (8 * L) L 1
-      (by rw [s₁₆]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₂ + 54 * c₃ + 974 * c₄ + 14670 * c₅ + 199262 * c₆ + 2531214 * c₇ + 30683774 * c₈ + 359376750 * c₉ + 4100173022 * c₁₀ + 45827815374 * c₁₁ + 503860403774 * c₁₂ + 5466024157230 * c₁₃ + 58644461601182 * c₁₄) v₁₀q₁₆ v₉q₁₆ (by lia)
-  rw [← (show q₁₇ = R.subMulWin q₁₆ (9 * L) L (8 * L) L 1 from rfl)] at w₁₇ e₁₇
+  have v₁₁q₁₆ := (w₁₆.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₁₅c
+  have v₁₂q₁₆ := (w₁₆.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₁₅b
+  have v₁₃q₁₆ := (w₁₆.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₁₅a
+  clear w₁₆ v₁₀q₁₅ v₉q₁₅ v₈q₁₅ s₁₅ v₁q₁₅ v₂q₁₅ v₃q₁₅ v₄q₁₅ v₅q₁₅ v₆q₁₅ v₇q₁₅ e₁₅c e₁₅b e₁₅a
+  obtain ⟨w₁₇, e₁₇a, e₁₇b, e₁₇c⟩ := sub3ChainW_val (q := q₁₆) (o₁ := (6 * L)) (o₂ := (5 * L))
+      (o₃ := (4 * L)) (o₄ := (3 * L)) (len := L) (4 * L) (3 * L) (by rw [s₁₆]; lia) (by lia) (by lia) 1
+      (V₁ := 24 * c₄ + 600 * c₅ + 9120 * c₆ + 109200 * c₇ + 1134504 * c₈ + 10732680 * c₉ + 95069040 * c₁₀ + 802507200 * c₁₁ + 6532424184 * c₁₂ + 51703611960 * c₁₃ + 400318551360 * c₁₄) (V₂ := 24 * c₄ + 480 * c₅ + 5880 * c₆ + 57120 * c₇ + 484344 * c₈ + 3759840 * c₉ + 27459960 * c₁₀ + 191943840 * c₁₁ + 1298761464 * c₁₂ + 8574165600 * c₁₃ + 55541598840 * c₁₄) (V₃ := 24 * c₄ + 360 * c₅ + 3360 * c₆ + 25200 * c₇ + 166824 * c₈ + 1020600 * c₉ + 5921520 * c₁₀ + 33105600 * c₁₁ + 180204024 * c₁₂ + 961800840 * c₁₃ + 5058406080 * c₁₄)
+      v₇q₁₆ v₆q₁₆ v₅q₁₆ v₄q₁₆ (by lia) (by lia) (by lia)
+  rw [← (show q₁₇ = R.sub3Chain q₁₆ (6 * L) (5 * L) (4 * L) (3 * L) L 1 from rfl)] at w₁₇ e₁₇a e₁₇b e₁₇c
   clear_value q₁₇
   have s₁₇ := w₁₇.1.trans s₁₆
   have v₁q₁₇ := (w₁₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₆
   have v₂q₁₇ := (w₁₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₆
   have v₃q₁₇ := (w₁₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₆
   have v₄q₁₇ := (w₁₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₆
-  have v₅q₁₇ := (w₁₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₆
-  have v₆q₁₇ := (w₁₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₆
-  have v₇q₁₇ := (w₁₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₆
-  have v₈q₁₇ := (w₁₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₆
-  have v₉q₁₇ := (w₁₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₆
-  have v₁₁q₁₇ := (w₁₇.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₁₆
+  have v₈q₁₇ := (w₁₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₁₆c
+  have v₉q₁₇ := (w₁₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₁₆b
+  have v₁₀q₁₇ := (w₁₇.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₁₆a
+  have v₁₁q₁₇ := (w₁₇.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₆
   have v₁₂q₁₇ := (w₁₇.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₆
   have v₁₃q₁₇ := (w₁₇.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₆
-  clear w₁₇ v₁₀q₁₆ s₁₆ v₁q₁₆ v₂q₁₆ v₃q₁₆ v₄q₁₆ v₅q₁₆ v₆q₁₆ v₇q₁₆ v₈q₁₆ v₉q₁₆ e₁₆ v₁₂q₁₆ v₁₃q₁₆
-  obtain ⟨w₁₈, e₁₈⟩ := subMulWin_val (q := q₁₇) (o := (8 * L)) (len := L) (by rw [s₁₇]; lia) (7 * L) L 1
+  clear w₁₇ v₇q₁₆ v₆q₁₆ v₅q₁₆ s₁₆ v₁q₁₆ v₂q₁₆ v₃q₁₆ v₄q₁₆ e₁₆c e₁₆b e₁₆a v₁₁q₁₆ v₁₂q₁₆ v₁₃q₁₆
+  obtain ⟨w₁₈, e₁₈⟩ := subMulWin_val (q := q₁₇) (o := (3 * L)) (len := L) (by rw [s₁₇]; lia) (2 * L) L 1
       (by rw [s₁₇]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₂ + 48 * c₃ + 770 * c₄ + 10320 * c₅ + 124802 * c₆ + 1412208 * c₇ + 15257090 * c₈ + 159338640 * c₉ + 1621776002 * c₁₀ + 16178517168 * c₁₁ + 158831870210 * c₁₂ + 1539243210960 * c₁₃ + 14758922505602 * c₁₄) v₉q₁₇ v₈q₁₇ (by lia)
-  rw [← (show q₁₈ = R.subMulWin q₁₇ (8 * L) L (7 * L) L 1 from rfl)] at w₁₈ e₁₈
+      (V := 24 * c₄ + 240 * c₅ + 1560 * c₆ + 8400 * c₇ + 40824 * c₈ + 186480 * c₉ + 818520 * c₁₀ + 3498000 * c₁₁ + 14676024 * c₁₂ + 60780720 * c₁₃ + 249401880 * c₁₄) v₄q₁₇ v₃q₁₇ (by lia)
+  rw [← (show q₁₈ = R.subMulWin q₁₇ (3 * L) L (2 * L) L 1 from rfl)] at w₁₈ e₁₈
   clear_value q₁₈
   have s₁₈ := w₁₈.1.trans s₁₇
   have v₁q₁₈ := (w₁₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₇
   have v₂q₁₈ := (w₁₈.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₇
   have v₃q₁₈ := (w₁₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₇
-  have v₄q₁₈ := (w₁₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₇
-  have v₅q₁₈ := (w₁₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₇
-  have v₆q₁₈ := (w₁₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₇
-  have v₇q₁₈ := (w₁₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₇
+  have v₅q₁₈ := (w₁₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₁₇c
+  have v₆q₁₈ := (w₁₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₁₇b
+  have v₇q₁₈ := (w₁₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₁₇a
   have v₈q₁₈ := (w₁₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₇
-  have v₁₀q₁₈ := (w₁₈.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₁₇
+  have v₉q₁₈ := (w₁₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₇
+  have v₁₀q₁₈ := (w₁₈.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₇
   have v₁₁q₁₈ := (w₁₈.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₇
   have v₁₂q₁₈ := (w₁₈.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₇
   have v₁₃q₁₈ := (w₁₈.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₇
-  clear w₁₈ v₉q₁₇ s₁₇ v₁q₁₇ v₂q₁₇ v₃q₁₇ v₄q₁₇ v₅q₁₇ v₆q₁₇ v₇q₁₇ v₈q₁₇ e₁₇ v₁₁q₁₇ v₁₂q₁₇ v₁₃q₁₇
-  obtain ⟨w₁₉, e₁₉⟩ := subMulWin_val (q := q₁₈) (o := (7 * L)) (len := L) (by rw [s₁₈]; lia) (6 * L) L 1
-      (by rw [s₁₈]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₂ + 42 * c₃ + 590 * c₄ + 6930 * c₅ + 73502 * c₆ + 730002 * c₇ + 6927230 * c₈ + 63588210 * c₉ + 569257502 * c₁₀ + 4998078162 * c₁₁ + 43213684670 * c₁₂ + 369038487090 * c₁₃ + 3119964529502 * c₁₄) v₈q₁₈ v₇q₁₈ (by lia)
-  rw [← (show q₁₉ = R.subMulWin q₁₈ (7 * L) L (6 * L) L 1 from rfl)] at w₁₉ e₁₉
+  clear w₁₈ v₄q₁₇ s₁₇ v₁q₁₇ v₂q₁₇ v₃q₁₇ e₁₇c e₁₇b e₁₇a v₈q₁₇ v₉q₁₇ v₁₀q₁₇ v₁₁q₁₇ v₁₂q₁₇ v₁₃q₁₇
+  obtain ⟨w₁₉, e₁₉a, e₁₉b, e₁₉c⟩ := sub3ChainW_val (q := q₁₈) (o₁ := (12 * L)) (o₂ := (11 * L))
+      (o₃ := (10 * L)) (o₄ := (9 * L)) (len := L) (10 * L) (3 * L) (by rw [s₁₈]; lia) (by lia) (by lia) 1
+      (V₁ := 120 * c₅ + 7560 * c₆ + 278880 * c₇ + 7867440 * c₈ + 187959240 * c₉ + 4006096920 * c₁₀ + 78550610160 * c₁₁ + 1445294854080 * c₁₂ + 25295774463960 * c₁₃ + 425268314551080 * c₁₄) (V₂ := 120 * c₅ + 6840 * c₆ + 228480 * c₇ + 5841360 * c₈ + 126572040 * c₉ + 2448631080 * c₁₀ + 43611767760 * c₁₁ + 729419296320 * c₁₂ + 11612876435160 * c₁₃ + 177713381565720 * c₁₄) (V₃ := 120 * c₅ + 6120 * c₆ + 183120 * c₇ + 4198320 * c₈ + 81665640 * c₉ + 1419760440 * c₁₀ + 22746757440 * c₁₁ + 342558627840 * c₁₂ + 4915196646360 * c₁₃ + 67850044221960 * c₁₄)
+      v₁₃q₁₈ v₁₂q₁₈ v₁₁q₁₈ v₁₀q₁₈ (by lia) (by lia) (by lia)
+  rw [← (show q₁₉ = R.sub3Chain q₁₈ (12 * L) (11 * L) (10 * L) (9 * L) L 1 from rfl)] at w₁₉ e₁₉a e₁₉b e₁₉c
   clear_value q₁₉
   have s₁₉ := w₁₉.1.trans s₁₈
   have v₁q₁₉ := (w₁₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₈
   have v₂q₁₉ := (w₁₉.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₈
   have v₃q₁₉ := (w₁₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₈
-  have v₄q₁₉ := (w₁₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₈
+  have v₄q₁₉ := (w₁₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₁₈
   have v₅q₁₉ := (w₁₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₈
   have v₆q₁₉ := (w₁₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₈
   have v₇q₁₉ := (w₁₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₈
-  have v₉q₁₉ := (w₁₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₁₈
+  have v₈q₁₉ := (w₁₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₈
+  have v₉q₁₉ := (w₁₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₈
   have v₁₀q₁₉ := (w₁₉.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₈
-  have v₁₁q₁₉ := (w₁₉.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₈
-  have v₁₂q₁₉ := (w₁₉.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₈
-  have v₁₃q₁₉ := (w₁₉.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₈
-  clear w₁₉ v₈q₁₈ s₁₈ v₁q₁₈ v₂q₁₈ v₃q₁₈ v₄q₁₈ v₅q₁₈ v₆q₁₈ v₇q₁₈ e₁₈ v₁₀q₁₈ v₁₁q₁₈ v₁₂q₁₈ v₁₃q₁₈
-  obtain ⟨w₂₀, e₂₀⟩ := subMulWin_val (q := q₁₉) (o := (6 * L)) (len := L) (by rw [s₁₉]; lia) (5 * L) L 1
-      (by rw [s₁₉]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₂ + 36 * c₃ + 434 * c₄ + 4380 * c₅ + 39962 * c₆ + 341796 * c₇ + 2796194 * c₈ + 22151340 * c₉ + 171308522 * c₁₀ + 1300560756 * c₁₁ + 9731863154 * c₁₂ + 71988325500 * c₁₃ + 527598260282 * c₁₄) v₇q₁₉ v₆q₁₉ (by lia)
-  rw [← (show q₂₀ = R.subMulWin q₁₉ (6 * L) L (5 * L) L 1 from rfl)] at w₂₀ e₂₀
+  clear w₁₉ v₁₃q₁₈ v₁₂q₁₈ v₁₁q₁₈ s₁₈ v₁q₁₈ v₂q₁₈ v₃q₁₈ e₁₈ v₅q₁₈ v₆q₁₈ v₇q₁₈ v₈q₁₈ v₉q₁₈ v₁₀q₁₈
+  obtain ⟨w₂₀, e₂₀a, e₂₀b, e₂₀c⟩ := sub3ChainW_val (q := q₁₉) (o₁ := (9 * L)) (o₂ := (8 * L))
+      (o₃ := (7 * L)) (o₄ := (6 * L)) (len := L) (7 * L) (3 * L) (by rw [s₁₉]; lia) (by lia) (by lia) 1
+      (V₁ := 120 * c₅ + 5400 * c₆ + 142800 * c₇ + 2898000 * c₈ + 49974120 * c₉ + 771309000 * c₁₀ + 10985937600 * c₁₁ + 147273984000 * c₁₂ + 1883421660120 * c₁₃ + 23199989412600 * c₁₄) (V₂ := 120 * c₅ + 4680 * c₆ + 107520 * c₇ + 1900080 * c₈ + 28594440 * c₉ + 385945560 * c₁₀ + 4816629840 * c₁₁ + 56681127360 * c₁₂ + 637406329560 * c₁₃ + 6915398129640 * c₁₄) (V₃ := 120 * c₅ + 3960 * c₆ + 77280 * c₇ + 1164240 * c₈ + 14986440 * c₉ + 173554920 * c₁₀ + 1863784560 * c₁₁ + 18922812480 * c₁₂ + 184044620760 * c₁₃ + 1730875025880 * c₁₄)
+      v₁₀q₁₉ v₉q₁₉ v₈q₁₉ v₇q₁₉ (by lia) (by lia) (by lia)
+  rw [← (show q₂₀ = R.sub3Chain q₁₉ (9 * L) (8 * L) (7 * L) (6 * L) L 1 from rfl)] at w₂₀ e₂₀a e₂₀b e₂₀c
   clear_value q₂₀
   have s₂₀ := w₂₀.1.trans s₁₉
   have v₁q₂₀ := (w₂₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₉
@@ -6616,131 +5718,126 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₄q₂₀ := (w₂₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₉
   have v₅q₂₀ := (w₂₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₉
   have v₆q₂₀ := (w₂₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₉
-  have v₈q₂₀ := (w₂₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₁₉
-  have v₉q₂₀ := (w₂₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₉
-  have v₁₀q₂₀ := (w₂₀.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₉
-  have v₁₁q₂₀ := (w₂₀.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₉
-  have v₁₂q₂₀ := (w₂₀.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₉
-  have v₁₃q₂₀ := (w₂₀.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₉
-  clear w₂₀ v₇q₁₉ s₁₉ v₁q₁₉ v₂q₁₉ v₃q₁₉ v₄q₁₉ v₅q₁₉ v₆q₁₉ e₁₉ v₉q₁₉ v₁₀q₁₉ v₁₁q₁₉ v₁₂q₁₉ v₁₃q₁₉
-  obtain ⟨w₂₁, e₂₁⟩ := subMulWin_val (q := q₂₀) (o := (5 * L)) (len := L) (by rw [s₂₀]; lia) (4 * L) L 1
-      (by rw [s₂₀]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₂ + 30 * c₃ + 302 * c₄ + 2550 * c₅ + 19502 * c₆ + 140070 * c₇ + 963902 * c₈ + 6433590 * c₉ + 41983502 * c₁₀ + 269335110 * c₁₁ + 1705278302 * c₁₂ + 10686396630 * c₁₃ + 66425568302 * c₁₄) v₆q₂₀ v₅q₂₀ (by lia)
-  rw [← (show q₂₁ = R.subMulWin q₂₀ (5 * L) L (4 * L) L 1 from rfl)] at w₂₁ e₂₁
+  have v₇q₂₀ := (w₂₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₉
+  have v₁₁q₂₀ := (w₂₀.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₁₉c
+  have v₁₂q₂₀ := (w₂₀.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₁₉b
+  have v₁₃q₂₀ := (w₂₀.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₁₉a
+  clear w₂₀ v₁₀q₁₉ v₉q₁₉ v₈q₁₉ s₁₉ v₁q₁₉ v₂q₁₉ v₃q₁₉ v₄q₁₉ v₅q₁₉ v₆q₁₉ v₇q₁₉ e₁₉c e₁₉b e₁₉a
+  obtain ⟨w₂₁, e₂₁a, e₂₁b, e₂₁c⟩ := sub3ChainW_val (q := q₂₀) (o₁ := (6 * L)) (o₂ := (5 * L))
+      (o₃ := (4 * L)) (o₄ := (3 * L)) (len := L) (4 * L) (3 * L) (by rw [s₂₀]; lia) (by lia) (by lia) 1
+      (V₁ := 120 * c₅ + 3240 * c₆ + 52080 * c₇ + 650160 * c₈ + 6972840 * c₉ + 67609080 * c₁₀ + 610563360 * c₁₁ + 5233662720 * c₁₂ + 43129446360 * c₁₃ + 344776952520 * c₁₄) (V₂ := 120 * c₅ + 2520 * c₆ + 31920 * c₇ + 317520 * c₈ + 2739240 * c₉ + 21538440 * c₁₀ + 158838240 * c₁₁ + 1118557440 * c₁₂ + 7612364760 * c₁₃ + 50483192760 * c₁₄) (V₃ := 120 * c₅ + 1800 * c₆ + 16800 * c₇ + 126000 * c₈ + 834120 * c₉ + 5103000 * c₁₀ + 29607600 * c₁₁ + 165528000 * c₁₂ + 901020120 * c₁₃ + 4809004200 * c₁₄)
+      v₇q₂₀ v₆q₂₀ v₅q₂₀ v₄q₂₀ (by lia) (by lia) (by lia)
+  rw [← (show q₂₁ = R.sub3Chain q₂₀ (6 * L) (5 * L) (4 * L) (3 * L) L 1 from rfl)] at w₂₁ e₂₁a e₂₁b e₂₁c
   clear_value q₂₁
   have s₂₁ := w₂₁.1.trans s₂₀
   have v₁q₂₁ := (w₂₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₀
   have v₂q₂₁ := (w₂₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₀
   have v₃q₂₁ := (w₂₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₀
   have v₄q₂₁ := (w₂₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₀
-  have v₅q₂₁ := (w₂₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₀
-  have v₇q₂₁ := (w₂₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₂₀
-  have v₈q₂₁ := (w₂₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₂₀
-  have v₉q₂₁ := (w₂₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₂₀
-  have v₁₀q₂₁ := (w₂₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₂₀
+  have v₈q₂₁ := (w₂₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₂₀c
+  have v₉q₂₁ := (w₂₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₂₀b
+  have v₁₀q₂₁ := (w₂₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₂₀a
   have v₁₁q₂₁ := (w₂₁.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₂₀
   have v₁₂q₂₁ := (w₂₁.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₂₀
   have v₁₃q₂₁ := (w₂₁.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₂₀
-  clear w₂₁ v₆q₂₀ s₂₀ v₁q₂₀ v₂q₂₀ v₃q₂₀ v₄q₂₀ v₅q₂₀ e₂₀ v₈q₂₀ v₉q₂₀ v₁₀q₂₀ v₁₁q₂₀ v₁₂q₂₀ v₁₃q₂₀
-  obtain ⟨w₂₂, e₂₂⟩ := subMulWin_val (q := q₂₁) (o := (4 * L)) (len := L) (by rw [s₂₁]; lia) (3 * L) L 1
-      (by rw [s₂₁]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₂ + 24 * c₃ + 194 * c₄ + 1320 * c₅ + 8162 * c₆ + 47544 * c₇ + 266114 * c₈ + 1448520 * c₉ + 7727522 * c₁₀ + 40616664 * c₁₁ + 211117634 * c₁₂ + 1088079720 * c₁₃ + 5571427682 * c₁₄) v₅q₂₁ v₄q₂₁ (by lia)
-  rw [← (show q₂₂ = R.subMulWin q₂₁ (4 * L) L (3 * L) L 1 from rfl)] at w₂₂ e₂₂
+  clear w₂₁ v₇q₂₀ v₆q₂₀ v₅q₂₀ s₂₀ v₁q₂₀ v₂q₂₀ v₃q₂₀ v₄q₂₀ e₂₀c e₂₀b e₂₀a v₁₁q₂₀ v₁₂q₂₀ v₁₃q₂₀
+  obtain ⟨w₂₂, e₂₂a, e₂₂b, e₂₂c⟩ := sub3ChainW_val (q := q₂₁) (o₁ := (12 * L)) (o₂ := (11 * L))
+      (o₃ := (10 * L)) (o₄ := (9 * L)) (len := L) (10 * L) (3 * L) (by rw [s₂₁]; lia) (by lia) (by lia) 1
+      (V₁ := 720 * c₆ + 50400 * c₇ + 2026080 * c₈ + 61387200 * c₉ + 1557465840 * c₁₀ + 34938842400 * c₁₁ + 715875557760 * c₁₂ + 13682898028800 * c₁₃ + 247554932985360 * c₁₄) (V₂ := 720 * c₆ + 45360 * c₇ + 1643040 * c₈ + 44906400 * c₉ + 1028870640 * c₁₀ + 20865010320 * c₁₁ + 386860668480 * c₁₂ + 6697679788800 * c₁₃ + 109863337343760 * c₁₄) (V₃ := 720 * c₆ + 40320 * c₇ + 1300320 * c₈ + 31691520 * c₉ + 648451440 * c₁₀ + 11760819840 * c₁₁ + 195284643840 * c₁₂ + 3031774986240 * c₁₃ + 44650054809360 * c₁₄)
+      v₁₃q₂₁ v₁₂q₂₁ v₁₁q₂₁ v₁₀q₂₁ (by lia) (by lia) (by lia)
+  rw [← (show q₂₂ = R.sub3Chain q₂₁ (12 * L) (11 * L) (10 * L) (9 * L) L 1 from rfl)] at w₂₂ e₂₂a e₂₂b e₂₂c
   clear_value q₂₂
   have s₂₂ := w₂₂.1.trans s₂₁
   have v₁q₂₂ := (w₂₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₁
   have v₂q₂₂ := (w₂₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₁
   have v₃q₂₂ := (w₂₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₁
   have v₄q₂₂ := (w₂₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₁
-  have v₆q₂₂ := (w₂₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₂₁
-  have v₇q₂₂ := (w₂₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₂₁
+  have v₅q₂₂ := (w₂₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₂₁c
+  have v₆q₂₂ := (w₂₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₂₁b
+  have v₇q₂₂ := (w₂₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₂₁a
   have v₈q₂₂ := (w₂₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₂₁
   have v₉q₂₂ := (w₂₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₂₁
   have v₁₀q₂₂ := (w₂₂.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₂₁
-  have v₁₁q₂₂ := (w₂₂.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₂₁
-  have v₁₂q₂₂ := (w₂₂.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₂₁
-  have v₁₃q₂₂ := (w₂₂.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₂₁
-  clear w₂₂ v₅q₂₁ s₂₁ v₁q₂₁ v₂q₂₁ v₃q₂₁ v₄q₂₁ e₂₁ v₇q₂₁ v₈q₂₁ v₉q₂₁ v₁₀q₂₁ v₁₁q₂₁ v₁₂q₂₁ v₁₃q₂₁
-  obtain ⟨w₂₃, e₂₃⟩ := subMulWin_val (q := q₂₂) (o := (3 * L)) (len := L) (by rw [s₂₂]; lia) (2 * L) L 1
-      (by rw [s₂₂]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₂ + 18 * c₃ + 110 * c₄ + 570 * c₅ + 2702 * c₆ + 12138 * c₇ + 52670 * c₈ + 223290 * c₉ + 931502 * c₁₀ + 3842058 * c₁₁ + 15718430 * c₁₂ + 63928410 * c₁₃ + 258885902 * c₁₄) v₄q₂₂ v₃q₂₂ (by lia)
-  rw [← (show q₂₃ = R.subMulWin q₂₂ (3 * L) L (2 * L) L 1 from rfl)] at w₂₃ e₂₃
+  clear w₂₂ v₁₃q₂₁ v₁₂q₂₁ v₁₁q₂₁ s₂₁ v₁q₂₁ v₂q₂₁ v₃q₂₁ v₄q₂₁ e₂₁c e₂₁b e₂₁a v₈q₂₁ v₉q₂₁ v₁₀q₂₁
+  obtain ⟨w₂₃, e₂₃a, e₂₃b, e₂₃c⟩ := sub3ChainW_val (q := q₂₂) (o₁ := (9 * L)) (o₂ := (8 * L))
+      (o₃ := (7 * L)) (o₄ := (6 * L)) (len := L) (7 * L) (3 * L) (by rw [s₂₂]; lia) (by lia) (by lia) 1
+      (V₁ := 720 * c₆ + 35280 * c₇ + 997920 * c₈ + 21379680 * c₉ + 385363440 * c₁₀ + 6169307760 * c₁₁ + 90592856640 * c₁₂ + 1246015330560 * c₁₃ + 16284591282960 * c₁₄) (V₂ := 720 * c₆ + 30240 * c₇ + 735840 * c₈ + 13608000 * c₉ + 212390640 * c₁₀ + 2952845280 * c₁₁ + 37758314880 * c₁₂ + 453361708800 * c₁₃ + 5184523103760 * c₁₄) (V₃ := 720 * c₆ + 25200 * c₇ + 514080 * c₈ + 8013600 * c₉ + 105945840 * c₁₀ + 1253221200 * c₁₁ + 13689149760 * c₁₂ + 140915174400 * c₁₃ + 1386098073360 * c₁₄)
+      v₁₀q₂₂ v₉q₂₂ v₈q₂₂ v₇q₂₂ (by lia) (by lia) (by lia)
+  rw [← (show q₂₃ = R.sub3Chain q₂₂ (9 * L) (8 * L) (7 * L) (6 * L) L 1 from rfl)] at w₂₃ e₂₃a e₂₃b e₂₃c
   clear_value q₂₃
   have s₂₃ := w₂₃.1.trans s₂₂
   have v₁q₂₃ := (w₂₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₂
   have v₂q₂₃ := (w₂₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₂
   have v₃q₂₃ := (w₂₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₂
-  have v₅q₂₃ := (w₂₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₂₂
+  have v₄q₂₃ := (w₂₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₂
+  have v₅q₂₃ := (w₂₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₂
   have v₆q₂₃ := (w₂₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₂₂
   have v₇q₂₃ := (w₂₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₂₂
-  have v₈q₂₃ := (w₂₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₂₂
-  have v₉q₂₃ := (w₂₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₂₂
-  have v₁₀q₂₃ := (w₂₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₂₂
-  have v₁₁q₂₃ := (w₂₃.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₂₂
-  have v₁₂q₂₃ := (w₂₃.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₂₂
-  have v₁₃q₂₃ := (w₂₃.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₂₂
-  clear w₂₃ v₄q₂₂ s₂₂ v₁q₂₂ v₂q₂₂ v₃q₂₂ e₂₂ v₆q₂₂ v₇q₂₂ v₈q₂₂ v₉q₂₂ v₁₀q₂₂ v₁₁q₂₂ v₁₂q₂₂ v₁₃q₂₂
-  obtain ⟨w₂₄, e₂₄⟩ := subMulWin_val (q := q₂₃) (o := (2 * L)) (len := L) (by rw [s₂₃]; lia) L L 1
+  have v₁₁q₂₃ := (w₂₃.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₂₂c
+  have v₁₂q₂₃ := (w₂₃.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₂₂b
+  have v₁₃q₂₃ := (w₂₃.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₂₂a
+  clear w₂₃ v₁₀q₂₂ v₉q₂₂ v₈q₂₂ s₂₂ v₁q₂₂ v₂q₂₂ v₃q₂₂ v₄q₂₂ v₅q₂₂ v₆q₂₂ v₇q₂₂ e₂₂c e₂₂b e₂₂a
+  obtain ⟨w₂₄, e₂₄⟩ := subMulWin_val (q := q₂₃) (o := (6 * L)) (len := L) (by rw [s₂₃]; lia) (5 * L) L 1
       (by rw [s₂₃]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₂ + 12 * c₃ + 50 * c₄ + 180 * c₅ + 602 * c₆ + 1932 * c₇ + 6050 * c₈ + 18660 * c₉ + 57002 * c₁₀ + 173052 * c₁₁ + 523250 * c₁₂ + 1577940 * c₁₃ + 4750202 * c₁₄) v₃q₂₃ v₂q₂₃ (by lia)
-  rw [← (show q₂₄ = R.subMulWin q₂₃ (2 * L) L L L 1 from rfl)] at w₂₄ e₂₄
+      (V := 720 * c₆ + 20160 * c₇ + 332640 * c₈ + 4233600 * c₉ + 46070640 * c₁₀ + 451725120 * c₁₁ + 4115105280 * c₁₂ + 35517081600 * c₁₃ + 294293759760 * c₁₄) v₇q₂₃ v₆q₂₃ (by lia)
+  rw [← (show q₂₄ = R.subMulWin q₂₃ (6 * L) L (5 * L) L 1 from rfl)] at w₂₄ e₂₄
   clear_value q₂₄
   have s₂₄ := w₂₄.1.trans s₂₃
   have v₁q₂₄ := (w₂₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₃
   have v₂q₂₄ := (w₂₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₃
-  have v₄q₂₄ := (w₂₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₂₃
+  have v₃q₂₄ := (w₂₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₃
+  have v₄q₂₄ := (w₂₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₃
   have v₅q₂₄ := (w₂₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₃
   have v₆q₂₄ := (w₂₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₂₃
-  have v₇q₂₄ := (w₂₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₂₃
-  have v₈q₂₄ := (w₂₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₂₃
-  have v₉q₂₄ := (w₂₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₂₃
-  have v₁₀q₂₄ := (w₂₄.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₂₃
+  have v₈q₂₄ := (w₂₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₂₃c
+  have v₉q₂₄ := (w₂₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₂₃b
+  have v₁₀q₂₄ := (w₂₄.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₂₃a
   have v₁₁q₂₄ := (w₂₄.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₂₃
   have v₁₂q₂₄ := (w₂₄.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₂₃
   have v₁₃q₂₄ := (w₂₄.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₂₃
-  clear w₂₄ v₃q₂₃ s₂₃ v₁q₂₃ v₂q₂₃ e₂₃ v₅q₂₃ v₆q₂₃ v₇q₂₃ v₈q₂₃ v₉q₂₃ v₁₀q₂₃ v₁₁q₂₃ v₁₂q₂₃ v₁₃q₂₃
-  obtain ⟨w₂₅, e₂₅⟩ := subMulWin_val (q := q₂₄) (o := L) (len := L) (by rw [s₂₄]; lia) 0 L 1
+  clear w₂₄ v₇q₂₃ s₂₃ v₁q₂₃ v₂q₂₃ v₃q₂₃ v₄q₂₃ v₅q₂₃ v₆q₂₃ e₂₃c e₂₃b e₂₃a v₁₁q₂₃ v₁₂q₂₃ v₁₃q₂₃
+  obtain ⟨w₂₅, e₂₅⟩ := subMulWin_val (q := q₂₄) (o := (5 * L)) (len := L) (by rw [s₂₄]; lia) (4 * L) L 1
       (by rw [s₂₄]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₂ + 6 * c₃ + 14 * c₄ + 30 * c₅ + 62 * c₆ + 126 * c₇ + 254 * c₈ + 510 * c₉ + 1022 * c₁₀ + 2046 * c₁₁ + 4094 * c₁₂ + 8190 * c₁₃ + 16382 * c₁₄) v₂q₂₄ v₁q₂₄ (by lia)
-  rw [← (show q₂₅ = R.subMulWin q₂₄ L L 0 L 1 from rfl)] at w₂₅ e₂₅
+      (V := 720 * c₆ + 15120 * c₇ + 191520 * c₈ + 1905120 * c₉ + 16435440 * c₁₀ + 129230640 * c₁₁ + 953029440 * c₁₂ + 6711344640 * c₁₃ + 45674188560 * c₁₄) v₆q₂₄ v₅q₂₄ (by lia)
+  rw [← (show q₂₅ = R.subMulWin q₂₄ (5 * L) L (4 * L) L 1 from rfl)] at w₂₅ e₂₅
   clear_value q₂₅
   have s₂₅ := w₂₅.1.trans s₂₄
   have v₁q₂₅ := (w₂₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₄
-  have v₃q₂₅ := (w₂₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₂₄
+  have v₂q₂₅ := (w₂₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₄
+  have v₃q₂₅ := (w₂₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₄
   have v₄q₂₅ := (w₂₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₄
   have v₅q₂₅ := (w₂₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₄
-  have v₆q₂₅ := (w₂₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₂₄
-  have v₇q₂₅ := (w₂₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₂₄
+  have v₇q₂₅ := (w₂₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₂₄
   have v₈q₂₅ := (w₂₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₂₄
   have v₉q₂₅ := (w₂₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₂₄
   have v₁₀q₂₅ := (w₂₅.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₂₄
   have v₁₁q₂₅ := (w₂₅.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₂₄
   have v₁₂q₂₅ := (w₂₅.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₂₄
   have v₁₃q₂₅ := (w₂₅.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₂₄
-  clear w₂₅ v₂q₂₄ s₂₄ v₁q₂₄ e₂₄ v₄q₂₄ v₅q₂₄ v₆q₂₄ v₇q₂₄ v₈q₂₄ v₉q₂₄ v₁₀q₂₄ v₁₁q₂₄ v₁₂q₂₄ v₁₃q₂₄
-  obtain ⟨w₂₆, e₂₆⟩ := subMulWin_val (q := q₂₅) (o := (12 * L)) (len := L) (by rw [s₂₅]; lia) (11 * L) L 1
-      (by rw [s₂₅]; lia) (by lia) (by lia) (by decide)
-      (V := 6 * c₃ + 276 * c₄ + 7950 * c₅ + 183540 * c₆ + 3714606 * c₇ + 68862276 * c₈ + 1199001390 * c₉ + 19918672980 * c₁₀ + 319070293806 * c₁₁ + 4965068907876 * c₁₂ + 75463626886830 * c₁₃ + 1124870492802420 * c₁₄) v₁₃q₂₅ v₁₂q₂₅ (by lia)
-  rw [← (show q₂₆ = R.subMulWin q₂₅ (12 * L) L (11 * L) L 1 from rfl)] at w₂₆ e₂₆
+  clear w₂₅ v₆q₂₄ s₂₄ v₁q₂₄ v₂q₂₄ v₃q₂₄ v₄q₂₄ v₅q₂₄ e₂₄ v₈q₂₄ v₉q₂₄ v₁₀q₂₄ v₁₁q₂₄ v₁₂q₂₄ v₁₃q₂₄
+  obtain ⟨w₂₆, e₂₆a, e₂₆b, e₂₆c⟩ := sub3ChainW_val (q := q₂₅) (o₁ := (12 * L)) (o₂ := (11 * L))
+      (o₃ := (10 * L)) (o₄ := (9 * L)) (len := L) (10 * L) (3 * L) (by rw [s₂₅]; lia) (by lia) (by lia) 1
+      (V₁ := 5040 * c₇ + 383040 * c₈ + 16480800 * c₉ + 528595200 * c₁₀ + 14073832080 * c₁₁ + 329014889280 * c₁₂ + 6985218240000 * c₁₃ + 137691595641600 * c₁₄) (V₂ := 5040 * c₇ + 342720 * c₈ + 13214880 * c₉ + 380419200 * c₁₀ + 9104190480 * c₁₁ + 191576024640 * c₁₂ + 3665904802560 * c₁₃ + 65213282534400 * c₁₄) (V₃ := 5040 * c₇ + 302400 * c₈ + 10311840 * c₉ + 263088000 * c₁₀ + 5591512080 * c₁₁ + 104691787200 * c₁₂ + 1785759655680 * c₁₃ + 28365463526400 * c₁₄)
+      v₁₃q₂₅ v₁₂q₂₅ v₁₁q₂₅ v₁₀q₂₅ (by lia) (by lia) (by lia)
+  rw [← (show q₂₆ = R.sub3Chain q₂₅ (12 * L) (11 * L) (10 * L) (9 * L) L 1 from rfl)] at w₂₆ e₂₆a e₂₆b e₂₆c
   clear_value q₂₆
   have s₂₆ := w₂₆.1.trans s₂₅
   have v₁q₂₆ := (w₂₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₅
-  have v₂q₂₆ := (w₂₆.valAt_eq (lo := L) (n := L) (by lia)).trans e₂₅
+  have v₂q₂₆ := (w₂₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₅
   have v₃q₂₆ := (w₂₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₅
   have v₄q₂₆ := (w₂₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₅
   have v₅q₂₆ := (w₂₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₅
-  have v₆q₂₆ := (w₂₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₂₅
+  have v₆q₂₆ := (w₂₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₂₅
   have v₇q₂₆ := (w₂₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₂₅
   have v₈q₂₆ := (w₂₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₂₅
   have v₉q₂₆ := (w₂₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₂₅
   have v₁₀q₂₆ := (w₂₆.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₂₅
-  have v₁₁q₂₆ := (w₂₆.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₂₅
-  have v₁₂q₂₆ := (w₂₆.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₂₅
-  clear w₂₆ v₁₃q₂₅ s₂₅ v₁q₂₅ e₂₅ v₃q₂₅ v₄q₂₅ v₅q₂₅ v₆q₂₅ v₇q₂₅ v₈q₂₅ v₉q₂₅ v₁₀q₂₅ v₁₁q₂₅ v₁₂q₂₅
-  obtain ⟨w₂₇, e₂₇⟩ := subMulWin_val (q := q₂₆) (o := (11 * L)) (len := L) (by rw [s₂₆]; lia) (10 * L) L 1
-      (by rw [s₂₆]; lia) (by lia) (by lia) (by decide)
-      (V := 6 * c₃ + 252 * c₄ + 6630 * c₅ + 139860 * c₆ + 2587326 * c₇ + 43858332 * c₈ + 698516790 * c₉ + 10618306020 * c₁₀ + 155692299246 * c₁₁ + 2218385781612 * c₁₂ + 30883203118950 * c₁₃ + 421792171344180 * c₁₄) v₁₂q₂₆ v₁₁q₂₆ (by lia)
-  rw [← (show q₂₇ = R.subMulWin q₂₆ (11 * L) L (10 * L) L 1 from rfl)] at w₂₇ e₂₇
+  clear w₂₆ v₁₃q₂₅ v₁₂q₂₅ v₁₁q₂₅ s₂₅ v₁q₂₅ v₂q₂₅ v₃q₂₅ v₄q₂₅ v₅q₂₅ e₂₅ v₇q₂₅ v₈q₂₅ v₉q₂₅ v₁₀q₂₅
+  obtain ⟨w₂₇, e₂₇a, e₂₇b, e₂₇c⟩ := sub3ChainW_val (q := q₂₆) (o₁ := (9 * L)) (o₂ := (8 * L))
+      (o₃ := (7 * L)) (o₄ := (6 * L)) (len := L) (7 * L) (3 * L) (by rw [s₂₆]; lia) (by lia) (by lia) 1
+      (V₁ := 5040 * c₇ + 262080 * c₈ + 7771680 * c₉ + 172972800 * c₁₀ + 3216462480 * c₁₁ + 52834541760 * c₁₂ + 792653621760 * c₁₃ + 11100068179200 * c₁₄) (V₂ := 5040 * c₇ + 221760 * c₈ + 5594400 * c₉ + 106444800 * c₁₀ + 1699624080 * c₁₁ + 24069165120 * c₁₂ + 312446534400 * c₁₃ + 3798425030400 * c₁₄) (V₃ := 5040 * c₇ + 181440 * c₈ + 3780000 * c₉ + 59875200 * c₁₀ + 801496080 * c₁₁ + 9574044480 * c₁₂ + 105398092800 * c₁₃ + 1091804313600 * c₁₄)
+      v₁₀q₂₆ v₉q₂₆ v₈q₂₆ v₇q₂₆ (by lia) (by lia) (by lia)
+  rw [← (show q₂₇ = R.sub3Chain q₂₆ (9 * L) (8 * L) (7 * L) (6 * L) L 1 from rfl)] at w₂₇ e₂₇a e₂₇b e₂₇c
   clear_value q₂₇
   have s₂₇ := w₂₇.1.trans s₂₆
   have v₁q₂₇ := (w₂₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₆
@@ -6750,16 +5847,14 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₅q₂₇ := (w₂₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₆
   have v₆q₂₇ := (w₂₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₂₆
   have v₇q₂₇ := (w₂₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₂₆
-  have v₈q₂₇ := (w₂₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₂₆
-  have v₉q₂₇ := (w₂₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₂₆
-  have v₁₀q₂₇ := (w₂₇.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₂₆
-  have v₁₁q₂₇ := (w₂₇.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₂₆
-  have v₁₃q₂₇ := (w₂₇.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₂₆
-  clear w₂₇ v₁₂q₂₆ s₂₆ v₁q₂₆ v₂q₂₆ v₃q₂₆ v₄q₂₆ v₅q₂₆ v₆q₂₆ v₇q₂₆ v₈q₂₆ v₉q₂₆ v₁₀q₂₆ v₁₁q₂₆ e₂₆
-  obtain ⟨w₂₈, e₂₈⟩ := subMulWin_val (q := q₂₇) (o := (10 * L)) (len := L) (by rw [s₂₇]; lia) (9 * L) L 1
+  have v₁₁q₂₇ := (w₂₇.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₂₆c
+  have v₁₂q₂₇ := (w₂₇.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₂₆b
+  have v₁₃q₂₇ := (w₂₇.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₂₆a
+  clear w₂₇ v₁₀q₂₆ v₉q₂₆ v₈q₂₆ s₂₆ v₁q₂₆ v₂q₂₆ v₃q₂₆ v₄q₂₆ v₅q₂₆ v₆q₂₆ v₇q₂₆ e₂₆c e₂₆b e₂₆a
+  obtain ⟨w₂₈, e₂₈⟩ := subMulWin_val (q := q₂₇) (o := (6 * L)) (len := L) (by rw [s₂₇]; lia) (5 * L) L 1
       (by rw [s₂₇]; lia) (by lia) (by lia) (by decide)
-      (V := 6 * c₃ + 228 * c₄ + 5430 * c₅ + 103740 * c₆ + 1738926 * c₇ + 26721828 * c₈ + 385991430 * c₉ + 5324035980 * c₁₀ + 70864914846 * c₁₁ + 916997509428 * c₁₂ + 11598553815030 * c₁₃ + 143982164437020 * c₁₄) v₁₁q₂₇ v₁₀q₂₇ (by lia)
-  rw [← (show q₂₈ = R.subMulWin q₂₇ (10 * L) L (9 * L) L 1 from rfl)] at w₂₈ e₂₈
+      (V := 5040 * c₇ + 141120 * c₈ + 2328480 * c₉ + 29635200 * c₁₀ + 322494480 * c₁₁ + 3162075840 * c₁₂ + 28805736960 * c₁₃ + 248619571200 * c₁₄) v₇q₂₇ v₆q₂₇ (by lia)
+  rw [← (show q₂₈ = R.subMulWin q₂₇ (6 * L) L (5 * L) L 1 from rfl)] at w₂₈ e₂₈
   clear_value q₂₈
   have s₂₈ := w₂₈.1.trans s₂₇
   have v₁q₂₈ := (w₂₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₇
@@ -6768,17 +5863,18 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₄q₂₈ := (w₂₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₇
   have v₅q₂₈ := (w₂₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₇
   have v₆q₂₈ := (w₂₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₂₇
-  have v₇q₂₈ := (w₂₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₂₇
-  have v₈q₂₈ := (w₂₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₂₇
-  have v₉q₂₈ := (w₂₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₂₇
-  have v₁₀q₂₈ := (w₂₈.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₂₇
-  have v₁₂q₂₈ := (w₂₈.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₂₇
+  have v₈q₂₈ := (w₂₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₂₇c
+  have v₉q₂₈ := (w₂₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₂₇b
+  have v₁₀q₂₈ := (w₂₈.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₂₇a
+  have v₁₁q₂₈ := (w₂₈.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₂₇
+  have v₁₂q₂₈ := (w₂₈.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₂₇
   have v₁₃q₂₈ := (w₂₈.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₂₇
-  clear w₂₈ v₁₁q₂₇ s₂₇ v₁q₂₇ v₂q₂₇ v₃q₂₇ v₄q₂₇ v₅q₂₇ v₆q₂₇ v₇q₂₇ v₈q₂₇ v₉q₂₇ v₁₀q₂₇ e₂₇ v₁₃q₂₇
-  obtain ⟨w₂₉, e₂₉⟩ := subMulWin_val (q := q₂₈) (o := (9 * L)) (len := L) (by rw [s₂₈]; lia) (8 * L) L 1
-      (by rw [s₂₈]; lia) (by lia) (by lia) (by decide)
-      (V := 6 * c₃ + 204 * c₄ + 4350 * c₅ + 74460 * c₆ + 1119006 * c₇ + 15426684 * c₈ + 200038110 * c₉ + 2478397020 * c₁₀ + 29649298206 * c₁₁ + 345028533564 * c₁₂ + 3926780946270 * c₁₃ + 43885539095580 * c₁₄) v₁₀q₂₈ v₉q₂₈ (by lia)
-  rw [← (show q₂₉ = R.subMulWin q₂₈ (9 * L) L (8 * L) L 1 from rfl)] at w₂₉ e₂₉
+  clear w₂₈ v₇q₂₇ s₂₇ v₁q₂₇ v₂q₂₇ v₃q₂₇ v₄q₂₇ v₅q₂₇ v₆q₂₇ e₂₇c e₂₇b e₂₇a v₁₁q₂₇ v₁₂q₂₇ v₁₃q₂₇
+  obtain ⟨w₂₉, e₂₉a, e₂₉b, e₂₉c⟩ := sub3ChainW_val (q := q₂₈) (o₁ := (12 * L)) (o₂ := (11 * L))
+      (o₃ := (10 * L)) (o₄ := (9 * L)) (len := L) (10 * L) (3 * L) (by rw [s₂₈]; lia) (by lia) (by lia) 1
+      (V₁ := 40320 * c₈ + 3265920 * c₉ + 148176000 * c₁₀ + 4969641600 * c₁₁ + 137438864640 * c₁₂ + 3319313437440 * c₁₃ + 72478313107200 * c₁₄) (V₂ := 40320 * c₈ + 2903040 * c₉ + 117331200 * c₁₀ + 3512678400 * c₁₁ + 86884237440 * c₁₂ + 1880145146880 * c₁₃ + 36847819008000 * c₁₄) (V₃ := 40320 * c₈ + 2540160 * c₉ + 90115200 * c₁₀ + 2375049600 * c₁₁ + 51857245440 * c₁₂ + 993106033920 * c₁₃ + 17265395347200 * c₁₄)
+      v₁₃q₂₈ v₁₂q₂₈ v₁₁q₂₈ v₁₀q₂₈ (by lia) (by lia) (by lia)
+  rw [← (show q₂₉ = R.sub3Chain q₂₈ (12 * L) (11 * L) (10 * L) (9 * L) L 1 from rfl)] at w₂₉ e₂₉a e₂₉b e₂₉c
   clear_value q₂₉
   have s₂₉ := w₂₉.1.trans s₂₈
   have v₁q₂₉ := (w₂₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₈
@@ -6787,17 +5883,16 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₄q₂₉ := (w₂₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₈
   have v₅q₂₉ := (w₂₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₈
   have v₆q₂₉ := (w₂₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₂₈
-  have v₇q₂₉ := (w₂₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₂₈
+  have v₇q₂₉ := (w₂₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₂₈
   have v₈q₂₉ := (w₂₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₂₈
   have v₉q₂₉ := (w₂₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₂₈
-  have v₁₁q₂₉ := (w₂₉.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₂₈
-  have v₁₂q₂₉ := (w₂₉.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₂₈
-  have v₁₃q₂₉ := (w₂₉.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₂₈
-  clear w₂₉ v₁₀q₂₈ s₂₈ v₁q₂₈ v₂q₂₈ v₃q₂₈ v₄q₂₈ v₅q₂₈ v₆q₂₈ v₇q₂₈ v₈q₂₈ v₉q₂₈ e₂₈ v₁₂q₂₈ v₁₃q₂₈
-  obtain ⟨w₃₀, e₃₀⟩ := subMulWin_val (q := q₂₉) (o := (8 * L)) (len := L) (by rw [s₂₉]; lia) (7 * L) L 1
-      (by rw [s₂₉]; lia) (by lia) (by lia) (by decide)
-      (V := 6 * c₃ + 180 * c₄ + 3390 * c₅ + 51300 * c₆ + 682206 * c₇ + 8329860 * c₈ + 95750430 * c₉ + 1052518500 * c₁₀ + 11180439006 * c₁₁ + 115618185540 * c₁₂ + 1170204723870 * c₁₃ + 11638957976100 * c₁₄) v₉q₂₉ v₈q₂₉ (by lia)
-  rw [← (show q₃₀ = R.subMulWin q₂₉ (8 * L) L (7 * L) L 1 from rfl)] at w₃₀ e₃₀
+  have v₁₀q₂₉ := (w₂₉.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₂₈
+  clear w₂₉ v₁₃q₂₈ v₁₂q₂₈ v₁₁q₂₈ s₂₈ v₁q₂₈ v₂q₂₈ v₃q₂₈ v₄q₂₈ v₅q₂₈ v₆q₂₈ e₂₈ v₈q₂₈ v₉q₂₈ v₁₀q₂₈
+  obtain ⟨w₃₀, e₃₀a, e₃₀b, e₃₀c⟩ := sub3ChainW_val (q := q₂₉) (o₁ := (9 * L)) (o₂ := (8 * L))
+      (o₃ := (7 * L)) (o₄ := (6 * L)) (len := L) (7 * L) (3 * L) (by rw [s₂₉]; lia) (by lia) (by lia) 1
+      (V₁ := 40320 * c₈ + 2177280 * c₉ + 66528000 * c₁₀ + 1516838400 * c₁₁ + 28765376640 * c₁₂ + 480207087360 * c₁₃ + 7301643148800 * c₁₄) (V₂ := 40320 * c₈ + 1814400 * c₉ + 46569600 * c₁₀ + 898128000 * c₁₁ + 14495120640 * c₁₂ + 207048441600 * c₁₃ + 2706620716800 * c₁₄) (V₃ := 40320 * c₈ + 1451520 * c₉ + 30240000 * c₁₀ + 479001600 * c₁₁ + 6411968640 * c₁₂ + 76592355840 * c₁₃ + 843184742400 * c₁₄)
+      v₁₀q₂₉ v₉q₂₉ v₈q₂₉ v₇q₂₉ (by lia) (by lia) (by lia)
+  rw [← (show q₃₀ = R.sub3Chain q₂₉ (9 * L) (8 * L) (7 * L) (6 * L) L 1 from rfl)] at w₃₀ e₃₀a e₃₀b e₃₀c
   clear_value q₃₀
   have s₃₀ := w₃₀.1.trans s₂₉
   have v₁q₃₀ := (w₃₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₉
@@ -6807,16 +5902,15 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₅q₃₀ := (w₃₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₉
   have v₆q₃₀ := (w₃₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₂₉
   have v₇q₃₀ := (w₃₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₂₉
-  have v₈q₃₀ := (w₃₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₂₉
-  have v₁₀q₃₀ := (w₃₀.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₂₉
-  have v₁₁q₃₀ := (w₃₀.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₂₉
-  have v₁₂q₃₀ := (w₃₀.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₂₉
-  have v₁₃q₃₀ := (w₃₀.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₂₉
-  clear w₃₀ v₉q₂₉ s₂₉ v₁q₂₉ v₂q₂₉ v₃q₂₉ v₄q₂₉ v₅q₂₉ v₆q₂₉ v₇q₂₉ v₈q₂₉ e₂₉ v₁₁q₂₉ v₁₂q₂₉ v₁₃q₂₉
-  obtain ⟨w₃₁, e₃₁⟩ := subMulWin_val (q := q₃₀) (o := (7 * L)) (len := L) (by rw [s₃₀]; lia) (6 * L) L 1
-      (by rw [s₃₀]; lia) (by lia) (by lia) (by decide)
-      (V := 6 * c₃ + 156 * c₄ + 2550 * c₅ + 33540 * c₆ + 388206 * c₇ + 4131036 * c₈ + 41436870 * c₉ + 397948980 * c₁₀ + 3697517406 * c₁₁ + 33481821516 * c₁₂ + 297050161590 * c₁₃ + 2592366269220 * c₁₄) v₈q₃₀ v₇q₃₀ (by lia)
-  rw [← (show q₃₁ = R.subMulWin q₃₀ (7 * L) L (6 * L) L 1 from rfl)] at w₃₁ e₃₁
+  have v₁₁q₃₀ := (w₃₀.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₂₉c
+  have v₁₂q₃₀ := (w₃₀.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₂₉b
+  have v₁₃q₃₀ := (w₃₀.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₂₉a
+  clear w₃₀ v₁₀q₂₉ v₉q₂₉ v₈q₂₉ s₂₉ v₁q₂₉ v₂q₂₉ v₃q₂₉ v₄q₂₉ v₅q₂₉ v₆q₂₉ v₇q₂₉ e₂₉c e₂₉b e₂₉a
+  obtain ⟨w₃₁, e₃₁a, e₃₁b, e₃₁c⟩ := sub3ChainW_val (q := q₃₀) (o₁ := (12 * L)) (o₂ := (11 * L))
+      (o₃ := (10 * L)) (o₄ := (9 * L)) (len := L) (10 * L) (3 * L) (by rw [s₃₀]; lia) (by lia) (by lia) 1
+      (V₁ := 362880 * c₉ + 30844800 * c₁₀ + 1456963200 * c₁₁ + 50554627200 * c₁₂ + 1439168290560 * c₁₃ + 35630494099200 * c₁₄) (V₂ := 362880 * c₉ + 27216000 * c₁₀ + 1137628800 * c₁₁ + 35026992000 * c₁₂ + 887039112960 * c₁₃ + 19582423660800 * c₁₄) (V₃ := 362880 * c₉ + 23587200 * c₁₀ + 858211200 * c₁₁ + 23091868800 * c₁₂ + 512898946560 * c₁₃ + 9963752198400 * c₁₄)
+      v₁₃q₃₀ v₁₂q₃₀ v₁₁q₃₀ e₃₀a (by lia) (by lia) (by lia)
+  rw [← (show q₃₁ = R.sub3Chain q₃₀ (12 * L) (11 * L) (10 * L) (9 * L) L 1 from rfl)] at w₃₁ e₃₁a e₃₁b e₃₁c
   clear_value q₃₁
   have s₃₁ := w₃₁.1.trans s₃₀
   have v₁q₃₁ := (w₃₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₃₀
@@ -6826,16 +5920,14 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₅q₃₁ := (w₃₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₃₀
   have v₆q₃₁ := (w₃₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₃₀
   have v₇q₃₁ := (w₃₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₃₀
-  have v₉q₃₁ := (w₃₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₃₀
-  have v₁₀q₃₁ := (w₃₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₃₀
-  have v₁₁q₃₁ := (w₃₁.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₃₀
-  have v₁₂q₃₁ := (w₃₁.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₃₀
-  have v₁₃q₃₁ := (w₃₁.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₃₀
-  clear w₃₁ v₈q₃₀ s₃₀ v₁q₃₀ v₂q₃₀ v₃q₃₀ v₄q₃₀ v₅q₃₀ v₆q₃₀ v₇q₃₀ e₃₀ v₁₀q₃₀ v₁₁q₃₀ v₁₂q₃₀ v₁₃q₃₀
-  obtain ⟨w₃₂, e₃₂⟩ := subMulWin_val (q := q₃₁) (o := (6 * L)) (len := L) (by rw [s₃₁]; lia) (5 * L) L 1
+  have v₈q₃₁ := (w₃₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₃₀c
+  have v₉q₃₁ := (w₃₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₃₀b
+  have v₁₀q₃₁ := (w₃₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₃₀a
+  clear w₃₁ v₁₃q₃₀ v₁₂q₃₀ v₁₁q₃₀ s₃₀ v₁q₃₀ v₂q₃₀ v₃q₃₀ v₄q₃₀ v₅q₃₀ v₆q₃₀ v₇q₃₀ e₃₀c e₃₀b e₃₀a
+  obtain ⟨w₃₂, e₃₂⟩ := subMulWin_val (q := q₃₁) (o := (9 * L)) (len := L) (by rw [s₃₁]; lia) (8 * L) L 1
       (by rw [s₃₁]; lia) (by lia) (by lia) (by decide)
-      (V := 6 * c₃ + 132 * c₄ + 1830 * c₅ + 20460 * c₆ + 201726 * c₇ + 1832292 * c₈ + 15717750 * c₉ + 129325020 * c₁₀ + 1031225646 * c₁₁ + 8026584852 * c₁₂ + 61301928870 * c₁₃ + 461172691980 * c₁₄) v₇q₃₁ v₆q₃₁ (by lia)
-  rw [← (show q₃₂ = R.subMulWin q₃₁ (6 * L) L (5 * L) L 1 from rfl)] at w₃₂ e₃₂
+      (V := 362880 * c₉ + 19958400 * c₁₀ + 618710400 * c₁₁ + 14270256000 * c₁₂ + 273158645760 * c₁₃ + 4595022432000 * c₁₄) v₁₀q₃₁ v₉q₃₁ (by lia)
+  rw [← (show q₃₂ = R.subMulWin q₃₁ (9 * L) L (8 * L) L 1 from rfl)] at w₃₂ e₃₂
   clear_value q₃₂
   have s₃₂ := w₃₂.1.trans s₃₁
   have v₁q₃₂ := (w₃₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₃₁
@@ -6844,17 +5936,17 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₄q₃₂ := (w₃₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₃₁
   have v₅q₃₂ := (w₃₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₃₁
   have v₆q₃₂ := (w₃₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₃₁
-  have v₈q₃₂ := (w₃₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₃₁
+  have v₇q₃₂ := (w₃₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₃₁
+  have v₈q₃₂ := (w₃₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₃₁
   have v₉q₃₂ := (w₃₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₃₁
-  have v₁₀q₃₂ := (w₃₂.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₃₁
-  have v₁₁q₃₂ := (w₃₂.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₃₁
-  have v₁₂q₃₂ := (w₃₂.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₃₁
-  have v₁₃q₃₂ := (w₃₂.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₃₁
-  clear w₃₂ v₇q₃₁ s₃₁ v₁q₃₁ v₂q₃₁ v₃q₃₁ v₄q₃₁ v₅q₃₁ v₆q₃₁ e₃₁ v₉q₃₁ v₁₀q₃₁ v₁₁q₃₁ v₁₂q₃₁ v₁₃q₃₁
-  obtain ⟨w₃₃, e₃₃⟩ := subMulWin_val (q := q₃₂) (o := (5 * L)) (len := L) (by rw [s₃₂]; lia) (4 * L) L 1
+  have v₁₁q₃₂ := (w₃₂.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₃₁c
+  have v₁₂q₃₂ := (w₃₂.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₃₁b
+  have v₁₃q₃₂ := (w₃₂.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₃₁a
+  clear w₃₂ v₁₀q₃₁ s₃₁ v₁q₃₁ v₂q₃₁ v₃q₃₁ v₄q₃₁ v₅q₃₁ v₆q₃₁ v₇q₃₁ v₈q₃₁ v₉q₃₁ e₃₁c e₃₁b e₃₁a
+  obtain ⟨w₃₃, e₃₃⟩ := subMulWin_val (q := q₃₂) (o := (8 * L)) (len := L) (by rw [s₃₂]; lia) (7 * L) L 1
       (by rw [s₃₂]; lia) (by lia) (by lia) (by decide)
-      (V := 6 * c₃ + 108 * c₄ + 1230 * c₅ + 11340 * c₆ + 92526 * c₇ + 697788 * c₈ + 4985070 * c₉ + 34255980 * c₁₀ + 228718446 * c₁₁ + 1494160668 * c₁₂ + 9598316910 * c₁₃ + 60854140620 * c₁₄) v₆q₃₂ v₅q₃₂ (by lia)
-  rw [← (show q₃₃ = R.subMulWin q₃₂ (5 * L) L (4 * L) L 1 from rfl)] at w₃₃ e₃₃
+      (V := 362880 * c₉ + 16329600 * c₁₀ + 419126400 * c₁₁ + 8083152000 * c₁₂ + 130456085760 * c₁₃ + 1863435974400 * c₁₄) v₉q₃₂ v₈q₃₂ (by lia)
+  rw [← (show q₃₃ = R.subMulWin q₃₂ (8 * L) L (7 * L) L 1 from rfl)] at w₃₃ e₃₃
   clear_value q₃₃
   have s₃₃ := w₃₃.1.trans s₃₂
   have v₁q₃₃ := (w₃₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₃₂
@@ -6862,80 +5954,78 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₃q₃₃ := (w₃₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₃₂
   have v₄q₃₃ := (w₃₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₃₂
   have v₅q₃₃ := (w₃₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₃₂
-  have v₇q₃₃ := (w₃₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₃₂
+  have v₆q₃₃ := (w₃₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₃₂
+  have v₇q₃₃ := (w₃₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₃₂
   have v₈q₃₃ := (w₃₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₃₂
-  have v₉q₃₃ := (w₃₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₃₂
-  have v₁₀q₃₃ := (w₃₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₃₂
+  have v₁₀q₃₃ := (w₃₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₃₂
   have v₁₁q₃₃ := (w₃₃.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₃₂
   have v₁₂q₃₃ := (w₃₃.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₃₂
   have v₁₃q₃₃ := (w₃₃.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₃₂
-  clear w₃₃ v₆q₃₂ s₃₂ v₁q₃₂ v₂q₃₂ v₃q₃₂ v₄q₃₂ v₅q₃₂ e₃₂ v₈q₃₂ v₉q₃₂ v₁₀q₃₂ v₁₁q₃₂ v₁₂q₃₂ v₁₃q₃₂
-  obtain ⟨w₃₄, e₃₄⟩ := subMulWin_val (q := q₃₃) (o := (4 * L)) (len := L) (by rw [s₃₃]; lia) (3 * L) L 1
-      (by rw [s₃₃]; lia) (by lia) (by lia) (by decide)
-      (V := 6 * c₃ + 84 * c₄ + 750 * c₅ + 5460 * c₆ + 35406 * c₇ + 213444 * c₈ + 1225230 * c₉ + 6796020 * c₁₀ + 36774606 * c₁₁ + 195399204 * c₁₂ + 1024151310 * c₁₃ + 5312541780 * c₁₄) v₅q₃₃ v₄q₃₃ (by lia)
-  rw [← (show q₃₄ = R.subMulWin q₃₃ (4 * L) L (3 * L) L 1 from rfl)] at w₃₄ e₃₄
+  clear w₃₃ v₉q₃₂ s₃₂ v₁q₃₂ v₂q₃₂ v₃q₃₂ v₄q₃₂ v₅q₃₂ v₆q₃₂ v₇q₃₂ v₈q₃₂ e₃₂ v₁₁q₃₂ v₁₂q₃₂ v₁₃q₃₂
+  obtain ⟨w₃₄, e₃₄a, e₃₄b, e₃₄c⟩ := sub3ChainW_val (q := q₃₃) (o₁ := (12 * L)) (o₂ := (11 * L))
+      (o₃ := (10 * L)) (o₄ := (9 * L)) (len := L) (10 * L) (3 * L) (by rw [s₃₃]; lia) (by lia) (by lia) 1
+      (V₁ := 3628800 * c₁₀ + 319334400 * c₁₁ + 15527635200 * c₁₂ + 552129177600 * c₁₃ + 16048070438400 * c₁₄) (V₂ := 3628800 * c₁₀ + 279417600 * c₁₁ + 11935123200 * c₁₂ + 374140166400 * c₁₃ + 9618671462400 * c₁₄) (V₃ := 3628800 * c₁₀ + 239500800 * c₁₁ + 8821612800 * c₁₂ + 239740300800 * c₁₃ + 5368729766400 * c₁₄)
+      v₁₃q₃₃ v₁₂q₃₃ v₁₁q₃₃ v₁₀q₃₃ (by lia) (by lia) (by lia)
+  rw [← (show q₃₄ = R.sub3Chain q₃₃ (12 * L) (11 * L) (10 * L) (9 * L) L 1 from rfl)] at w₃₄ e₃₄a e₃₄b e₃₄c
   clear_value q₃₄
   have s₃₄ := w₃₄.1.trans s₃₃
   have v₁q₃₄ := (w₃₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₃₃
   have v₂q₃₄ := (w₃₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₃₃
   have v₃q₃₄ := (w₃₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₃₃
   have v₄q₃₄ := (w₃₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₃₃
-  have v₆q₃₄ := (w₃₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₃₃
+  have v₅q₃₄ := (w₃₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₃₃
+  have v₆q₃₄ := (w₃₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₃₃
   have v₇q₃₄ := (w₃₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₃₃
   have v₈q₃₄ := (w₃₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₃₃
-  have v₉q₃₄ := (w₃₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₃₃
+  have v₉q₃₄ := (w₃₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₃₃
   have v₁₀q₃₄ := (w₃₄.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₃₃
-  have v₁₁q₃₄ := (w₃₄.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₃₃
-  have v₁₂q₃₄ := (w₃₄.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₃₃
-  have v₁₃q₃₄ := (w₃₄.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₃₃
-  clear w₃₄ v₅q₃₃ s₃₃ v₁q₃₃ v₂q₃₃ v₃q₃₃ v₄q₃₃ e₃₃ v₇q₃₃ v₈q₃₃ v₉q₃₃ v₁₀q₃₃ v₁₁q₃₃ v₁₂q₃₃ v₁₃q₃₃
-  obtain ⟨w₃₅, e₃₅⟩ := subMulWin_val (q := q₃₄) (o := (3 * L)) (len := L) (by rw [s₃₄]; lia) (2 * L) L 1
+  clear w₃₄ v₁₃q₃₃ v₁₂q₃₃ v₁₁q₃₃ s₃₃ v₁q₃₃ v₂q₃₃ v₃q₃₃ v₄q₃₃ v₅q₃₃ v₆q₃₃ v₇q₃₃ v₈q₃₃ e₃₃ v₁₀q₃₃
+  obtain ⟨w₃₅, e₃₅⟩ := subMulWin_val (q := q₃₄) (o := (9 * L)) (len := L) (by rw [s₃₄]; lia) (8 * L) L 1
       (by rw [s₃₄]; lia) (by lia) (by lia) (by decide)
-      (V := 6 * c₃ + 60 * c₄ + 390 * c₅ + 2100 * c₆ + 10206 * c₇ + 46620 * c₈ + 204630 * c₉ + 874500 * c₁₀ + 3669006 * c₁₁ + 15195180 * c₁₂ + 62350470 * c₁₃ + 254135700 * c₁₄) v₄q₃₄ v₃q₃₄ (by lia)
-  rw [← (show q₃₅ = R.subMulWin q₃₄ (3 * L) L (2 * L) L 1 from rfl)] at w₃₅ e₃₅
+      (V := 3628800 * c₁₀ + 199584000 * c₁₁ + 6187104000 * c₁₂ + 142702560000 * c₁₃ + 2731586457600 * c₁₄) v₁₀q₃₄ v₉q₃₄ (by lia)
+  rw [← (show q₃₅ = R.subMulWin q₃₄ (9 * L) L (8 * L) L 1 from rfl)] at w₃₅ e₃₅
   clear_value q₃₅
   have s₃₅ := w₃₅.1.trans s₃₄
   have v₁q₃₅ := (w₃₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₃₄
   have v₂q₃₅ := (w₃₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₃₄
   have v₃q₃₅ := (w₃₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₃₄
-  have v₅q₃₅ := (w₃₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₃₄
+  have v₄q₃₅ := (w₃₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₃₄
+  have v₅q₃₅ := (w₃₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₃₄
   have v₆q₃₅ := (w₃₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₃₄
   have v₇q₃₅ := (w₃₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₃₄
   have v₈q₃₅ := (w₃₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₃₄
   have v₉q₃₅ := (w₃₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₃₄
-  have v₁₀q₃₅ := (w₃₅.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₃₄
-  have v₁₁q₃₅ := (w₃₅.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₃₄
-  have v₁₂q₃₅ := (w₃₅.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₃₄
-  have v₁₃q₃₅ := (w₃₅.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₃₄
-  clear w₃₅ v₄q₃₄ s₃₄ v₁q₃₄ v₂q₃₄ v₃q₃₄ e₃₄ v₆q₃₄ v₇q₃₄ v₈q₃₄ v₉q₃₄ v₁₀q₃₄ v₁₁q₃₄ v₁₂q₃₄ v₁₃q₃₄
-  obtain ⟨w₃₆, e₃₆⟩ := subMulWin_val (q := q₃₅) (o := (2 * L)) (len := L) (by rw [s₃₅]; lia) L L 1
-      (by rw [s₃₅]; lia) (by lia) (by lia) (by decide)
-      (V := 6 * c₃ + 36 * c₄ + 150 * c₅ + 540 * c₆ + 1806 * c₇ + 5796 * c₈ + 18150 * c₉ + 55980 * c₁₀ + 171006 * c₁₁ + 519156 * c₁₂ + 1569750 * c₁₃ + 4733820 * c₁₄) v₃q₃₅ v₂q₃₅ (by lia)
-  rw [← (show q₃₆ = R.subMulWin q₃₅ (2 * L) L L L 1 from rfl)] at w₃₆ e₃₆
+  have v₁₁q₃₅ := (w₃₅.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₃₄c
+  have v₁₂q₃₅ := (w₃₅.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₃₄b
+  have v₁₃q₃₅ := (w₃₅.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₃₄a
+  clear w₃₅ v₁₀q₃₄ s₃₄ v₁q₃₄ v₂q₃₄ v₃q₃₄ v₄q₃₄ v₅q₃₄ v₆q₃₄ v₇q₃₄ v₈q₃₄ v₉q₃₄ e₃₄c e₃₄b e₃₄a
+  obtain ⟨w₃₆, e₃₆a, e₃₆b, e₃₆c⟩ := sub3ChainW_val (q := q₃₅) (o₁ := (12 * L)) (o₂ := (11 * L))
+      (o₃ := (10 * L)) (o₄ := (9 * L)) (len := L) (10 * L) (3 * L) (by rw [s₃₅]; lia) (by lia) (by lia) 1
+      (V₁ := 39916800 * c₁₁ + 3592512000 * c₁₂ + 177989011200 * c₁₃ + 6429398976000 * c₁₄) (V₂ := 39916800 * c₁₁ + 3113510400 * c₁₂ + 134399865600 * c₁₃ + 4249941696000 * c₁₄) (V₃ := 39916800 * c₁₁ + 2634508800 * c₁₂ + 97037740800 * c₁₃ + 2637143308800 * c₁₄)
+      v₁₃q₃₅ v₁₂q₃₅ v₁₁q₃₅ e₃₅ (by lia) (by lia) (by lia)
+  rw [← (show q₃₆ = R.sub3Chain q₃₅ (12 * L) (11 * L) (10 * L) (9 * L) L 1 from rfl)] at w₃₆ e₃₆a e₃₆b e₃₆c
   clear_value q₃₆
   have s₃₆ := w₃₆.1.trans s₃₅
   have v₁q₃₆ := (w₃₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₃₅
   have v₂q₃₆ := (w₃₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₃₅
-  have v₄q₃₆ := (w₃₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₃₅
+  have v₃q₃₆ := (w₃₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₃₅
+  have v₄q₃₆ := (w₃₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₃₅
   have v₅q₃₆ := (w₃₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₃₅
   have v₆q₃₆ := (w₃₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₃₅
   have v₇q₃₆ := (w₃₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₃₅
   have v₈q₃₆ := (w₃₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₃₅
   have v₉q₃₆ := (w₃₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₃₅
-  have v₁₀q₃₆ := (w₃₆.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₃₅
-  have v₁₁q₃₆ := (w₃₆.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₃₅
-  have v₁₂q₃₆ := (w₃₆.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₃₅
-  have v₁₃q₃₆ := (w₃₆.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₃₅
-  clear w₃₆ v₃q₃₅ s₃₅ v₁q₃₅ v₂q₃₅ e₃₅ v₅q₃₅ v₆q₃₅ v₇q₃₅ v₈q₃₅ v₉q₃₅ v₁₀q₃₅ v₁₁q₃₅ v₁₂q₃₅ v₁₃q₃₅
+  have v₁₀q₃₆ := (w₃₆.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₃₅
+  clear w₃₆ v₁₃q₃₅ v₁₂q₃₅ v₁₁q₃₅ s₃₅ v₁q₃₅ v₂q₃₅ v₃q₃₅ v₄q₃₅ v₅q₃₅ v₆q₃₅ v₇q₃₅ v₈q₃₅ v₉q₃₅ e₃₅
   obtain ⟨w₃₇, e₃₇⟩ := subMulWin_val (q := q₃₆) (o := (12 * L)) (len := L) (by rw [s₃₆]; lia) (11 * L) L 1
       (by rw [s₃₆]; lia) (by lia) (by lia) (by decide)
-      (V := 24 * c₄ + 1320 * c₅ + 43680 * c₆ + 1127280 * c₇ + 25003944 * c₈ + 500484600 * c₉ + 9300366960 * c₁₀ + 163377994560 * c₁₁ + 2746683126264 * c₁₂ + 44580423767880 * c₁₃ + 703078321458240 * c₁₄) v₁₃q₃₆ v₁₂q₃₆ (by lia)
+      (V := 479001600 * c₁₂ + 43589145600 * c₁₃ + 2179457280000 * c₁₄) e₃₆a e₃₆b (by lia)
   rw [← (show q₃₇ = R.subMulWin q₃₆ (12 * L) L (11 * L) L 1 from rfl)] at w₃₇ e₃₇
   clear_value q₃₇
   have s₃₇ := w₃₇.1.trans s₃₆
   have v₁q₃₇ := (w₃₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₃₆
   have v₂q₃₇ := (w₃₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₃₆
-  have v₃q₃₇ := (w₃₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₃₆
+  have v₃q₃₇ := (w₃₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₃₆
   have v₄q₃₇ := (w₃₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₃₆
   have v₅q₃₇ := (w₃₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₃₆
   have v₆q₃₇ := (w₃₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₃₆
@@ -6943,12 +6033,12 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₈q₃₇ := (w₃₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₃₆
   have v₉q₃₇ := (w₃₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₃₆
   have v₁₀q₃₇ := (w₃₇.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₃₆
-  have v₁₁q₃₇ := (w₃₇.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₃₆
-  have v₁₂q₃₇ := (w₃₇.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₃₆
-  clear w₃₇ v₁₃q₃₆ s₃₆ v₁q₃₆ v₂q₃₆ e₃₆ v₄q₃₆ v₅q₃₆ v₆q₃₆ v₇q₃₆ v₈q₃₆ v₉q₃₆ v₁₀q₃₆ v₁₁q₃₆ v₁₂q₃₆
+  have v₁₁q₃₇ := (w₃₇.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₃₆c
+  have v₁₂q₃₇ := (w₃₇.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₃₆b
+  clear w₃₇ e₃₆a s₃₆ v₁q₃₆ v₂q₃₆ v₃q₃₆ v₄q₃₆ v₅q₃₆ v₆q₃₆ v₇q₃₆ v₈q₃₆ v₉q₃₆ v₁₀q₃₆ e₃₆c e₃₆b
   obtain ⟨w₃₈, e₃₈⟩ := subMulWin_val (q := q₃₇) (o := (11 * L)) (len := L) (by rw [s₃₇]; lia) (10 * L) L 1
       (by rw [s₃₇]; lia) (by lia) (by lia) (by decide)
-      (V := 24 * c₄ + 1200 * c₅ + 36120 * c₆ + 848400 * c₇ + 17136504 * c₈ + 312525360 * c₉ + 5294270040 * c₁₀ + 84827384400 * c₁₁ + 1301388272184 * c₁₂ + 19284649303920 * c₁₃ + 277810006907160 * c₁₄) v₁₂q₃₇ v₁₁q₃₇ (by lia)
+      (V := 479001600 * c₁₂ + 37362124800 * c₁₃ + 1612798387200 * c₁₄) v₁₂q₃₇ v₁₁q₃₇ (by lia)
   rw [← (show q₃₈ = R.subMulWin q₃₇ (11 * L) L (10 * L) L 1 from rfl)] at w₃₈ e₃₈
   clear_value q₃₈
   have s₃₈ := w₃₈.1.trans s₃₇
@@ -6965,10 +6055,10 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₁₁q₃₈ := (w₃₈.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₃₇
   have v₁₃q₃₈ := (w₃₈.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₃₇
   clear w₃₈ v₁₂q₃₇ s₃₇ v₁q₃₇ v₂q₃₇ v₃q₃₇ v₄q₃₇ v₅q₃₇ v₆q₃₇ v₇q₃₇ v₈q₃₇ v₉q₃₇ v₁₀q₃₇ v₁₁q₃₇ e₃₇
-  obtain ⟨w₃₉, e₃₉⟩ := subMulWin_val (q := q₃₈) (o := (10 * L)) (len := L) (by rw [s₃₈]; lia) (9 * L) L 1
+  obtain ⟨w₃₉, e₃₉⟩ := subMulWin_val (q := q₃₈) (o := (12 * L)) (len := L) (by rw [s₃₈]; lia) (11 * L) L 1
       (by rw [s₃₈]; lia) (by lia) (by lia) (by decide)
-      (V := 24 * c₄ + 1080 * c₅ + 29280 * c₆ + 619920 * c₇ + 11295144 * c₈ + 185953320 * c₉ + 2845638960 * c₁₀ + 41215616640 * c₁₁ + 571968975864 * c₁₂ + 7671772868760 * c₁₃ + 100096625341440 * c₁₄) v₁₁q₃₈ v₁₀q₃₈ (by lia)
-  rw [← (show q₃₉ = R.subMulWin q₃₈ (10 * L) L (9 * L) L 1 from rfl)] at w₃₉ e₃₉
+      (V := 6227020800 * c₁₃ + 566658892800 * c₁₄) v₁₃q₃₈ e₃₈ (by lia)
+  rw [← (show q₃₉ = R.subMulWin q₃₈ (12 * L) L (11 * L) L 1 from rfl)] at w₃₉ e₃₉
   clear_value q₃₉
   have s₃₉ := w₃₉.1.trans s₃₈
   have v₁q₃₉ := (w₃₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₃₈
@@ -6981,17 +6071,15 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₈q₃₉ := (w₃₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₃₈
   have v₉q₃₉ := (w₃₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₃₈
   have v₁₀q₃₉ := (w₃₉.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₃₈
+  have v₁₁q₃₉ := (w₃₉.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₃₈
   have v₁₂q₃₉ := (w₃₉.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₃₈
-  have v₁₃q₃₉ := (w₃₉.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₃₈
-  clear w₃₉ v₁₁q₃₈ s₃₈ v₁q₃₈ v₂q₃₈ v₃q₃₈ v₄q₃₈ v₅q₃₈ v₆q₃₈ v₇q₃₈ v₈q₃₈ v₉q₃₈ v₁₀q₃₈ e₃₈ v₁₃q₃₈
-  obtain ⟨w₄₀, e₄₀⟩ := subMulWin_val (q := q₃₉) (o := (9 * L)) (len := L) (by rw [s₃₉]; lia) (8 * L) L 1
-      (by rw [s₃₉]; lia) (by lia) (by lia) (by decide)
-      (V := 24 * c₄ + 960 * c₅ + 23160 * c₆ + 436800 * c₇ + 7096824 * c₈ + 104287680 * c₉ + 1425878520 * c₁₀ + 18468859200 * c₁₁ + 229410348024 * c₁₂ + 2756576222400 * c₁₃ + 32246581119480 * c₁₄) v₁₀q₃₉ v₉q₃₉ (by lia)
-  rw [← (show q₄₀ = R.subMulWin q₃₉ (9 * L) L (8 * L) L 1 from rfl)] at w₄₀ e₄₀
+  clear w₃₉ v₁₃q₃₈ s₃₈ v₁q₃₈ v₂q₃₈ v₃q₃₈ v₄q₃₈ v₅q₃₈ v₆q₃₈ v₇q₃₈ v₈q₃₈ v₉q₃₈ v₁₀q₃₈ v₁₁q₃₈ e₃₈
+  obtain ⟨w₄₀, e₄₀⟩ := shrW_val (q := q₃₉) (o := L) (len := L) (by rw [s₃₉]; lia) 1 (by decide) (by decide)
+      (V := c₂ + 3 * c₃ + 7 * c₄ + 15 * c₅ + 31 * c₆ + 63 * c₇ + 127 * c₈ + 255 * c₉ + 511 * c₁₀ + 1023 * c₁₁ + 2047 * c₁₂ + 4095 * c₁₃ + 8191 * c₁₄) v₂q₃₉ (by lia)
+  rw [← (show q₄₀ = R.shr q₃₉ L L 1 from rfl)] at w₄₀ e₄₀
   clear_value q₄₀
   have s₄₀ := w₄₀.1.trans s₃₉
   have v₁q₄₀ := (w₄₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₃₉
-  have v₂q₄₀ := (w₄₀.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₃₉
   have v₃q₄₀ := (w₄₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₃₉
   have v₄q₄₀ := (w₄₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₃₉
   have v₅q₄₀ := (w₄₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₃₉
@@ -6999,97 +6087,93 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₇q₄₀ := (w₄₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₃₉
   have v₈q₄₀ := (w₄₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₃₉
   have v₉q₄₀ := (w₄₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₃₉
-  have v₁₁q₄₀ := (w₄₀.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₃₉
+  have v₁₀q₄₀ := (w₄₀.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₃₉
+  have v₁₁q₄₀ := (w₄₀.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₃₉
   have v₁₂q₄₀ := (w₄₀.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₃₉
-  have v₁₃q₄₀ := (w₄₀.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₃₉
-  clear w₄₀ v₁₀q₃₉ s₃₉ v₁q₃₉ v₂q₃₉ v₃q₃₉ v₄q₃₉ v₅q₃₉ v₆q₃₉ v₇q₃₉ v₈q₃₉ v₉q₃₉ e₃₉ v₁₂q₃₉ v₁₃q₃₉
-  obtain ⟨w₄₁, e₄₁⟩ := subMulWin_val (q := q₄₀) (o := (8 * L)) (len := L) (by rw [s₄₀]; lia) (7 * L) L 1
-      (by rw [s₄₀]; lia) (by lia) (by lia) (by decide)
-      (V := 24 * c₄ + 840 * c₅ + 17760 * c₆ + 294000 * c₇ + 4198824 * c₈ + 54313560 * c₉ + 654569520 * c₁₀ + 7482921600 * c₁₁ + 82136364024 * c₁₂ + 873154562280 * c₁₃ + 9046591706880 * c₁₄) v₉q₄₀ v₈q₄₀ (by lia)
-  rw [← (show q₄₁ = R.subMulWin q₄₀ (8 * L) L (7 * L) L 1 from rfl)] at w₄₁ e₄₁
+  have v₁₃q₄₀ := (w₄₀.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₃₉
+  clear w₄₀ v₂q₃₉ s₃₉ v₁q₃₉ v₃q₃₉ v₄q₃₉ v₅q₃₉ v₆q₃₉ v₇q₃₉ v₈q₃₉ v₉q₃₉ v₁₀q₃₉ v₁₁q₃₉ v₁₂q₃₉ e₃₉
+  obtain ⟨w₄₁, e₄₁⟩ := divW_val (q := q₄₀) (o := (2 * L)) (len := L) (by rw [s₄₀]; lia) 3 (by decide) (by decide)
+      (V := 2 * c₃ + 12 * c₄ + 50 * c₅ + 180 * c₆ + 602 * c₇ + 1932 * c₈ + 6050 * c₉ + 18660 * c₁₀ + 57002 * c₁₁ + 173052 * c₁₂ + 523250 * c₁₃ + 1577940 * c₁₄) v₃q₄₀ (by lia)
+  rw [← (show q₄₁ = R.divExact q₄₀ (2 * L) L 3 from rfl)] at w₄₁ e₄₁
   clear_value q₄₁
   have s₄₁ := w₄₁.1.trans s₄₀
   have v₁q₄₁ := (w₄₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₄₀
-  have v₂q₄₁ := (w₄₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₄₀
-  have v₃q₄₁ := (w₄₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₄₀
+  have v₂q₄₁ := (w₄₁.valAt_eq (lo := L) (n := L) (by lia)).trans e₄₀
   have v₄q₄₁ := (w₄₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₄₀
   have v₅q₄₁ := (w₄₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₄₀
   have v₆q₄₁ := (w₄₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₄₀
   have v₇q₄₁ := (w₄₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₄₀
   have v₈q₄₁ := (w₄₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₄₀
-  have v₁₀q₄₁ := (w₄₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₄₀
+  have v₉q₄₁ := (w₄₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₄₀
+  have v₁₀q₄₁ := (w₄₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₄₀
   have v₁₁q₄₁ := (w₄₁.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₄₀
   have v₁₂q₄₁ := (w₄₁.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₄₀
   have v₁₃q₄₁ := (w₄₁.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₄₀
-  clear w₄₁ v₉q₄₀ s₄₀ v₁q₄₀ v₂q₄₀ v₃q₄₀ v₄q₄₀ v₅q₄₀ v₆q₄₀ v₇q₄₀ v₈q₄₀ e₄₀ v₁₁q₄₀ v₁₂q₄₀ v₁₃q₄₀
-  obtain ⟨w₄₂, e₄₂⟩ := subMulWin_val (q := q₄₁) (o := (7 * L)) (len := L) (by rw [s₄₁]; lia) (6 * L) L 1
-      (by rw [s₄₁]; lia) (by lia) (by lia) (by decide)
-      (V := 24 * c₄ + 720 * c₅ + 13080 * c₆ + 186480 * c₇ + 2298744 * c₈ + 25719120 * c₉ + 268623960 * c₁₀ + 2666291760 * c₁₁ + 25455236664 * c₁₂ + 235748232720 * c₁₃ + 2131193577240 * c₁₄) v₈q₄₁ v₇q₄₁ (by lia)
-  rw [← (show q₄₂ = R.subMulWin q₄₁ (7 * L) L (6 * L) L 1 from rfl)] at w₄₂ e₄₂
+  clear w₄₁ v₃q₄₀ s₄₀ v₁q₄₀ e₄₀ v₄q₄₀ v₅q₄₀ v₆q₄₀ v₇q₄₀ v₈q₄₀ v₉q₄₀ v₁₀q₄₀ v₁₁q₄₀ v₁₂q₄₀ v₁₃q₄₀
+  obtain ⟨w₄₂, e₄₂⟩ := shrW_val (q := q₄₁) (o := (2 * L)) (len := L) (by rw [s₄₁]; lia) 1 (by decide) (by decide)
+      (V := c₃ + 6 * c₄ + 25 * c₅ + 90 * c₆ + 301 * c₇ + 966 * c₈ + 3025 * c₉ + 9330 * c₁₀ + 28501 * c₁₁ + 86526 * c₁₂ + 261625 * c₁₃ + 788970 * c₁₄) e₄₁ (by lia)
+  rw [← (show q₄₂ = R.shr q₄₁ (2 * L) L 1 from rfl)] at w₄₂ e₄₂
   clear_value q₄₂
   have s₄₂ := w₄₂.1.trans s₄₁
   have v₁q₄₂ := (w₄₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₄₁
   have v₂q₄₂ := (w₄₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₄₁
-  have v₃q₄₂ := (w₄₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₄₁
   have v₄q₄₂ := (w₄₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₄₁
   have v₅q₄₂ := (w₄₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₄₁
   have v₆q₄₂ := (w₄₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₄₁
   have v₇q₄₂ := (w₄₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₄₁
-  have v₉q₄₂ := (w₄₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₄₁
+  have v₈q₄₂ := (w₄₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₄₁
+  have v₉q₄₂ := (w₄₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₄₁
   have v₁₀q₄₂ := (w₄₂.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₄₁
   have v₁₁q₄₂ := (w₄₂.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₄₁
   have v₁₂q₄₂ := (w₄₂.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₄₁
   have v₁₃q₄₂ := (w₄₂.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₄₁
-  clear w₄₂ v₈q₄₁ s₄₁ v₁q₄₁ v₂q₄₁ v₃q₄₁ v₄q₄₁ v₅q₄₁ v₆q₄₁ v₇q₄₁ e₄₁ v₁₀q₄₁ v₁₁q₄₁ v₁₂q₄₁ v₁₃q₄₁
-  obtain ⟨w₄₃, e₄₃⟩ := subMulWin_val (q := q₄₂) (o := (6 * L)) (len := L) (by rw [s₄₂]; lia) (5 * L) L 1
-      (by rw [s₄₂]; lia) (by lia) (by lia) (by decide)
-      (V := 24 * c₄ + 600 * c₅ + 9120 * c₆ + 109200 * c₇ + 1134504 * c₈ + 10732680 * c₉ + 95069040 * c₁₀ + 802507200 * c₁₁ + 6532424184 * c₁₂ + 51703611960 * c₁₃ + 400318551360 * c₁₄) v₇q₄₂ v₆q₄₂ (by lia)
-  rw [← (show q₄₃ = R.subMulWin q₄₂ (6 * L) L (5 * L) L 1 from rfl)] at w₄₃ e₄₃
+  clear w₄₂ e₄₁ s₄₁ v₁q₄₁ v₂q₄₁ v₄q₄₁ v₅q₄₁ v₆q₄₁ v₇q₄₁ v₈q₄₁ v₉q₄₁ v₁₀q₄₁ v₁₁q₄₁ v₁₂q₄₁ v₁₃q₄₁
+  obtain ⟨w₄₃, e₄₃⟩ := divW_val (q := q₄₂) (o := (3 * L)) (len := L) (by rw [s₄₂]; lia) 3 (by decide) (by decide)
+      (V := 8 * c₄ + 80 * c₅ + 520 * c₆ + 2800 * c₇ + 13608 * c₈ + 62160 * c₉ + 272840 * c₁₀ + 1166000 * c₁₁ + 4892008 * c₁₂ + 20260240 * c₁₃ + 83133960 * c₁₄) v₄q₄₂ (by lia)
+  rw [← (show q₄₃ = R.divExact q₄₂ (3 * L) L 3 from rfl)] at w₄₃ e₄₃
   clear_value q₄₃
   have s₄₃ := w₄₃.1.trans s₄₂
   have v₁q₄₃ := (w₄₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₄₂
   have v₂q₄₃ := (w₄₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₄₂
-  have v₃q₄₃ := (w₄₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₄₂
-  have v₄q₄₃ := (w₄₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₄₂
+  have v₃q₄₃ := (w₄₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₄₂
   have v₅q₄₃ := (w₄₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₄₂
   have v₆q₄₃ := (w₄₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₄₂
-  have v₈q₄₃ := (w₄₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₄₂
+  have v₇q₄₃ := (w₄₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₄₂
+  have v₈q₄₃ := (w₄₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₄₂
   have v₉q₄₃ := (w₄₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₄₂
   have v₁₀q₄₃ := (w₄₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₄₂
   have v₁₁q₄₃ := (w₄₃.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₄₂
   have v₁₂q₄₃ := (w₄₃.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₄₂
   have v₁₃q₄₃ := (w₄₃.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₄₂
-  clear w₄₃ v₇q₄₂ s₄₂ v₁q₄₂ v₂q₄₂ v₃q₄₂ v₄q₄₂ v₅q₄₂ v₆q₄₂ e₄₂ v₉q₄₂ v₁₀q₄₂ v₁₁q₄₂ v₁₂q₄₂ v₁₃q₄₂
-  obtain ⟨w₄₄, e₄₄⟩ := subMulWin_val (q := q₄₃) (o := (5 * L)) (len := L) (by rw [s₄₃]; lia) (4 * L) L 1
-      (by rw [s₄₃]; lia) (by lia) (by lia) (by decide)
-      (V := 24 * c₄ + 480 * c₅ + 5880 * c₆ + 57120 * c₇ + 484344 * c₈ + 3759840 * c₉ + 27459960 * c₁₀ + 191943840 * c₁₁ + 1298761464 * c₁₂ + 8574165600 * c₁₃ + 55541598840 * c₁₄) v₆q₄₃ v₅q₄₃ (by lia)
-  rw [← (show q₄₄ = R.subMulWin q₄₃ (5 * L) L (4 * L) L 1 from rfl)] at w₄₄ e₄₄
+  clear w₄₃ v₄q₄₂ s₄₂ v₁q₄₂ v₂q₄₂ e₄₂ v₅q₄₂ v₆q₄₂ v₇q₄₂ v₈q₄₂ v₉q₄₂ v₁₀q₄₂ v₁₁q₄₂ v₁₂q₄₂ v₁₃q₄₂
+  obtain ⟨w₄₄, e₄₄⟩ := shrW_val (q := q₄₃) (o := (3 * L)) (len := L) (by rw [s₄₃]; lia) 3 (by decide) (by decide)
+      (V := c₄ + 10 * c₅ + 65 * c₆ + 350 * c₇ + 1701 * c₈ + 7770 * c₉ + 34105 * c₁₀ + 145750 * c₁₁ + 611501 * c₁₂ + 2532530 * c₁₃ + 10391745 * c₁₄) e₄₃ (by lia)
+  rw [← (show q₄₄ = R.shr q₄₃ (3 * L) L 3 from rfl)] at w₄₄ e₄₄
   clear_value q₄₄
   have s₄₄ := w₄₄.1.trans s₄₃
   have v₁q₄₄ := (w₄₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₄₃
   have v₂q₄₄ := (w₄₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₄₃
   have v₃q₄₄ := (w₄₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₄₃
-  have v₄q₄₄ := (w₄₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₄₃
   have v₅q₄₄ := (w₄₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₄₃
-  have v₇q₄₄ := (w₄₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₄₃
+  have v₆q₄₄ := (w₄₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₄₃
+  have v₇q₄₄ := (w₄₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₄₃
   have v₈q₄₄ := (w₄₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₄₃
   have v₉q₄₄ := (w₄₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₄₃
   have v₁₀q₄₄ := (w₄₄.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₄₃
   have v₁₁q₄₄ := (w₄₄.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₄₃
   have v₁₂q₄₄ := (w₄₄.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₄₃
   have v₁₃q₄₄ := (w₄₄.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₄₃
-  clear w₄₄ v₆q₄₃ s₄₃ v₁q₄₃ v₂q₄₃ v₃q₄₃ v₄q₄₃ v₅q₄₃ e₄₃ v₈q₄₃ v₉q₄₃ v₁₀q₄₃ v₁₁q₄₃ v₁₂q₄₃ v₁₃q₄₃
-  obtain ⟨w₄₅, e₄₅⟩ := subMulWin_val (q := q₄₄) (o := (4 * L)) (len := L) (by rw [s₄₄]; lia) (3 * L) L 1
-      (by rw [s₄₄]; lia) (by lia) (by lia) (by decide)
-      (V := 24 * c₄ + 360 * c₅ + 3360 * c₆ + 25200 * c₇ + 166824 * c₈ + 1020600 * c₉ + 5921520 * c₁₀ + 33105600 * c₁₁ + 180204024 * c₁₂ + 961800840 * c₁₃ + 5058406080 * c₁₄) v₅q₄₄ v₄q₄₄ (by lia)
-  rw [← (show q₄₅ = R.subMulWin q₄₄ (4 * L) L (3 * L) L 1 from rfl)] at w₄₅ e₄₅
+  clear w₄₄ e₄₃ s₄₃ v₁q₄₃ v₂q₄₃ v₃q₄₃ v₅q₄₃ v₆q₄₃ v₇q₄₃ v₈q₄₃ v₉q₄₃ v₁₀q₄₃ v₁₁q₄₃ v₁₂q₄₃ v₁₃q₄₃
+  obtain ⟨w₄₅, e₄₅⟩ := divW_val (q := q₄₄) (o := (4 * L)) (len := L) (by rw [s₄₄]; lia) 15 (by decide) (by decide)
+      (V := 8 * c₅ + 120 * c₆ + 1120 * c₇ + 8400 * c₈ + 55608 * c₉ + 340200 * c₁₀ + 1973840 * c₁₁ + 11035200 * c₁₂ + 60068008 * c₁₃ + 320600280 * c₁₄) v₅q₄₄ (by lia)
+  rw [← (show q₄₅ = R.divExact q₄₄ (4 * L) L 15 from rfl)] at w₄₅ e₄₅
   clear_value q₄₅
   have s₄₅ := w₄₅.1.trans s₄₄
   have v₁q₄₅ := (w₄₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₄₄
   have v₂q₄₅ := (w₄₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₄₄
   have v₃q₄₅ := (w₄₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₄₄
-  have v₄q₄₅ := (w₄₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₄₄
-  have v₆q₄₅ := (w₄₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₄₄
+  have v₄q₄₅ := (w₄₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₄₄
+  have v₆q₄₅ := (w₄₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₄₄
   have v₇q₄₅ := (w₄₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₄₄
   have v₈q₄₅ := (w₄₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₄₄
   have v₉q₄₅ := (w₄₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₄₄
@@ -7097,17 +6181,16 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₁₁q₄₅ := (w₄₅.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₄₄
   have v₁₂q₄₅ := (w₄₅.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₄₄
   have v₁₃q₄₅ := (w₄₅.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₄₄
-  clear w₄₅ v₅q₄₄ s₄₄ v₁q₄₄ v₂q₄₄ v₃q₄₄ v₄q₄₄ e₄₄ v₇q₄₄ v₈q₄₄ v₉q₄₄ v₁₀q₄₄ v₁₁q₄₄ v₁₂q₄₄ v₁₃q₄₄
-  obtain ⟨w₄₆, e₄₆⟩ := subMulWin_val (q := q₄₅) (o := (3 * L)) (len := L) (by rw [s₄₅]; lia) (2 * L) L 1
-      (by rw [s₄₅]; lia) (by lia) (by lia) (by decide)
-      (V := 24 * c₄ + 240 * c₅ + 1560 * c₆ + 8400 * c₇ + 40824 * c₈ + 186480 * c₉ + 818520 * c₁₀ + 3498000 * c₁₁ + 14676024 * c₁₂ + 60780720 * c₁₃ + 249401880 * c₁₄) v₄q₄₅ v₃q₄₅ (by lia)
-  rw [← (show q₄₆ = R.subMulWin q₄₅ (3 * L) L (2 * L) L 1 from rfl)] at w₄₆ e₄₆
+  clear w₄₅ v₅q₄₄ s₄₄ v₁q₄₄ v₂q₄₄ v₃q₄₄ e₄₄ v₆q₄₄ v₇q₄₄ v₈q₄₄ v₉q₄₄ v₁₀q₄₄ v₁₁q₄₄ v₁₂q₄₄ v₁₃q₄₄
+  obtain ⟨w₄₆, e₄₆⟩ := shrW_val (q := q₄₅) (o := (4 * L)) (len := L) (by rw [s₄₅]; lia) 3 (by decide) (by decide)
+      (V := c₅ + 15 * c₆ + 140 * c₇ + 1050 * c₈ + 6951 * c₉ + 42525 * c₁₀ + 246730 * c₁₁ + 1379400 * c₁₂ + 7508501 * c₁₃ + 40075035 * c₁₄) e₄₅ (by lia)
+  rw [← (show q₄₆ = R.shr q₄₅ (4 * L) L 3 from rfl)] at w₄₆ e₄₆
   clear_value q₄₆
   have s₄₆ := w₄₆.1.trans s₄₅
   have v₁q₄₆ := (w₄₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₄₅
   have v₂q₄₆ := (w₄₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₄₅
   have v₃q₄₆ := (w₄₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₄₅
-  have v₅q₄₆ := (w₄₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₄₅
+  have v₄q₄₆ := (w₄₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₄₅
   have v₆q₄₆ := (w₄₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₄₅
   have v₇q₄₆ := (w₄₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₄₅
   have v₈q₄₆ := (w₄₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₄₅
@@ -7116,30 +6199,28 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₁₁q₄₆ := (w₄₆.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₄₅
   have v₁₂q₄₆ := (w₄₆.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₄₅
   have v₁₃q₄₆ := (w₄₆.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₄₅
-  clear w₄₆ v₄q₄₅ s₄₅ v₁q₄₅ v₂q₄₅ v₃q₄₅ e₄₅ v₆q₄₅ v₇q₄₅ v₈q₄₅ v₉q₄₅ v₁₀q₄₅ v₁₁q₄₅ v₁₂q₄₅ v₁₃q₄₅
-  obtain ⟨w₄₇, e₄₇⟩ := subMulWin_val (q := q₄₆) (o := (12 * L)) (len := L) (by rw [s₄₆]; lia) (11 * L) L 1
-      (by rw [s₄₆]; lia) (by lia) (by lia) (by decide)
-      (V := 120 * c₅ + 7560 * c₆ + 278880 * c₇ + 7867440 * c₈ + 187959240 * c₉ + 4006096920 * c₁₀ + 78550610160 * c₁₁ + 1445294854080 * c₁₂ + 25295774463960 * c₁₃ + 425268314551080 * c₁₄) v₁₃q₄₆ v₁₂q₄₆ (by lia)
-  rw [← (show q₄₇ = R.subMulWin q₄₆ (12 * L) L (11 * L) L 1 from rfl)] at w₄₇ e₄₇
+  clear w₄₆ e₄₅ s₄₅ v₁q₄₅ v₂q₄₅ v₃q₄₅ v₄q₄₅ v₆q₄₅ v₇q₄₅ v₈q₄₅ v₉q₄₅ v₁₀q₄₅ v₁₁q₄₅ v₁₂q₄₅ v₁₃q₄₅
+  obtain ⟨w₄₇, e₄₇⟩ := divW_val (q := q₄₆) (o := (5 * L)) (len := L) (by rw [s₄₆]; lia) 45 (by decide) (by decide)
+      (V := 16 * c₆ + 336 * c₇ + 4256 * c₈ + 42336 * c₉ + 365232 * c₁₀ + 2871792 * c₁₁ + 21178432 * c₁₂ + 149140992 * c₁₃ + 1014981968 * c₁₄) v₆q₄₆ (by lia)
+  rw [← (show q₄₇ = R.divExact q₄₆ (5 * L) L 45 from rfl)] at w₄₇ e₄₇
   clear_value q₄₇
   have s₄₇ := w₄₇.1.trans s₄₆
   have v₁q₄₇ := (w₄₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₄₆
   have v₂q₄₇ := (w₄₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₄₆
   have v₃q₄₇ := (w₄₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₄₆
-  have v₄q₄₇ := (w₄₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₄₆
-  have v₅q₄₇ := (w₄₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₄₆
-  have v₆q₄₇ := (w₄₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₄₆
+  have v₄q₄₇ := (w₄₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₄₆
+  have v₅q₄₇ := (w₄₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₄₆
   have v₇q₄₇ := (w₄₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₄₆
   have v₈q₄₇ := (w₄₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₄₆
   have v₉q₄₇ := (w₄₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₄₆
   have v₁₀q₄₇ := (w₄₇.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₄₆
   have v₁₁q₄₇ := (w₄₇.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₄₆
   have v₁₂q₄₇ := (w₄₇.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₄₆
-  clear w₄₇ v₁₃q₄₆ s₄₆ v₁q₄₆ v₂q₄₆ v₃q₄₆ e₄₆ v₅q₄₆ v₆q₄₆ v₇q₄₆ v₈q₄₆ v₉q₄₆ v₁₀q₄₆ v₁₁q₄₆ v₁₂q₄₆
-  obtain ⟨w₄₈, e₄₈⟩ := subMulWin_val (q := q₄₇) (o := (11 * L)) (len := L) (by rw [s₄₇]; lia) (10 * L) L 1
-      (by rw [s₄₇]; lia) (by lia) (by lia) (by decide)
-      (V := 120 * c₅ + 6840 * c₆ + 228480 * c₇ + 5841360 * c₈ + 126572040 * c₉ + 2448631080 * c₁₀ + 43611767760 * c₁₁ + 729419296320 * c₁₂ + 11612876435160 * c₁₃ + 177713381565720 * c₁₄) v₁₂q₄₇ v₁₁q₄₇ (by lia)
-  rw [← (show q₄₈ = R.subMulWin q₄₇ (11 * L) L (10 * L) L 1 from rfl)] at w₄₈ e₄₈
+  have v₁₃q₄₇ := (w₄₇.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₄₆
+  clear w₄₇ v₆q₄₆ s₄₆ v₁q₄₆ v₂q₄₆ v₃q₄₆ v₄q₄₆ e₄₆ v₇q₄₆ v₈q₄₆ v₉q₄₆ v₁₀q₄₆ v₁₁q₄₆ v₁₂q₄₆ v₁₃q₄₆
+  obtain ⟨w₄₈, e₄₈⟩ := shrW_val (q := q₄₇) (o := (5 * L)) (len := L) (by rw [s₄₇]; lia) 4 (by decide) (by decide)
+      (V := c₆ + 21 * c₇ + 266 * c₈ + 2646 * c₉ + 22827 * c₁₀ + 179487 * c₁₁ + 1323652 * c₁₂ + 9321312 * c₁₃ + 63436373 * c₁₄) e₄₇ (by lia)
+  rw [← (show q₄₈ = R.shr q₄₇ (5 * L) L 4 from rfl)] at w₄₈ e₄₈
   clear_value q₄₈
   have s₄₈ := w₄₈.1.trans s₄₇
   have v₁q₄₈ := (w₄₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₄₇
@@ -7147,18 +6228,17 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₃q₄₈ := (w₄₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₄₇
   have v₄q₄₈ := (w₄₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₄₇
   have v₅q₄₈ := (w₄₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₄₇
-  have v₆q₄₈ := (w₄₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₄₇
   have v₇q₄₈ := (w₄₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₄₇
   have v₈q₄₈ := (w₄₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₄₇
   have v₉q₄₈ := (w₄₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₄₇
   have v₁₀q₄₈ := (w₄₈.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₄₇
   have v₁₁q₄₈ := (w₄₈.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₄₇
-  have v₁₃q₄₈ := (w₄₈.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₄₇
-  clear w₄₈ v₁₂q₄₇ s₄₇ v₁q₄₇ v₂q₄₇ v₃q₄₇ v₄q₄₇ v₅q₄₇ v₆q₄₇ v₇q₄₇ v₈q₄₇ v₉q₄₇ v₁₀q₄₇ v₁₁q₄₇ e₄₇
-  obtain ⟨w₄₉, e₄₉⟩ := subMulWin_val (q := q₄₈) (o := (10 * L)) (len := L) (by rw [s₄₈]; lia) (9 * L) L 1
-      (by rw [s₄₈]; lia) (by lia) (by lia) (by decide)
-      (V := 120 * c₅ + 6120 * c₆ + 183120 * c₇ + 4198320 * c₈ + 81665640 * c₉ + 1419760440 * c₁₀ + 22746757440 * c₁₁ + 342558627840 * c₁₂ + 4915196646360 * c₁₃ + 67850044221960 * c₁₄) v₁₁q₄₈ v₁₀q₄₈ (by lia)
-  rw [← (show q₄₉ = R.subMulWin q₄₈ (10 * L) L (9 * L) L 1 from rfl)] at w₄₉ e₄₉
+  have v₁₂q₄₈ := (w₄₈.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₄₇
+  have v₁₃q₄₈ := (w₄₈.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₄₇
+  clear w₄₈ e₄₇ s₄₇ v₁q₄₇ v₂q₄₇ v₃q₄₇ v₄q₄₇ v₅q₄₇ v₇q₄₇ v₈q₄₇ v₉q₄₇ v₁₀q₄₇ v₁₁q₄₇ v₁₂q₄₇ v₁₃q₄₇
+  obtain ⟨w₄₉, e₄₉⟩ := divW_val (q := q₄₈) (o := (6 * L)) (len := L) (by rw [s₄₈]; lia) 315 (by decide) (by decide)
+      (V := 16 * c₇ + 448 * c₈ + 7392 * c₉ + 94080 * c₁₀ + 1023792 * c₁₁ + 10038336 * c₁₂ + 91446784 * c₁₃ + 789268480 * c₁₄) v₇q₄₈ (by lia)
+  rw [← (show q₄₉ = R.divExact q₄₈ (6 * L) L 315 from rfl)] at w₄₉ e₄₉
   clear_value q₄₉
   have s₄₉ := w₄₉.1.trans s₄₈
   have v₁q₄₉ := (w₄₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₄₈
@@ -7166,18 +6246,17 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₃q₄₉ := (w₄₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₄₈
   have v₄q₄₉ := (w₄₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₄₈
   have v₅q₄₉ := (w₄₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₄₈
-  have v₆q₄₉ := (w₄₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₄₈
-  have v₇q₄₉ := (w₄₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₄₈
+  have v₆q₄₉ := (w₄₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₄₈
   have v₈q₄₉ := (w₄₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₄₈
   have v₉q₄₉ := (w₄₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₄₈
   have v₁₀q₄₉ := (w₄₉.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₄₈
-  have v₁₂q₄₉ := (w₄₉.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₄₈
+  have v₁₁q₄₉ := (w₄₉.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₄₈
+  have v₁₂q₄₉ := (w₄₉.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₄₈
   have v₁₃q₄₉ := (w₄₉.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₄₈
-  clear w₄₉ v₁₁q₄₈ s₄₈ v₁q₄₈ v₂q₄₈ v₃q₄₈ v₄q₄₈ v₅q₄₈ v₆q₄₈ v₇q₄₈ v₈q₄₈ v₉q₄₈ v₁₀q₄₈ e₄₈ v₁₃q₄₈
-  obtain ⟨w₅₀, e₅₀⟩ := subMulWin_val (q := q₄₉) (o := (9 * L)) (len := L) (by rw [s₄₉]; lia) (8 * L) L 1
-      (by rw [s₄₉]; lia) (by lia) (by lia) (by decide)
-      (V := 120 * c₅ + 5400 * c₆ + 142800 * c₇ + 2898000 * c₈ + 49974120 * c₉ + 771309000 * c₁₀ + 10985937600 * c₁₁ + 147273984000 * c₁₂ + 1883421660120 * c₁₃ + 23199989412600 * c₁₄) v₁₀q₄₉ v₉q₄₉ (by lia)
-  rw [← (show q₅₀ = R.subMulWin q₄₉ (9 * L) L (8 * L) L 1 from rfl)] at w₅₀ e₅₀
+  clear w₄₉ v₇q₄₈ s₄₈ v₁q₄₈ v₂q₄₈ v₃q₄₈ v₄q₄₈ v₅q₄₈ e₄₈ v₈q₄₈ v₉q₄₈ v₁₀q₄₈ v₁₁q₄₈ v₁₂q₄₈ v₁₃q₄₈
+  obtain ⟨w₅₀, e₅₀⟩ := shrW_val (q := q₄₉) (o := (6 * L)) (len := L) (by rw [s₄₉]; lia) 4 (by decide) (by decide)
+      (V := c₇ + 28 * c₈ + 462 * c₉ + 5880 * c₁₀ + 63987 * c₁₁ + 627396 * c₁₂ + 5715424 * c₁₃ + 49329280 * c₁₄) e₄₉ (by lia)
+  rw [← (show q₅₀ = R.shr q₄₉ (6 * L) L 4 from rfl)] at w₅₀ e₅₀
   clear_value q₅₀
   have s₅₀ := w₅₀.1.trans s₄₉
   have v₁q₅₀ := (w₅₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₄₉
@@ -7186,17 +6265,16 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₄q₅₀ := (w₅₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₄₉
   have v₅q₅₀ := (w₅₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₄₉
   have v₆q₅₀ := (w₅₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₄₉
-  have v₇q₅₀ := (w₅₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₄₉
   have v₈q₅₀ := (w₅₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₄₉
   have v₉q₅₀ := (w₅₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₄₉
-  have v₁₁q₅₀ := (w₅₀.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₄₉
+  have v₁₀q₅₀ := (w₅₀.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₄₉
+  have v₁₁q₅₀ := (w₅₀.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₄₉
   have v₁₂q₅₀ := (w₅₀.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₄₉
   have v₁₃q₅₀ := (w₅₀.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₄₉
-  clear w₅₀ v₁₀q₄₉ s₄₉ v₁q₄₉ v₂q₄₉ v₃q₄₉ v₄q₄₉ v₅q₄₉ v₆q₄₉ v₇q₄₉ v₈q₄₉ v₉q₄₉ e₄₉ v₁₂q₄₉ v₁₃q₄₉
-  obtain ⟨w₅₁, e₅₁⟩ := subMulWin_val (q := q₅₀) (o := (8 * L)) (len := L) (by rw [s₅₀]; lia) (7 * L) L 1
-      (by rw [s₅₀]; lia) (by lia) (by lia) (by decide)
-      (V := 120 * c₅ + 4680 * c₆ + 107520 * c₇ + 1900080 * c₈ + 28594440 * c₉ + 385945560 * c₁₀ + 4816629840 * c₁₁ + 56681127360 * c₁₂ + 637406329560 * c₁₃ + 6915398129640 * c₁₄) v₉q₅₀ v₈q₅₀ (by lia)
-  rw [← (show q₅₁ = R.subMulWin q₅₀ (8 * L) L (7 * L) L 1 from rfl)] at w₅₁ e₅₁
+  clear w₅₀ e₄₉ s₄₉ v₁q₄₉ v₂q₄₉ v₃q₄₉ v₄q₄₉ v₅q₄₉ v₆q₄₉ v₈q₄₉ v₉q₄₉ v₁₀q₄₉ v₁₁q₄₉ v₁₂q₄₉ v₁₃q₄₉
+  obtain ⟨w₅₁, e₅₁⟩ := divW_val (q := q₅₀) (o := (7 * L)) (len := L) (by rw [s₅₀]; lia) 315 (by decide) (by decide)
+      (V := 128 * c₈ + 4608 * c₉ + 96000 * c₁₀ + 1520640 * c₁₁ + 20355456 * c₁₂ + 243150336 * c₁₃ + 2676776960 * c₁₄) v₈q₅₀ (by lia)
+  rw [← (show q₅₁ = R.divExact q₅₀ (7 * L) L 315 from rfl)] at w₅₁ e₅₁
   clear_value q₅₁
   have s₅₁ := w₅₁.1.trans s₅₀
   have v₁q₅₁ := (w₅₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₅₀
@@ -7205,17 +6283,16 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₄q₅₁ := (w₅₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₅₀
   have v₅q₅₁ := (w₅₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₅₀
   have v₆q₅₁ := (w₅₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₅₀
-  have v₇q₅₁ := (w₅₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₅₀
-  have v₈q₅₁ := (w₅₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₅₀
-  have v₁₀q₅₁ := (w₅₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₅₀
+  have v₇q₅₁ := (w₅₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₅₀
+  have v₉q₅₁ := (w₅₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₅₀
+  have v₁₀q₅₁ := (w₅₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₅₀
   have v₁₁q₅₁ := (w₅₁.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₅₀
   have v₁₂q₅₁ := (w₅₁.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₅₀
   have v₁₃q₅₁ := (w₅₁.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₅₀
-  clear w₅₁ v₉q₅₀ s₅₀ v₁q₅₀ v₂q₅₀ v₃q₅₀ v₄q₅₀ v₅q₅₀ v₆q₅₀ v₇q₅₀ v₈q₅₀ e₅₀ v₁₁q₅₀ v₁₂q₅₀ v₁₃q₅₀
-  obtain ⟨w₅₂, e₅₂⟩ := subMulWin_val (q := q₅₁) (o := (7 * L)) (len := L) (by rw [s₅₁]; lia) (6 * L) L 1
-      (by rw [s₅₁]; lia) (by lia) (by lia) (by decide)
-      (V := 120 * c₅ + 3960 * c₆ + 77280 * c₇ + 1164240 * c₈ + 14986440 * c₉ + 173554920 * c₁₀ + 1863784560 * c₁₁ + 18922812480 * c₁₂ + 184044620760 * c₁₃ + 1730875025880 * c₁₄) v₈q₅₁ v₇q₅₁ (by lia)
-  rw [← (show q₅₂ = R.subMulWin q₅₁ (7 * L) L (6 * L) L 1 from rfl)] at w₅₂ e₅₂
+  clear w₅₁ v₈q₅₀ s₅₀ v₁q₅₀ v₂q₅₀ v₃q₅₀ v₄q₅₀ v₅q₅₀ v₆q₅₀ e₅₀ v₉q₅₀ v₁₀q₅₀ v₁₁q₅₀ v₁₂q₅₀ v₁₃q₅₀
+  obtain ⟨w₅₂, e₅₂⟩ := shrW_val (q := q₅₁) (o := (7 * L)) (len := L) (by rw [s₅₁]; lia) 7 (by decide) (by decide)
+      (V := c₈ + 36 * c₉ + 750 * c₁₀ + 11880 * c₁₁ + 159027 * c₁₂ + 1899612 * c₁₃ + 20912320 * c₁₄) e₅₁ (by lia)
+  rw [← (show q₅₂ = R.shr q₅₁ (7 * L) L 7 from rfl)] at w₅₂ e₅₂
   clear_value q₅₂
   have s₅₂ := w₅₂.1.trans s₅₁
   have v₁q₅₂ := (w₅₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₅₁
@@ -7225,16 +6302,15 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₅q₅₂ := (w₅₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₅₁
   have v₆q₅₂ := (w₅₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₅₁
   have v₇q₅₂ := (w₅₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₅₁
-  have v₉q₅₂ := (w₅₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₅₁
+  have v₉q₅₂ := (w₅₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₅₁
   have v₁₀q₅₂ := (w₅₂.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₅₁
   have v₁₁q₅₂ := (w₅₂.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₅₁
   have v₁₂q₅₂ := (w₅₂.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₅₁
   have v₁₃q₅₂ := (w₅₂.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₅₁
-  clear w₅₂ v₈q₅₁ s₅₁ v₁q₅₁ v₂q₅₁ v₃q₅₁ v₄q₅₁ v₅q₅₁ v₆q₅₁ v₇q₅₁ e₅₁ v₁₀q₅₁ v₁₁q₅₁ v₁₂q₅₁ v₁₃q₅₁
-  obtain ⟨w₅₃, e₅₃⟩ := subMulWin_val (q := q₅₂) (o := (6 * L)) (len := L) (by rw [s₅₂]; lia) (5 * L) L 1
-      (by rw [s₅₂]; lia) (by lia) (by lia) (by decide)
-      (V := 120 * c₅ + 3240 * c₆ + 52080 * c₇ + 650160 * c₈ + 6972840 * c₉ + 67609080 * c₁₀ + 610563360 * c₁₁ + 5233662720 * c₁₂ + 43129446360 * c₁₃ + 344776952520 * c₁₄) v₇q₅₂ v₆q₅₂ (by lia)
-  rw [← (show q₅₃ = R.subMulWin q₅₂ (6 * L) L (5 * L) L 1 from rfl)] at w₅₃ e₅₃
+  clear w₅₂ e₅₁ s₅₁ v₁q₅₁ v₂q₅₁ v₃q₅₁ v₄q₅₁ v₅q₅₁ v₆q₅₁ v₇q₅₁ v₉q₅₁ v₁₀q₅₁ v₁₁q₅₁ v₁₂q₅₁ v₁₃q₅₁
+  obtain ⟨w₅₃, e₅₃⟩ := divW_val (q := q₅₂) (o := (8 * L)) (len := L) (by rw [s₅₂]; lia) 2835 (by decide) (by decide)
+      (V := 128 * c₉ + 5760 * c₁₀ + 147840 * c₁₁ + 2851200 * c₁₂ + 46016256 * c₁₃ + 657296640 * c₁₄) v₉q₅₂ (by lia)
+  rw [← (show q₅₃ = R.divExact q₅₂ (8 * L) L 2835 from rfl)] at w₅₃ e₅₃
   clear_value q₅₃
   have s₅₃ := w₅₃.1.trans s₅₂
   have v₁q₅₃ := (w₅₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₅₂
@@ -7243,17 +6319,16 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₄q₅₃ := (w₅₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₅₂
   have v₅q₅₃ := (w₅₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₅₂
   have v₆q₅₃ := (w₅₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₅₂
+  have v₇q₅₃ := (w₅₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₅₂
   have v₈q₅₃ := (w₅₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₅₂
-  have v₉q₅₃ := (w₅₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₅₂
   have v₁₀q₅₃ := (w₅₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₅₂
   have v₁₁q₅₃ := (w₅₃.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₅₂
   have v₁₂q₅₃ := (w₅₃.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₅₂
   have v₁₃q₅₃ := (w₅₃.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₅₂
-  clear w₅₃ v₇q₅₂ s₅₂ v₁q₅₂ v₂q₅₂ v₃q₅₂ v₄q₅₂ v₅q₅₂ v₆q₅₂ e₅₂ v₉q₅₂ v₁₀q₅₂ v₁₁q₅₂ v₁₂q₅₂ v₁₃q₅₂
-  obtain ⟨w₅₄, e₅₄⟩ := subMulWin_val (q := q₅₃) (o := (5 * L)) (len := L) (by rw [s₅₃]; lia) (4 * L) L 1
-      (by rw [s₅₃]; lia) (by lia) (by lia) (by decide)
-      (V := 120 * c₅ + 2520 * c₆ + 31920 * c₇ + 317520 * c₈ + 2739240 * c₉ + 21538440 * c₁₀ + 158838240 * c₁₁ + 1118557440 * c₁₂ + 7612364760 * c₁₃ + 50483192760 * c₁₄) v₆q₅₃ v₅q₅₃ (by lia)
-  rw [← (show q₅₄ = R.subMulWin q₅₃ (5 * L) L (4 * L) L 1 from rfl)] at w₅₄ e₅₄
+  clear w₅₃ v₉q₅₂ s₅₂ v₁q₅₂ v₂q₅₂ v₃q₅₂ v₄q₅₂ v₅q₅₂ v₆q₅₂ v₇q₅₂ e₅₂ v₁₀q₅₂ v₁₁q₅₂ v₁₂q₅₂ v₁₃q₅₂
+  obtain ⟨w₅₄, e₅₄⟩ := shrW_val (q := q₅₃) (o := (8 * L)) (len := L) (by rw [s₅₃]; lia) 7 (by decide) (by decide)
+      (V := c₉ + 45 * c₁₀ + 1155 * c₁₁ + 22275 * c₁₂ + 359502 * c₁₃ + 5135130 * c₁₄) e₅₃ (by lia)
+  rw [← (show q₅₄ = R.shr q₅₃ (8 * L) L 7 from rfl)] at w₅₄ e₅₄
   clear_value q₅₄
   have s₅₄ := w₅₄.1.trans s₅₃
   have v₁q₅₄ := (w₅₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₅₃
@@ -7261,56 +6336,53 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₃q₅₄ := (w₅₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₅₃
   have v₄q₅₄ := (w₅₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₅₃
   have v₅q₅₄ := (w₅₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₅₃
-  have v₇q₅₄ := (w₅₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₅₃
+  have v₆q₅₄ := (w₅₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₅₃
+  have v₇q₅₄ := (w₅₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₅₃
   have v₈q₅₄ := (w₅₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₅₃
-  have v₉q₅₄ := (w₅₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₅₃
   have v₁₀q₅₄ := (w₅₄.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₅₃
   have v₁₁q₅₄ := (w₅₄.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₅₃
   have v₁₂q₅₄ := (w₅₄.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₅₃
   have v₁₃q₅₄ := (w₅₄.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₅₃
-  clear w₅₄ v₆q₅₃ s₅₃ v₁q₅₃ v₂q₅₃ v₃q₅₃ v₄q₅₃ v₅q₅₃ e₅₃ v₈q₅₃ v₉q₅₃ v₁₀q₅₃ v₁₁q₅₃ v₁₂q₅₃ v₁₃q₅₃
-  obtain ⟨w₅₅, e₅₅⟩ := subMulWin_val (q := q₅₄) (o := (4 * L)) (len := L) (by rw [s₅₄]; lia) (3 * L) L 1
-      (by rw [s₅₄]; lia) (by lia) (by lia) (by decide)
-      (V := 120 * c₅ + 1800 * c₆ + 16800 * c₇ + 126000 * c₈ + 834120 * c₉ + 5103000 * c₁₀ + 29607600 * c₁₁ + 165528000 * c₁₂ + 901020120 * c₁₃ + 4809004200 * c₁₄) v₅q₅₄ v₄q₅₄ (by lia)
-  rw [← (show q₅₅ = R.subMulWin q₅₄ (4 * L) L (3 * L) L 1 from rfl)] at w₅₅ e₅₅
+  clear w₅₄ e₅₃ s₅₃ v₁q₅₃ v₂q₅₃ v₃q₅₃ v₄q₅₃ v₅q₅₃ v₆q₅₃ v₇q₅₃ v₈q₅₃ v₁₀q₅₃ v₁₁q₅₃ v₁₂q₅₃ v₁₃q₅₃
+  obtain ⟨w₅₅, e₅₅⟩ := divW_val (q := q₅₄) (o := (9 * L)) (len := L) (by rw [s₅₄]; lia) 14175 (by decide) (by decide)
+      (V := 256 * c₁₀ + 14080 * c₁₁ + 436480 * c₁₂ + 10067200 * c₁₃ + 192704512 * c₁₄) v₁₀q₅₄ (by lia)
+  rw [← (show q₅₅ = R.divExact q₅₄ (9 * L) L 14175 from rfl)] at w₅₅ e₅₅
   clear_value q₅₅
   have s₅₅ := w₅₅.1.trans s₅₄
   have v₁q₅₅ := (w₅₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₅₄
   have v₂q₅₅ := (w₅₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₅₄
   have v₃q₅₅ := (w₅₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₅₄
   have v₄q₅₅ := (w₅₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₅₄
-  have v₆q₅₅ := (w₅₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₅₄
+  have v₅q₅₅ := (w₅₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₅₄
+  have v₆q₅₅ := (w₅₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₅₄
   have v₇q₅₅ := (w₅₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₅₄
   have v₈q₅₅ := (w₅₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₅₄
-  have v₉q₅₅ := (w₅₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₅₄
-  have v₁₀q₅₅ := (w₅₅.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₅₄
+  have v₉q₅₅ := (w₅₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₅₄
   have v₁₁q₅₅ := (w₅₅.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₅₄
   have v₁₂q₅₅ := (w₅₅.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₅₄
   have v₁₃q₅₅ := (w₅₅.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₅₄
-  clear w₅₅ v₅q₅₄ s₅₄ v₁q₅₄ v₂q₅₄ v₃q₅₄ v₄q₅₄ e₅₄ v₇q₅₄ v₈q₅₄ v₉q₅₄ v₁₀q₅₄ v₁₁q₅₄ v₁₂q₅₄ v₁₃q₅₄
-  obtain ⟨w₅₆, e₅₆⟩ := subMulWin_val (q := q₅₅) (o := (12 * L)) (len := L) (by rw [s₅₅]; lia) (11 * L) L 1
-      (by rw [s₅₅]; lia) (by lia) (by lia) (by decide)
-      (V := 720 * c₆ + 50400 * c₇ + 2026080 * c₈ + 61387200 * c₉ + 1557465840 * c₁₀ + 34938842400 * c₁₁ + 715875557760 * c₁₂ + 13682898028800 * c₁₃ + 247554932985360 * c₁₄) v₁₃q₅₅ v₁₂q₅₅ (by lia)
-  rw [← (show q₅₆ = R.subMulWin q₅₅ (12 * L) L (11 * L) L 1 from rfl)] at w₅₆ e₅₆
+  clear w₅₅ v₁₀q₅₄ s₅₄ v₁q₅₄ v₂q₅₄ v₃q₅₄ v₄q₅₄ v₅q₅₄ v₆q₅₄ v₇q₅₄ v₈q₅₄ e₅₄ v₁₁q₅₄ v₁₂q₅₄ v₁₃q₅₄
+  obtain ⟨w₅₆, e₅₆⟩ := shrW_val (q := q₅₅) (o := (9 * L)) (len := L) (by rw [s₅₅]; lia) 8 (by decide) (by decide)
+      (V := c₁₀ + 55 * c₁₁ + 1705 * c₁₂ + 39325 * c₁₃ + 752752 * c₁₄) e₅₅ (by lia)
+  rw [← (show q₅₆ = R.shr q₅₅ (9 * L) L 8 from rfl)] at w₅₆ e₅₆
   clear_value q₅₆
   have s₅₆ := w₅₆.1.trans s₅₅
   have v₁q₅₆ := (w₅₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₅₅
   have v₂q₅₆ := (w₅₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₅₅
   have v₃q₅₆ := (w₅₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₅₅
   have v₄q₅₆ := (w₅₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₅₅
-  have v₅q₅₆ := (w₅₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₅₅
+  have v₅q₅₆ := (w₅₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₅₅
   have v₆q₅₆ := (w₅₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₅₅
   have v₇q₅₆ := (w₅₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₅₅
   have v₈q₅₆ := (w₅₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₅₅
   have v₉q₅₆ := (w₅₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₅₅
-  have v₁₀q₅₆ := (w₅₆.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₅₅
   have v₁₁q₅₆ := (w₅₆.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₅₅
   have v₁₂q₅₆ := (w₅₆.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₅₅
-  clear w₅₆ v₁₃q₅₅ s₅₅ v₁q₅₅ v₂q₅₅ v₃q₅₅ v₄q₅₅ e₅₅ v₆q₅₅ v₇q₅₅ v₈q₅₅ v₉q₅₅ v₁₀q₅₅ v₁₁q₅₅ v₁₂q₅₅
-  obtain ⟨w₅₇, e₅₇⟩ := subMulWin_val (q := q₅₆) (o := (11 * L)) (len := L) (by rw [s₅₆]; lia) (10 * L) L 1
-      (by rw [s₅₆]; lia) (by lia) (by lia) (by decide)
-      (V := 720 * c₆ + 45360 * c₇ + 1643040 * c₈ + 44906400 * c₉ + 1028870640 * c₁₀ + 20865010320 * c₁₁ + 386860668480 * c₁₂ + 6697679788800 * c₁₃ + 109863337343760 * c₁₄) v₁₂q₅₆ v₁₁q₅₆ (by lia)
-  rw [← (show q₅₇ = R.subMulWin q₅₆ (11 * L) L (10 * L) L 1 from rfl)] at w₅₇ e₅₇
+  have v₁₃q₅₆ := (w₅₆.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₅₅
+  clear w₅₆ e₅₅ s₅₅ v₁q₅₅ v₂q₅₅ v₃q₅₅ v₄q₅₅ v₅q₅₅ v₆q₅₅ v₇q₅₅ v₈q₅₅ v₉q₅₅ v₁₁q₅₅ v₁₂q₅₅ v₁₃q₅₅
+  obtain ⟨w₅₇, e₅₇⟩ := divW_val (q := q₅₆) (o := (10 * L)) (len := L) (by rw [s₅₆]; lia) 155925 (by decide) (by decide)
+      (V := 256 * c₁₁ + 16896 * c₁₂ + 622336 * c₁₃ + 16912896 * c₁₄) v₁₁q₅₆ (by lia)
+  rw [← (show q₅₇ = R.divExact q₅₆ (10 * L) L 155925 from rfl)] at w₅₇ e₅₇
   clear_value q₅₇
   have s₅₇ := w₅₇.1.trans s₅₆
   have v₁q₅₇ := (w₅₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₅₆
@@ -7322,14 +6394,13 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₇q₅₇ := (w₅₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₅₆
   have v₈q₅₇ := (w₅₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₅₆
   have v₉q₅₇ := (w₅₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₅₆
-  have v₁₀q₅₇ := (w₅₇.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₅₆
-  have v₁₁q₅₇ := (w₅₇.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₅₆
-  have v₁₃q₅₇ := (w₅₇.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₅₆
-  clear w₅₇ v₁₂q₅₆ s₅₆ v₁q₅₆ v₂q₅₆ v₃q₅₆ v₄q₅₆ v₅q₅₆ v₆q₅₆ v₇q₅₆ v₈q₅₆ v₉q₅₆ v₁₀q₅₆ v₁₁q₅₆ e₅₆
-  obtain ⟨w₅₈, e₅₈⟩ := subMulWin_val (q := q₅₇) (o := (10 * L)) (len := L) (by rw [s₅₇]; lia) (9 * L) L 1
-      (by rw [s₅₇]; lia) (by lia) (by lia) (by decide)
-      (V := 720 * c₆ + 40320 * c₇ + 1300320 * c₈ + 31691520 * c₉ + 648451440 * c₁₀ + 11760819840 * c₁₁ + 195284643840 * c₁₂ + 3031774986240 * c₁₃ + 44650054809360 * c₁₄) v₁₁q₅₇ v₁₀q₅₇ (by lia)
-  rw [← (show q₅₈ = R.subMulWin q₅₇ (10 * L) L (9 * L) L 1 from rfl)] at w₅₈ e₅₈
+  have v₁₀q₅₇ := (w₅₇.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₅₆
+  have v₁₂q₅₇ := (w₅₇.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₅₆
+  have v₁₃q₅₇ := (w₅₇.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₅₆
+  clear w₅₇ v₁₁q₅₆ s₅₆ v₁q₅₆ v₂q₅₆ v₃q₅₆ v₄q₅₆ v₅q₅₆ v₆q₅₆ v₇q₅₆ v₈q₅₆ v₉q₅₆ e₅₆ v₁₂q₅₆ v₁₃q₅₆
+  obtain ⟨w₅₈, e₅₈⟩ := shrW_val (q := q₅₇) (o := (10 * L)) (len := L) (by rw [s₅₇]; lia) 8 (by decide) (by decide)
+      (V := c₁₁ + 66 * c₁₂ + 2431 * c₁₃ + 66066 * c₁₄) e₅₇ (by lia)
+  rw [← (show q₅₈ = R.shr q₅₇ (10 * L) L 8 from rfl)] at w₅₈ e₅₈
   clear_value q₅₈
   have s₅₈ := w₅₈.1.trans s₅₇
   have v₁q₅₈ := (w₅₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₅₇
@@ -7342,13 +6413,12 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₈q₅₈ := (w₅₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₅₇
   have v₉q₅₈ := (w₅₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₅₇
   have v₁₀q₅₈ := (w₅₈.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₅₇
-  have v₁₂q₅₈ := (w₅₈.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₅₇
+  have v₁₂q₅₈ := (w₅₈.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₅₇
   have v₁₃q₅₈ := (w₅₈.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₅₇
-  clear w₅₈ v₁₁q₅₇ s₅₇ v₁q₅₇ v₂q₅₇ v₃q₅₇ v₄q₅₇ v₅q₅₇ v₆q₅₇ v₇q₅₇ v₈q₅₇ v₉q₅₇ v₁₀q₅₇ e₅₇ v₁₃q₅₇
-  obtain ⟨w₅₉, e₅₉⟩ := subMulWin_val (q := q₅₈) (o := (9 * L)) (len := L) (by rw [s₅₈]; lia) (8 * L) L 1
-      (by rw [s₅₈]; lia) (by lia) (by lia) (by decide)
-      (V := 720 * c₆ + 35280 * c₇ + 997920 * c₈ + 21379680 * c₉ + 385363440 * c₁₀ + 6169307760 * c₁₁ + 90592856640 * c₁₂ + 1246015330560 * c₁₃ + 16284591282960 * c₁₄) v₁₀q₅₈ v₉q₅₈ (by lia)
-  rw [← (show q₅₉ = R.subMulWin q₅₈ (9 * L) L (8 * L) L 1 from rfl)] at w₅₉ e₅₉
+  clear w₅₈ e₅₇ s₅₇ v₁q₅₇ v₂q₅₇ v₃q₅₇ v₄q₅₇ v₅q₅₇ v₆q₅₇ v₇q₅₇ v₈q₅₇ v₉q₅₇ v₁₀q₅₇ v₁₂q₅₇ v₁₃q₅₇
+  obtain ⟨w₅₉, e₅₉⟩ := divW_val (q := q₅₈) (o := (11 * L)) (len := L) (by rw [s₅₈]; lia) 467775 (by decide) (by decide)
+      (V := 1024 * c₁₂ + 79872 * c₁₃ + 3447808 * c₁₄) v₁₂q₅₈ (by lia)
+  rw [← (show q₅₉ = R.divExact q₅₈ (11 * L) L 467775 from rfl)] at w₅₉ e₅₉
   clear_value q₅₉
   have s₅₉ := w₅₉.1.trans s₅₈
   have v₁q₅₉ := (w₅₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₅₈
@@ -7360,14 +6430,13 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₇q₅₉ := (w₅₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₅₈
   have v₈q₅₉ := (w₅₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₅₈
   have v₉q₅₉ := (w₅₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₅₈
+  have v₁₀q₅₉ := (w₅₉.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₅₈
   have v₁₁q₅₉ := (w₅₉.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₅₈
-  have v₁₂q₅₉ := (w₅₉.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₅₈
   have v₁₃q₅₉ := (w₅₉.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₅₈
-  clear w₅₉ v₁₀q₅₈ s₅₈ v₁q₅₈ v₂q₅₈ v₃q₅₈ v₄q₅₈ v₅q₅₈ v₆q₅₈ v₇q₅₈ v₈q₅₈ v₉q₅₈ e₅₈ v₁₂q₅₈ v₁₃q₅₈
-  obtain ⟨w₆₀, e₆₀⟩ := subMulWin_val (q := q₅₉) (o := (8 * L)) (len := L) (by rw [s₅₉]; lia) (7 * L) L 1
-      (by rw [s₅₉]; lia) (by lia) (by lia) (by decide)
-      (V := 720 * c₆ + 30240 * c₇ + 735840 * c₈ + 13608000 * c₉ + 212390640 * c₁₀ + 2952845280 * c₁₁ + 37758314880 * c₁₂ + 453361708800 * c₁₃ + 5184523103760 * c₁₄) v₉q₅₉ v₈q₅₉ (by lia)
-  rw [← (show q₆₀ = R.subMulWin q₅₉ (8 * L) L (7 * L) L 1 from rfl)] at w₆₀ e₆₀
+  clear w₅₉ v₁₂q₅₈ s₅₈ v₁q₅₈ v₂q₅₈ v₃q₅₈ v₄q₅₈ v₅q₅₈ v₆q₅₈ v₇q₅₈ v₈q₅₈ v₉q₅₈ v₁₀q₅₈ e₅₈ v₁₃q₅₈
+  obtain ⟨w₆₀, e₆₀⟩ := shrW_val (q := q₅₉) (o := (11 * L)) (len := L) (by rw [s₅₉]; lia) 10 (by decide) (by decide)
+      (V := c₁₂ + 78 * c₁₃ + 3367 * c₁₄) e₅₉ (by lia)
+  rw [← (show q₆₀ = R.shr q₅₉ (11 * L) L 10 from rfl)] at w₆₀ e₆₀
   clear_value q₆₀
   have s₆₀ := w₆₀.1.trans s₅₉
   have v₁q₆₀ := (w₆₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₅₉
@@ -7378,15 +6447,14 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₆q₆₀ := (w₆₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₅₉
   have v₇q₆₀ := (w₆₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₅₉
   have v₈q₆₀ := (w₆₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₅₉
-  have v₁₀q₆₀ := (w₆₀.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₅₉
+  have v₉q₆₀ := (w₆₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₅₉
+  have v₁₀q₆₀ := (w₆₀.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₅₉
   have v₁₁q₆₀ := (w₆₀.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₅₉
-  have v₁₂q₆₀ := (w₆₀.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₅₉
   have v₁₃q₆₀ := (w₆₀.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₅₉
-  clear w₆₀ v₉q₅₉ s₅₉ v₁q₅₉ v₂q₅₉ v₃q₅₉ v₄q₅₉ v₅q₅₉ v₆q₅₉ v₇q₅₉ v₈q₅₉ e₅₉ v₁₁q₅₉ v₁₂q₅₉ v₁₃q₅₉
-  obtain ⟨w₆₁, e₆₁⟩ := subMulWin_val (q := q₆₀) (o := (7 * L)) (len := L) (by rw [s₆₀]; lia) (6 * L) L 1
-      (by rw [s₆₀]; lia) (by lia) (by lia) (by decide)
-      (V := 720 * c₆ + 25200 * c₇ + 514080 * c₈ + 8013600 * c₉ + 105945840 * c₁₀ + 1253221200 * c₁₁ + 13689149760 * c₁₂ + 140915174400 * c₁₃ + 1386098073360 * c₁₄) v₈q₆₀ v₇q₆₀ (by lia)
-  rw [← (show q₆₁ = R.subMulWin q₆₀ (7 * L) L (6 * L) L 1 from rfl)] at w₆₁ e₆₁
+  clear w₆₀ e₅₉ s₅₉ v₁q₅₉ v₂q₅₉ v₃q₅₉ v₄q₅₉ v₅q₅₉ v₆q₅₉ v₇q₅₉ v₈q₅₉ v₉q₅₉ v₁₀q₅₉ v₁₁q₅₉ v₁₃q₅₉
+  obtain ⟨w₆₁, e₆₁⟩ := divW_val (q := q₆₀) (o := (12 * L)) (len := L) (by rw [s₆₀]; lia) 6081075 (by decide) (by decide)
+      (V := 1024 * c₁₃ + 93184 * c₁₄) v₁₃q₆₀ (by lia)
+  rw [← (show q₆₁ = R.divExact q₆₀ (12 * L) L 6081075 from rfl)] at w₆₁ e₆₁
   clear_value q₆₁
   have s₆₁ := w₆₁.1.trans s₆₀
   have v₁q₆₁ := (w₆₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₆₀
@@ -7396,16 +6464,15 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₅q₆₁ := (w₆₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₆₀
   have v₆q₆₁ := (w₆₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₆₀
   have v₇q₆₁ := (w₆₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₆₀
-  have v₉q₆₁ := (w₆₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₆₀
+  have v₈q₆₁ := (w₆₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₆₀
+  have v₉q₆₁ := (w₆₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₆₀
   have v₁₀q₆₁ := (w₆₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₆₀
   have v₁₁q₆₁ := (w₆₁.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₆₀
-  have v₁₂q₆₁ := (w₆₁.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₆₀
-  have v₁₃q₆₁ := (w₆₁.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₆₀
-  clear w₆₁ v₈q₆₀ s₆₀ v₁q₆₀ v₂q₆₀ v₃q₆₀ v₄q₆₀ v₅q₆₀ v₆q₆₀ v₇q₆₀ e₆₀ v₁₀q₆₀ v₁₁q₆₀ v₁₂q₆₀ v₁₃q₆₀
-  obtain ⟨w₆₂, e₆₂⟩ := subMulWin_val (q := q₆₁) (o := (6 * L)) (len := L) (by rw [s₆₁]; lia) (5 * L) L 1
-      (by rw [s₆₁]; lia) (by lia) (by lia) (by decide)
-      (V := 720 * c₆ + 20160 * c₇ + 332640 * c₈ + 4233600 * c₉ + 46070640 * c₁₀ + 451725120 * c₁₁ + 4115105280 * c₁₂ + 35517081600 * c₁₃ + 294293759760 * c₁₄) v₇q₆₁ v₆q₆₁ (by lia)
-  rw [← (show q₆₂ = R.subMulWin q₆₁ (6 * L) L (5 * L) L 1 from rfl)] at w₆₂ e₆₂
+  have v₁₂q₆₁ := (w₆₁.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₆₀
+  clear w₆₁ v₁₃q₆₀ s₆₀ v₁q₆₀ v₂q₆₀ v₃q₆₀ v₄q₆₀ v₅q₆₀ v₆q₆₀ v₇q₆₀ v₈q₆₀ v₉q₆₀ v₁₀q₆₀ v₁₁q₆₀ e₆₀
+  obtain ⟨w₆₂, e₆₂⟩ := shrW_val (q := q₆₁) (o := (12 * L)) (len := L) (by rw [s₆₁]; lia) 10 (by decide) (by decide)
+      (V := c₁₃ + 91 * c₁₄) e₆₁ (by lia)
+  rw [← (show q₆₂ = R.shr q₆₁ (12 * L) L 10 from rfl)] at w₆₂ e₆₂
   clear_value q₆₂
   have s₆₂ := w₆₂.1.trans s₆₁
   have v₁q₆₂ := (w₆₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₆₁
@@ -7414,17 +6481,16 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₄q₆₂ := (w₆₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₆₁
   have v₅q₆₂ := (w₆₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₆₁
   have v₆q₆₂ := (w₆₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₆₁
-  have v₈q₆₂ := (w₆₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₆₁
+  have v₇q₆₂ := (w₆₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₆₁
+  have v₈q₆₂ := (w₆₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₆₁
   have v₉q₆₂ := (w₆₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₆₁
   have v₁₀q₆₂ := (w₆₂.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₆₁
   have v₁₁q₆₂ := (w₆₂.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₆₁
   have v₁₂q₆₂ := (w₆₂.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₆₁
-  have v₁₃q₆₂ := (w₆₂.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₆₁
-  clear w₆₂ v₇q₆₁ s₆₁ v₁q₆₁ v₂q₆₁ v₃q₆₁ v₄q₆₁ v₅q₆₁ v₆q₆₁ e₆₁ v₉q₆₁ v₁₀q₆₁ v₁₁q₆₁ v₁₂q₆₁ v₁₃q₆₁
-  obtain ⟨w₆₃, e₆₃⟩ := subMulWin_val (q := q₆₂) (o := (5 * L)) (len := L) (by rw [s₆₂]; lia) (4 * L) L 1
-      (by rw [s₆₂]; lia) (by lia) (by lia) (by decide)
-      (V := 720 * c₆ + 15120 * c₇ + 191520 * c₈ + 1905120 * c₉ + 16435440 * c₁₀ + 129230640 * c₁₁ + 953029440 * c₁₂ + 6711344640 * c₁₃ + 45674188560 * c₁₄) v₆q₆₂ v₅q₆₂ (by lia)
-  rw [← (show q₆₃ = R.subMulWin q₆₂ (5 * L) L (4 * L) L 1 from rfl)] at w₆₃ e₆₃
+  clear w₆₂ e₆₁ s₆₁ v₁q₆₁ v₂q₆₁ v₃q₆₁ v₄q₆₁ v₅q₆₁ v₆q₆₁ v₇q₆₁ v₈q₆₁ v₉q₆₁ v₁₀q₆₁ v₁₁q₆₁ v₁₂q₆₁
+  obtain ⟨w₆₃, e₆₃⟩ := subMulW_val (q := q₆₂) (o := (12 * L)) (len := L) (by rw [s₆₂]; lia) d (o + 14 * k) (n - 14 * k) 13 (by decide)
+      (V := c₁₃ + 78 * c₁₄) e₆₂ hc₁₄ (by lia)
+  rw [← (show q₆₃ = R.subMulInto q₆₂ (12 * L) L d (o + 14 * k) (n - 14 * k) 13 from rfl)] at w₆₃ e₆₃
   clear_value q₆₃
   have s₆₃ := w₆₃.1.trans s₆₂
   have v₁q₆₃ := (w₆₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₆₂
@@ -7432,18 +6498,18 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₃q₆₃ := (w₆₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₆₂
   have v₄q₆₃ := (w₆₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₆₂
   have v₅q₆₃ := (w₆₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₆₂
-  have v₇q₆₃ := (w₆₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₆₂
+  have v₆q₆₃ := (w₆₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₆₂
+  have v₇q₆₃ := (w₆₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₆₂
   have v₈q₆₃ := (w₆₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₆₂
   have v₉q₆₃ := (w₆₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₆₂
   have v₁₀q₆₃ := (w₆₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₆₂
   have v₁₁q₆₃ := (w₆₃.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₆₂
   have v₁₂q₆₃ := (w₆₃.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₆₂
-  have v₁₃q₆₃ := (w₆₃.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₆₂
-  clear w₆₃ v₆q₆₂ s₆₂ v₁q₆₂ v₂q₆₂ v₃q₆₂ v₄q₆₂ v₅q₆₂ e₆₂ v₈q₆₂ v₉q₆₂ v₁₀q₆₂ v₁₁q₆₂ v₁₂q₆₂ v₁₃q₆₂
-  obtain ⟨w₆₄, e₆₄⟩ := subMulWin_val (q := q₆₃) (o := (12 * L)) (len := L) (by rw [s₆₃]; lia) (11 * L) L 1
+  clear w₆₃ e₆₂ s₆₂ v₁q₆₂ v₂q₆₂ v₃q₆₂ v₄q₆₂ v₅q₆₂ v₆q₆₂ v₇q₆₂ v₈q₆₂ v₉q₆₂ v₁₀q₆₂ v₁₁q₆₂ v₁₂q₆₂
+  obtain ⟨w₆₄, e₆₄⟩ := subMulWin_val (q := q₆₃) (o := (11 * L)) (len := L) (by rw [s₆₃]; lia) (12 * L) L 12
       (by rw [s₆₃]; lia) (by lia) (by lia) (by decide)
-      (V := 5040 * c₇ + 383040 * c₈ + 16480800 * c₉ + 528595200 * c₁₀ + 14073832080 * c₁₁ + 329014889280 * c₁₂ + 6985218240000 * c₁₃ + 137691595641600 * c₁₄) v₁₃q₆₃ v₁₂q₆₃ (by lia)
-  rw [← (show q₆₄ = R.subMulWin q₆₃ (12 * L) L (11 * L) L 1 from rfl)] at w₆₄ e₆₄
+      (V := c₁₂ + 66 * c₁₃ + 2431 * c₁₄) v₁₂q₆₃ e₆₃ (by lia)
+  rw [← (show q₆₄ = R.subMulWin q₆₃ (11 * L) L (12 * L) L 12 from rfl)] at w₆₄ e₆₄
   clear_value q₆₄
   have s₆₄ := w₆₄.1.trans s₆₃
   have v₁q₆₄ := (w₆₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₆₃
@@ -7451,18 +6517,17 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₃q₆₄ := (w₆₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₆₃
   have v₄q₆₄ := (w₆₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₆₃
   have v₅q₆₄ := (w₆₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₆₃
-  have v₆q₆₄ := (w₆₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₆₃
+  have v₆q₆₄ := (w₆₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₆₃
   have v₇q₆₄ := (w₆₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₆₃
   have v₈q₆₄ := (w₆₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₆₃
   have v₉q₆₄ := (w₆₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₆₃
   have v₁₀q₆₄ := (w₆₄.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₆₃
   have v₁₁q₆₄ := (w₆₄.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₆₃
-  have v₁₂q₆₄ := (w₆₄.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₆₃
-  clear w₆₄ v₁₃q₆₃ s₆₃ v₁q₆₃ v₂q₆₃ v₃q₆₃ v₄q₆₃ v₅q₆₃ e₆₃ v₇q₆₃ v₈q₆₃ v₉q₆₃ v₁₀q₆₃ v₁₁q₆₃ v₁₂q₆₃
-  obtain ⟨w₆₅, e₆₅⟩ := subMulWin_val (q := q₆₄) (o := (11 * L)) (len := L) (by rw [s₆₄]; lia) (10 * L) L 1
-      (by rw [s₆₄]; lia) (by lia) (by lia) (by decide)
-      (V := 5040 * c₇ + 342720 * c₈ + 13214880 * c₉ + 380419200 * c₁₀ + 9104190480 * c₁₁ + 191576024640 * c₁₂ + 3665904802560 * c₁₃ + 65213282534400 * c₁₄) v₁₂q₆₄ v₁₁q₆₄ (by lia)
-  rw [← (show q₆₅ = R.subMulWin q₆₄ (11 * L) L (10 * L) L 1 from rfl)] at w₆₅ e₆₅
+  have v₁₃q₆₄ := (w₆₄.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₆₃
+  clear w₆₄ v₁₂q₆₃ s₆₃ v₁q₆₃ v₂q₆₃ v₃q₆₃ v₄q₆₃ v₅q₆₃ v₆q₆₃ v₇q₆₃ v₈q₆₃ v₉q₆₃ v₁₀q₆₃ v₁₁q₆₃ e₆₃
+  obtain ⟨w₆₅, e₆₅⟩ := subMulW_val (q := q₆₄) (o := (12 * L)) (len := L) (by rw [s₆₄]; lia) d (o + 14 * k) (n - 14 * k) 12 (by decide)
+      (V := c₁₃ + 66 * c₁₄) v₁₃q₆₄ hc₁₄ (by lia)
+  rw [← (show q₆₅ = R.subMulInto q₆₄ (12 * L) L d (o + 14 * k) (n - 14 * k) 12 from rfl)] at w₆₅ e₆₅
   clear_value q₆₅
   have s₆₅ := w₆₅.1.trans s₆₄
   have v₁q₆₅ := (w₆₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₆₄
@@ -7476,12 +6541,12 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₉q₆₅ := (w₆₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₆₄
   have v₁₀q₆₅ := (w₆₅.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₆₄
   have v₁₁q₆₅ := (w₆₅.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₆₄
-  have v₁₃q₆₅ := (w₆₅.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₆₄
-  clear w₆₅ v₁₂q₆₄ s₆₄ v₁q₆₄ v₂q₆₄ v₃q₆₄ v₄q₆₄ v₅q₆₄ v₆q₆₄ v₇q₆₄ v₈q₆₄ v₉q₆₄ v₁₀q₆₄ v₁₁q₆₄ e₆₄
-  obtain ⟨w₆₆, e₆₆⟩ := subMulWin_val (q := q₆₅) (o := (10 * L)) (len := L) (by rw [s₆₅]; lia) (9 * L) L 1
+  have v₁₂q₆₅ := (w₆₅.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₆₄
+  clear w₆₅ v₁₃q₆₄ s₆₄ v₁q₆₄ v₂q₆₄ v₃q₆₄ v₄q₆₄ v₅q₆₄ v₆q₆₄ v₇q₆₄ v₈q₆₄ v₉q₆₄ v₁₀q₆₄ v₁₁q₆₄ e₆₄
+  obtain ⟨w₆₆, e₆₆⟩ := subMulWin_val (q := q₆₅) (o := (10 * L)) (len := L) (by rw [s₆₅]; lia) (11 * L) L 11
       (by rw [s₆₅]; lia) (by lia) (by lia) (by decide)
-      (V := 5040 * c₇ + 302400 * c₈ + 10311840 * c₉ + 263088000 * c₁₀ + 5591512080 * c₁₁ + 104691787200 * c₁₂ + 1785759655680 * c₁₃ + 28365463526400 * c₁₄) v₁₁q₆₅ v₁₀q₆₅ (by lia)
-  rw [← (show q₆₆ = R.subMulWin q₆₅ (10 * L) L (9 * L) L 1 from rfl)] at w₆₆ e₆₆
+      (V := c₁₁ + 55 * c₁₂ + 1705 * c₁₃ + 39325 * c₁₄) v₁₁q₆₅ v₁₂q₆₅ (by lia)
+  rw [← (show q₆₆ = R.subMulWin q₆₅ (10 * L) L (11 * L) L 11 from rfl)] at w₆₆ e₆₆
   clear_value q₆₆
   have s₆₆ := w₆₆.1.trans s₆₅
   have v₁q₆₆ := (w₆₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₆₅
@@ -7494,13 +6559,13 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₈q₆₆ := (w₆₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₆₅
   have v₉q₆₆ := (w₆₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₆₅
   have v₁₀q₆₆ := (w₆₆.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₆₅
-  have v₁₂q₆₆ := (w₆₆.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₆₅
-  have v₁₃q₆₆ := (w₆₆.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₆₅
-  clear w₆₆ v₁₁q₆₅ s₆₅ v₁q₆₅ v₂q₆₅ v₃q₆₅ v₄q₆₅ v₅q₆₅ v₆q₆₅ v₇q₆₅ v₈q₆₅ v₉q₆₅ v₁₀q₆₅ e₆₅ v₁₃q₆₅
-  obtain ⟨w₆₇, e₆₇⟩ := subMulWin_val (q := q₆₆) (o := (9 * L)) (len := L) (by rw [s₆₆]; lia) (8 * L) L 1
+  have v₁₂q₆₆ := (w₆₆.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₆₅
+  have v₁₃q₆₆ := (w₆₆.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₆₅
+  clear w₆₆ v₁₁q₆₅ s₆₅ v₁q₆₅ v₂q₆₅ v₃q₆₅ v₄q₆₅ v₅q₆₅ v₆q₆₅ v₇q₆₅ v₈q₆₅ v₉q₆₅ v₁₀q₆₅ v₁₂q₆₅ e₆₅
+  obtain ⟨w₆₇, e₆₇⟩ := subMulWin_val (q := q₆₆) (o := (11 * L)) (len := L) (by rw [s₆₆]; lia) (12 * L) L 11
       (by rw [s₆₆]; lia) (by lia) (by lia) (by decide)
-      (V := 5040 * c₇ + 262080 * c₈ + 7771680 * c₉ + 172972800 * c₁₀ + 3216462480 * c₁₁ + 52834541760 * c₁₂ + 792653621760 * c₁₃ + 11100068179200 * c₁₄) v₁₀q₆₆ v₉q₆₆ (by lia)
-  rw [← (show q₆₇ = R.subMulWin q₆₆ (9 * L) L (8 * L) L 1 from rfl)] at w₆₇ e₆₇
+      (V := c₁₂ + 55 * c₁₃ + 1705 * c₁₄) v₁₂q₆₆ v₁₃q₆₆ (by lia)
+  rw [← (show q₆₇ = R.subMulWin q₆₆ (11 * L) L (12 * L) L 11 from rfl)] at w₆₇ e₆₇
   clear_value q₆₇
   have s₆₇ := w₆₇.1.trans s₆₆
   have v₁q₆₇ := (w₆₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₆₆
@@ -7512,14 +6577,13 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₇q₆₇ := (w₆₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₆₆
   have v₈q₆₇ := (w₆₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₆₆
   have v₉q₆₇ := (w₆₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₆₆
+  have v₁₀q₆₇ := (w₆₇.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₆₆
   have v₁₁q₆₇ := (w₆₇.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₆₆
-  have v₁₂q₆₇ := (w₆₇.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₆₆
   have v₁₃q₆₇ := (w₆₇.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₆₆
-  clear w₆₇ v₁₀q₆₆ s₆₆ v₁q₆₆ v₂q₆₆ v₃q₆₆ v₄q₆₆ v₅q₆₆ v₆q₆₆ v₇q₆₆ v₈q₆₆ v₉q₆₆ e₆₆ v₁₂q₆₆ v₁₃q₆₆
-  obtain ⟨w₆₈, e₆₈⟩ := subMulWin_val (q := q₆₇) (o := (8 * L)) (len := L) (by rw [s₆₇]; lia) (7 * L) L 1
-      (by rw [s₆₇]; lia) (by lia) (by lia) (by decide)
-      (V := 5040 * c₇ + 221760 * c₈ + 5594400 * c₉ + 106444800 * c₁₀ + 1699624080 * c₁₁ + 24069165120 * c₁₂ + 312446534400 * c₁₃ + 3798425030400 * c₁₄) v₉q₆₇ v₈q₆₇ (by lia)
-  rw [← (show q₆₈ = R.subMulWin q₆₇ (8 * L) L (7 * L) L 1 from rfl)] at w₆₈ e₆₈
+  clear w₆₇ v₁₂q₆₆ s₆₆ v₁q₆₆ v₂q₆₆ v₃q₆₆ v₄q₆₆ v₅q₆₆ v₆q₆₆ v₇q₆₆ v₈q₆₆ v₉q₆₆ v₁₀q₆₆ e₆₆ v₁₃q₆₆
+  obtain ⟨w₆₈, e₆₈⟩ := subMulW_val (q := q₆₇) (o := (12 * L)) (len := L) (by rw [s₆₇]; lia) d (o + 14 * k) (n - 14 * k) 11 (by decide)
+      (V := c₁₃ + 55 * c₁₄) v₁₃q₆₇ hc₁₄ (by lia)
+  rw [← (show q₆₈ = R.subMulInto q₆₇ (12 * L) L d (o + 14 * k) (n - 14 * k) 11 from rfl)] at w₆₈ e₆₈
   clear_value q₆₈
   have s₆₈ := w₆₈.1.trans s₆₇
   have v₁q₆₈ := (w₆₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₆₇
@@ -7530,15 +6594,16 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₆q₆₈ := (w₆₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₆₇
   have v₇q₆₈ := (w₆₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₆₇
   have v₈q₆₈ := (w₆₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₆₇
-  have v₁₀q₆₈ := (w₆₈.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₆₇
+  have v₉q₆₈ := (w₆₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₆₇
+  have v₁₀q₆₈ := (w₆₈.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₆₇
   have v₁₁q₆₈ := (w₆₈.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₆₇
-  have v₁₂q₆₈ := (w₆₈.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₆₇
-  have v₁₃q₆₈ := (w₆₈.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₆₇
-  clear w₆₈ v₉q₆₇ s₆₇ v₁q₆₇ v₂q₆₇ v₃q₆₇ v₄q₆₇ v₅q₆₇ v₆q₆₇ v₇q₆₇ v₈q₆₇ e₆₇ v₁₁q₆₇ v₁₂q₆₇ v₁₃q₆₇
-  obtain ⟨w₆₉, e₆₉⟩ := subMulWin_val (q := q₆₈) (o := (7 * L)) (len := L) (by rw [s₆₈]; lia) (6 * L) L 1
-      (by rw [s₆₈]; lia) (by lia) (by lia) (by decide)
-      (V := 5040 * c₇ + 181440 * c₈ + 3780000 * c₉ + 59875200 * c₁₀ + 801496080 * c₁₁ + 9574044480 * c₁₂ + 105398092800 * c₁₃ + 1091804313600 * c₁₄) v₈q₆₈ v₇q₆₈ (by lia)
-  rw [← (show q₆₉ = R.subMulWin q₆₈ (7 * L) L (6 * L) L 1 from rfl)] at w₆₉ e₆₉
+  have v₁₂q₆₈ := (w₆₈.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₆₇
+  clear w₆₈ v₁₃q₆₇ s₆₇ v₁q₆₇ v₂q₆₇ v₃q₆₇ v₄q₆₇ v₅q₆₇ v₆q₆₇ v₇q₆₇ v₈q₆₇ v₉q₆₇ v₁₀q₆₇ v₁₁q₆₇ e₆₇
+  obtain ⟨w₆₉, e₆₉a, e₆₉b, e₆₉c⟩ := sub3ChainW_val (q := q₆₈) (o₁ := (9 * L)) (o₂ := (10 * L))
+      (o₃ := (11 * L)) (o₄ := (12 * L)) (len := L) (9 * L) (3 * L) (by rw [s₆₈]; lia) (by lia) (by lia) 10
+      (V₁ := c₁₀ + 45 * c₁₁ + 1155 * c₁₂ + 22275 * c₁₃ + 359502 * c₁₄) (V₂ := c₁₁ + 45 * c₁₂ + 1155 * c₁₃ + 22275 * c₁₄) (V₃ := c₁₂ + 45 * c₁₃ + 1155 * c₁₄)
+      v₁₀q₆₈ v₁₁q₆₈ v₁₂q₆₈ e₆₈ (by lia) (by lia) (by lia)
+  rw [← (show q₆₉ = R.sub3Chain q₆₈ (9 * L) (10 * L) (11 * L) (12 * L) L 10 from rfl)] at w₆₉ e₆₉a e₆₉b e₆₉c
   clear_value q₆₉
   have s₆₉ := w₆₉.1.trans s₆₈
   have v₁q₆₉ := (w₆₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₆₈
@@ -7548,16 +6613,13 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₅q₆₉ := (w₆₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₆₈
   have v₆q₆₉ := (w₆₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₆₈
   have v₇q₆₉ := (w₆₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₆₈
-  have v₉q₆₉ := (w₆₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₆₈
-  have v₁₀q₆₉ := (w₆₉.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₆₈
-  have v₁₁q₆₉ := (w₆₉.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₆₈
-  have v₁₂q₆₉ := (w₆₉.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₆₈
-  have v₁₃q₆₉ := (w₆₉.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₆₈
-  clear w₆₉ v₈q₆₈ s₆₈ v₁q₆₈ v₂q₆₈ v₃q₆₈ v₄q₆₈ v₅q₆₈ v₆q₆₈ v₇q₆₈ e₆₈ v₁₀q₆₈ v₁₁q₆₈ v₁₂q₆₈ v₁₃q₆₈
-  obtain ⟨w₇₀, e₇₀⟩ := subMulWin_val (q := q₆₉) (o := (6 * L)) (len := L) (by rw [s₆₉]; lia) (5 * L) L 1
-      (by rw [s₆₉]; lia) (by lia) (by lia) (by decide)
-      (V := 5040 * c₇ + 141120 * c₈ + 2328480 * c₉ + 29635200 * c₁₀ + 322494480 * c₁₁ + 3162075840 * c₁₂ + 28805736960 * c₁₃ + 248619571200 * c₁₄) v₇q₆₉ v₆q₆₉ (by lia)
-  rw [← (show q₇₀ = R.subMulWin q₆₉ (6 * L) L (5 * L) L 1 from rfl)] at w₇₀ e₇₀
+  have v₈q₆₉ := (w₆₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₆₈
+  have v₉q₆₉ := (w₆₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₆₈
+  have v₁₃q₆₉ := (w₆₉.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₆₈
+  clear w₆₉ v₁₀q₆₈ v₁₁q₆₈ v₁₂q₆₈ s₆₈ v₁q₆₈ v₂q₆₈ v₃q₆₈ v₄q₆₈ v₅q₆₈ v₆q₆₈ v₇q₆₈ v₈q₆₈ v₉q₆₈ e₆₈
+  obtain ⟨w₇₀, e₇₀⟩ := subMulW_val (q := q₆₉) (o := (12 * L)) (len := L) (by rw [s₆₉]; lia) d (o + 14 * k) (n - 14 * k) 10 (by decide)
+      (V := c₁₃ + 45 * c₁₄) v₁₃q₆₉ hc₁₄ (by lia)
+  rw [← (show q₇₀ = R.subMulInto q₆₉ (12 * L) L d (o + 14 * k) (n - 14 * k) 10 from rfl)] at w₇₀ e₇₀
   clear_value q₇₀
   have s₇₀ := w₇₀.1.trans s₆₉
   have v₁q₇₀ := (w₇₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₆₉
@@ -7566,17 +6628,18 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₄q₇₀ := (w₇₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₆₉
   have v₅q₇₀ := (w₇₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₆₉
   have v₆q₇₀ := (w₇₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₆₉
-  have v₈q₇₀ := (w₇₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₆₉
+  have v₇q₇₀ := (w₇₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₆₉
+  have v₈q₇₀ := (w₇₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₆₉
   have v₉q₇₀ := (w₇₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₆₉
-  have v₁₀q₇₀ := (w₇₀.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₆₉
-  have v₁₁q₇₀ := (w₇₀.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₆₉
-  have v₁₂q₇₀ := (w₇₀.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₆₉
-  have v₁₃q₇₀ := (w₇₀.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₆₉
-  clear w₇₀ v₇q₆₉ s₆₉ v₁q₆₉ v₂q₆₉ v₃q₆₉ v₄q₆₉ v₅q₆₉ v₆q₆₉ e₆₉ v₉q₆₉ v₁₀q₆₉ v₁₁q₆₉ v₁₂q₆₉ v₁₃q₆₉
-  obtain ⟨w₇₁, e₇₁⟩ := subMulWin_val (q := q₇₀) (o := (12 * L)) (len := L) (by rw [s₇₀]; lia) (11 * L) L 1
-      (by rw [s₇₀]; lia) (by lia) (by lia) (by decide)
-      (V := 40320 * c₈ + 3265920 * c₉ + 148176000 * c₁₀ + 4969641600 * c₁₁ + 137438864640 * c₁₂ + 3319313437440 * c₁₃ + 72478313107200 * c₁₄) v₁₃q₇₀ v₁₂q₇₀ (by lia)
-  rw [← (show q₇₁ = R.subMulWin q₇₀ (12 * L) L (11 * L) L 1 from rfl)] at w₇₁ e₇₁
+  have v₁₀q₇₀ := (w₇₀.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₆₉a
+  have v₁₁q₇₀ := (w₇₀.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₆₉b
+  have v₁₂q₇₀ := (w₇₀.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₆₉c
+  clear w₇₀ v₁₃q₆₉ s₆₉ v₁q₆₉ v₂q₆₉ v₃q₆₉ v₄q₆₉ v₅q₆₉ v₆q₆₉ v₇q₆₉ v₈q₆₉ v₉q₆₉ e₆₉a e₆₉b e₆₉c
+  obtain ⟨w₇₁, e₇₁a, e₇₁b, e₇₁c⟩ := sub3ChainW_val (q := q₇₀) (o₁ := (8 * L)) (o₂ := (9 * L))
+      (o₃ := (10 * L)) (o₄ := (11 * L)) (len := L) (8 * L) (3 * L) (by rw [s₇₀]; lia) (by lia) (by lia) 9
+      (V₁ := c₉ + 36 * c₁₀ + 750 * c₁₁ + 11880 * c₁₂ + 159027 * c₁₃ + 1899612 * c₁₄) (V₂ := c₁₀ + 36 * c₁₁ + 750 * c₁₂ + 11880 * c₁₃ + 159027 * c₁₄) (V₃ := c₁₁ + 36 * c₁₂ + 750 * c₁₃ + 11880 * c₁₄)
+      v₉q₇₀ v₁₀q₇₀ v₁₁q₇₀ v₁₂q₇₀ (by lia) (by lia) (by lia)
+  rw [← (show q₇₁ = R.sub3Chain q₇₀ (8 * L) (9 * L) (10 * L) (11 * L) L 9 from rfl)] at w₇₁ e₇₁a e₇₁b e₇₁c
   clear_value q₇₁
   have s₇₁ := w₇₁.1.trans s₇₀
   have v₁q₇₁ := (w₇₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₇₀
@@ -7585,17 +6648,15 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₄q₇₁ := (w₇₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₇₀
   have v₅q₇₁ := (w₇₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₇₀
   have v₆q₇₁ := (w₇₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₇₀
-  have v₇q₇₁ := (w₇₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₇₀
+  have v₇q₇₁ := (w₇₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₇₀
   have v₈q₇₁ := (w₇₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₇₀
-  have v₉q₇₁ := (w₇₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₇₀
-  have v₁₀q₇₁ := (w₇₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₇₀
-  have v₁₁q₇₁ := (w₇₁.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₇₀
   have v₁₂q₇₁ := (w₇₁.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₇₀
-  clear w₇₁ v₁₃q₇₀ s₇₀ v₁q₇₀ v₂q₇₀ v₃q₇₀ v₄q₇₀ v₅q₇₀ v₆q₇₀ e₇₀ v₈q₇₀ v₉q₇₀ v₁₀q₇₀ v₁₁q₇₀ v₁₂q₇₀
-  obtain ⟨w₇₂, e₇₂⟩ := subMulWin_val (q := q₇₁) (o := (11 * L)) (len := L) (by rw [s₇₁]; lia) (10 * L) L 1
+  have v₁₃q₇₁ := (w₇₁.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₇₀
+  clear w₇₁ v₉q₇₀ v₁₀q₇₀ v₁₁q₇₀ s₇₀ v₁q₇₀ v₂q₇₀ v₃q₇₀ v₄q₇₀ v₅q₇₀ v₆q₇₀ v₇q₇₀ v₈q₇₀ v₁₂q₇₀ e₇₀
+  obtain ⟨w₇₂, e₇₂⟩ := subMulWin_val (q := q₇₁) (o := (11 * L)) (len := L) (by rw [s₇₁]; lia) (12 * L) L 9
       (by rw [s₇₁]; lia) (by lia) (by lia) (by decide)
-      (V := 40320 * c₈ + 2903040 * c₉ + 117331200 * c₁₀ + 3512678400 * c₁₁ + 86884237440 * c₁₂ + 1880145146880 * c₁₃ + 36847819008000 * c₁₄) v₁₂q₇₁ v₁₁q₇₁ (by lia)
-  rw [← (show q₇₂ = R.subMulWin q₇₁ (11 * L) L (10 * L) L 1 from rfl)] at w₇₂ e₇₂
+      (V := c₁₂ + 36 * c₁₃ + 750 * c₁₄) v₁₂q₇₁ v₁₃q₇₁ (by lia)
+  rw [← (show q₇₂ = R.subMulWin q₇₁ (11 * L) L (12 * L) L 9 from rfl)] at w₇₂ e₇₂
   clear_value q₇₂
   have s₇₂ := w₇₂.1.trans s₇₁
   have v₁q₇₂ := (w₇₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₇₁
@@ -7606,15 +6667,14 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₆q₇₂ := (w₇₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₇₁
   have v₇q₇₂ := (w₇₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₇₁
   have v₈q₇₂ := (w₇₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₇₁
-  have v₉q₇₂ := (w₇₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₇₁
-  have v₁₀q₇₂ := (w₇₂.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₇₁
-  have v₁₁q₇₂ := (w₇₂.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₇₁
-  have v₁₃q₇₂ := (w₇₂.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₇₁
-  clear w₇₂ v₁₂q₇₁ s₇₁ v₁q₇₁ v₂q₇₁ v₃q₇₁ v₄q₇₁ v₅q₇₁ v₆q₇₁ v₇q₇₁ v₈q₇₁ v₉q₇₁ v₁₀q₇₁ v₁₁q₇₁ e₇₁
-  obtain ⟨w₇₃, e₇₃⟩ := subMulWin_val (q := q₇₂) (o := (10 * L)) (len := L) (by rw [s₇₂]; lia) (9 * L) L 1
-      (by rw [s₇₂]; lia) (by lia) (by lia) (by decide)
-      (V := 40320 * c₈ + 2540160 * c₉ + 90115200 * c₁₀ + 2375049600 * c₁₁ + 51857245440 * c₁₂ + 993106033920 * c₁₃ + 17265395347200 * c₁₄) v₁₁q₇₂ v₁₀q₇₂ (by lia)
-  rw [← (show q₇₃ = R.subMulWin q₇₂ (10 * L) L (9 * L) L 1 from rfl)] at w₇₃ e₇₃
+  have v₉q₇₂ := (w₇₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₇₁a
+  have v₁₀q₇₂ := (w₇₂.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₇₁b
+  have v₁₁q₇₂ := (w₇₂.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₇₁c
+  have v₁₃q₇₂ := (w₇₂.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₇₁
+  clear w₇₂ v₁₂q₇₁ s₇₁ v₁q₇₁ v₂q₇₁ v₃q₇₁ v₄q₇₁ v₅q₇₁ v₆q₇₁ v₇q₇₁ v₈q₇₁ e₇₁a e₇₁b e₇₁c v₁₃q₇₁
+  obtain ⟨w₇₃, e₇₃⟩ := subMulW_val (q := q₇₂) (o := (12 * L)) (len := L) (by rw [s₇₂]; lia) d (o + 14 * k) (n - 14 * k) 9 (by decide)
+      (V := c₁₃ + 36 * c₁₄) v₁₃q₇₂ hc₁₄ (by lia)
+  rw [← (show q₇₃ = R.subMulInto q₇₂ (12 * L) L d (o + 14 * k) (n - 14 * k) 9 from rfl)] at w₇₃ e₇₃
   clear_value q₇₃
   have s₇₃ := w₇₃.1.trans s₇₂
   have v₁q₇₃ := (w₇₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₇₂
@@ -7627,13 +6687,14 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₈q₇₃ := (w₇₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₇₂
   have v₉q₇₃ := (w₇₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₇₂
   have v₁₀q₇₃ := (w₇₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₇₂
+  have v₁₁q₇₃ := (w₇₃.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₇₂
   have v₁₂q₇₃ := (w₇₃.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₇₂
-  have v₁₃q₇₃ := (w₇₃.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₇₂
-  clear w₇₃ v₁₁q₇₂ s₇₂ v₁q₇₂ v₂q₇₂ v₃q₇₂ v₄q₇₂ v₅q₇₂ v₆q₇₂ v₇q₇₂ v₈q₇₂ v₉q₇₂ v₁₀q₇₂ e₇₂ v₁₃q₇₂
-  obtain ⟨w₇₄, e₇₄⟩ := subMulWin_val (q := q₇₃) (o := (9 * L)) (len := L) (by rw [s₇₃]; lia) (8 * L) L 1
-      (by rw [s₇₃]; lia) (by lia) (by lia) (by decide)
-      (V := 40320 * c₈ + 2177280 * c₉ + 66528000 * c₁₀ + 1516838400 * c₁₁ + 28765376640 * c₁₂ + 480207087360 * c₁₃ + 7301643148800 * c₁₄) v₁₀q₇₃ v₉q₇₃ (by lia)
-  rw [← (show q₇₄ = R.subMulWin q₇₃ (9 * L) L (8 * L) L 1 from rfl)] at w₇₄ e₇₄
+  clear w₇₃ v₁₃q₇₂ s₇₂ v₁q₇₂ v₂q₇₂ v₃q₇₂ v₄q₇₂ v₅q₇₂ v₆q₇₂ v₇q₇₂ v₈q₇₂ v₉q₇₂ v₁₀q₇₂ v₁₁q₇₂ e₇₂
+  obtain ⟨w₇₄, e₇₄a, e₇₄b, e₇₄c⟩ := sub3ChainW_val (q := q₇₃) (o₁ := (7 * L)) (o₂ := (8 * L))
+      (o₃ := (9 * L)) (o₄ := (10 * L)) (len := L) (7 * L) (3 * L) (by rw [s₇₃]; lia) (by lia) (by lia) 8
+      (V₁ := c₈ + 28 * c₉ + 462 * c₁₀ + 5880 * c₁₁ + 63987 * c₁₂ + 627396 * c₁₃ + 5715424 * c₁₄) (V₂ := c₉ + 28 * c₁₀ + 462 * c₁₁ + 5880 * c₁₂ + 63987 * c₁₃ + 627396 * c₁₄) (V₃ := c₁₀ + 28 * c₁₁ + 462 * c₁₂ + 5880 * c₁₃ + 63987 * c₁₄)
+      v₈q₇₃ v₉q₇₃ v₁₀q₇₃ v₁₁q₇₃ (by lia) (by lia) (by lia)
+  rw [← (show q₇₄ = R.sub3Chain q₇₃ (7 * L) (8 * L) (9 * L) (10 * L) L 8 from rfl)] at w₇₄ e₇₄a e₇₄b e₇₄c
   clear_value q₇₄
   have s₇₄ := w₇₄.1.trans s₇₃
   have v₁q₇₄ := (w₇₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₇₃
@@ -7643,16 +6704,14 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₅q₇₄ := (w₇₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₇₃
   have v₆q₇₄ := (w₇₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₇₃
   have v₇q₇₄ := (w₇₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₇₃
-  have v₈q₇₄ := (w₇₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₇₃
-  have v₉q₇₄ := (w₇₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₇₃
-  have v₁₁q₇₄ := (w₇₄.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₇₃
+  have v₁₁q₇₄ := (w₇₄.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₇₃
   have v₁₂q₇₄ := (w₇₄.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₇₃
-  have v₁₃q₇₄ := (w₇₄.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₇₃
-  clear w₇₄ v₁₀q₇₃ s₇₃ v₁q₇₃ v₂q₇₃ v₃q₇₃ v₄q₇₃ v₅q₇₃ v₆q₇₃ v₇q₇₃ v₈q₇₃ v₉q₇₃ e₇₃ v₁₂q₇₃ v₁₃q₇₃
-  obtain ⟨w₇₅, e₇₅⟩ := subMulWin_val (q := q₇₄) (o := (8 * L)) (len := L) (by rw [s₇₄]; lia) (7 * L) L 1
+  have v₁₃q₇₄ := (w₇₄.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₇₃
+  clear w₇₄ v₈q₇₃ v₉q₇₃ v₁₀q₇₃ s₇₃ v₁q₇₃ v₂q₇₃ v₃q₇₃ v₄q₇₃ v₅q₇₃ v₆q₇₃ v₇q₇₃ v₁₁q₇₃ v₁₂q₇₃ e₇₃
+  obtain ⟨w₇₅, e₇₅⟩ := subMulWin_val (q := q₇₄) (o := (10 * L)) (len := L) (by rw [s₇₄]; lia) (11 * L) L 8
       (by rw [s₇₄]; lia) (by lia) (by lia) (by decide)
-      (V := 40320 * c₈ + 1814400 * c₉ + 46569600 * c₁₀ + 898128000 * c₁₁ + 14495120640 * c₁₂ + 207048441600 * c₁₃ + 2706620716800 * c₁₄) v₉q₇₄ v₈q₇₄ (by lia)
-  rw [← (show q₇₅ = R.subMulWin q₇₄ (8 * L) L (7 * L) L 1 from rfl)] at w₇₅ e₇₅
+      (V := c₁₁ + 28 * c₁₂ + 462 * c₁₃ + 5880 * c₁₄) v₁₁q₇₄ v₁₂q₇₄ (by lia)
+  rw [← (show q₇₅ = R.subMulWin q₇₄ (10 * L) L (11 * L) L 8 from rfl)] at w₇₅ e₇₅
   clear_value q₇₅
   have s₇₅ := w₇₅.1.trans s₇₄
   have v₁q₇₅ := (w₇₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₇₄
@@ -7662,16 +6721,16 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₅q₇₅ := (w₇₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₇₄
   have v₆q₇₅ := (w₇₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₇₄
   have v₇q₇₅ := (w₇₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₇₄
-  have v₈q₇₅ := (w₇₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₇₄
-  have v₁₀q₇₅ := (w₇₅.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₇₄
-  have v₁₁q₇₅ := (w₇₅.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₇₄
+  have v₈q₇₅ := (w₇₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₇₄a
+  have v₉q₇₅ := (w₇₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₇₄b
+  have v₁₀q₇₅ := (w₇₅.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₇₄c
   have v₁₂q₇₅ := (w₇₅.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₇₄
   have v₁₃q₇₅ := (w₇₅.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₇₄
-  clear w₇₅ v₉q₇₄ s₇₄ v₁q₇₄ v₂q₇₄ v₃q₇₄ v₄q₇₄ v₅q₇₄ v₆q₇₄ v₇q₇₄ v₈q₇₄ e₇₄ v₁₁q₇₄ v₁₂q₇₄ v₁₃q₇₄
-  obtain ⟨w₇₆, e₇₆⟩ := subMulWin_val (q := q₇₅) (o := (7 * L)) (len := L) (by rw [s₇₅]; lia) (6 * L) L 1
+  clear w₇₅ v₁₁q₇₄ s₇₄ v₁q₇₄ v₂q₇₄ v₃q₇₄ v₄q₇₄ v₅q₇₄ v₆q₇₄ v₇q₇₄ e₇₄a e₇₄b e₇₄c v₁₂q₇₄ v₁₃q₇₄
+  obtain ⟨w₇₆, e₇₆⟩ := subMulWin_val (q := q₇₅) (o := (11 * L)) (len := L) (by rw [s₇₅]; lia) (12 * L) L 8
       (by rw [s₇₅]; lia) (by lia) (by lia) (by decide)
-      (V := 40320 * c₈ + 1451520 * c₉ + 30240000 * c₁₀ + 479001600 * c₁₁ + 6411968640 * c₁₂ + 76592355840 * c₁₃ + 843184742400 * c₁₄) v₈q₇₅ v₇q₇₅ (by lia)
-  rw [← (show q₇₆ = R.subMulWin q₇₅ (7 * L) L (6 * L) L 1 from rfl)] at w₇₆ e₇₆
+      (V := c₁₂ + 28 * c₁₃ + 462 * c₁₄) v₁₂q₇₅ v₁₃q₇₅ (by lia)
+  rw [← (show q₇₆ = R.subMulWin q₇₅ (11 * L) L (12 * L) L 8 from rfl)] at w₇₆ e₇₆
   clear_value q₇₆
   have s₇₆ := w₇₆.1.trans s₇₅
   have v₁q₇₆ := (w₇₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₇₅
@@ -7681,16 +6740,15 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₅q₇₆ := (w₇₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₇₅
   have v₆q₇₆ := (w₇₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₇₅
   have v₇q₇₆ := (w₇₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₇₅
-  have v₉q₇₆ := (w₇₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₇₅
+  have v₈q₇₆ := (w₇₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₇₅
+  have v₉q₇₆ := (w₇₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₇₅
   have v₁₀q₇₆ := (w₇₆.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₇₅
-  have v₁₁q₇₆ := (w₇₆.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₇₅
-  have v₁₂q₇₆ := (w₇₆.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₇₅
+  have v₁₁q₇₆ := (w₇₆.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₇₅
   have v₁₃q₇₆ := (w₇₆.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₇₅
-  clear w₇₆ v₈q₇₅ s₇₅ v₁q₇₅ v₂q₇₅ v₃q₇₅ v₄q₇₅ v₅q₇₅ v₆q₇₅ v₇q₇₅ e₇₅ v₁₀q₇₅ v₁₁q₇₅ v₁₂q₇₅ v₁₃q₇₅
-  obtain ⟨w₇₇, e₇₇⟩ := subMulWin_val (q := q₇₆) (o := (12 * L)) (len := L) (by rw [s₇₆]; lia) (11 * L) L 1
-      (by rw [s₇₆]; lia) (by lia) (by lia) (by decide)
-      (V := 362880 * c₉ + 30844800 * c₁₀ + 1456963200 * c₁₁ + 50554627200 * c₁₂ + 1439168290560 * c₁₃ + 35630494099200 * c₁₄) v₁₃q₇₆ v₁₂q₇₆ (by lia)
-  rw [← (show q₇₇ = R.subMulWin q₇₆ (12 * L) L (11 * L) L 1 from rfl)] at w₇₇ e₇₇
+  clear w₇₆ v₁₂q₇₅ s₇₅ v₁q₇₅ v₂q₇₅ v₃q₇₅ v₄q₇₅ v₅q₇₅ v₆q₇₅ v₇q₇₅ v₈q₇₅ v₉q₇₅ v₁₀q₇₅ e₇₅ v₁₃q₇₅
+  obtain ⟨w₇₇, e₇₇⟩ := subMulW_val (q := q₇₆) (o := (12 * L)) (len := L) (by rw [s₇₆]; lia) d (o + 14 * k) (n - 14 * k) 8 (by decide)
+      (V := c₁₃ + 28 * c₁₄) v₁₃q₇₆ hc₁₄ (by lia)
+  rw [← (show q₇₇ = R.subMulInto q₇₆ (12 * L) L d (o + 14 * k) (n - 14 * k) 8 from rfl)] at w₇₇ e₇₇
   clear_value q₇₇
   have s₇₇ := w₇₇.1.trans s₇₆
   have v₁q₇₇ := (w₇₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₇₆
@@ -7700,16 +6758,17 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₅q₇₇ := (w₇₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₇₆
   have v₆q₇₇ := (w₇₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₇₆
   have v₇q₇₇ := (w₇₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₇₆
-  have v₈q₇₇ := (w₇₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₇₆
+  have v₈q₇₇ := (w₇₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₇₆
   have v₉q₇₇ := (w₇₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₇₆
   have v₁₀q₇₇ := (w₇₇.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₇₆
   have v₁₁q₇₇ := (w₇₇.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₇₆
-  have v₁₂q₇₇ := (w₇₇.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₇₆
-  clear w₇₇ v₁₃q₇₆ s₇₆ v₁q₇₆ v₂q₇₆ v₃q₇₆ v₄q₇₆ v₅q₇₆ v₆q₇₆ v₇q₇₆ e₇₆ v₉q₇₆ v₁₀q₇₆ v₁₁q₇₆ v₁₂q₇₆
-  obtain ⟨w₇₈, e₇₈⟩ := subMulWin_val (q := q₇₇) (o := (11 * L)) (len := L) (by rw [s₇₇]; lia) (10 * L) L 1
-      (by rw [s₇₇]; lia) (by lia) (by lia) (by decide)
-      (V := 362880 * c₉ + 27216000 * c₁₀ + 1137628800 * c₁₁ + 35026992000 * c₁₂ + 887039112960 * c₁₃ + 19582423660800 * c₁₄) v₁₂q₇₇ v₁₁q₇₇ (by lia)
-  rw [← (show q₇₈ = R.subMulWin q₇₇ (11 * L) L (10 * L) L 1 from rfl)] at w₇₈ e₇₈
+  have v₁₂q₇₇ := (w₇₇.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₇₆
+  clear w₇₇ v₁₃q₇₆ s₇₆ v₁q₇₆ v₂q₇₆ v₃q₇₆ v₄q₇₆ v₅q₇₆ v₆q₇₆ v₇q₇₆ v₈q₇₆ v₉q₇₆ v₁₀q₇₆ v₁₁q₇₆ e₇₆
+  obtain ⟨w₇₈, e₇₈a, e₇₈b, e₇₈c⟩ := sub3ChainW_val (q := q₇₇) (o₁ := (6 * L)) (o₂ := (7 * L))
+      (o₃ := (8 * L)) (o₄ := (9 * L)) (len := L) (6 * L) (3 * L) (by rw [s₇₇]; lia) (by lia) (by lia) 7
+      (V₁ := c₇ + 21 * c₈ + 266 * c₉ + 2646 * c₁₀ + 22827 * c₁₁ + 179487 * c₁₂ + 1323652 * c₁₃ + 9321312 * c₁₄) (V₂ := c₈ + 21 * c₉ + 266 * c₁₀ + 2646 * c₁₁ + 22827 * c₁₂ + 179487 * c₁₃ + 1323652 * c₁₄) (V₃ := c₉ + 21 * c₁₀ + 266 * c₁₁ + 2646 * c₁₂ + 22827 * c₁₃ + 179487 * c₁₄)
+      v₇q₇₇ v₈q₇₇ v₉q₇₇ v₁₀q₇₇ (by lia) (by lia) (by lia)
+  rw [← (show q₇₈ = R.sub3Chain q₇₇ (6 * L) (7 * L) (8 * L) (9 * L) L 7 from rfl)] at w₇₈ e₇₈a e₇₈b e₇₈c
   clear_value q₇₈
   have s₇₈ := w₇₈.1.trans s₇₇
   have v₁q₇₈ := (w₇₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₇₇
@@ -7718,17 +6777,16 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₄q₇₈ := (w₇₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₇₇
   have v₅q₇₈ := (w₇₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₇₇
   have v₆q₇₈ := (w₇₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₇₇
-  have v₇q₇₈ := (w₇₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₇₇
-  have v₈q₇₈ := (w₇₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₇₇
-  have v₉q₇₈ := (w₇₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₇₇
   have v₁₀q₇₈ := (w₇₈.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₇₇
   have v₁₁q₇₈ := (w₇₈.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₇₇
+  have v₁₂q₇₈ := (w₇₈.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₇₇
   have v₁₃q₇₈ := (w₇₈.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₇₇
-  clear w₇₈ v₁₂q₇₇ s₇₇ v₁q₇₇ v₂q₇₇ v₃q₇₇ v₄q₇₇ v₅q₇₇ v₆q₇₇ v₇q₇₇ v₈q₇₇ v₉q₇₇ v₁₀q₇₇ v₁₁q₇₇ e₇₇
-  obtain ⟨w₇₉, e₇₉⟩ := subMulWin_val (q := q₇₈) (o := (10 * L)) (len := L) (by rw [s₇₈]; lia) (9 * L) L 1
-      (by rw [s₇₈]; lia) (by lia) (by lia) (by decide)
-      (V := 362880 * c₉ + 23587200 * c₁₀ + 858211200 * c₁₁ + 23091868800 * c₁₂ + 512898946560 * c₁₃ + 9963752198400 * c₁₄) v₁₁q₇₈ v₁₀q₇₈ (by lia)
-  rw [← (show q₇₉ = R.subMulWin q₇₈ (10 * L) L (9 * L) L 1 from rfl)] at w₇₉ e₇₉
+  clear w₇₈ v₇q₇₇ v₈q₇₇ v₉q₇₇ s₇₇ v₁q₇₇ v₂q₇₇ v₃q₇₇ v₄q₇₇ v₅q₇₇ v₆q₇₇ v₁₀q₇₇ v₁₁q₇₇ v₁₂q₇₇ e₇₇
+  obtain ⟨w₇₉, e₇₉a, e₇₉b, e₇₉c⟩ := sub3ChainW_val (q := q₇₈) (o₁ := (9 * L)) (o₂ := (10 * L))
+      (o₃ := (11 * L)) (o₄ := (12 * L)) (len := L) (9 * L) (3 * L) (by rw [s₇₈]; lia) (by lia) (by lia) 7
+      (V₁ := c₁₀ + 21 * c₁₁ + 266 * c₁₂ + 2646 * c₁₃ + 22827 * c₁₄) (V₂ := c₁₁ + 21 * c₁₂ + 266 * c₁₃ + 2646 * c₁₄) (V₃ := c₁₂ + 21 * c₁₃ + 266 * c₁₄)
+      v₁₀q₇₈ v₁₁q₇₈ v₁₂q₇₈ v₁₃q₇₈ (by lia) (by lia) (by lia)
+  rw [← (show q₇₉ = R.sub3Chain q₇₈ (9 * L) (10 * L) (11 * L) (12 * L) L 7 from rfl)] at w₇₉ e₇₉a e₇₉b e₇₉c
   clear_value q₇₉
   have s₇₉ := w₇₉.1.trans s₇₈
   have v₁q₇₉ := (w₇₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₇₈
@@ -7737,17 +6795,14 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₄q₇₉ := (w₇₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₇₈
   have v₅q₇₉ := (w₇₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₇₈
   have v₆q₇₉ := (w₇₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₇₈
-  have v₇q₇₉ := (w₇₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₇₈
-  have v₈q₇₉ := (w₇₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₇₈
-  have v₉q₇₉ := (w₇₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₇₈
-  have v₁₀q₇₉ := (w₇₉.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₇₈
-  have v₁₂q₇₉ := (w₇₉.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₇₈
+  have v₇q₇₉ := (w₇₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₇₈a
+  have v₈q₇₉ := (w₇₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₇₈b
+  have v₉q₇₉ := (w₇₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₇₈c
   have v₁₃q₇₉ := (w₇₉.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₇₈
-  clear w₇₉ v₁₁q₇₈ s₇₈ v₁q₇₈ v₂q₇₈ v₃q₇₈ v₄q₇₈ v₅q₇₈ v₆q₇₈ v₇q₇₈ v₈q₇₈ v₉q₇₈ v₁₀q₇₈ e₇₈ v₁₃q₇₈
-  obtain ⟨w₈₀, e₈₀⟩ := subMulWin_val (q := q₇₉) (o := (9 * L)) (len := L) (by rw [s₇₉]; lia) (8 * L) L 1
-      (by rw [s₇₉]; lia) (by lia) (by lia) (by decide)
-      (V := 362880 * c₉ + 19958400 * c₁₀ + 618710400 * c₁₁ + 14270256000 * c₁₂ + 273158645760 * c₁₃ + 4595022432000 * c₁₄) v₁₀q₇₉ v₉q₇₉ (by lia)
-  rw [← (show q₈₀ = R.subMulWin q₇₉ (9 * L) L (8 * L) L 1 from rfl)] at w₈₀ e₈₀
+  clear w₇₉ v₁₀q₇₈ v₁₁q₇₈ v₁₂q₇₈ s₇₈ v₁q₇₈ v₂q₇₈ v₃q₇₈ v₄q₇₈ v₅q₇₈ v₆q₇₈ e₇₈a e₇₈b e₇₈c v₁₃q₇₈
+  obtain ⟨w₈₀, e₈₀⟩ := subMulW_val (q := q₇₉) (o := (12 * L)) (len := L) (by rw [s₇₉]; lia) d (o + 14 * k) (n - 14 * k) 7 (by decide)
+      (V := c₁₃ + 21 * c₁₄) v₁₃q₇₉ hc₁₄ (by lia)
+  rw [← (show q₈₀ = R.subMulInto q₇₉ (12 * L) L d (o + 14 * k) (n - 14 * k) 7 from rfl)] at w₈₀ e₈₀
   clear_value q₈₀
   have s₈₀ := w₈₀.1.trans s₇₉
   have v₁q₈₀ := (w₈₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₇₉
@@ -7759,14 +6814,15 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₇q₈₀ := (w₈₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₇₉
   have v₈q₈₀ := (w₈₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₇₉
   have v₉q₈₀ := (w₈₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₇₉
-  have v₁₁q₈₀ := (w₈₀.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₇₉
-  have v₁₂q₈₀ := (w₈₀.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₇₉
-  have v₁₃q₈₀ := (w₈₀.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₇₉
-  clear w₈₀ v₁₀q₇₉ s₇₉ v₁q₇₉ v₂q₇₉ v₃q₇₉ v₄q₇₉ v₅q₇₉ v₆q₇₉ v₇q₇₉ v₈q₇₉ v₉q₇₉ e₇₉ v₁₂q₇₉ v₁₃q₇₉
-  obtain ⟨w₈₁, e₈₁⟩ := subMulWin_val (q := q₈₀) (o := (8 * L)) (len := L) (by rw [s₈₀]; lia) (7 * L) L 1
-      (by rw [s₈₀]; lia) (by lia) (by lia) (by decide)
-      (V := 362880 * c₉ + 16329600 * c₁₀ + 419126400 * c₁₁ + 8083152000 * c₁₂ + 130456085760 * c₁₃ + 1863435974400 * c₁₄) v₉q₈₀ v₈q₈₀ (by lia)
-  rw [← (show q₈₁ = R.subMulWin q₈₀ (8 * L) L (7 * L) L 1 from rfl)] at w₈₁ e₈₁
+  have v₁₀q₈₀ := (w₈₀.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₇₉a
+  have v₁₁q₈₀ := (w₈₀.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₇₉b
+  have v₁₂q₈₀ := (w₈₀.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₇₉c
+  clear w₈₀ v₁₃q₇₉ s₇₉ v₁q₇₉ v₂q₇₉ v₃q₇₉ v₄q₇₉ v₅q₇₉ v₆q₇₉ v₇q₇₉ v₈q₇₉ v₉q₇₉ e₇₉a e₇₉b e₇₉c
+  obtain ⟨w₈₁, e₈₁a, e₈₁b, e₈₁c⟩ := sub3ChainW_val (q := q₈₀) (o₁ := (5 * L)) (o₂ := (6 * L))
+      (o₃ := (7 * L)) (o₄ := (8 * L)) (len := L) (5 * L) (3 * L) (by rw [s₈₀]; lia) (by lia) (by lia) 6
+      (V₁ := c₆ + 15 * c₇ + 140 * c₈ + 1050 * c₉ + 6951 * c₁₀ + 42525 * c₁₁ + 246730 * c₁₂ + 1379400 * c₁₃ + 7508501 * c₁₄) (V₂ := c₇ + 15 * c₈ + 140 * c₉ + 1050 * c₁₀ + 6951 * c₁₁ + 42525 * c₁₂ + 246730 * c₁₃ + 1379400 * c₁₄) (V₃ := c₈ + 15 * c₉ + 140 * c₁₀ + 1050 * c₁₁ + 6951 * c₁₂ + 42525 * c₁₃ + 246730 * c₁₄)
+      v₆q₈₀ v₇q₈₀ v₈q₈₀ v₉q₈₀ (by lia) (by lia) (by lia)
+  rw [← (show q₈₁ = R.sub3Chain q₈₀ (5 * L) (6 * L) (7 * L) (8 * L) L 6 from rfl)] at w₈₁ e₈₁a e₈₁b e₈₁c
   clear_value q₈₁
   have s₈₁ := w₈₁.1.trans s₈₀
   have v₁q₈₁ := (w₈₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₈₀
@@ -7774,18 +6830,17 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₃q₈₁ := (w₈₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₈₀
   have v₄q₈₁ := (w₈₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₈₀
   have v₅q₈₁ := (w₈₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₈₀
-  have v₆q₈₁ := (w₈₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₈₀
-  have v₇q₈₁ := (w₈₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₈₀
-  have v₈q₈₁ := (w₈₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₈₀
-  have v₁₀q₈₁ := (w₈₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₈₀
+  have v₉q₈₁ := (w₈₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₈₀
+  have v₁₀q₈₁ := (w₈₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₈₀
   have v₁₁q₈₁ := (w₈₁.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₈₀
   have v₁₂q₈₁ := (w₈₁.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₈₀
-  have v₁₃q₈₁ := (w₈₁.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₈₀
-  clear w₈₁ v₉q₈₀ s₈₀ v₁q₈₀ v₂q₈₀ v₃q₈₀ v₄q₈₀ v₅q₈₀ v₆q₈₀ v₇q₈₀ v₈q₈₀ e₈₀ v₁₁q₈₀ v₁₂q₈₀ v₁₃q₈₀
-  obtain ⟨w₈₂, e₈₂⟩ := subMulWin_val (q := q₈₁) (o := (12 * L)) (len := L) (by rw [s₈₁]; lia) (11 * L) L 1
-      (by rw [s₈₁]; lia) (by lia) (by lia) (by decide)
-      (V := 3628800 * c₁₀ + 319334400 * c₁₁ + 15527635200 * c₁₂ + 552129177600 * c₁₃ + 16048070438400 * c₁₄) v₁₃q₈₁ v₁₂q₈₁ (by lia)
-  rw [← (show q₈₂ = R.subMulWin q₈₁ (12 * L) L (11 * L) L 1 from rfl)] at w₈₂ e₈₂
+  have v₁₃q₈₁ := (w₈₁.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₈₀
+  clear w₈₁ v₆q₈₀ v₇q₈₀ v₈q₈₀ s₈₀ v₁q₈₀ v₂q₈₀ v₃q₈₀ v₄q₈₀ v₅q₈₀ v₉q₈₀ v₁₀q₈₀ v₁₁q₈₀ v₁₂q₈₀ e₈₀
+  obtain ⟨w₈₂, e₈₂a, e₈₂b, e₈₂c⟩ := sub3ChainW_val (q := q₈₁) (o₁ := (8 * L)) (o₂ := (9 * L))
+      (o₃ := (10 * L)) (o₄ := (11 * L)) (len := L) (8 * L) (3 * L) (by rw [s₈₁]; lia) (by lia) (by lia) 6
+      (V₁ := c₉ + 15 * c₁₀ + 140 * c₁₁ + 1050 * c₁₂ + 6951 * c₁₃ + 42525 * c₁₄) (V₂ := c₁₀ + 15 * c₁₁ + 140 * c₁₂ + 1050 * c₁₃ + 6951 * c₁₄) (V₃ := c₁₁ + 15 * c₁₂ + 140 * c₁₃ + 1050 * c₁₄)
+      v₉q₈₁ v₁₀q₈₁ v₁₁q₈₁ v₁₂q₈₁ (by lia) (by lia) (by lia)
+  rw [← (show q₈₂ = R.sub3Chain q₈₁ (8 * L) (9 * L) (10 * L) (11 * L) L 6 from rfl)] at w₈₂ e₈₂a e₈₂b e₈₂c
   clear_value q₈₂
   have s₈₂ := w₈₂.1.trans s₈₁
   have v₁q₈₂ := (w₈₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₈₁
@@ -7793,18 +6848,16 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₃q₈₂ := (w₈₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₈₁
   have v₄q₈₂ := (w₈₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₈₁
   have v₅q₈₂ := (w₈₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₈₁
-  have v₆q₈₂ := (w₈₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₈₁
-  have v₇q₈₂ := (w₈₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₈₁
-  have v₈q₈₂ := (w₈₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₈₁
-  have v₉q₈₂ := (w₈₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₈₁
-  have v₁₀q₈₂ := (w₈₂.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₈₁
-  have v₁₁q₈₂ := (w₈₂.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₈₁
+  have v₆q₈₂ := (w₈₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₈₁a
+  have v₇q₈₂ := (w₈₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₈₁b
+  have v₈q₈₂ := (w₈₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₈₁c
   have v₁₂q₈₂ := (w₈₂.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₈₁
-  clear w₈₂ v₁₃q₈₁ s₈₁ v₁q₈₁ v₂q₈₁ v₃q₈₁ v₄q₈₁ v₅q₈₁ v₆q₈₁ v₇q₈₁ v₈q₈₁ e₈₁ v₁₀q₈₁ v₁₁q₈₁ v₁₂q₈₁
-  obtain ⟨w₈₃, e₈₃⟩ := subMulWin_val (q := q₈₂) (o := (11 * L)) (len := L) (by rw [s₈₂]; lia) (10 * L) L 1
+  have v₁₃q₈₂ := (w₈₂.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₈₁
+  clear w₈₂ v₉q₈₁ v₁₀q₈₁ v₁₁q₈₁ s₈₁ v₁q₈₁ v₂q₈₁ v₃q₈₁ v₄q₈₁ v₅q₈₁ e₈₁a e₈₁b e₈₁c v₁₂q₈₁ v₁₃q₈₁
+  obtain ⟨w₈₃, e₈₃⟩ := subMulWin_val (q := q₈₂) (o := (11 * L)) (len := L) (by rw [s₈₂]; lia) (12 * L) L 6
       (by rw [s₈₂]; lia) (by lia) (by lia) (by decide)
-      (V := 3628800 * c₁₀ + 279417600 * c₁₁ + 11935123200 * c₁₂ + 374140166400 * c₁₃ + 9618671462400 * c₁₄) v₁₂q₈₂ v₁₁q₈₂ (by lia)
-  rw [← (show q₈₃ = R.subMulWin q₈₂ (11 * L) L (10 * L) L 1 from rfl)] at w₈₃ e₈₃
+      (V := c₁₂ + 15 * c₁₃ + 140 * c₁₄) v₁₂q₈₂ v₁₃q₈₂ (by lia)
+  rw [← (show q₈₃ = R.subMulWin q₈₂ (11 * L) L (12 * L) L 6 from rfl)] at w₈₃ e₈₃
   clear_value q₈₃
   have s₈₃ := w₈₃.1.trans s₈₂
   have v₁q₈₃ := (w₈₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₈₂
@@ -7815,15 +6868,14 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₆q₈₃ := (w₈₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₈₂
   have v₇q₈₃ := (w₈₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₈₂
   have v₈q₈₃ := (w₈₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₈₂
-  have v₉q₈₃ := (w₈₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₈₂
-  have v₁₀q₈₃ := (w₈₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₈₂
-  have v₁₁q₈₃ := (w₈₃.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₈₂
-  have v₁₃q₈₃ := (w₈₃.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₈₂
-  clear w₈₃ v₁₂q₈₂ s₈₂ v₁q₈₂ v₂q₈₂ v₃q₈₂ v₄q₈₂ v₅q₈₂ v₆q₈₂ v₇q₈₂ v₈q₈₂ v₉q₈₂ v₁₀q₈₂ v₁₁q₈₂ e₈₂
-  obtain ⟨w₈₄, e₈₄⟩ := subMulWin_val (q := q₈₃) (o := (10 * L)) (len := L) (by rw [s₈₃]; lia) (9 * L) L 1
-      (by rw [s₈₃]; lia) (by lia) (by lia) (by decide)
-      (V := 3628800 * c₁₀ + 239500800 * c₁₁ + 8821612800 * c₁₂ + 239740300800 * c₁₃ + 5368729766400 * c₁₄) v₁₁q₈₃ v₁₀q₈₃ (by lia)
-  rw [← (show q₈₄ = R.subMulWin q₈₃ (10 * L) L (9 * L) L 1 from rfl)] at w₈₄ e₈₄
+  have v₉q₈₃ := (w₈₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₈₂a
+  have v₁₀q₈₃ := (w₈₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₈₂b
+  have v₁₁q₈₃ := (w₈₃.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₈₂c
+  have v₁₃q₈₃ := (w₈₃.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₈₂
+  clear w₈₃ v₁₂q₈₂ s₈₂ v₁q₈₂ v₂q₈₂ v₃q₈₂ v₄q₈₂ v₅q₈₂ v₆q₈₂ v₇q₈₂ v₈q₈₂ e₈₂a e₈₂b e₈₂c v₁₃q₈₂
+  obtain ⟨w₈₄, e₈₄⟩ := subMulW_val (q := q₈₃) (o := (12 * L)) (len := L) (by rw [s₈₃]; lia) d (o + 14 * k) (n - 14 * k) 6 (by decide)
+      (V := c₁₃ + 15 * c₁₄) v₁₃q₈₃ hc₁₄ (by lia)
+  rw [← (show q₈₄ = R.subMulInto q₈₃ (12 * L) L d (o + 14 * k) (n - 14 * k) 6 from rfl)] at w₈₄ e₈₄
   clear_value q₈₄
   have s₈₄ := w₈₄.1.trans s₈₃
   have v₁q₈₄ := (w₈₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₈₃
@@ -7836,51 +6888,49 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₈q₈₄ := (w₈₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₈₃
   have v₉q₈₄ := (w₈₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₈₃
   have v₁₀q₈₄ := (w₈₄.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₈₃
+  have v₁₁q₈₄ := (w₈₄.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₈₃
   have v₁₂q₈₄ := (w₈₄.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₈₃
-  have v₁₃q₈₄ := (w₈₄.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₈₃
-  clear w₈₄ v₁₁q₈₃ s₈₃ v₁q₈₃ v₂q₈₃ v₃q₈₃ v₄q₈₃ v₅q₈₃ v₆q₈₃ v₇q₈₃ v₈q₈₃ v₉q₈₃ v₁₀q₈₃ e₈₃ v₁₃q₈₃
-  obtain ⟨w₈₅, e₈₅⟩ := subMulWin_val (q := q₈₄) (o := (9 * L)) (len := L) (by rw [s₈₄]; lia) (8 * L) L 1
-      (by rw [s₈₄]; lia) (by lia) (by lia) (by decide)
-      (V := 3628800 * c₁₀ + 199584000 * c₁₁ + 6187104000 * c₁₂ + 142702560000 * c₁₃ + 2731586457600 * c₁₄) v₁₀q₈₄ v₉q₈₄ (by lia)
-  rw [← (show q₈₅ = R.subMulWin q₈₄ (9 * L) L (8 * L) L 1 from rfl)] at w₈₅ e₈₅
+  clear w₈₄ v₁₃q₈₃ s₈₃ v₁q₈₃ v₂q₈₃ v₃q₈₃ v₄q₈₃ v₅q₈₃ v₆q₈₃ v₇q₈₃ v₈q₈₃ v₉q₈₃ v₁₀q₈₃ v₁₁q₈₃ e₈₃
+  obtain ⟨w₈₅, e₈₅a, e₈₅b, e₈₅c⟩ := sub3ChainW_val (q := q₈₄) (o₁ := (4 * L)) (o₂ := (5 * L))
+      (o₃ := (6 * L)) (o₄ := (7 * L)) (len := L) (4 * L) (3 * L) (by rw [s₈₄]; lia) (by lia) (by lia) 5
+      (V₁ := c₅ + 10 * c₆ + 65 * c₇ + 350 * c₈ + 1701 * c₉ + 7770 * c₁₀ + 34105 * c₁₁ + 145750 * c₁₂ + 611501 * c₁₃ + 2532530 * c₁₄) (V₂ := c₆ + 10 * c₇ + 65 * c₈ + 350 * c₉ + 1701 * c₁₀ + 7770 * c₁₁ + 34105 * c₁₂ + 145750 * c₁₃ + 611501 * c₁₄) (V₃ := c₇ + 10 * c₈ + 65 * c₉ + 350 * c₁₀ + 1701 * c₁₁ + 7770 * c₁₂ + 34105 * c₁₃ + 145750 * c₁₄)
+      v₅q₈₄ v₆q₈₄ v₇q₈₄ v₈q₈₄ (by lia) (by lia) (by lia)
+  rw [← (show q₈₅ = R.sub3Chain q₈₄ (4 * L) (5 * L) (6 * L) (7 * L) L 5 from rfl)] at w₈₅ e₈₅a e₈₅b e₈₅c
   clear_value q₈₅
   have s₈₅ := w₈₅.1.trans s₈₄
   have v₁q₈₅ := (w₈₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₈₄
   have v₂q₈₅ := (w₈₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₈₄
   have v₃q₈₅ := (w₈₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₈₄
   have v₄q₈₅ := (w₈₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₈₄
-  have v₅q₈₅ := (w₈₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₈₄
-  have v₆q₈₅ := (w₈₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₈₄
-  have v₇q₈₅ := (w₈₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₈₄
   have v₈q₈₅ := (w₈₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₈₄
   have v₉q₈₅ := (w₈₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₈₄
-  have v₁₁q₈₅ := (w₈₅.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₈₄
+  have v₁₀q₈₅ := (w₈₅.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₈₄
+  have v₁₁q₈₅ := (w₈₅.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₈₄
   have v₁₂q₈₅ := (w₈₅.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₈₄
-  have v₁₃q₈₅ := (w₈₅.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₈₄
-  clear w₈₅ v₁₀q₈₄ s₈₄ v₁q₈₄ v₂q₈₄ v₃q₈₄ v₄q₈₄ v₅q₈₄ v₆q₈₄ v₇q₈₄ v₈q₈₄ v₉q₈₄ e₈₄ v₁₂q₈₄ v₁₃q₈₄
-  obtain ⟨w₈₆, e₈₆⟩ := subMulWin_val (q := q₈₅) (o := (12 * L)) (len := L) (by rw [s₈₅]; lia) (11 * L) L 1
-      (by rw [s₈₅]; lia) (by lia) (by lia) (by decide)
-      (V := 39916800 * c₁₁ + 3592512000 * c₁₂ + 177989011200 * c₁₃ + 6429398976000 * c₁₄) v₁₃q₈₅ v₁₂q₈₅ (by lia)
-  rw [← (show q₈₆ = R.subMulWin q₈₅ (12 * L) L (11 * L) L 1 from rfl)] at w₈₆ e₈₆
+  have v₁₃q₈₅ := (w₈₅.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₈₄
+  clear w₈₅ v₅q₈₄ v₆q₈₄ v₇q₈₄ s₈₄ v₁q₈₄ v₂q₈₄ v₃q₈₄ v₄q₈₄ v₈q₈₄ v₉q₈₄ v₁₀q₈₄ v₁₁q₈₄ v₁₂q₈₄ e₈₄
+  obtain ⟨w₈₆, e₈₆a, e₈₆b, e₈₆c⟩ := sub3ChainW_val (q := q₈₅) (o₁ := (7 * L)) (o₂ := (8 * L))
+      (o₃ := (9 * L)) (o₄ := (10 * L)) (len := L) (7 * L) (3 * L) (by rw [s₈₅]; lia) (by lia) (by lia) 5
+      (V₁ := c₈ + 10 * c₉ + 65 * c₁₀ + 350 * c₁₁ + 1701 * c₁₂ + 7770 * c₁₃ + 34105 * c₁₄) (V₂ := c₉ + 10 * c₁₀ + 65 * c₁₁ + 350 * c₁₂ + 1701 * c₁₃ + 7770 * c₁₄) (V₃ := c₁₀ + 10 * c₁₁ + 65 * c₁₂ + 350 * c₁₃ + 1701 * c₁₄)
+      v₈q₈₅ v₉q₈₅ v₁₀q₈₅ v₁₁q₈₅ (by lia) (by lia) (by lia)
+  rw [← (show q₈₆ = R.sub3Chain q₈₅ (7 * L) (8 * L) (9 * L) (10 * L) L 5 from rfl)] at w₈₆ e₈₆a e₈₆b e₈₆c
   clear_value q₈₆
   have s₈₆ := w₈₆.1.trans s₈₅
   have v₁q₈₆ := (w₈₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₈₅
   have v₂q₈₆ := (w₈₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₈₅
   have v₃q₈₆ := (w₈₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₈₅
   have v₄q₈₆ := (w₈₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₈₅
-  have v₅q₈₆ := (w₈₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₈₅
-  have v₆q₈₆ := (w₈₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₈₅
-  have v₇q₈₆ := (w₈₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₈₅
-  have v₈q₈₆ := (w₈₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₈₅
-  have v₉q₈₆ := (w₈₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₈₅
-  have v₁₀q₈₆ := (w₈₆.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₈₅
+  have v₅q₈₆ := (w₈₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₈₅a
+  have v₆q₈₆ := (w₈₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₈₅b
+  have v₇q₈₆ := (w₈₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₈₅c
   have v₁₁q₈₆ := (w₈₆.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₈₅
   have v₁₂q₈₆ := (w₈₆.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₈₅
-  clear w₈₆ v₁₃q₈₅ s₈₅ v₁q₈₅ v₂q₈₅ v₃q₈₅ v₄q₈₅ v₅q₈₅ v₆q₈₅ v₇q₈₅ v₈q₈₅ v₉q₈₅ e₈₅ v₁₁q₈₅ v₁₂q₈₅
-  obtain ⟨w₈₇, e₈₇⟩ := subMulWin_val (q := q₈₆) (o := (11 * L)) (len := L) (by rw [s₈₆]; lia) (10 * L) L 1
+  have v₁₃q₈₆ := (w₈₆.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₈₅
+  clear w₈₆ v₈q₈₅ v₉q₈₅ v₁₀q₈₅ s₈₅ v₁q₈₅ v₂q₈₅ v₃q₈₅ v₄q₈₅ e₈₅a e₈₅b e₈₅c v₁₁q₈₅ v₁₂q₈₅ v₁₃q₈₅
+  obtain ⟨w₈₇, e₈₇⟩ := subMulWin_val (q := q₈₆) (o := (10 * L)) (len := L) (by rw [s₈₆]; lia) (11 * L) L 5
       (by rw [s₈₆]; lia) (by lia) (by lia) (by decide)
-      (V := 39916800 * c₁₁ + 3113510400 * c₁₂ + 134399865600 * c₁₃ + 4249941696000 * c₁₄) v₁₂q₈₆ v₁₁q₈₆ (by lia)
-  rw [← (show q₈₇ = R.subMulWin q₈₆ (11 * L) L (10 * L) L 1 from rfl)] at w₈₇ e₈₇
+      (V := c₁₁ + 10 * c₁₂ + 65 * c₁₃ + 350 * c₁₄) v₁₁q₈₆ v₁₂q₈₆ (by lia)
+  rw [← (show q₈₇ = R.subMulWin q₈₆ (10 * L) L (11 * L) L 5 from rfl)] at w₈₇ e₈₇
   clear_value q₈₇
   have s₈₇ := w₈₇.1.trans s₈₆
   have v₁q₈₇ := (w₈₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₈₆
@@ -7890,16 +6940,16 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₅q₈₇ := (w₈₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₈₆
   have v₆q₈₇ := (w₈₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₈₆
   have v₇q₈₇ := (w₈₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₈₆
-  have v₈q₈₇ := (w₈₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₈₆
-  have v₉q₈₇ := (w₈₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₈₆
-  have v₁₀q₈₇ := (w₈₇.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₈₆
-  have v₁₁q₈₇ := (w₈₇.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₈₆
-  have v₁₃q₈₇ := (w₈₇.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₈₆
-  clear w₈₇ v₁₂q₈₆ s₈₆ v₁q₈₆ v₂q₈₆ v₃q₈₆ v₄q₈₆ v₅q₈₆ v₆q₈₆ v₇q₈₆ v₈q₈₆ v₉q₈₆ v₁₀q₈₆ v₁₁q₈₆ e₈₆
-  obtain ⟨w₈₈, e₈₈⟩ := subMulWin_val (q := q₈₇) (o := (10 * L)) (len := L) (by rw [s₈₇]; lia) (9 * L) L 1
+  have v₈q₈₇ := (w₈₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₈₆a
+  have v₉q₈₇ := (w₈₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₈₆b
+  have v₁₀q₈₇ := (w₈₇.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₈₆c
+  have v₁₂q₈₇ := (w₈₇.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₈₆
+  have v₁₃q₈₇ := (w₈₇.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₈₆
+  clear w₈₇ v₁₁q₈₆ s₈₆ v₁q₈₆ v₂q₈₆ v₃q₈₆ v₄q₈₆ v₅q₈₆ v₆q₈₆ v₇q₈₆ e₈₆a e₈₆b e₈₆c v₁₂q₈₆ v₁₃q₈₆
+  obtain ⟨w₈₈, e₈₈⟩ := subMulWin_val (q := q₈₇) (o := (11 * L)) (len := L) (by rw [s₈₇]; lia) (12 * L) L 5
       (by rw [s₈₇]; lia) (by lia) (by lia) (by decide)
-      (V := 39916800 * c₁₁ + 2634508800 * c₁₂ + 97037740800 * c₁₃ + 2637143308800 * c₁₄) v₁₁q₈₇ v₁₀q₈₇ (by lia)
-  rw [← (show q₈₈ = R.subMulWin q₈₇ (10 * L) L (9 * L) L 1 from rfl)] at w₈₈ e₈₈
+      (V := c₁₂ + 10 * c₁₃ + 65 * c₁₄) v₁₂q₈₇ v₁₃q₈₇ (by lia)
+  rw [← (show q₈₈ = R.subMulWin q₈₇ (11 * L) L (12 * L) L 5 from rfl)] at w₈₈ e₈₈
   clear_value q₈₈
   have s₈₈ := w₈₈.1.trans s₈₇
   have v₁q₈₈ := (w₈₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₈₇
@@ -7912,13 +6962,12 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₈q₈₈ := (w₈₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₈₇
   have v₉q₈₈ := (w₈₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₈₇
   have v₁₀q₈₈ := (w₈₈.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₈₇
-  have v₁₂q₈₈ := (w₈₈.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₈₇
+  have v₁₁q₈₈ := (w₈₈.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₈₇
   have v₁₃q₈₈ := (w₈₈.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₈₇
-  clear w₈₈ v₁₁q₈₇ s₈₇ v₁q₈₇ v₂q₈₇ v₃q₈₇ v₄q₈₇ v₅q₈₇ v₆q₈₇ v₇q₈₇ v₈q₈₇ v₉q₈₇ v₁₀q₈₇ e₈₇ v₁₃q₈₇
-  obtain ⟨w₈₉, e₈₉⟩ := subMulWin_val (q := q₈₈) (o := (12 * L)) (len := L) (by rw [s₈₈]; lia) (11 * L) L 1
-      (by rw [s₈₈]; lia) (by lia) (by lia) (by decide)
-      (V := 479001600 * c₁₂ + 43589145600 * c₁₃ + 2179457280000 * c₁₄) v₁₃q₈₈ v₁₂q₈₈ (by lia)
-  rw [← (show q₈₉ = R.subMulWin q₈₈ (12 * L) L (11 * L) L 1 from rfl)] at w₈₉ e₈₉
+  clear w₈₈ v₁₂q₈₇ s₈₇ v₁q₈₇ v₂q₈₇ v₃q₈₇ v₄q₈₇ v₅q₈₇ v₆q₈₇ v₇q₈₇ v₈q₈₇ v₉q₈₇ v₁₀q₈₇ e₈₇ v₁₃q₈₇
+  obtain ⟨w₈₉, e₈₉⟩ := subMulW_val (q := q₈₈) (o := (12 * L)) (len := L) (by rw [s₈₈]; lia) d (o + 14 * k) (n - 14 * k) 5 (by decide)
+      (V := c₁₃ + 10 * c₁₄) v₁₃q₈₈ hc₁₄ (by lia)
+  rw [← (show q₈₉ = R.subMulInto q₈₈ (12 * L) L d (o + 14 * k) (n - 14 * k) 5 from rfl)] at w₈₉ e₈₉
   clear_value q₈₉
   have s₈₉ := w₈₉.1.trans s₈₈
   have v₁q₈₉ := (w₈₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₈₈
@@ -7931,92 +6980,90 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₈q₈₉ := (w₈₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₈₈
   have v₉q₈₉ := (w₈₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₈₈
   have v₁₀q₈₉ := (w₈₉.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₈₈
-  have v₁₁q₈₉ := (w₈₉.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₈₈
-  have v₁₂q₈₉ := (w₈₉.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₈₈
-  clear w₈₉ v₁₃q₈₈ s₈₈ v₁q₈₈ v₂q₈₈ v₃q₈₈ v₄q₈₈ v₅q₈₈ v₆q₈₈ v₇q₈₈ v₈q₈₈ v₉q₈₈ v₁₀q₈₈ e₈₈ v₁₂q₈₈
-  obtain ⟨w₉₀, e₉₀⟩ := subMulWin_val (q := q₈₉) (o := (11 * L)) (len := L) (by rw [s₈₉]; lia) (10 * L) L 1
-      (by rw [s₈₉]; lia) (by lia) (by lia) (by decide)
-      (V := 479001600 * c₁₂ + 37362124800 * c₁₃ + 1612798387200 * c₁₄) v₁₂q₈₉ v₁₁q₈₉ (by lia)
-  rw [← (show q₉₀ = R.subMulWin q₈₉ (11 * L) L (10 * L) L 1 from rfl)] at w₉₀ e₉₀
+  have v₁₁q₈₉ := (w₈₉.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₈₈
+  have v₁₂q₈₉ := (w₈₉.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₈₈
+  clear w₈₉ v₁₃q₈₈ s₈₈ v₁q₈₈ v₂q₈₈ v₃q₈₈ v₄q₈₈ v₅q₈₈ v₆q₈₈ v₇q₈₈ v₈q₈₈ v₉q₈₈ v₁₀q₈₈ v₁₁q₈₈ e₈₈
+  obtain ⟨w₉₀, e₉₀a, e₉₀b, e₉₀c⟩ := sub3ChainW_val (q := q₈₉) (o₁ := (3 * L)) (o₂ := (4 * L))
+      (o₃ := (5 * L)) (o₄ := (6 * L)) (len := L) (3 * L) (3 * L) (by rw [s₈₉]; lia) (by lia) (by lia) 4
+      (V₁ := c₄ + 6 * c₅ + 25 * c₆ + 90 * c₇ + 301 * c₈ + 966 * c₉ + 3025 * c₁₀ + 9330 * c₁₁ + 28501 * c₁₂ + 86526 * c₁₃ + 261625 * c₁₄) (V₂ := c₅ + 6 * c₆ + 25 * c₇ + 90 * c₈ + 301 * c₉ + 966 * c₁₀ + 3025 * c₁₁ + 9330 * c₁₂ + 28501 * c₁₃ + 86526 * c₁₄) (V₃ := c₆ + 6 * c₇ + 25 * c₈ + 90 * c₉ + 301 * c₁₀ + 966 * c₁₁ + 3025 * c₁₂ + 9330 * c₁₃ + 28501 * c₁₄)
+      v₄q₈₉ v₅q₈₉ v₆q₈₉ v₇q₈₉ (by lia) (by lia) (by lia)
+  rw [← (show q₉₀ = R.sub3Chain q₈₉ (3 * L) (4 * L) (5 * L) (6 * L) L 4 from rfl)] at w₉₀ e₉₀a e₉₀b e₉₀c
   clear_value q₉₀
   have s₉₀ := w₉₀.1.trans s₈₉
   have v₁q₉₀ := (w₉₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₈₉
   have v₂q₉₀ := (w₉₀.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₈₉
   have v₃q₉₀ := (w₉₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₈₉
-  have v₄q₉₀ := (w₉₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₈₉
-  have v₅q₉₀ := (w₉₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₈₉
-  have v₆q₉₀ := (w₉₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₈₉
   have v₇q₉₀ := (w₉₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₈₉
   have v₈q₉₀ := (w₉₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₈₉
   have v₉q₉₀ := (w₉₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₈₉
   have v₁₀q₉₀ := (w₉₀.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₈₉
   have v₁₁q₉₀ := (w₉₀.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₈₉
+  have v₁₂q₉₀ := (w₉₀.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₈₉
   have v₁₃q₉₀ := (w₉₀.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₈₉
-  clear w₉₀ v₁₂q₈₉ s₈₉ v₁q₈₉ v₂q₈₉ v₃q₈₉ v₄q₈₉ v₅q₈₉ v₆q₈₉ v₇q₈₉ v₈q₈₉ v₉q₈₉ v₁₀q₈₉ v₁₁q₈₉ e₈₉
-  obtain ⟨w₉₁, e₉₁⟩ := subMulWin_val (q := q₉₀) (o := (12 * L)) (len := L) (by rw [s₉₀]; lia) (11 * L) L 1
-      (by rw [s₉₀]; lia) (by lia) (by lia) (by decide)
-      (V := 6227020800 * c₁₃ + 566658892800 * c₁₄) v₁₃q₉₀ e₉₀ (by lia)
-  rw [← (show q₉₁ = R.subMulWin q₉₀ (12 * L) L (11 * L) L 1 from rfl)] at w₉₁ e₉₁
+  clear w₉₀ v₄q₈₉ v₅q₈₉ v₆q₈₉ s₈₉ v₁q₈₉ v₂q₈₉ v₃q₈₉ v₇q₈₉ v₈q₈₉ v₉q₈₉ v₁₀q₈₉ v₁₁q₈₉ v₁₂q₈₉ e₈₉
+  obtain ⟨w₉₁, e₉₁a, e₉₁b, e₉₁c⟩ := sub3ChainW_val (q := q₉₀) (o₁ := (6 * L)) (o₂ := (7 * L))
+      (o₃ := (8 * L)) (o₄ := (9 * L)) (len := L) (6 * L) (3 * L) (by rw [s₉₀]; lia) (by lia) (by lia) 4
+      (V₁ := c₇ + 6 * c₈ + 25 * c₉ + 90 * c₁₀ + 301 * c₁₁ + 966 * c₁₂ + 3025 * c₁₃ + 9330 * c₁₄) (V₂ := c₈ + 6 * c₉ + 25 * c₁₀ + 90 * c₁₁ + 301 * c₁₂ + 966 * c₁₃ + 3025 * c₁₄) (V₃ := c₉ + 6 * c₁₀ + 25 * c₁₁ + 90 * c₁₂ + 301 * c₁₃ + 966 * c₁₄)
+      v₇q₉₀ v₈q₉₀ v₉q₉₀ v₁₀q₉₀ (by lia) (by lia) (by lia)
+  rw [← (show q₉₁ = R.sub3Chain q₉₀ (6 * L) (7 * L) (8 * L) (9 * L) L 4 from rfl)] at w₉₁ e₉₁a e₉₁b e₉₁c
   clear_value q₉₁
   have s₉₁ := w₉₁.1.trans s₉₀
   have v₁q₉₁ := (w₉₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₉₀
   have v₂q₉₁ := (w₉₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₉₀
   have v₃q₉₁ := (w₉₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₉₀
-  have v₄q₉₁ := (w₉₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₉₀
-  have v₅q₉₁ := (w₉₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₉₀
-  have v₆q₉₁ := (w₉₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₉₀
-  have v₇q₉₁ := (w₉₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₉₀
-  have v₈q₉₁ := (w₉₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₉₀
-  have v₉q₉₁ := (w₉₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₉₀
+  have v₄q₉₁ := (w₉₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₉₀a
+  have v₅q₉₁ := (w₉₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₉₀b
+  have v₆q₉₁ := (w₉₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₉₀c
   have v₁₀q₉₁ := (w₉₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₉₀
   have v₁₁q₉₁ := (w₉₁.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₉₀
-  have v₁₂q₉₁ := (w₉₁.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₉₀
-  clear w₉₁ v₁₃q₉₀ s₉₀ v₁q₉₀ v₂q₉₀ v₃q₉₀ v₄q₉₀ v₅q₉₀ v₆q₉₀ v₇q₉₀ v₈q₉₀ v₉q₉₀ v₁₀q₉₀ v₁₁q₉₀ e₉₀
-  obtain ⟨w₉₂, e₉₂⟩ := shrW_val (q := q₉₁) (o := L) (len := L) (by rw [s₉₁]; lia) 1 (by decide) (by decide)
-      (V := c₂ + 3 * c₃ + 7 * c₄ + 15 * c₅ + 31 * c₆ + 63 * c₇ + 127 * c₈ + 255 * c₉ + 511 * c₁₀ + 1023 * c₁₁ + 2047 * c₁₂ + 4095 * c₁₃ + 8191 * c₁₄) v₂q₉₁ (by lia)
-  rw [← (show q₉₂ = R.shr q₉₁ L L 1 from rfl)] at w₉₂ e₉₂
+  have v₁₂q₉₁ := (w₉₁.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₉₀
+  have v₁₃q₉₁ := (w₉₁.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₉₀
+  clear w₉₁ v₇q₉₀ v₈q₉₀ v₉q₉₀ s₉₀ v₁q₉₀ v₂q₉₀ v₃q₉₀ e₉₀a e₉₀b e₉₀c v₁₀q₉₀ v₁₁q₉₀ v₁₂q₉₀ v₁₃q₉₀
+  obtain ⟨w₉₂, e₉₂a, e₉₂b, e₉₂c⟩ := sub3ChainW_val (q := q₉₁) (o₁ := (9 * L)) (o₂ := (10 * L))
+      (o₃ := (11 * L)) (o₄ := (12 * L)) (len := L) (9 * L) (3 * L) (by rw [s₉₁]; lia) (by lia) (by lia) 4
+      (V₁ := c₁₀ + 6 * c₁₁ + 25 * c₁₂ + 90 * c₁₃ + 301 * c₁₄) (V₂ := c₁₁ + 6 * c₁₂ + 25 * c₁₃ + 90 * c₁₄) (V₃ := c₁₂ + 6 * c₁₃ + 25 * c₁₄)
+      v₁₀q₉₁ v₁₁q₉₁ v₁₂q₉₁ v₁₃q₉₁ (by lia) (by lia) (by lia)
+  rw [← (show q₉₂ = R.sub3Chain q₉₁ (9 * L) (10 * L) (11 * L) (12 * L) L 4 from rfl)] at w₉₂ e₉₂a e₉₂b e₉₂c
   clear_value q₉₂
   have s₉₂ := w₉₂.1.trans s₉₁
   have v₁q₉₂ := (w₉₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₉₁
+  have v₂q₉₂ := (w₉₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₉₁
   have v₃q₉₂ := (w₉₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₉₁
   have v₄q₉₂ := (w₉₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₉₁
   have v₅q₉₂ := (w₉₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₉₁
   have v₆q₉₂ := (w₉₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₉₁
-  have v₇q₉₂ := (w₉₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₉₁
-  have v₈q₉₂ := (w₉₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₉₁
-  have v₉q₉₂ := (w₉₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₉₁
-  have v₁₀q₉₂ := (w₉₂.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₉₁
-  have v₁₁q₉₂ := (w₉₂.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₉₁
-  have v₁₂q₉₂ := (w₉₂.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₉₁
-  have v₁₃q₉₂ := (w₉₂.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₉₁
-  clear w₉₂ v₂q₉₁ s₉₁ v₁q₉₁ v₃q₉₁ v₄q₉₁ v₅q₉₁ v₆q₉₁ v₇q₉₁ v₈q₉₁ v₉q₉₁ v₁₀q₉₁ v₁₁q₉₁ v₁₂q₉₁ e₉₁
-  obtain ⟨w₉₃, e₉₃⟩ := divW_val (q := q₉₂) (o := (2 * L)) (len := L) (by rw [s₉₂]; lia) 3 (by decide) (by decide)
-      (V := 2 * c₃ + 12 * c₄ + 50 * c₅ + 180 * c₆ + 602 * c₇ + 1932 * c₈ + 6050 * c₉ + 18660 * c₁₀ + 57002 * c₁₁ + 173052 * c₁₂ + 523250 * c₁₃ + 1577940 * c₁₄) v₃q₉₂ (by lia)
-  rw [← (show q₉₃ = R.divExact q₉₂ (2 * L) L 3 from rfl)] at w₉₃ e₉₃
+  have v₇q₉₂ := (w₉₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₉₁a
+  have v₈q₉₂ := (w₉₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₉₁b
+  have v₉q₉₂ := (w₉₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₉₁c
+  have v₁₃q₉₂ := (w₉₂.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₉₁
+  clear w₉₂ v₁₀q₉₁ v₁₁q₉₁ v₁₂q₉₁ s₉₁ v₁q₉₁ v₂q₉₁ v₃q₉₁ v₄q₉₁ v₅q₉₁ v₆q₉₁ e₉₁a e₉₁b e₉₁c v₁₃q₉₁
+  obtain ⟨w₉₃, e₉₃⟩ := subMulW_val (q := q₉₂) (o := (12 * L)) (len := L) (by rw [s₉₂]; lia) d (o + 14 * k) (n - 14 * k) 4 (by decide)
+      (V := c₁₃ + 6 * c₁₄) v₁₃q₉₂ hc₁₄ (by lia)
+  rw [← (show q₉₃ = R.subMulInto q₉₂ (12 * L) L d (o + 14 * k) (n - 14 * k) 4 from rfl)] at w₉₃ e₉₃
   clear_value q₉₃
   have s₉₃ := w₉₃.1.trans s₉₂
   have v₁q₉₃ := (w₉₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₉₂
-  have v₂q₉₃ := (w₉₃.valAt_eq (lo := L) (n := L) (by lia)).trans e₉₂
+  have v₂q₉₃ := (w₉₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₉₂
+  have v₃q₉₃ := (w₉₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₉₂
   have v₄q₉₃ := (w₉₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₉₂
   have v₅q₉₃ := (w₉₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₉₂
   have v₆q₉₃ := (w₉₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₉₂
   have v₇q₉₃ := (w₉₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₉₂
   have v₈q₉₃ := (w₉₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₉₂
   have v₉q₉₃ := (w₉₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₉₂
-  have v₁₀q₉₃ := (w₉₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₉₂
-  have v₁₁q₉₃ := (w₉₃.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₉₂
-  have v₁₂q₉₃ := (w₉₃.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₉₂
-  have v₁₃q₉₃ := (w₉₃.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₉₂
-  clear w₉₃ v₃q₉₂ s₉₂ v₁q₉₂ e₉₂ v₄q₉₂ v₅q₉₂ v₆q₉₂ v₇q₉₂ v₈q₉₂ v₉q₉₂ v₁₀q₉₂ v₁₁q₉₂ v₁₂q₉₂ v₁₃q₉₂
-  obtain ⟨w₉₄, e₉₄⟩ := shrW_val (q := q₉₃) (o := (2 * L)) (len := L) (by rw [s₉₃]; lia) 1 (by decide) (by decide)
-      (V := c₃ + 6 * c₄ + 25 * c₅ + 90 * c₆ + 301 * c₇ + 966 * c₈ + 3025 * c₉ + 9330 * c₁₀ + 28501 * c₁₁ + 86526 * c₁₂ + 261625 * c₁₃ + 788970 * c₁₄) e₉₃ (by lia)
-  rw [← (show q₉₄ = R.shr q₉₃ (2 * L) L 1 from rfl)] at w₉₄ e₉₄
+  have v₁₀q₉₃ := (w₉₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₉₂a
+  have v₁₁q₉₃ := (w₉₃.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₉₂b
+  have v₁₂q₉₃ := (w₉₃.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₉₂c
+  clear w₉₃ v₁₃q₉₂ s₉₂ v₁q₉₂ v₂q₉₂ v₃q₉₂ v₄q₉₂ v₅q₉₂ v₆q₉₂ v₇q₉₂ v₈q₉₂ v₉q₉₂ e₉₂a e₉₂b e₉₂c
+  obtain ⟨w₉₄, e₉₄a, e₉₄b, e₉₄c⟩ := sub3ChainW_val (q := q₉₃) (o₁ := (2 * L)) (o₂ := (3 * L))
+      (o₃ := (4 * L)) (o₄ := (5 * L)) (len := L) (2 * L) (3 * L) (by rw [s₉₃]; lia) (by lia) (by lia) 3
+      (V₁ := c₃ + 3 * c₄ + 7 * c₅ + 15 * c₆ + 31 * c₇ + 63 * c₈ + 127 * c₉ + 255 * c₁₀ + 511 * c₁₁ + 1023 * c₁₂ + 2047 * c₁₃ + 4095 * c₁₄) (V₂ := c₄ + 3 * c₅ + 7 * c₆ + 15 * c₇ + 31 * c₈ + 63 * c₉ + 127 * c₁₀ + 255 * c₁₁ + 511 * c₁₂ + 1023 * c₁₃ + 2047 * c₁₄) (V₃ := c₅ + 3 * c₆ + 7 * c₇ + 15 * c₈ + 31 * c₉ + 63 * c₁₀ + 127 * c₁₁ + 255 * c₁₂ + 511 * c₁₃ + 1023 * c₁₄)
+      v₃q₉₃ v₄q₉₃ v₅q₉₃ v₆q₉₃ (by lia) (by lia) (by lia)
+  rw [← (show q₉₄ = R.sub3Chain q₉₃ (2 * L) (3 * L) (4 * L) (5 * L) L 3 from rfl)] at w₉₄ e₉₄a e₉₄b e₉₄c
   clear_value q₉₄
   have s₉₄ := w₉₄.1.trans s₉₃
   have v₁q₉₄ := (w₉₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₉₃
   have v₂q₉₄ := (w₉₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₉₃
-  have v₄q₉₄ := (w₉₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₉₃
-  have v₅q₉₄ := (w₉₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₉₃
   have v₆q₉₄ := (w₉₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₉₃
   have v₇q₉₄ := (w₉₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₉₃
   have v₈q₉₄ := (w₉₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₉₃
@@ -8024,137 +7071,139 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₁₀q₉₄ := (w₉₄.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₉₃
   have v₁₁q₉₄ := (w₉₄.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₉₃
   have v₁₂q₉₄ := (w₉₄.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₉₃
-  have v₁₃q₉₄ := (w₉₄.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₉₃
-  clear w₉₄ e₉₃ s₉₃ v₁q₉₃ v₂q₉₃ v₄q₉₃ v₅q₉₃ v₆q₉₃ v₇q₉₃ v₈q₉₃ v₉q₉₃ v₁₀q₉₃ v₁₁q₉₃ v₁₂q₉₃ v₁₃q₉₃
-  obtain ⟨w₉₅, e₉₅⟩ := divW_val (q := q₉₄) (o := (3 * L)) (len := L) (by rw [s₉₄]; lia) 3 (by decide) (by decide)
-      (V := 8 * c₄ + 80 * c₅ + 520 * c₆ + 2800 * c₇ + 13608 * c₈ + 62160 * c₉ + 272840 * c₁₀ + 1166000 * c₁₁ + 4892008 * c₁₂ + 20260240 * c₁₃ + 83133960 * c₁₄) v₄q₉₄ (by lia)
-  rw [← (show q₉₅ = R.divExact q₉₄ (3 * L) L 3 from rfl)] at w₉₅ e₉₅
+  have v₁₃q₉₄ := (w₉₄.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₉₃
+  clear w₉₄ v₃q₉₃ v₄q₉₃ v₅q₉₃ s₉₃ v₁q₉₃ v₂q₉₃ v₆q₉₃ v₇q₉₃ v₈q₉₃ v₉q₉₃ v₁₀q₉₃ v₁₁q₉₃ v₁₂q₉₃ e₉₃
+  obtain ⟨w₉₅, e₉₅a, e₉₅b, e₉₅c⟩ := sub3ChainW_val (q := q₉₄) (o₁ := (5 * L)) (o₂ := (6 * L))
+      (o₃ := (7 * L)) (o₄ := (8 * L)) (len := L) (5 * L) (3 * L) (by rw [s₉₄]; lia) (by lia) (by lia) 3
+      (V₁ := c₆ + 3 * c₇ + 7 * c₈ + 15 * c₉ + 31 * c₁₀ + 63 * c₁₁ + 127 * c₁₂ + 255 * c₁₃ + 511 * c₁₄) (V₂ := c₇ + 3 * c₈ + 7 * c₉ + 15 * c₁₀ + 31 * c₁₁ + 63 * c₁₂ + 127 * c₁₃ + 255 * c₁₄) (V₃ := c₈ + 3 * c₉ + 7 * c₁₀ + 15 * c₁₁ + 31 * c₁₂ + 63 * c₁₃ + 127 * c₁₄)
+      v₆q₉₄ v₇q₉₄ v₈q₉₄ v₉q₉₄ (by lia) (by lia) (by lia)
+  rw [← (show q₉₅ = R.sub3Chain q₉₄ (5 * L) (6 * L) (7 * L) (8 * L) L 3 from rfl)] at w₉₅ e₉₅a e₉₅b e₉₅c
   clear_value q₉₅
   have s₉₅ := w₉₅.1.trans s₉₄
   have v₁q₉₅ := (w₉₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₉₄
   have v₂q₉₅ := (w₉₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₉₄
-  have v₃q₉₅ := (w₉₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₉₄
-  have v₅q₉₅ := (w₉₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₉₄
-  have v₆q₉₅ := (w₉₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₉₄
-  have v₇q₉₅ := (w₉₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₉₄
-  have v₈q₉₅ := (w₉₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₉₄
+  have v₃q₉₅ := (w₉₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₉₄a
+  have v₄q₉₅ := (w₉₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₉₄b
+  have v₅q₉₅ := (w₉₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₉₄c
   have v₉q₉₅ := (w₉₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₉₄
   have v₁₀q₉₅ := (w₉₅.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₉₄
   have v₁₁q₉₅ := (w₉₅.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₉₄
   have v₁₂q₉₅ := (w₉₅.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₉₄
   have v₁₃q₉₅ := (w₉₅.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₉₄
-  clear w₉₅ v₄q₉₄ s₉₄ v₁q₉₄ v₂q₉₄ e₉₄ v₅q₉₄ v₆q₉₄ v₇q₉₄ v₈q₉₄ v₉q₉₄ v₁₀q₉₄ v₁₁q₉₄ v₁₂q₉₄ v₁₃q₉₄
-  obtain ⟨w₉₆, e₉₆⟩ := shrW_val (q := q₉₅) (o := (3 * L)) (len := L) (by rw [s₉₅]; lia) 3 (by decide) (by decide)
-      (V := c₄ + 10 * c₅ + 65 * c₆ + 350 * c₇ + 1701 * c₈ + 7770 * c₉ + 34105 * c₁₀ + 145750 * c₁₁ + 611501 * c₁₂ + 2532530 * c₁₃ + 10391745 * c₁₄) e₉₅ (by lia)
-  rw [← (show q₉₆ = R.shr q₉₅ (3 * L) L 3 from rfl)] at w₉₆ e₉₆
+  clear w₉₅ v₆q₉₄ v₇q₉₄ v₈q₉₄ s₉₄ v₁q₉₄ v₂q₉₄ e₉₄a e₉₄b e₉₄c v₉q₉₄ v₁₀q₉₄ v₁₁q₉₄ v₁₂q₉₄ v₁₃q₉₄
+  obtain ⟨w₉₆, e₉₆a, e₉₆b, e₉₆c⟩ := sub3ChainW_val (q := q₉₅) (o₁ := (8 * L)) (o₂ := (9 * L))
+      (o₃ := (10 * L)) (o₄ := (11 * L)) (len := L) (8 * L) (3 * L) (by rw [s₉₅]; lia) (by lia) (by lia) 3
+      (V₁ := c₉ + 3 * c₁₀ + 7 * c₁₁ + 15 * c₁₂ + 31 * c₁₃ + 63 * c₁₄) (V₂ := c₁₀ + 3 * c₁₁ + 7 * c₁₂ + 15 * c₁₃ + 31 * c₁₄) (V₃ := c₁₁ + 3 * c₁₂ + 7 * c₁₃ + 15 * c₁₄)
+      v₉q₉₅ v₁₀q₉₅ v₁₁q₉₅ v₁₂q₉₅ (by lia) (by lia) (by lia)
+  rw [← (show q₉₆ = R.sub3Chain q₉₅ (8 * L) (9 * L) (10 * L) (11 * L) L 3 from rfl)] at w₉₆ e₉₆a e₉₆b e₉₆c
   clear_value q₉₆
   have s₉₆ := w₉₆.1.trans s₉₅
   have v₁q₉₆ := (w₉₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₉₅
   have v₂q₉₆ := (w₉₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₉₅
   have v₃q₉₆ := (w₉₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₉₅
+  have v₄q₉₆ := (w₉₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₉₅
   have v₅q₉₆ := (w₉₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₉₅
-  have v₆q₉₆ := (w₉₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₉₅
-  have v₇q₉₆ := (w₉₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₉₅
-  have v₈q₉₆ := (w₉₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₉₅
-  have v₉q₉₆ := (w₉₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₉₅
-  have v₁₀q₉₆ := (w₉₆.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₉₅
-  have v₁₁q₉₆ := (w₉₆.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₉₅
+  have v₆q₉₆ := (w₉₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₉₅a
+  have v₇q₉₆ := (w₉₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₉₅b
+  have v₈q₉₆ := (w₉₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₉₅c
   have v₁₂q₉₆ := (w₉₆.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₉₅
   have v₁₃q₉₆ := (w₉₆.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₉₅
-  clear w₉₆ e₉₅ s₉₅ v₁q₉₅ v₂q₉₅ v₃q₉₅ v₅q₉₅ v₆q₉₅ v₇q₉₅ v₈q₉₅ v₉q₉₅ v₁₀q₉₅ v₁₁q₉₅ v₁₂q₉₅ v₁₃q₉₅
-  obtain ⟨w₉₇, e₉₇⟩ := divW_val (q := q₉₆) (o := (4 * L)) (len := L) (by rw [s₉₆]; lia) 15 (by decide) (by decide)
-      (V := 8 * c₅ + 120 * c₆ + 1120 * c₇ + 8400 * c₈ + 55608 * c₉ + 340200 * c₁₀ + 1973840 * c₁₁ + 11035200 * c₁₂ + 60068008 * c₁₃ + 320600280 * c₁₄) v₅q₉₆ (by lia)
-  rw [← (show q₉₇ = R.divExact q₉₆ (4 * L) L 15 from rfl)] at w₉₇ e₉₇
+  clear w₉₆ v₉q₉₅ v₁₀q₉₅ v₁₁q₉₅ s₉₅ v₁q₉₅ v₂q₉₅ v₃q₉₅ v₄q₉₅ v₅q₉₅ e₉₅a e₉₅b e₉₅c v₁₂q₉₅ v₁₃q₉₅
+  obtain ⟨w₉₇, e₉₇⟩ := subMulWin_val (q := q₉₆) (o := (11 * L)) (len := L) (by rw [s₉₆]; lia) (12 * L) L 3
+      (by rw [s₉₆]; lia) (by lia) (by lia) (by decide)
+      (V := c₁₂ + 3 * c₁₃ + 7 * c₁₄) v₁₂q₉₆ v₁₃q₉₆ (by lia)
+  rw [← (show q₉₇ = R.subMulWin q₉₆ (11 * L) L (12 * L) L 3 from rfl)] at w₉₇ e₉₇
   clear_value q₉₇
   have s₉₇ := w₉₇.1.trans s₉₆
   have v₁q₉₇ := (w₉₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₉₆
   have v₂q₉₇ := (w₉₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₉₆
   have v₃q₉₇ := (w₉₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₉₆
-  have v₄q₉₇ := (w₉₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₉₆
+  have v₄q₉₇ := (w₉₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₉₆
+  have v₅q₉₇ := (w₉₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₉₆
   have v₆q₉₇ := (w₉₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₉₆
   have v₇q₉₇ := (w₉₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₉₆
   have v₈q₉₇ := (w₉₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₉₆
-  have v₉q₉₇ := (w₉₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₉₆
-  have v₁₀q₉₇ := (w₉₇.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₉₆
-  have v₁₁q₉₇ := (w₉₇.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₉₆
-  have v₁₂q₉₇ := (w₉₇.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₉₆
+  have v₉q₉₇ := (w₉₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₉₆a
+  have v₁₀q₉₇ := (w₉₇.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₉₆b
+  have v₁₁q₉₇ := (w₉₇.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₉₆c
   have v₁₃q₉₇ := (w₉₇.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₉₆
-  clear w₉₇ v₅q₉₆ s₉₆ v₁q₉₆ v₂q₉₆ v₃q₉₆ e₉₆ v₆q₉₆ v₇q₉₆ v₈q₉₆ v₉q₉₆ v₁₀q₉₆ v₁₁q₉₆ v₁₂q₉₆ v₁₃q₉₆
-  obtain ⟨w₉₈, e₉₈⟩ := shrW_val (q := q₉₇) (o := (4 * L)) (len := L) (by rw [s₉₇]; lia) 3 (by decide) (by decide)
-      (V := c₅ + 15 * c₆ + 140 * c₇ + 1050 * c₈ + 6951 * c₉ + 42525 * c₁₀ + 246730 * c₁₁ + 1379400 * c₁₂ + 7508501 * c₁₃ + 40075035 * c₁₄) e₉₇ (by lia)
-  rw [← (show q₉₈ = R.shr q₉₇ (4 * L) L 3 from rfl)] at w₉₈ e₉₈
+  clear w₉₇ v₁₂q₉₆ s₉₆ v₁q₉₆ v₂q₉₆ v₃q₉₆ v₄q₉₆ v₅q₉₆ v₆q₉₆ v₇q₉₆ v₈q₉₆ e₉₆a e₉₆b e₉₆c v₁₃q₉₆
+  obtain ⟨w₉₈, e₉₈⟩ := subMulW_val (q := q₉₇) (o := (12 * L)) (len := L) (by rw [s₉₇]; lia) d (o + 14 * k) (n - 14 * k) 3 (by decide)
+      (V := c₁₃ + 3 * c₁₄) v₁₃q₉₇ hc₁₄ (by lia)
+  rw [← (show q₉₈ = R.subMulInto q₉₇ (12 * L) L d (o + 14 * k) (n - 14 * k) 3 from rfl)] at w₉₈ e₉₈
   clear_value q₉₈
   have s₉₈ := w₉₈.1.trans s₉₇
   have v₁q₉₈ := (w₉₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₉₇
   have v₂q₉₈ := (w₉₈.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₉₇
   have v₃q₉₈ := (w₉₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₉₇
   have v₄q₉₈ := (w₉₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₉₇
+  have v₅q₉₈ := (w₉₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₉₇
   have v₆q₉₈ := (w₉₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₉₇
   have v₇q₉₈ := (w₉₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₉₇
   have v₈q₉₈ := (w₉₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₉₇
   have v₉q₉₈ := (w₉₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₉₇
   have v₁₀q₉₈ := (w₉₈.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₉₇
   have v₁₁q₉₈ := (w₉₈.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₉₇
-  have v₁₂q₉₈ := (w₉₈.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₉₇
-  have v₁₃q₉₈ := (w₉₈.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₉₇
-  clear w₉₈ e₉₇ s₉₇ v₁q₉₇ v₂q₉₇ v₃q₉₇ v₄q₉₇ v₆q₉₇ v₇q₉₇ v₈q₉₇ v₉q₉₇ v₁₀q₉₇ v₁₁q₉₇ v₁₂q₉₇ v₁₃q₉₇
-  obtain ⟨w₉₉, e₉₉⟩ := divW_val (q := q₉₈) (o := (5 * L)) (len := L) (by rw [s₉₈]; lia) 45 (by decide) (by decide)
-      (V := 16 * c₆ + 336 * c₇ + 4256 * c₈ + 42336 * c₉ + 365232 * c₁₀ + 2871792 * c₁₁ + 21178432 * c₁₂ + 149140992 * c₁₃ + 1014981968 * c₁₄) v₆q₉₈ (by lia)
-  rw [← (show q₉₉ = R.divExact q₉₈ (5 * L) L 45 from rfl)] at w₉₉ e₉₉
+  have v₁₂q₉₈ := (w₉₈.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₉₇
+  clear w₉₈ v₁₃q₉₇ s₉₇ v₁q₉₇ v₂q₉₇ v₃q₉₇ v₄q₉₇ v₅q₉₇ v₆q₉₇ v₇q₉₇ v₈q₉₇ v₉q₉₇ v₁₀q₉₇ v₁₁q₉₇ e₉₇
+  obtain ⟨w₉₉, e₉₉a, e₉₉b, e₉₉c⟩ := sub3ChainW_val (q := q₉₈) (o₁ := L) (o₂ := (2 * L))
+      (o₃ := (3 * L)) (o₄ := (4 * L)) (len := L) L (3 * L) (by rw [s₉₈]; lia) (by lia) (by lia) 2
+      (V₁ := c₂ + c₃ + c₄ + c₅ + c₆ + c₇ + c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) (V₂ := c₃ + c₄ + c₅ + c₆ + c₇ + c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) (V₃ := c₄ + c₅ + c₆ + c₇ + c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄)
+      v₂q₉₈ v₃q₉₈ v₄q₉₈ v₅q₉₈ (by lia) (by lia) (by lia)
+  rw [← (show q₉₉ = R.sub3Chain q₉₈ L (2 * L) (3 * L) (4 * L) L 2 from rfl)] at w₉₉ e₉₉a e₉₉b e₉₉c
   clear_value q₉₉
   have s₉₉ := w₉₉.1.trans s₉₈
   have v₁q₉₉ := (w₉₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₉₈
-  have v₂q₉₉ := (w₉₉.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₉₈
-  have v₃q₉₉ := (w₉₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₉₈
-  have v₄q₉₉ := (w₉₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₉₈
-  have v₅q₉₉ := (w₉₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₉₈
+  have v₅q₉₉ := (w₉₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₉₈
+  have v₆q₉₉ := (w₉₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₉₈
   have v₇q₉₉ := (w₉₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₉₈
   have v₈q₉₉ := (w₉₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₉₈
   have v₉q₉₉ := (w₉₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₉₈
   have v₁₀q₉₉ := (w₉₉.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₉₈
   have v₁₁q₉₉ := (w₉₉.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₉₈
   have v₁₂q₉₉ := (w₉₉.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₉₈
-  have v₁₃q₉₉ := (w₉₉.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₉₈
-  clear w₉₉ v₆q₉₈ s₉₈ v₁q₉₈ v₂q₉₈ v₃q₉₈ v₄q₉₈ e₉₈ v₇q₉₈ v₈q₉₈ v₉q₉₈ v₁₀q₉₈ v₁₁q₉₈ v₁₂q₉₈ v₁₃q₉₈
-  obtain ⟨w₁₀₀, e₁₀₀⟩ := shrW_val (q := q₉₉) (o := (5 * L)) (len := L) (by rw [s₉₉]; lia) 4 (by decide) (by decide)
-      (V := c₆ + 21 * c₇ + 266 * c₈ + 2646 * c₉ + 22827 * c₁₀ + 179487 * c₁₁ + 1323652 * c₁₂ + 9321312 * c₁₃ + 63436373 * c₁₄) e₉₉ (by lia)
-  rw [← (show q₁₀₀ = R.shr q₉₉ (5 * L) L 4 from rfl)] at w₁₀₀ e₁₀₀
+  have v₁₃q₉₉ := (w₉₉.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₉₈
+  clear w₉₉ v₂q₉₈ v₃q₉₈ v₄q₉₈ s₉₈ v₁q₉₈ v₅q₉₈ v₆q₉₈ v₇q₉₈ v₈q₉₈ v₉q₉₈ v₁₀q₉₈ v₁₁q₉₈ v₁₂q₉₈ e₉₈
+  obtain ⟨w₁₀₀, e₁₀₀a, e₁₀₀b, e₁₀₀c⟩ := sub3ChainW_val (q := q₉₉) (o₁ := (4 * L)) (o₂ := (5 * L))
+      (o₃ := (6 * L)) (o₄ := (7 * L)) (len := L) (4 * L) (3 * L) (by rw [s₉₉]; lia) (by lia) (by lia) 2
+      (V₁ := c₅ + c₆ + c₇ + c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) (V₂ := c₆ + c₇ + c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) (V₃ := c₇ + c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄)
+      v₅q₉₉ v₆q₉₉ v₇q₉₉ v₈q₉₉ (by lia) (by lia) (by lia)
+  rw [← (show q₁₀₀ = R.sub3Chain q₉₉ (4 * L) (5 * L) (6 * L) (7 * L) L 2 from rfl)] at w₁₀₀ e₁₀₀a e₁₀₀b e₁₀₀c
   clear_value q₁₀₀
   have s₁₀₀ := w₁₀₀.1.trans s₉₉
   have v₁q₁₀₀ := (w₁₀₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₉₉
-  have v₂q₁₀₀ := (w₁₀₀.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₉₉
-  have v₃q₁₀₀ := (w₁₀₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₉₉
-  have v₄q₁₀₀ := (w₁₀₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₉₉
-  have v₅q₁₀₀ := (w₁₀₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₉₉
-  have v₇q₁₀₀ := (w₁₀₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₉₉
+  have v₂q₁₀₀ := (w₁₀₀.valAt_eq (lo := L) (n := L) (by lia)).trans e₉₉a
+  have v₃q₁₀₀ := (w₁₀₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₉₉b
+  have v₄q₁₀₀ := (w₁₀₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₉₉c
   have v₈q₁₀₀ := (w₁₀₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₉₉
   have v₉q₁₀₀ := (w₁₀₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₉₉
   have v₁₀q₁₀₀ := (w₁₀₀.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₉₉
   have v₁₁q₁₀₀ := (w₁₀₀.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₉₉
   have v₁₂q₁₀₀ := (w₁₀₀.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₉₉
   have v₁₃q₁₀₀ := (w₁₀₀.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₉₉
-  clear w₁₀₀ e₉₉ s₉₉ v₁q₉₉ v₂q₉₉ v₃q₉₉ v₄q₉₉ v₅q₉₉ v₇q₉₉ v₈q₉₉ v₉q₉₉ v₁₀q₉₉ v₁₁q₉₉ v₁₂q₉₉ v₁₃q₉₉
-  obtain ⟨w₁₀₁, e₁₀₁⟩ := divW_val (q := q₁₀₀) (o := (6 * L)) (len := L) (by rw [s₁₀₀]; lia) 315 (by decide) (by decide)
-      (V := 16 * c₇ + 448 * c₈ + 7392 * c₉ + 94080 * c₁₀ + 1023792 * c₁₁ + 10038336 * c₁₂ + 91446784 * c₁₃ + 789268480 * c₁₄) v₇q₁₀₀ (by lia)
-  rw [← (show q₁₀₁ = R.divExact q₁₀₀ (6 * L) L 315 from rfl)] at w₁₀₁ e₁₀₁
+  clear w₁₀₀ v₅q₉₉ v₆q₉₉ v₇q₉₉ s₉₉ v₁q₉₉ e₉₉a e₉₉b e₉₉c v₈q₉₉ v₉q₉₉ v₁₀q₉₉ v₁₁q₉₉ v₁₂q₉₉ v₁₃q₉₉
+  obtain ⟨w₁₀₁, e₁₀₁a, e₁₀₁b, e₁₀₁c⟩ := sub3ChainW_val (q := q₁₀₀) (o₁ := (7 * L)) (o₂ := (8 * L))
+      (o₃ := (9 * L)) (o₄ := (10 * L)) (len := L) (7 * L) (3 * L) (by rw [s₁₀₀]; lia) (by lia) (by lia) 2
+      (V₁ := c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) (V₂ := c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) (V₃ := c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄)
+      v₈q₁₀₀ v₉q₁₀₀ v₁₀q₁₀₀ v₁₁q₁₀₀ (by lia) (by lia) (by lia)
+  rw [← (show q₁₀₁ = R.sub3Chain q₁₀₀ (7 * L) (8 * L) (9 * L) (10 * L) L 2 from rfl)] at w₁₀₁ e₁₀₁a e₁₀₁b e₁₀₁c
   clear_value q₁₀₁
   have s₁₀₁ := w₁₀₁.1.trans s₁₀₀
   have v₁q₁₀₁ := (w₁₀₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₀₀
   have v₂q₁₀₁ := (w₁₀₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₀₀
   have v₃q₁₀₁ := (w₁₀₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₀₀
   have v₄q₁₀₁ := (w₁₀₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₀₀
-  have v₅q₁₀₁ := (w₁₀₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₀₀
-  have v₆q₁₀₁ := (w₁₀₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₁₀₀
-  have v₈q₁₀₁ := (w₁₀₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₀₀
-  have v₉q₁₀₁ := (w₁₀₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₀₀
-  have v₁₀q₁₀₁ := (w₁₀₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₀₀
+  have v₅q₁₀₁ := (w₁₀₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₁₀₀a
+  have v₆q₁₀₁ := (w₁₀₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₁₀₀b
+  have v₇q₁₀₁ := (w₁₀₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₁₀₀c
   have v₁₁q₁₀₁ := (w₁₀₁.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₀₀
   have v₁₂q₁₀₁ := (w₁₀₁.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₀₀
   have v₁₃q₁₀₁ := (w₁₀₁.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₀₀
-  clear w₁₀₁ v₇q₁₀₀ s₁₀₀ v₁q₁₀₀ v₂q₁₀₀ v₃q₁₀₀ v₄q₁₀₀ v₅q₁₀₀ e₁₀₀ v₈q₁₀₀ v₉q₁₀₀ v₁₀q₁₀₀ v₁₁q₁₀₀ v₁₂q₁₀₀ v₁₃q₁₀₀
-  obtain ⟨w₁₀₂, e₁₀₂⟩ := shrW_val (q := q₁₀₁) (o := (6 * L)) (len := L) (by rw [s₁₀₁]; lia) 4 (by decide) (by decide)
-      (V := c₇ + 28 * c₈ + 462 * c₉ + 5880 * c₁₀ + 63987 * c₁₁ + 627396 * c₁₂ + 5715424 * c₁₃ + 49329280 * c₁₄) e₁₀₁ (by lia)
-  rw [← (show q₁₀₂ = R.shr q₁₀₁ (6 * L) L 4 from rfl)] at w₁₀₂ e₁₀₂
+  clear w₁₀₁ v₈q₁₀₀ v₉q₁₀₀ v₁₀q₁₀₀ s₁₀₀ v₁q₁₀₀ v₂q₁₀₀ v₃q₁₀₀ v₄q₁₀₀ e₁₀₀a e₁₀₀b e₁₀₀c v₁₁q₁₀₀ v₁₂q₁₀₀ v₁₃q₁₀₀
+  obtain ⟨w₁₀₂, e₁₀₂⟩ := subMulWin_val (q := q₁₀₁) (o := (10 * L)) (len := L) (by rw [s₁₀₁]; lia) (11 * L) L 2
+      (by rw [s₁₀₁]; lia) (by lia) (by lia) (by decide)
+      (V := c₁₁ + c₁₂ + c₁₃ + c₁₄) v₁₁q₁₀₁ v₁₂q₁₀₁ (by lia)
+  rw [← (show q₁₀₂ = R.subMulWin q₁₀₁ (10 * L) L (11 * L) L 2 from rfl)] at w₁₀₂ e₁₀₂
   clear_value q₁₀₂
   have s₁₀₂ := w₁₀₂.1.trans s₁₀₁
   have v₁q₁₀₂ := (w₁₀₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₀₁
@@ -8163,16 +7212,17 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₄q₁₀₂ := (w₁₀₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₀₁
   have v₅q₁₀₂ := (w₁₀₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₀₁
   have v₆q₁₀₂ := (w₁₀₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₀₁
-  have v₈q₁₀₂ := (w₁₀₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₀₁
-  have v₉q₁₀₂ := (w₁₀₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₀₁
-  have v₁₀q₁₀₂ := (w₁₀₂.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₀₁
-  have v₁₁q₁₀₂ := (w₁₀₂.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₀₁
+  have v₇q₁₀₂ := (w₁₀₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₀₁
+  have v₈q₁₀₂ := (w₁₀₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₁₀₁a
+  have v₉q₁₀₂ := (w₁₀₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₁₀₁b
+  have v₁₀q₁₀₂ := (w₁₀₂.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₁₀₁c
   have v₁₂q₁₀₂ := (w₁₀₂.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₀₁
   have v₁₃q₁₀₂ := (w₁₀₂.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₀₁
-  clear w₁₀₂ e₁₀₁ s₁₀₁ v₁q₁₀₁ v₂q₁₀₁ v₃q₁₀₁ v₄q₁₀₁ v₅q₁₀₁ v₆q₁₀₁ v₈q₁₀₁ v₉q₁₀₁ v₁₀q₁₀₁ v₁₁q₁₀₁ v₁₂q₁₀₁ v₁₃q₁₀₁
-  obtain ⟨w₁₀₃, e₁₀₃⟩ := divW_val (q := q₁₀₂) (o := (7 * L)) (len := L) (by rw [s₁₀₂]; lia) 315 (by decide) (by decide)
-      (V := 128 * c₈ + 4608 * c₉ + 96000 * c₁₀ + 1520640 * c₁₁ + 20355456 * c₁₂ + 243150336 * c₁₃ + 2676776960 * c₁₄) v₈q₁₀₂ (by lia)
-  rw [← (show q₁₀₃ = R.divExact q₁₀₂ (7 * L) L 315 from rfl)] at w₁₀₃ e₁₀₃
+  clear w₁₀₂ v₁₁q₁₀₁ s₁₀₁ v₁q₁₀₁ v₂q₁₀₁ v₃q₁₀₁ v₄q₁₀₁ v₅q₁₀₁ v₆q₁₀₁ v₇q₁₀₁ e₁₀₁a e₁₀₁b e₁₀₁c v₁₂q₁₀₁ v₁₃q₁₀₁
+  obtain ⟨w₁₀₃, e₁₀₃⟩ := subMulWin_val (q := q₁₀₂) (o := (11 * L)) (len := L) (by rw [s₁₀₂]; lia) (12 * L) L 2
+      (by rw [s₁₀₂]; lia) (by lia) (by lia) (by decide)
+      (V := c₁₂ + c₁₃ + c₁₄) v₁₂q₁₀₂ v₁₃q₁₀₂ (by lia)
+  rw [← (show q₁₀₃ = R.subMulWin q₁₀₂ (11 * L) L (12 * L) L 2 from rfl)] at w₁₀₃ e₁₀₃
   clear_value q₁₀₃
   have s₁₀₃ := w₁₀₃.1.trans s₁₀₂
   have v₁q₁₀₃ := (w₁₀₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₀₂
@@ -8181,16 +7231,16 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₄q₁₀₃ := (w₁₀₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₀₂
   have v₅q₁₀₃ := (w₁₀₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₀₂
   have v₆q₁₀₃ := (w₁₀₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₀₂
-  have v₇q₁₀₃ := (w₁₀₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₁₀₂
+  have v₇q₁₀₃ := (w₁₀₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₀₂
+  have v₈q₁₀₃ := (w₁₀₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₀₂
   have v₉q₁₀₃ := (w₁₀₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₀₂
   have v₁₀q₁₀₃ := (w₁₀₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₀₂
-  have v₁₁q₁₀₃ := (w₁₀₃.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₀₂
-  have v₁₂q₁₀₃ := (w₁₀₃.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₀₂
+  have v₁₁q₁₀₃ := (w₁₀₃.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₁₀₂
   have v₁₃q₁₀₃ := (w₁₀₃.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₀₂
-  clear w₁₀₃ v₈q₁₀₂ s₁₀₂ v₁q₁₀₂ v₂q₁₀₂ v₃q₁₀₂ v₄q₁₀₂ v₅q₁₀₂ v₆q₁₀₂ e₁₀₂ v₉q₁₀₂ v₁₀q₁₀₂ v₁₁q₁₀₂ v₁₂q₁₀₂ v₁₃q₁₀₂
-  obtain ⟨w₁₀₄, e₁₀₄⟩ := shrW_val (q := q₁₀₃) (o := (7 * L)) (len := L) (by rw [s₁₀₃]; lia) 7 (by decide) (by decide)
-      (V := c₈ + 36 * c₉ + 750 * c₁₀ + 11880 * c₁₁ + 159027 * c₁₂ + 1899612 * c₁₃ + 20912320 * c₁₄) e₁₀₃ (by lia)
-  rw [← (show q₁₀₄ = R.shr q₁₀₃ (7 * L) L 7 from rfl)] at w₁₀₄ e₁₀₄
+  clear w₁₀₃ v₁₂q₁₀₂ s₁₀₂ v₁q₁₀₂ v₂q₁₀₂ v₃q₁₀₂ v₄q₁₀₂ v₅q₁₀₂ v₆q₁₀₂ v₇q₁₀₂ v₈q₁₀₂ v₉q₁₀₂ v₁₀q₁₀₂ e₁₀₂ v₁₃q₁₀₂
+  obtain ⟨w₁₀₄, e₁₀₄⟩ := subMulW_val (q := q₁₀₃) (o := (12 * L)) (len := L) (by rw [s₁₀₃]; lia) d (o + 14 * k) (n - 14 * k) 2 (by decide)
+      (V := c₁₃ + c₁₄) v₁₃q₁₀₃ hc₁₄ (by lia)
+  rw [← (show q₁₀₄ = R.subMulInto q₁₀₃ (12 * L) L d (o + 14 * k) (n - 14 * k) 2 from rfl)] at w₁₀₄ e₁₀₄
   clear_value q₁₀₄
   have s₁₀₄ := w₁₀₄.1.trans s₁₀₃
   have v₁q₁₀₄ := (w₁₀₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₀₃
@@ -8200,69 +7250,71 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₅q₁₀₄ := (w₁₀₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₀₃
   have v₆q₁₀₄ := (w₁₀₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₀₃
   have v₇q₁₀₄ := (w₁₀₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₀₃
+  have v₈q₁₀₄ := (w₁₀₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₀₃
   have v₉q₁₀₄ := (w₁₀₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₀₃
   have v₁₀q₁₀₄ := (w₁₀₄.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₀₃
   have v₁₁q₁₀₄ := (w₁₀₄.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₀₃
-  have v₁₂q₁₀₄ := (w₁₀₄.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₀₃
-  have v₁₃q₁₀₄ := (w₁₀₄.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₀₃
-  clear w₁₀₄ e₁₀₃ s₁₀₃ v₁q₁₀₃ v₂q₁₀₃ v₃q₁₀₃ v₄q₁₀₃ v₅q₁₀₃ v₆q₁₀₃ v₇q₁₀₃ v₉q₁₀₃ v₁₀q₁₀₃ v₁₁q₁₀₃ v₁₂q₁₀₃ v₁₃q₁₀₃
-  obtain ⟨w₁₀₅, e₁₀₅⟩ := divW_val (q := q₁₀₄) (o := (8 * L)) (len := L) (by rw [s₁₀₄]; lia) 2835 (by decide) (by decide)
-      (V := 128 * c₉ + 5760 * c₁₀ + 147840 * c₁₁ + 2851200 * c₁₂ + 46016256 * c₁₃ + 657296640 * c₁₄) v₉q₁₀₄ (by lia)
-  rw [← (show q₁₀₅ = R.divExact q₁₀₄ (8 * L) L 2835 from rfl)] at w₁₀₅ e₁₀₅
+  have v₁₂q₁₀₄ := (w₁₀₄.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₁₀₃
+  clear w₁₀₄ v₁₃q₁₀₃ s₁₀₃ v₁q₁₀₃ v₂q₁₀₃ v₃q₁₀₃ v₄q₁₀₃ v₅q₁₀₃ v₆q₁₀₃ v₇q₁₀₃ v₈q₁₀₃ v₉q₁₀₃ v₁₀q₁₀₃ v₁₁q₁₀₃ e₁₀₃
+  obtain ⟨w₁₀₅, e₁₀₅a, e₁₀₅b, e₁₀₅c⟩ := sub3ChainW_val (q := q₁₀₄) (o₁ := 0) (o₂ := L)
+      (o₃ := (2 * L)) (o₄ := (3 * L)) (len := L) 0 (3 * L) (by rw [s₁₀₄]; lia) (by lia) (by lia) 1
+      (V₁ := c₁) (V₂ := c₂) (V₃ := c₃)
+      v₁q₁₀₄ v₂q₁₀₄ v₃q₁₀₄ v₄q₁₀₄ (by lia) (by lia) (by lia)
+  rw [← (show q₁₀₅ = R.sub3Chain q₁₀₄ 0 L (2 * L) (3 * L) L 1 from rfl)] at w₁₀₅ e₁₀₅a e₁₀₅b e₁₀₅c
   clear_value q₁₀₅
   have s₁₀₅ := w₁₀₅.1.trans s₁₀₄
-  have v₁q₁₀₅ := (w₁₀₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₀₄
-  have v₂q₁₀₅ := (w₁₀₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₀₄
-  have v₃q₁₀₅ := (w₁₀₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₀₄
   have v₄q₁₀₅ := (w₁₀₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₀₄
   have v₅q₁₀₅ := (w₁₀₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₀₄
   have v₆q₁₀₅ := (w₁₀₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₀₄
   have v₇q₁₀₅ := (w₁₀₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₀₄
-  have v₈q₁₀₅ := (w₁₀₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₁₀₄
+  have v₈q₁₀₅ := (w₁₀₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₀₄
+  have v₉q₁₀₅ := (w₁₀₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₀₄
   have v₁₀q₁₀₅ := (w₁₀₅.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₀₄
   have v₁₁q₁₀₅ := (w₁₀₅.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₀₄
   have v₁₂q₁₀₅ := (w₁₀₅.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₀₄
-  have v₁₃q₁₀₅ := (w₁₀₅.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₀₄
-  clear w₁₀₅ v₉q₁₀₄ s₁₀₄ v₁q₁₀₄ v₂q₁₀₄ v₃q₁₀₄ v₄q₁₀₄ v₅q₁₀₄ v₆q₁₀₄ v₇q₁₀₄ e₁₀₄ v₁₀q₁₀₄ v₁₁q₁₀₄ v₁₂q₁₀₄ v₁₃q₁₀₄
-  obtain ⟨w₁₀₆, e₁₀₆⟩ := shrW_val (q := q₁₀₅) (o := (8 * L)) (len := L) (by rw [s₁₀₅]; lia) 7 (by decide) (by decide)
-      (V := c₉ + 45 * c₁₀ + 1155 * c₁₁ + 22275 * c₁₂ + 359502 * c₁₃ + 5135130 * c₁₄) e₁₀₅ (by lia)
-  rw [← (show q₁₀₆ = R.shr q₁₀₅ (8 * L) L 7 from rfl)] at w₁₀₆ e₁₀₆
+  have v₁₃q₁₀₅ := (w₁₀₅.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₁₀₄
+  clear w₁₀₅ v₁q₁₀₄ v₂q₁₀₄ v₃q₁₀₄ s₁₀₄ v₄q₁₀₄ v₅q₁₀₄ v₆q₁₀₄ v₇q₁₀₄ v₈q₁₀₄ v₉q₁₀₄ v₁₀q₁₀₄ v₁₁q₁₀₄ v₁₂q₁₀₄ e₁₀₄
+  obtain ⟨w₁₀₆, e₁₀₆a, e₁₀₆b, e₁₀₆c⟩ := sub3ChainW_val (q := q₁₀₅) (o₁ := (3 * L)) (o₂ := (4 * L))
+      (o₃ := (5 * L)) (o₄ := (6 * L)) (len := L) (3 * L) (3 * L) (by rw [s₁₀₅]; lia) (by lia) (by lia) 1
+      (V₁ := c₄) (V₂ := c₅) (V₃ := c₆)
+      v₄q₁₀₅ v₅q₁₀₅ v₆q₁₀₅ v₇q₁₀₅ (by lia) (by lia) (by lia)
+  rw [← (show q₁₀₆ = R.sub3Chain q₁₀₅ (3 * L) (4 * L) (5 * L) (6 * L) L 1 from rfl)] at w₁₀₆ e₁₀₆a e₁₀₆b e₁₀₆c
   clear_value q₁₀₆
   have s₁₀₆ := w₁₀₆.1.trans s₁₀₅
-  have v₁q₁₀₆ := (w₁₀₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₀₅
-  have v₂q₁₀₆ := (w₁₀₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₀₅
-  have v₃q₁₀₆ := (w₁₀₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₀₅
-  have v₄q₁₀₆ := (w₁₀₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₀₅
-  have v₅q₁₀₆ := (w₁₀₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₀₅
-  have v₆q₁₀₆ := (w₁₀₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₀₅
+  have v₁q₁₀₆ := (w₁₀₆.valAt_eq (lo := 0) (n := L) (by lia)).trans e₁₀₅a
+  have v₂q₁₀₆ := (w₁₀₆.valAt_eq (lo := L) (n := L) (by lia)).trans e₁₀₅b
+  have v₃q₁₀₆ := (w₁₀₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₁₀₅c
   have v₇q₁₀₆ := (w₁₀₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₀₅
   have v₈q₁₀₆ := (w₁₀₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₀₅
+  have v₉q₁₀₆ := (w₁₀₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₀₅
   have v₁₀q₁₀₆ := (w₁₀₆.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₀₅
   have v₁₁q₁₀₆ := (w₁₀₆.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₀₅
   have v₁₂q₁₀₆ := (w₁₀₆.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₀₅
   have v₁₃q₁₀₆ := (w₁₀₆.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₀₅
-  clear w₁₀₆ e₁₀₅ s₁₀₅ v₁q₁₀₅ v₂q₁₀₅ v₃q₁₀₅ v₄q₁₀₅ v₅q₁₀₅ v₆q₁₀₅ v₇q₁₀₅ v₈q₁₀₅ v₁₀q₁₀₅ v₁₁q₁₀₅ v₁₂q₁₀₅ v₁₃q₁₀₅
-  obtain ⟨w₁₀₇, e₁₀₇⟩ := divW_val (q := q₁₀₆) (o := (9 * L)) (len := L) (by rw [s₁₀₆]; lia) 14175 (by decide) (by decide)
-      (V := 256 * c₁₀ + 14080 * c₁₁ + 436480 * c₁₂ + 10067200 * c₁₃ + 192704512 * c₁₄) v₁₀q₁₀₆ (by lia)
-  rw [← (show q₁₀₇ = R.divExact q₁₀₆ (9 * L) L 14175 from rfl)] at w₁₀₇ e₁₀₇
+  clear w₁₀₆ v₄q₁₀₅ v₅q₁₀₅ v₆q₁₀₅ s₁₀₅ e₁₀₅a e₁₀₅b e₁₀₅c v₇q₁₀₅ v₈q₁₀₅ v₉q₁₀₅ v₁₀q₁₀₅ v₁₁q₁₀₅ v₁₂q₁₀₅ v₁₃q₁₀₅
+  obtain ⟨w₁₀₇, e₁₀₇a, e₁₀₇b, e₁₀₇c⟩ := sub3ChainW_val (q := q₁₀₆) (o₁ := (6 * L)) (o₂ := (7 * L))
+      (o₃ := (8 * L)) (o₄ := (9 * L)) (len := L) (6 * L) (3 * L) (by rw [s₁₀₆]; lia) (by lia) (by lia) 1
+      (V₁ := c₇) (V₂ := c₈) (V₃ := c₉)
+      v₇q₁₀₆ v₈q₁₀₆ v₉q₁₀₆ v₁₀q₁₀₆ (by lia) (by lia) (by lia)
+  rw [← (show q₁₀₇ = R.sub3Chain q₁₀₆ (6 * L) (7 * L) (8 * L) (9 * L) L 1 from rfl)] at w₁₀₇ e₁₀₇a e₁₀₇b e₁₀₇c
   clear_value q₁₀₇
   have s₁₀₇ := w₁₀₇.1.trans s₁₀₆
   have v₁q₁₀₇ := (w₁₀₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₀₆
   have v₂q₁₀₇ := (w₁₀₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₀₆
   have v₃q₁₀₇ := (w₁₀₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₀₆
-  have v₄q₁₀₇ := (w₁₀₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₀₆
-  have v₅q₁₀₇ := (w₁₀₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₀₆
-  have v₆q₁₀₇ := (w₁₀₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₀₆
-  have v₇q₁₀₇ := (w₁₀₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₀₆
-  have v₈q₁₀₇ := (w₁₀₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₀₆
-  have v₉q₁₀₇ := (w₁₀₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₁₀₆
+  have v₄q₁₀₇ := (w₁₀₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₁₀₆a
+  have v₅q₁₀₇ := (w₁₀₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₁₀₆b
+  have v₆q₁₀₇ := (w₁₀₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₁₀₆c
+  have v₁₀q₁₀₇ := (w₁₀₇.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₀₆
   have v₁₁q₁₀₇ := (w₁₀₇.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₀₆
   have v₁₂q₁₀₇ := (w₁₀₇.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₀₆
   have v₁₃q₁₀₇ := (w₁₀₇.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₀₆
-  clear w₁₀₇ v₁₀q₁₀₆ s₁₀₆ v₁q₁₀₆ v₂q₁₀₆ v₃q₁₀₆ v₄q₁₀₆ v₅q₁₀₆ v₆q₁₀₆ v₇q₁₀₆ v₈q₁₀₆ e₁₀₆ v₁₁q₁₀₆ v₁₂q₁₀₆ v₁₃q₁₀₆
-  obtain ⟨w₁₀₈, e₁₀₈⟩ := shrW_val (q := q₁₀₇) (o := (9 * L)) (len := L) (by rw [s₁₀₇]; lia) 8 (by decide) (by decide)
-      (V := c₁₀ + 55 * c₁₁ + 1705 * c₁₂ + 39325 * c₁₃ + 752752 * c₁₄) e₁₀₇ (by lia)
-  rw [← (show q₁₀₈ = R.shr q₁₀₇ (9 * L) L 8 from rfl)] at w₁₀₈ e₁₀₈
+  clear w₁₀₇ v₇q₁₀₆ v₈q₁₀₆ v₉q₁₀₆ s₁₀₆ v₁q₁₀₆ v₂q₁₀₆ v₃q₁₀₆ e₁₀₆a e₁₀₆b e₁₀₆c v₁₀q₁₀₆ v₁₁q₁₀₆ v₁₂q₁₀₆ v₁₃q₁₀₆
+  obtain ⟨w₁₀₈, e₁₀₈a, e₁₀₈b, e₁₀₈c⟩ := sub3ChainW_val (q := q₁₀₇) (o₁ := (9 * L)) (o₂ := (10 * L))
+      (o₃ := (11 * L)) (o₄ := (12 * L)) (len := L) (9 * L) (3 * L) (by rw [s₁₀₇]; lia) (by lia) (by lia) 1
+      (V₁ := c₁₀) (V₂ := c₁₁) (V₃ := c₁₂)
+      v₁₀q₁₀₇ v₁₁q₁₀₇ v₁₂q₁₀₇ v₁₃q₁₀₇ (by lia) (by lia) (by lia)
+  rw [← (show q₁₀₈ = R.sub3Chain q₁₀₇ (9 * L) (10 * L) (11 * L) (12 * L) L 1 from rfl)] at w₁₀₈ e₁₀₈a e₁₀₈b e₁₀₈c
   clear_value q₁₀₈
   have s₁₀₈ := w₁₀₈.1.trans s₁₀₇
   have v₁q₁₀₈ := (w₁₀₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₀₇
@@ -8271,16 +7323,14 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₄q₁₀₈ := (w₁₀₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₀₇
   have v₅q₁₀₈ := (w₁₀₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₀₇
   have v₆q₁₀₈ := (w₁₀₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₀₇
-  have v₇q₁₀₈ := (w₁₀₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₀₇
-  have v₈q₁₀₈ := (w₁₀₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₀₇
-  have v₉q₁₀₈ := (w₁₀₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₀₇
-  have v₁₁q₁₀₈ := (w₁₀₈.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₀₇
-  have v₁₂q₁₀₈ := (w₁₀₈.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₀₇
+  have v₇q₁₀₈ := (w₁₀₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₁₀₇a
+  have v₈q₁₀₈ := (w₁₀₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₁₀₇b
+  have v₉q₁₀₈ := (w₁₀₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₁₀₇c
   have v₁₃q₁₀₈ := (w₁₀₈.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₀₇
-  clear w₁₀₈ e₁₀₇ s₁₀₇ v₁q₁₀₇ v₂q₁₀₇ v₃q₁₀₇ v₄q₁₀₇ v₅q₁₀₇ v₆q₁₀₇ v₇q₁₀₇ v₈q₁₀₇ v₉q₁₀₇ v₁₁q₁₀₇ v₁₂q₁₀₇ v₁₃q₁₀₇
-  obtain ⟨w₁₀₉, e₁₀₉⟩ := divW_val (q := q₁₀₈) (o := (10 * L)) (len := L) (by rw [s₁₀₈]; lia) 155925 (by decide) (by decide)
-      (V := 256 * c₁₁ + 16896 * c₁₂ + 622336 * c₁₃ + 16912896 * c₁₄) v₁₁q₁₀₈ (by lia)
-  rw [← (show q₁₀₉ = R.divExact q₁₀₈ (10 * L) L 155925 from rfl)] at w₁₀₉ e₁₀₉
+  clear w₁₀₈ v₁₀q₁₀₇ v₁₁q₁₀₇ v₁₂q₁₀₇ s₁₀₇ v₁q₁₀₇ v₂q₁₀₇ v₃q₁₀₇ v₄q₁₀₇ v₅q₁₀₇ v₆q₁₀₇ e₁₀₇a e₁₀₇b e₁₀₇c v₁₃q₁₀₇
+  obtain ⟨w₁₀₉, e₁₀₉⟩ := subW_val (q := q₁₀₈) (o := (12 * L)) (len := L) (by rw [s₁₀₈]; lia) d (o + 14 * k) (n - 14 * k)
+      (V := c₁₃) v₁₃q₁₀₈ hc₁₄ (by lia)
+  rw [← (show q₁₀₉ = R.subInto q₁₀₈ (12 * L) L d (o + 14 * k) (n - 14 * k) from rfl)] at w₁₀₉ e₁₀₉
   clear_value q₁₀₉
   have s₁₀₉ := w₁₀₉.1.trans s₁₀₈
   have v₁q₁₀₉ := (w₁₀₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₀₈
@@ -8292,1823 +7342,17 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   have v₇q₁₀₉ := (w₁₀₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₀₈
   have v₈q₁₀₉ := (w₁₀₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₀₈
   have v₉q₁₀₉ := (w₁₀₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₀₈
-  have v₁₀q₁₀₉ := (w₁₀₉.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₁₀₈
-  have v₁₂q₁₀₉ := (w₁₀₉.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₀₈
-  have v₁₃q₁₀₉ := (w₁₀₉.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₀₈
-  clear w₁₀₉ v₁₁q₁₀₈ s₁₀₈ v₁q₁₀₈ v₂q₁₀₈ v₃q₁₀₈ v₄q₁₀₈ v₅q₁₀₈ v₆q₁₀₈ v₇q₁₀₈ v₈q₁₀₈ v₉q₁₀₈ e₁₀₈ v₁₂q₁₀₈ v₁₃q₁₀₈
-  obtain ⟨w₁₁₀, e₁₁₀⟩ := shrW_val (q := q₁₀₉) (o := (10 * L)) (len := L) (by rw [s₁₀₉]; lia) 8 (by decide) (by decide)
-      (V := c₁₁ + 66 * c₁₂ + 2431 * c₁₃ + 66066 * c₁₄) e₁₀₉ (by lia)
-  rw [← (show q₁₁₀ = R.shr q₁₀₉ (10 * L) L 8 from rfl)] at w₁₁₀ e₁₁₀
-  clear_value q₁₁₀
-  have s₁₁₀ := w₁₁₀.1.trans s₁₀₉
-  have v₁q₁₁₀ := (w₁₁₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₀₉
-  have v₂q₁₁₀ := (w₁₁₀.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₀₉
-  have v₃q₁₁₀ := (w₁₁₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₀₉
-  have v₄q₁₁₀ := (w₁₁₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₀₉
-  have v₅q₁₁₀ := (w₁₁₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₀₉
-  have v₆q₁₁₀ := (w₁₁₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₀₉
-  have v₇q₁₁₀ := (w₁₁₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₀₉
-  have v₈q₁₁₀ := (w₁₁₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₀₉
-  have v₉q₁₁₀ := (w₁₁₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₀₉
-  have v₁₀q₁₁₀ := (w₁₁₀.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₀₉
-  have v₁₂q₁₁₀ := (w₁₁₀.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₀₉
-  have v₁₃q₁₁₀ := (w₁₁₀.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₀₉
-  clear w₁₁₀ e₁₀₉ s₁₀₉ v₁q₁₀₉ v₂q₁₀₉ v₃q₁₀₉ v₄q₁₀₉ v₅q₁₀₉ v₆q₁₀₉ v₇q₁₀₉ v₈q₁₀₉ v₉q₁₀₉ v₁₀q₁₀₉ v₁₂q₁₀₉ v₁₃q₁₀₉
-  obtain ⟨w₁₁₁, e₁₁₁⟩ := divW_val (q := q₁₁₀) (o := (11 * L)) (len := L) (by rw [s₁₁₀]; lia) 467775 (by decide) (by decide)
-      (V := 1024 * c₁₂ + 79872 * c₁₃ + 3447808 * c₁₄) v₁₂q₁₁₀ (by lia)
-  rw [← (show q₁₁₁ = R.divExact q₁₁₀ (11 * L) L 467775 from rfl)] at w₁₁₁ e₁₁₁
-  clear_value q₁₁₁
-  have s₁₁₁ := w₁₁₁.1.trans s₁₁₀
-  have v₁q₁₁₁ := (w₁₁₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₁₀
-  have v₂q₁₁₁ := (w₁₁₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₁₀
-  have v₃q₁₁₁ := (w₁₁₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₁₀
-  have v₄q₁₁₁ := (w₁₁₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₁₀
-  have v₅q₁₁₁ := (w₁₁₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₁₀
-  have v₆q₁₁₁ := (w₁₁₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₁₀
-  have v₇q₁₁₁ := (w₁₁₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₁₀
-  have v₈q₁₁₁ := (w₁₁₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₁₀
-  have v₉q₁₁₁ := (w₁₁₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₁₀
-  have v₁₀q₁₁₁ := (w₁₁₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₁₀
-  have v₁₁q₁₁₁ := (w₁₁₁.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₁₁₀
-  have v₁₃q₁₁₁ := (w₁₁₁.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₁₀
-  clear w₁₁₁ v₁₂q₁₁₀ s₁₁₀ v₁q₁₁₀ v₂q₁₁₀ v₃q₁₁₀ v₄q₁₁₀ v₅q₁₁₀ v₆q₁₁₀ v₇q₁₁₀ v₈q₁₁₀ v₉q₁₁₀ v₁₀q₁₁₀ e₁₁₀ v₁₃q₁₁₀
-  obtain ⟨w₁₁₂, e₁₁₂⟩ := shrW_val (q := q₁₁₁) (o := (11 * L)) (len := L) (by rw [s₁₁₁]; lia) 10 (by decide) (by decide)
-      (V := c₁₂ + 78 * c₁₃ + 3367 * c₁₄) e₁₁₁ (by lia)
-  rw [← (show q₁₁₂ = R.shr q₁₁₁ (11 * L) L 10 from rfl)] at w₁₁₂ e₁₁₂
-  clear_value q₁₁₂
-  have s₁₁₂ := w₁₁₂.1.trans s₁₁₁
-  have v₁q₁₁₂ := (w₁₁₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₁₁
-  have v₂q₁₁₂ := (w₁₁₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₁₁
-  have v₃q₁₁₂ := (w₁₁₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₁₁
-  have v₄q₁₁₂ := (w₁₁₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₁₁
-  have v₅q₁₁₂ := (w₁₁₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₁₁
-  have v₆q₁₁₂ := (w₁₁₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₁₁
-  have v₇q₁₁₂ := (w₁₁₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₁₁
-  have v₈q₁₁₂ := (w₁₁₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₁₁
-  have v₉q₁₁₂ := (w₁₁₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₁₁
-  have v₁₀q₁₁₂ := (w₁₁₂.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₁₁
-  have v₁₁q₁₁₂ := (w₁₁₂.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₁₁
-  have v₁₃q₁₁₂ := (w₁₁₂.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₁₁
-  clear w₁₁₂ e₁₁₁ s₁₁₁ v₁q₁₁₁ v₂q₁₁₁ v₃q₁₁₁ v₄q₁₁₁ v₅q₁₁₁ v₆q₁₁₁ v₇q₁₁₁ v₈q₁₁₁ v₉q₁₁₁ v₁₀q₁₁₁ v₁₁q₁₁₁ v₁₃q₁₁₁
-  obtain ⟨w₁₁₃, e₁₁₃⟩ := divW_val (q := q₁₁₂) (o := (12 * L)) (len := L) (by rw [s₁₁₂]; lia) 6081075 (by decide) (by decide)
-      (V := 1024 * c₁₃ + 93184 * c₁₄) v₁₃q₁₁₂ (by lia)
-  rw [← (show q₁₁₃ = R.divExact q₁₁₂ (12 * L) L 6081075 from rfl)] at w₁₁₃ e₁₁₃
-  clear_value q₁₁₃
-  have s₁₁₃ := w₁₁₃.1.trans s₁₁₂
-  have v₁q₁₁₃ := (w₁₁₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₁₂
-  have v₂q₁₁₃ := (w₁₁₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₁₂
-  have v₃q₁₁₃ := (w₁₁₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₁₂
-  have v₄q₁₁₃ := (w₁₁₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₁₂
-  have v₅q₁₁₃ := (w₁₁₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₁₂
-  have v₆q₁₁₃ := (w₁₁₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₁₂
-  have v₇q₁₁₃ := (w₁₁₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₁₂
-  have v₈q₁₁₃ := (w₁₁₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₁₂
-  have v₉q₁₁₃ := (w₁₁₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₁₂
-  have v₁₀q₁₁₃ := (w₁₁₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₁₂
-  have v₁₁q₁₁₃ := (w₁₁₃.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₁₂
-  have v₁₂q₁₁₃ := (w₁₁₃.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₁₁₂
-  clear w₁₁₃ v₁₃q₁₁₂ s₁₁₂ v₁q₁₁₂ v₂q₁₁₂ v₃q₁₁₂ v₄q₁₁₂ v₅q₁₁₂ v₆q₁₁₂ v₇q₁₁₂ v₈q₁₁₂ v₉q₁₁₂ v₁₀q₁₁₂ v₁₁q₁₁₂ e₁₁₂
-  obtain ⟨w₁₁₄, e₁₁₄⟩ := shrW_val (q := q₁₁₃) (o := (12 * L)) (len := L) (by rw [s₁₁₃]; lia) 10 (by decide) (by decide)
-      (V := c₁₃ + 91 * c₁₄) e₁₁₃ (by lia)
-  rw [← (show q₁₁₄ = R.shr q₁₁₃ (12 * L) L 10 from rfl)] at w₁₁₄ e₁₁₄
-  clear_value q₁₁₄
-  have s₁₁₄ := w₁₁₄.1.trans s₁₁₃
-  have v₁q₁₁₄ := (w₁₁₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₁₃
-  have v₂q₁₁₄ := (w₁₁₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₁₃
-  have v₃q₁₁₄ := (w₁₁₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₁₃
-  have v₄q₁₁₄ := (w₁₁₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₁₃
-  have v₅q₁₁₄ := (w₁₁₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₁₃
-  have v₆q₁₁₄ := (w₁₁₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₁₃
-  have v₇q₁₁₄ := (w₁₁₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₁₃
-  have v₈q₁₁₄ := (w₁₁₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₁₃
-  have v₉q₁₁₄ := (w₁₁₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₁₃
-  have v₁₀q₁₁₄ := (w₁₁₄.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₁₃
-  have v₁₁q₁₁₄ := (w₁₁₄.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₁₃
-  have v₁₂q₁₁₄ := (w₁₁₄.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₁₃
-  clear w₁₁₄ e₁₁₃ s₁₁₃ v₁q₁₁₃ v₂q₁₁₃ v₃q₁₁₃ v₄q₁₁₃ v₅q₁₁₃ v₆q₁₁₃ v₇q₁₁₃ v₈q₁₁₃ v₉q₁₁₃ v₁₀q₁₁₃ v₁₁q₁₁₃ v₁₂q₁₁₃
-  obtain ⟨w₁₁₅, e₁₁₅⟩ := subMulW_val (q := q₁₁₄) (o := (12 * L)) (len := L) (by rw [s₁₁₄]; lia) d (o + 14 * k) (n - 14 * k) 13 (by decide)
-      (V := c₁₃ + 78 * c₁₄) e₁₁₄ hc₁₄ (by lia)
-  rw [← (show q₁₁₅ = R.subMulInto q₁₁₄ (12 * L) L d (o + 14 * k) (n - 14 * k) 13 from rfl)] at w₁₁₅ e₁₁₅
-  clear_value q₁₁₅
-  have s₁₁₅ := w₁₁₅.1.trans s₁₁₄
-  have v₁q₁₁₅ := (w₁₁₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₁₄
-  have v₂q₁₁₅ := (w₁₁₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₁₄
-  have v₃q₁₁₅ := (w₁₁₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₁₄
-  have v₄q₁₁₅ := (w₁₁₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₁₄
-  have v₅q₁₁₅ := (w₁₁₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₁₄
-  have v₆q₁₁₅ := (w₁₁₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₁₄
-  have v₇q₁₁₅ := (w₁₁₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₁₄
-  have v₈q₁₁₅ := (w₁₁₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₁₄
-  have v₉q₁₁₅ := (w₁₁₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₁₄
-  have v₁₀q₁₁₅ := (w₁₁₅.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₁₄
-  have v₁₁q₁₁₅ := (w₁₁₅.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₁₄
-  have v₁₂q₁₁₅ := (w₁₁₅.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₁₄
-  clear w₁₁₅ e₁₁₄ s₁₁₄ v₁q₁₁₄ v₂q₁₁₄ v₃q₁₁₄ v₄q₁₁₄ v₅q₁₁₄ v₆q₁₁₄ v₇q₁₁₄ v₈q₁₁₄ v₉q₁₁₄ v₁₀q₁₁₄ v₁₁q₁₁₄ v₁₂q₁₁₄
-  obtain ⟨w₁₁₆, e₁₁₆⟩ := subMulWin_val (q := q₁₁₅) (o := (11 * L)) (len := L) (by rw [s₁₁₅]; lia) (12 * L) L 12
-      (by rw [s₁₁₅]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₂ + 66 * c₁₃ + 2431 * c₁₄) v₁₂q₁₁₅ e₁₁₅ (by lia)
-  rw [← (show q₁₁₆ = R.subMulWin q₁₁₅ (11 * L) L (12 * L) L 12 from rfl)] at w₁₁₆ e₁₁₆
-  clear_value q₁₁₆
-  have s₁₁₆ := w₁₁₆.1.trans s₁₁₅
-  have v₁q₁₁₆ := (w₁₁₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₁₅
-  have v₂q₁₁₆ := (w₁₁₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₁₅
-  have v₃q₁₁₆ := (w₁₁₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₁₅
-  have v₄q₁₁₆ := (w₁₁₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₁₅
-  have v₅q₁₁₆ := (w₁₁₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₁₅
-  have v₆q₁₁₆ := (w₁₁₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₁₅
-  have v₇q₁₁₆ := (w₁₁₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₁₅
-  have v₈q₁₁₆ := (w₁₁₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₁₅
-  have v₉q₁₁₆ := (w₁₁₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₁₅
-  have v₁₀q₁₁₆ := (w₁₁₆.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₁₅
-  have v₁₁q₁₁₆ := (w₁₁₆.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₁₅
-  have v₁₃q₁₁₆ := (w₁₁₆.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₁₁₅
-  clear w₁₁₆ v₁₂q₁₁₅ s₁₁₅ v₁q₁₁₅ v₂q₁₁₅ v₃q₁₁₅ v₄q₁₁₅ v₅q₁₁₅ v₆q₁₁₅ v₇q₁₁₅ v₈q₁₁₅ v₉q₁₁₅ v₁₀q₁₁₅ v₁₁q₁₁₅ e₁₁₅
-  obtain ⟨w₁₁₇, e₁₁₇⟩ := subMulW_val (q := q₁₁₆) (o := (12 * L)) (len := L) (by rw [s₁₁₆]; lia) d (o + 14 * k) (n - 14 * k) 12 (by decide)
-      (V := c₁₃ + 66 * c₁₄) v₁₃q₁₁₆ hc₁₄ (by lia)
-  rw [← (show q₁₁₇ = R.subMulInto q₁₁₆ (12 * L) L d (o + 14 * k) (n - 14 * k) 12 from rfl)] at w₁₁₇ e₁₁₇
-  clear_value q₁₁₇
-  have s₁₁₇ := w₁₁₇.1.trans s₁₁₆
-  have v₁q₁₁₇ := (w₁₁₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₁₆
-  have v₂q₁₁₇ := (w₁₁₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₁₆
-  have v₃q₁₁₇ := (w₁₁₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₁₆
-  have v₄q₁₁₇ := (w₁₁₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₁₆
-  have v₅q₁₁₇ := (w₁₁₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₁₆
-  have v₆q₁₁₇ := (w₁₁₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₁₆
-  have v₇q₁₁₇ := (w₁₁₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₁₆
-  have v₈q₁₁₇ := (w₁₁₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₁₆
-  have v₉q₁₁₇ := (w₁₁₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₁₆
-  have v₁₀q₁₁₇ := (w₁₁₇.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₁₆
-  have v₁₁q₁₁₇ := (w₁₁₇.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₁₆
-  have v₁₂q₁₁₇ := (w₁₁₇.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₁₁₆
-  clear w₁₁₇ v₁₃q₁₁₆ s₁₁₆ v₁q₁₁₆ v₂q₁₁₆ v₃q₁₁₆ v₄q₁₁₆ v₅q₁₁₆ v₆q₁₁₆ v₇q₁₁₆ v₈q₁₁₆ v₉q₁₁₆ v₁₀q₁₁₆ v₁₁q₁₁₆ e₁₁₆
-  obtain ⟨w₁₁₈, e₁₁₈⟩ := subMulWin_val (q := q₁₁₇) (o := (10 * L)) (len := L) (by rw [s₁₁₇]; lia) (11 * L) L 11
-      (by rw [s₁₁₇]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₁ + 55 * c₁₂ + 1705 * c₁₃ + 39325 * c₁₄) v₁₁q₁₁₇ v₁₂q₁₁₇ (by lia)
-  rw [← (show q₁₁₈ = R.subMulWin q₁₁₇ (10 * L) L (11 * L) L 11 from rfl)] at w₁₁₈ e₁₁₈
-  clear_value q₁₁₈
-  have s₁₁₈ := w₁₁₈.1.trans s₁₁₇
-  have v₁q₁₁₈ := (w₁₁₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₁₇
-  have v₂q₁₁₈ := (w₁₁₈.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₁₇
-  have v₃q₁₁₈ := (w₁₁₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₁₇
-  have v₄q₁₁₈ := (w₁₁₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₁₇
-  have v₅q₁₁₈ := (w₁₁₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₁₇
-  have v₆q₁₁₈ := (w₁₁₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₁₇
-  have v₇q₁₁₈ := (w₁₁₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₁₇
-  have v₈q₁₁₈ := (w₁₁₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₁₇
-  have v₉q₁₁₈ := (w₁₁₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₁₇
-  have v₁₀q₁₁₈ := (w₁₁₈.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₁₇
-  have v₁₂q₁₁₈ := (w₁₁₈.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₁₇
-  have v₁₃q₁₁₈ := (w₁₁₈.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₁₁₇
-  clear w₁₁₈ v₁₁q₁₁₇ s₁₁₇ v₁q₁₁₇ v₂q₁₁₇ v₃q₁₁₇ v₄q₁₁₇ v₅q₁₁₇ v₆q₁₁₇ v₇q₁₁₇ v₈q₁₁₇ v₉q₁₁₇ v₁₀q₁₁₇ v₁₂q₁₁₇ e₁₁₇
-  obtain ⟨w₁₁₉, e₁₁₉⟩ := subMulWin_val (q := q₁₁₈) (o := (11 * L)) (len := L) (by rw [s₁₁₈]; lia) (12 * L) L 11
-      (by rw [s₁₁₈]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₂ + 55 * c₁₃ + 1705 * c₁₄) v₁₂q₁₁₈ v₁₃q₁₁₈ (by lia)
-  rw [← (show q₁₁₉ = R.subMulWin q₁₁₈ (11 * L) L (12 * L) L 11 from rfl)] at w₁₁₉ e₁₁₉
-  clear_value q₁₁₉
-  have s₁₁₉ := w₁₁₉.1.trans s₁₁₈
-  have v₁q₁₁₉ := (w₁₁₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₁₈
-  have v₂q₁₁₉ := (w₁₁₉.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₁₈
-  have v₃q₁₁₉ := (w₁₁₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₁₈
-  have v₄q₁₁₉ := (w₁₁₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₁₈
-  have v₅q₁₁₉ := (w₁₁₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₁₈
-  have v₆q₁₁₉ := (w₁₁₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₁₈
-  have v₇q₁₁₉ := (w₁₁₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₁₈
-  have v₈q₁₁₉ := (w₁₁₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₁₈
-  have v₉q₁₁₉ := (w₁₁₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₁₈
-  have v₁₀q₁₁₉ := (w₁₁₉.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₁₈
-  have v₁₁q₁₁₉ := (w₁₁₉.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₁₁₈
-  have v₁₃q₁₁₉ := (w₁₁₉.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₁₈
-  clear w₁₁₉ v₁₂q₁₁₈ s₁₁₈ v₁q₁₁₈ v₂q₁₁₈ v₃q₁₁₈ v₄q₁₁₈ v₅q₁₁₈ v₆q₁₁₈ v₇q₁₁₈ v₈q₁₁₈ v₉q₁₁₈ v₁₀q₁₁₈ e₁₁₈ v₁₃q₁₁₈
-  obtain ⟨w₁₂₀, e₁₂₀⟩ := subMulW_val (q := q₁₁₉) (o := (12 * L)) (len := L) (by rw [s₁₁₉]; lia) d (o + 14 * k) (n - 14 * k) 11 (by decide)
-      (V := c₁₃ + 55 * c₁₄) v₁₃q₁₁₉ hc₁₄ (by lia)
-  rw [← (show q₁₂₀ = R.subMulInto q₁₁₉ (12 * L) L d (o + 14 * k) (n - 14 * k) 11 from rfl)] at w₁₂₀ e₁₂₀
-  clear_value q₁₂₀
-  have s₁₂₀ := w₁₂₀.1.trans s₁₁₉
-  have v₁q₁₂₀ := (w₁₂₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₁₉
-  have v₂q₁₂₀ := (w₁₂₀.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₁₉
-  have v₃q₁₂₀ := (w₁₂₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₁₉
-  have v₄q₁₂₀ := (w₁₂₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₁₉
-  have v₅q₁₂₀ := (w₁₂₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₁₉
-  have v₆q₁₂₀ := (w₁₂₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₁₉
-  have v₇q₁₂₀ := (w₁₂₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₁₉
-  have v₈q₁₂₀ := (w₁₂₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₁₉
-  have v₉q₁₂₀ := (w₁₂₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₁₉
-  have v₁₀q₁₂₀ := (w₁₂₀.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₁₉
-  have v₁₁q₁₂₀ := (w₁₂₀.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₁₉
-  have v₁₂q₁₂₀ := (w₁₂₀.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₁₁₉
-  clear w₁₂₀ v₁₃q₁₁₉ s₁₁₉ v₁q₁₁₉ v₂q₁₁₉ v₃q₁₁₉ v₄q₁₁₉ v₅q₁₁₉ v₆q₁₁₉ v₇q₁₁₉ v₈q₁₁₉ v₉q₁₁₉ v₁₀q₁₁₉ v₁₁q₁₁₉ e₁₁₉
-  obtain ⟨w₁₂₁, e₁₂₁⟩ := subMulWin_val (q := q₁₂₀) (o := (9 * L)) (len := L) (by rw [s₁₂₀]; lia) (10 * L) L 10
-      (by rw [s₁₂₀]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₀ + 45 * c₁₁ + 1155 * c₁₂ + 22275 * c₁₃ + 359502 * c₁₄) v₁₀q₁₂₀ v₁₁q₁₂₀ (by lia)
-  rw [← (show q₁₂₁ = R.subMulWin q₁₂₀ (9 * L) L (10 * L) L 10 from rfl)] at w₁₂₁ e₁₂₁
-  clear_value q₁₂₁
-  have s₁₂₁ := w₁₂₁.1.trans s₁₂₀
-  have v₁q₁₂₁ := (w₁₂₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₂₀
-  have v₂q₁₂₁ := (w₁₂₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₂₀
-  have v₃q₁₂₁ := (w₁₂₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₂₀
-  have v₄q₁₂₁ := (w₁₂₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₂₀
-  have v₅q₁₂₁ := (w₁₂₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₂₀
-  have v₆q₁₂₁ := (w₁₂₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₂₀
-  have v₇q₁₂₁ := (w₁₂₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₂₀
-  have v₈q₁₂₁ := (w₁₂₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₂₀
-  have v₉q₁₂₁ := (w₁₂₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₂₀
-  have v₁₁q₁₂₁ := (w₁₂₁.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₂₀
-  have v₁₂q₁₂₁ := (w₁₂₁.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₂₀
-  have v₁₃q₁₂₁ := (w₁₂₁.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₁₂₀
-  clear w₁₂₁ v₁₀q₁₂₀ s₁₂₀ v₁q₁₂₀ v₂q₁₂₀ v₃q₁₂₀ v₄q₁₂₀ v₅q₁₂₀ v₆q₁₂₀ v₇q₁₂₀ v₈q₁₂₀ v₉q₁₂₀ v₁₁q₁₂₀ v₁₂q₁₂₀ e₁₂₀
-  obtain ⟨w₁₂₂, e₁₂₂⟩ := subMulWin_val (q := q₁₂₁) (o := (10 * L)) (len := L) (by rw [s₁₂₁]; lia) (11 * L) L 10
-      (by rw [s₁₂₁]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₁ + 45 * c₁₂ + 1155 * c₁₃ + 22275 * c₁₄) v₁₁q₁₂₁ v₁₂q₁₂₁ (by lia)
-  rw [← (show q₁₂₂ = R.subMulWin q₁₂₁ (10 * L) L (11 * L) L 10 from rfl)] at w₁₂₂ e₁₂₂
-  clear_value q₁₂₂
-  have s₁₂₂ := w₁₂₂.1.trans s₁₂₁
-  have v₁q₁₂₂ := (w₁₂₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₂₁
-  have v₂q₁₂₂ := (w₁₂₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₂₁
-  have v₃q₁₂₂ := (w₁₂₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₂₁
-  have v₄q₁₂₂ := (w₁₂₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₂₁
-  have v₅q₁₂₂ := (w₁₂₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₂₁
-  have v₆q₁₂₂ := (w₁₂₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₂₁
-  have v₇q₁₂₂ := (w₁₂₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₂₁
-  have v₈q₁₂₂ := (w₁₂₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₂₁
-  have v₉q₁₂₂ := (w₁₂₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₂₁
-  have v₁₀q₁₂₂ := (w₁₂₂.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₁₂₁
-  have v₁₂q₁₂₂ := (w₁₂₂.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₂₁
-  have v₁₃q₁₂₂ := (w₁₂₂.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₂₁
-  clear w₁₂₂ v₁₁q₁₂₁ s₁₂₁ v₁q₁₂₁ v₂q₁₂₁ v₃q₁₂₁ v₄q₁₂₁ v₅q₁₂₁ v₆q₁₂₁ v₇q₁₂₁ v₈q₁₂₁ v₉q₁₂₁ e₁₂₁ v₁₂q₁₂₁ v₁₃q₁₂₁
-  obtain ⟨w₁₂₃, e₁₂₃⟩ := subMulWin_val (q := q₁₂₂) (o := (11 * L)) (len := L) (by rw [s₁₂₂]; lia) (12 * L) L 10
-      (by rw [s₁₂₂]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₂ + 45 * c₁₃ + 1155 * c₁₄) v₁₂q₁₂₂ v₁₃q₁₂₂ (by lia)
-  rw [← (show q₁₂₃ = R.subMulWin q₁₂₂ (11 * L) L (12 * L) L 10 from rfl)] at w₁₂₃ e₁₂₃
-  clear_value q₁₂₃
-  have s₁₂₃ := w₁₂₃.1.trans s₁₂₂
-  have v₁q₁₂₃ := (w₁₂₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₂₂
-  have v₂q₁₂₃ := (w₁₂₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₂₂
-  have v₃q₁₂₃ := (w₁₂₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₂₂
-  have v₄q₁₂₃ := (w₁₂₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₂₂
-  have v₅q₁₂₃ := (w₁₂₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₂₂
-  have v₆q₁₂₃ := (w₁₂₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₂₂
-  have v₇q₁₂₃ := (w₁₂₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₂₂
-  have v₈q₁₂₃ := (w₁₂₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₂₂
-  have v₉q₁₂₃ := (w₁₂₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₂₂
-  have v₁₀q₁₂₃ := (w₁₂₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₂₂
-  have v₁₁q₁₂₃ := (w₁₂₃.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₁₂₂
-  have v₁₃q₁₂₃ := (w₁₂₃.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₂₂
-  clear w₁₂₃ v₁₂q₁₂₂ s₁₂₂ v₁q₁₂₂ v₂q₁₂₂ v₃q₁₂₂ v₄q₁₂₂ v₅q₁₂₂ v₆q₁₂₂ v₇q₁₂₂ v₈q₁₂₂ v₉q₁₂₂ v₁₀q₁₂₂ e₁₂₂ v₁₃q₁₂₂
-  obtain ⟨w₁₂₄, e₁₂₄⟩ := subMulW_val (q := q₁₂₃) (o := (12 * L)) (len := L) (by rw [s₁₂₃]; lia) d (o + 14 * k) (n - 14 * k) 10 (by decide)
-      (V := c₁₃ + 45 * c₁₄) v₁₃q₁₂₃ hc₁₄ (by lia)
-  rw [← (show q₁₂₄ = R.subMulInto q₁₂₃ (12 * L) L d (o + 14 * k) (n - 14 * k) 10 from rfl)] at w₁₂₄ e₁₂₄
-  clear_value q₁₂₄
-  have s₁₂₄ := w₁₂₄.1.trans s₁₂₃
-  have v₁q₁₂₄ := (w₁₂₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₂₃
-  have v₂q₁₂₄ := (w₁₂₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₂₃
-  have v₃q₁₂₄ := (w₁₂₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₂₃
-  have v₄q₁₂₄ := (w₁₂₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₂₃
-  have v₅q₁₂₄ := (w₁₂₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₂₃
-  have v₆q₁₂₄ := (w₁₂₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₂₃
-  have v₇q₁₂₄ := (w₁₂₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₂₃
-  have v₈q₁₂₄ := (w₁₂₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₂₃
-  have v₉q₁₂₄ := (w₁₂₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₂₃
-  have v₁₀q₁₂₄ := (w₁₂₄.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₂₃
-  have v₁₁q₁₂₄ := (w₁₂₄.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₂₃
-  have v₁₂q₁₂₄ := (w₁₂₄.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₁₂₃
-  clear w₁₂₄ v₁₃q₁₂₃ s₁₂₃ v₁q₁₂₃ v₂q₁₂₃ v₃q₁₂₃ v₄q₁₂₃ v₅q₁₂₃ v₆q₁₂₃ v₇q₁₂₃ v₈q₁₂₃ v₉q₁₂₃ v₁₀q₁₂₃ v₁₁q₁₂₃ e₁₂₃
-  obtain ⟨w₁₂₅, e₁₂₅⟩ := subMulWin_val (q := q₁₂₄) (o := (8 * L)) (len := L) (by rw [s₁₂₄]; lia) (9 * L) L 9
-      (by rw [s₁₂₄]; lia) (by lia) (by lia) (by decide)
-      (V := c₉ + 36 * c₁₀ + 750 * c₁₁ + 11880 * c₁₂ + 159027 * c₁₃ + 1899612 * c₁₄) v₉q₁₂₄ v₁₀q₁₂₄ (by lia)
-  rw [← (show q₁₂₅ = R.subMulWin q₁₂₄ (8 * L) L (9 * L) L 9 from rfl)] at w₁₂₅ e₁₂₅
-  clear_value q₁₂₅
-  have s₁₂₅ := w₁₂₅.1.trans s₁₂₄
-  have v₁q₁₂₅ := (w₁₂₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₂₄
-  have v₂q₁₂₅ := (w₁₂₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₂₄
-  have v₃q₁₂₅ := (w₁₂₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₂₄
-  have v₄q₁₂₅ := (w₁₂₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₂₄
-  have v₅q₁₂₅ := (w₁₂₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₂₄
-  have v₆q₁₂₅ := (w₁₂₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₂₄
-  have v₇q₁₂₅ := (w₁₂₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₂₄
-  have v₈q₁₂₅ := (w₁₂₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₂₄
-  have v₁₀q₁₂₅ := (w₁₂₅.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₂₄
-  have v₁₁q₁₂₅ := (w₁₂₅.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₂₄
-  have v₁₂q₁₂₅ := (w₁₂₅.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₂₄
-  have v₁₃q₁₂₅ := (w₁₂₅.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₁₂₄
-  clear w₁₂₅ v₉q₁₂₄ s₁₂₄ v₁q₁₂₄ v₂q₁₂₄ v₃q₁₂₄ v₄q₁₂₄ v₅q₁₂₄ v₆q₁₂₄ v₇q₁₂₄ v₈q₁₂₄ v₁₀q₁₂₄ v₁₁q₁₂₄ v₁₂q₁₂₄ e₁₂₄
-  obtain ⟨w₁₂₆, e₁₂₆⟩ := subMulWin_val (q := q₁₂₅) (o := (9 * L)) (len := L) (by rw [s₁₂₅]; lia) (10 * L) L 9
-      (by rw [s₁₂₅]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₀ + 36 * c₁₁ + 750 * c₁₂ + 11880 * c₁₃ + 159027 * c₁₄) v₁₀q₁₂₅ v₁₁q₁₂₅ (by lia)
-  rw [← (show q₁₂₆ = R.subMulWin q₁₂₅ (9 * L) L (10 * L) L 9 from rfl)] at w₁₂₆ e₁₂₆
-  clear_value q₁₂₆
-  have s₁₂₆ := w₁₂₆.1.trans s₁₂₅
-  have v₁q₁₂₆ := (w₁₂₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₂₅
-  have v₂q₁₂₆ := (w₁₂₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₂₅
-  have v₃q₁₂₆ := (w₁₂₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₂₅
-  have v₄q₁₂₆ := (w₁₂₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₂₅
-  have v₅q₁₂₆ := (w₁₂₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₂₅
-  have v₆q₁₂₆ := (w₁₂₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₂₅
-  have v₇q₁₂₆ := (w₁₂₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₂₅
-  have v₈q₁₂₆ := (w₁₂₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₂₅
-  have v₉q₁₂₆ := (w₁₂₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₁₂₅
-  have v₁₁q₁₂₆ := (w₁₂₆.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₂₅
-  have v₁₂q₁₂₆ := (w₁₂₆.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₂₅
-  have v₁₃q₁₂₆ := (w₁₂₆.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₂₅
-  clear w₁₂₆ v₁₀q₁₂₅ s₁₂₅ v₁q₁₂₅ v₂q₁₂₅ v₃q₁₂₅ v₄q₁₂₅ v₅q₁₂₅ v₆q₁₂₅ v₇q₁₂₅ v₈q₁₂₅ e₁₂₅ v₁₁q₁₂₅ v₁₂q₁₂₅ v₁₃q₁₂₅
-  obtain ⟨w₁₂₇, e₁₂₇⟩ := subMulWin_val (q := q₁₂₆) (o := (10 * L)) (len := L) (by rw [s₁₂₆]; lia) (11 * L) L 9
-      (by rw [s₁₂₆]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₁ + 36 * c₁₂ + 750 * c₁₃ + 11880 * c₁₄) v₁₁q₁₂₆ v₁₂q₁₂₆ (by lia)
-  rw [← (show q₁₂₇ = R.subMulWin q₁₂₆ (10 * L) L (11 * L) L 9 from rfl)] at w₁₂₇ e₁₂₇
-  clear_value q₁₂₇
-  have s₁₂₇ := w₁₂₇.1.trans s₁₂₆
-  have v₁q₁₂₇ := (w₁₂₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₂₆
-  have v₂q₁₂₇ := (w₁₂₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₂₆
-  have v₃q₁₂₇ := (w₁₂₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₂₆
-  have v₄q₁₂₇ := (w₁₂₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₂₆
-  have v₅q₁₂₇ := (w₁₂₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₂₆
-  have v₆q₁₂₇ := (w₁₂₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₂₆
-  have v₇q₁₂₇ := (w₁₂₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₂₆
-  have v₈q₁₂₇ := (w₁₂₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₂₆
-  have v₉q₁₂₇ := (w₁₂₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₂₆
-  have v₁₀q₁₂₇ := (w₁₂₇.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₁₂₆
-  have v₁₂q₁₂₇ := (w₁₂₇.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₂₆
-  have v₁₃q₁₂₇ := (w₁₂₇.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₂₆
-  clear w₁₂₇ v₁₁q₁₂₆ s₁₂₆ v₁q₁₂₆ v₂q₁₂₆ v₃q₁₂₆ v₄q₁₂₆ v₅q₁₂₆ v₆q₁₂₆ v₇q₁₂₆ v₈q₁₂₆ v₉q₁₂₆ e₁₂₆ v₁₂q₁₂₆ v₁₃q₁₂₆
-  obtain ⟨w₁₂₈, e₁₂₈⟩ := subMulWin_val (q := q₁₂₇) (o := (11 * L)) (len := L) (by rw [s₁₂₇]; lia) (12 * L) L 9
-      (by rw [s₁₂₇]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₂ + 36 * c₁₃ + 750 * c₁₄) v₁₂q₁₂₇ v₁₃q₁₂₇ (by lia)
-  rw [← (show q₁₂₈ = R.subMulWin q₁₂₇ (11 * L) L (12 * L) L 9 from rfl)] at w₁₂₈ e₁₂₈
-  clear_value q₁₂₈
-  have s₁₂₈ := w₁₂₈.1.trans s₁₂₇
-  have v₁q₁₂₈ := (w₁₂₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₂₇
-  have v₂q₁₂₈ := (w₁₂₈.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₂₇
-  have v₃q₁₂₈ := (w₁₂₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₂₇
-  have v₄q₁₂₈ := (w₁₂₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₂₇
-  have v₅q₁₂₈ := (w₁₂₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₂₇
-  have v₆q₁₂₈ := (w₁₂₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₂₇
-  have v₇q₁₂₈ := (w₁₂₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₂₇
-  have v₈q₁₂₈ := (w₁₂₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₂₇
-  have v₉q₁₂₈ := (w₁₂₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₂₇
-  have v₁₀q₁₂₈ := (w₁₂₈.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₂₇
-  have v₁₁q₁₂₈ := (w₁₂₈.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₁₂₇
-  have v₁₃q₁₂₈ := (w₁₂₈.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₂₇
-  clear w₁₂₈ v₁₂q₁₂₇ s₁₂₇ v₁q₁₂₇ v₂q₁₂₇ v₃q₁₂₇ v₄q₁₂₇ v₅q₁₂₇ v₆q₁₂₇ v₇q₁₂₇ v₈q₁₂₇ v₉q₁₂₇ v₁₀q₁₂₇ e₁₂₇ v₁₃q₁₂₇
-  obtain ⟨w₁₂₉, e₁₂₉⟩ := subMulW_val (q := q₁₂₈) (o := (12 * L)) (len := L) (by rw [s₁₂₈]; lia) d (o + 14 * k) (n - 14 * k) 9 (by decide)
-      (V := c₁₃ + 36 * c₁₄) v₁₃q₁₂₈ hc₁₄ (by lia)
-  rw [← (show q₁₂₉ = R.subMulInto q₁₂₈ (12 * L) L d (o + 14 * k) (n - 14 * k) 9 from rfl)] at w₁₂₉ e₁₂₉
-  clear_value q₁₂₉
-  have s₁₂₉ := w₁₂₉.1.trans s₁₂₈
-  have v₁q₁₂₉ := (w₁₂₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₂₈
-  have v₂q₁₂₉ := (w₁₂₉.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₂₈
-  have v₃q₁₂₉ := (w₁₂₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₂₈
-  have v₄q₁₂₉ := (w₁₂₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₂₈
-  have v₅q₁₂₉ := (w₁₂₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₂₈
-  have v₆q₁₂₉ := (w₁₂₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₂₈
-  have v₇q₁₂₉ := (w₁₂₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₂₈
-  have v₈q₁₂₉ := (w₁₂₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₂₈
-  have v₉q₁₂₉ := (w₁₂₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₂₈
-  have v₁₀q₁₂₉ := (w₁₂₉.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₂₈
-  have v₁₁q₁₂₉ := (w₁₂₉.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₂₈
-  have v₁₂q₁₂₉ := (w₁₂₉.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₁₂₈
-  clear w₁₂₉ v₁₃q₁₂₈ s₁₂₈ v₁q₁₂₈ v₂q₁₂₈ v₃q₁₂₈ v₄q₁₂₈ v₅q₁₂₈ v₆q₁₂₈ v₇q₁₂₈ v₈q₁₂₈ v₉q₁₂₈ v₁₀q₁₂₈ v₁₁q₁₂₈ e₁₂₈
-  obtain ⟨w₁₃₀, e₁₃₀⟩ := subMulWin_val (q := q₁₂₉) (o := (7 * L)) (len := L) (by rw [s₁₂₉]; lia) (8 * L) L 8
-      (by rw [s₁₂₉]; lia) (by lia) (by lia) (by decide)
-      (V := c₈ + 28 * c₉ + 462 * c₁₀ + 5880 * c₁₁ + 63987 * c₁₂ + 627396 * c₁₃ + 5715424 * c₁₄) v₈q₁₂₉ v₉q₁₂₉ (by lia)
-  rw [← (show q₁₃₀ = R.subMulWin q₁₂₉ (7 * L) L (8 * L) L 8 from rfl)] at w₁₃₀ e₁₃₀
-  clear_value q₁₃₀
-  have s₁₃₀ := w₁₃₀.1.trans s₁₂₉
-  have v₁q₁₃₀ := (w₁₃₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₂₉
-  have v₂q₁₃₀ := (w₁₃₀.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₂₉
-  have v₃q₁₃₀ := (w₁₃₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₂₉
-  have v₄q₁₃₀ := (w₁₃₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₂₉
-  have v₅q₁₃₀ := (w₁₃₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₂₉
-  have v₆q₁₃₀ := (w₁₃₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₂₉
-  have v₇q₁₃₀ := (w₁₃₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₂₉
-  have v₉q₁₃₀ := (w₁₃₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₂₉
-  have v₁₀q₁₃₀ := (w₁₃₀.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₂₉
-  have v₁₁q₁₃₀ := (w₁₃₀.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₂₉
-  have v₁₂q₁₃₀ := (w₁₃₀.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₂₉
-  have v₁₃q₁₃₀ := (w₁₃₀.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₁₂₉
-  clear w₁₃₀ v₈q₁₂₉ s₁₂₉ v₁q₁₂₉ v₂q₁₂₉ v₃q₁₂₉ v₄q₁₂₉ v₅q₁₂₉ v₆q₁₂₉ v₇q₁₂₉ v₉q₁₂₉ v₁₀q₁₂₉ v₁₁q₁₂₉ v₁₂q₁₂₉ e₁₂₉
-  obtain ⟨w₁₃₁, e₁₃₁⟩ := subMulWin_val (q := q₁₃₀) (o := (8 * L)) (len := L) (by rw [s₁₃₀]; lia) (9 * L) L 8
-      (by rw [s₁₃₀]; lia) (by lia) (by lia) (by decide)
-      (V := c₉ + 28 * c₁₀ + 462 * c₁₁ + 5880 * c₁₂ + 63987 * c₁₃ + 627396 * c₁₄) v₉q₁₃₀ v₁₀q₁₃₀ (by lia)
-  rw [← (show q₁₃₁ = R.subMulWin q₁₃₀ (8 * L) L (9 * L) L 8 from rfl)] at w₁₃₁ e₁₃₁
-  clear_value q₁₃₁
-  have s₁₃₁ := w₁₃₁.1.trans s₁₃₀
-  have v₁q₁₃₁ := (w₁₃₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₃₀
-  have v₂q₁₃₁ := (w₁₃₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₃₀
-  have v₃q₁₃₁ := (w₁₃₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₃₀
-  have v₄q₁₃₁ := (w₁₃₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₃₀
-  have v₅q₁₃₁ := (w₁₃₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₃₀
-  have v₆q₁₃₁ := (w₁₃₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₃₀
-  have v₇q₁₃₁ := (w₁₃₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₃₀
-  have v₈q₁₃₁ := (w₁₃₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₁₃₀
-  have v₁₀q₁₃₁ := (w₁₃₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₃₀
-  have v₁₁q₁₃₁ := (w₁₃₁.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₃₀
-  have v₁₂q₁₃₁ := (w₁₃₁.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₃₀
-  have v₁₃q₁₃₁ := (w₁₃₁.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₃₀
-  clear w₁₃₁ v₉q₁₃₀ s₁₃₀ v₁q₁₃₀ v₂q₁₃₀ v₃q₁₃₀ v₄q₁₃₀ v₅q₁₃₀ v₆q₁₃₀ v₇q₁₃₀ e₁₃₀ v₁₀q₁₃₀ v₁₁q₁₃₀ v₁₂q₁₃₀ v₁₃q₁₃₀
-  obtain ⟨w₁₃₂, e₁₃₂⟩ := subMulWin_val (q := q₁₃₁) (o := (9 * L)) (len := L) (by rw [s₁₃₁]; lia) (10 * L) L 8
-      (by rw [s₁₃₁]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₀ + 28 * c₁₁ + 462 * c₁₂ + 5880 * c₁₃ + 63987 * c₁₄) v₁₀q₁₃₁ v₁₁q₁₃₁ (by lia)
-  rw [← (show q₁₃₂ = R.subMulWin q₁₃₁ (9 * L) L (10 * L) L 8 from rfl)] at w₁₃₂ e₁₃₂
-  clear_value q₁₃₂
-  have s₁₃₂ := w₁₃₂.1.trans s₁₃₁
-  have v₁q₁₃₂ := (w₁₃₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₃₁
-  have v₂q₁₃₂ := (w₁₃₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₃₁
-  have v₃q₁₃₂ := (w₁₃₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₃₁
-  have v₄q₁₃₂ := (w₁₃₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₃₁
-  have v₅q₁₃₂ := (w₁₃₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₃₁
-  have v₆q₁₃₂ := (w₁₃₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₃₁
-  have v₇q₁₃₂ := (w₁₃₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₃₁
-  have v₈q₁₃₂ := (w₁₃₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₃₁
-  have v₉q₁₃₂ := (w₁₃₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₁₃₁
-  have v₁₁q₁₃₂ := (w₁₃₂.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₃₁
-  have v₁₂q₁₃₂ := (w₁₃₂.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₃₁
-  have v₁₃q₁₃₂ := (w₁₃₂.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₃₁
-  clear w₁₃₂ v₁₀q₁₃₁ s₁₃₁ v₁q₁₃₁ v₂q₁₃₁ v₃q₁₃₁ v₄q₁₃₁ v₅q₁₃₁ v₆q₁₃₁ v₇q₁₃₁ v₈q₁₃₁ e₁₃₁ v₁₁q₁₃₁ v₁₂q₁₃₁ v₁₃q₁₃₁
-  obtain ⟨w₁₃₃, e₁₃₃⟩ := subMulWin_val (q := q₁₃₂) (o := (10 * L)) (len := L) (by rw [s₁₃₂]; lia) (11 * L) L 8
-      (by rw [s₁₃₂]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₁ + 28 * c₁₂ + 462 * c₁₃ + 5880 * c₁₄) v₁₁q₁₃₂ v₁₂q₁₃₂ (by lia)
-  rw [← (show q₁₃₃ = R.subMulWin q₁₃₂ (10 * L) L (11 * L) L 8 from rfl)] at w₁₃₃ e₁₃₃
-  clear_value q₁₃₃
-  have s₁₃₃ := w₁₃₃.1.trans s₁₃₂
-  have v₁q₁₃₃ := (w₁₃₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₃₂
-  have v₂q₁₃₃ := (w₁₃₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₃₂
-  have v₃q₁₃₃ := (w₁₃₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₃₂
-  have v₄q₁₃₃ := (w₁₃₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₃₂
-  have v₅q₁₃₃ := (w₁₃₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₃₂
-  have v₆q₁₃₃ := (w₁₃₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₃₂
-  have v₇q₁₃₃ := (w₁₃₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₃₂
-  have v₈q₁₃₃ := (w₁₃₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₃₂
-  have v₉q₁₃₃ := (w₁₃₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₃₂
-  have v₁₀q₁₃₃ := (w₁₃₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₁₃₂
-  have v₁₂q₁₃₃ := (w₁₃₃.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₃₂
-  have v₁₃q₁₃₃ := (w₁₃₃.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₃₂
-  clear w₁₃₃ v₁₁q₁₃₂ s₁₃₂ v₁q₁₃₂ v₂q₁₃₂ v₃q₁₃₂ v₄q₁₃₂ v₅q₁₃₂ v₆q₁₃₂ v₇q₁₃₂ v₈q₁₃₂ v₉q₁₃₂ e₁₃₂ v₁₂q₁₃₂ v₁₃q₁₃₂
-  obtain ⟨w₁₃₄, e₁₃₄⟩ := subMulWin_val (q := q₁₃₃) (o := (11 * L)) (len := L) (by rw [s₁₃₃]; lia) (12 * L) L 8
-      (by rw [s₁₃₃]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₂ + 28 * c₁₃ + 462 * c₁₄) v₁₂q₁₃₃ v₁₃q₁₃₃ (by lia)
-  rw [← (show q₁₃₄ = R.subMulWin q₁₃₃ (11 * L) L (12 * L) L 8 from rfl)] at w₁₃₄ e₁₃₄
-  clear_value q₁₃₄
-  have s₁₃₄ := w₁₃₄.1.trans s₁₃₃
-  have v₁q₁₃₄ := (w₁₃₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₃₃
-  have v₂q₁₃₄ := (w₁₃₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₃₃
-  have v₃q₁₃₄ := (w₁₃₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₃₃
-  have v₄q₁₃₄ := (w₁₃₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₃₃
-  have v₅q₁₃₄ := (w₁₃₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₃₃
-  have v₆q₁₃₄ := (w₁₃₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₃₃
-  have v₇q₁₃₄ := (w₁₃₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₃₃
-  have v₈q₁₃₄ := (w₁₃₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₃₃
-  have v₉q₁₃₄ := (w₁₃₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₃₃
-  have v₁₀q₁₃₄ := (w₁₃₄.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₃₃
-  have v₁₁q₁₃₄ := (w₁₃₄.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₁₃₃
-  have v₁₃q₁₃₄ := (w₁₃₄.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₃₃
-  clear w₁₃₄ v₁₂q₁₃₃ s₁₃₃ v₁q₁₃₃ v₂q₁₃₃ v₃q₁₃₃ v₄q₁₃₃ v₅q₁₃₃ v₆q₁₃₃ v₇q₁₃₃ v₈q₁₃₃ v₉q₁₃₃ v₁₀q₁₃₃ e₁₃₃ v₁₃q₁₃₃
-  obtain ⟨w₁₃₅, e₁₃₅⟩ := subMulW_val (q := q₁₃₄) (o := (12 * L)) (len := L) (by rw [s₁₃₄]; lia) d (o + 14 * k) (n - 14 * k) 8 (by decide)
-      (V := c₁₃ + 28 * c₁₄) v₁₃q₁₃₄ hc₁₄ (by lia)
-  rw [← (show q₁₃₅ = R.subMulInto q₁₃₄ (12 * L) L d (o + 14 * k) (n - 14 * k) 8 from rfl)] at w₁₃₅ e₁₃₅
-  clear_value q₁₃₅
-  have s₁₃₅ := w₁₃₅.1.trans s₁₃₄
-  have v₁q₁₃₅ := (w₁₃₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₃₄
-  have v₂q₁₃₅ := (w₁₃₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₃₄
-  have v₃q₁₃₅ := (w₁₃₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₃₄
-  have v₄q₁₃₅ := (w₁₃₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₃₄
-  have v₅q₁₃₅ := (w₁₃₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₃₄
-  have v₆q₁₃₅ := (w₁₃₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₃₄
-  have v₇q₁₃₅ := (w₁₃₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₃₄
-  have v₈q₁₃₅ := (w₁₃₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₃₄
-  have v₉q₁₃₅ := (w₁₃₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₃₄
-  have v₁₀q₁₃₅ := (w₁₃₅.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₃₄
-  have v₁₁q₁₃₅ := (w₁₃₅.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₃₄
-  have v₁₂q₁₃₅ := (w₁₃₅.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₁₃₄
-  clear w₁₃₅ v₁₃q₁₃₄ s₁₃₄ v₁q₁₃₄ v₂q₁₃₄ v₃q₁₃₄ v₄q₁₃₄ v₅q₁₃₄ v₆q₁₃₄ v₇q₁₃₄ v₈q₁₃₄ v₉q₁₃₄ v₁₀q₁₃₄ v₁₁q₁₃₄ e₁₃₄
-  obtain ⟨w₁₃₆, e₁₃₆⟩ := subMulWin_val (q := q₁₃₅) (o := (6 * L)) (len := L) (by rw [s₁₃₅]; lia) (7 * L) L 7
-      (by rw [s₁₃₅]; lia) (by lia) (by lia) (by decide)
-      (V := c₇ + 21 * c₈ + 266 * c₉ + 2646 * c₁₀ + 22827 * c₁₁ + 179487 * c₁₂ + 1323652 * c₁₃ + 9321312 * c₁₄) v₇q₁₃₅ v₈q₁₃₅ (by lia)
-  rw [← (show q₁₃₆ = R.subMulWin q₁₃₅ (6 * L) L (7 * L) L 7 from rfl)] at w₁₃₆ e₁₃₆
-  clear_value q₁₃₆
-  have s₁₃₆ := w₁₃₆.1.trans s₁₃₅
-  have v₁q₁₃₆ := (w₁₃₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₃₅
-  have v₂q₁₃₆ := (w₁₃₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₃₅
-  have v₃q₁₃₆ := (w₁₃₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₃₅
-  have v₄q₁₃₆ := (w₁₃₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₃₅
-  have v₅q₁₃₆ := (w₁₃₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₃₅
-  have v₆q₁₃₆ := (w₁₃₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₃₅
-  have v₈q₁₃₆ := (w₁₃₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₃₅
-  have v₉q₁₃₆ := (w₁₃₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₃₅
-  have v₁₀q₁₃₆ := (w₁₃₆.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₃₅
-  have v₁₁q₁₃₆ := (w₁₃₆.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₃₅
-  have v₁₂q₁₃₆ := (w₁₃₆.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₃₅
-  have v₁₃q₁₃₆ := (w₁₃₆.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₁₃₅
-  clear w₁₃₆ v₇q₁₃₅ s₁₃₅ v₁q₁₃₅ v₂q₁₃₅ v₃q₁₃₅ v₄q₁₃₅ v₅q₁₃₅ v₆q₁₃₅ v₈q₁₃₅ v₉q₁₃₅ v₁₀q₁₃₅ v₁₁q₁₃₅ v₁₂q₁₃₅ e₁₃₅
-  obtain ⟨w₁₃₇, e₁₃₇⟩ := subMulWin_val (q := q₁₃₆) (o := (7 * L)) (len := L) (by rw [s₁₃₆]; lia) (8 * L) L 7
-      (by rw [s₁₃₆]; lia) (by lia) (by lia) (by decide)
-      (V := c₈ + 21 * c₉ + 266 * c₁₀ + 2646 * c₁₁ + 22827 * c₁₂ + 179487 * c₁₃ + 1323652 * c₁₄) v₈q₁₃₆ v₉q₁₃₆ (by lia)
-  rw [← (show q₁₃₇ = R.subMulWin q₁₃₆ (7 * L) L (8 * L) L 7 from rfl)] at w₁₃₇ e₁₃₇
-  clear_value q₁₃₇
-  have s₁₃₇ := w₁₃₇.1.trans s₁₃₆
-  have v₁q₁₃₇ := (w₁₃₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₃₆
-  have v₂q₁₃₇ := (w₁₃₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₃₆
-  have v₃q₁₃₇ := (w₁₃₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₃₆
-  have v₄q₁₃₇ := (w₁₃₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₃₆
-  have v₅q₁₃₇ := (w₁₃₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₃₆
-  have v₆q₁₃₇ := (w₁₃₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₃₆
-  have v₇q₁₃₇ := (w₁₃₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₁₃₆
-  have v₉q₁₃₇ := (w₁₃₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₃₆
-  have v₁₀q₁₃₇ := (w₁₃₇.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₃₆
-  have v₁₁q₁₃₇ := (w₁₃₇.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₃₆
-  have v₁₂q₁₃₇ := (w₁₃₇.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₃₆
-  have v₁₃q₁₃₇ := (w₁₃₇.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₃₆
-  clear w₁₃₇ v₈q₁₃₆ s₁₃₆ v₁q₁₃₆ v₂q₁₃₆ v₃q₁₃₆ v₄q₁₃₆ v₅q₁₃₆ v₆q₁₃₆ e₁₃₆ v₉q₁₃₆ v₁₀q₁₃₆ v₁₁q₁₃₆ v₁₂q₁₃₆ v₁₃q₁₃₆
-  obtain ⟨w₁₃₈, e₁₃₈⟩ := subMulWin_val (q := q₁₃₇) (o := (8 * L)) (len := L) (by rw [s₁₃₇]; lia) (9 * L) L 7
-      (by rw [s₁₃₇]; lia) (by lia) (by lia) (by decide)
-      (V := c₉ + 21 * c₁₀ + 266 * c₁₁ + 2646 * c₁₂ + 22827 * c₁₃ + 179487 * c₁₄) v₉q₁₃₇ v₁₀q₁₃₇ (by lia)
-  rw [← (show q₁₃₈ = R.subMulWin q₁₃₇ (8 * L) L (9 * L) L 7 from rfl)] at w₁₃₈ e₁₃₈
-  clear_value q₁₃₈
-  have s₁₃₈ := w₁₃₈.1.trans s₁₃₇
-  have v₁q₁₃₈ := (w₁₃₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₃₇
-  have v₂q₁₃₈ := (w₁₃₈.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₃₇
-  have v₃q₁₃₈ := (w₁₃₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₃₇
-  have v₄q₁₃₈ := (w₁₃₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₃₇
-  have v₅q₁₃₈ := (w₁₃₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₃₇
-  have v₆q₁₃₈ := (w₁₃₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₃₇
-  have v₇q₁₃₈ := (w₁₃₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₃₇
-  have v₈q₁₃₈ := (w₁₃₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₁₃₇
-  have v₁₀q₁₃₈ := (w₁₃₈.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₃₇
-  have v₁₁q₁₃₈ := (w₁₃₈.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₃₇
-  have v₁₂q₁₃₈ := (w₁₃₈.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₃₇
-  have v₁₃q₁₃₈ := (w₁₃₈.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₃₇
-  clear w₁₃₈ v₉q₁₃₇ s₁₃₇ v₁q₁₃₇ v₂q₁₃₇ v₃q₁₃₇ v₄q₁₃₇ v₅q₁₃₇ v₆q₁₃₇ v₇q₁₃₇ e₁₃₇ v₁₀q₁₃₇ v₁₁q₁₃₇ v₁₂q₁₃₇ v₁₃q₁₃₇
-  obtain ⟨w₁₃₉, e₁₃₉⟩ := subMulWin_val (q := q₁₃₈) (o := (9 * L)) (len := L) (by rw [s₁₃₈]; lia) (10 * L) L 7
-      (by rw [s₁₃₈]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₀ + 21 * c₁₁ + 266 * c₁₂ + 2646 * c₁₃ + 22827 * c₁₄) v₁₀q₁₃₈ v₁₁q₁₃₈ (by lia)
-  rw [← (show q₁₃₉ = R.subMulWin q₁₃₈ (9 * L) L (10 * L) L 7 from rfl)] at w₁₃₉ e₁₃₉
-  clear_value q₁₃₉
-  have s₁₃₉ := w₁₃₉.1.trans s₁₃₈
-  have v₁q₁₃₉ := (w₁₃₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₃₈
-  have v₂q₁₃₉ := (w₁₃₉.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₃₈
-  have v₃q₁₃₉ := (w₁₃₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₃₈
-  have v₄q₁₃₉ := (w₁₃₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₃₈
-  have v₅q₁₃₉ := (w₁₃₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₃₈
-  have v₆q₁₃₉ := (w₁₃₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₃₈
-  have v₇q₁₃₉ := (w₁₃₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₃₈
-  have v₈q₁₃₉ := (w₁₃₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₃₈
-  have v₉q₁₃₉ := (w₁₃₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₁₃₈
-  have v₁₁q₁₃₉ := (w₁₃₉.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₃₈
-  have v₁₂q₁₃₉ := (w₁₃₉.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₃₈
-  have v₁₃q₁₃₉ := (w₁₃₉.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₃₈
-  clear w₁₃₉ v₁₀q₁₃₈ s₁₃₈ v₁q₁₃₈ v₂q₁₃₈ v₃q₁₃₈ v₄q₁₃₈ v₅q₁₃₈ v₆q₁₃₈ v₇q₁₃₈ v₈q₁₃₈ e₁₃₈ v₁₁q₁₃₈ v₁₂q₁₃₈ v₁₃q₁₃₈
-  obtain ⟨w₁₄₀, e₁₄₀⟩ := subMulWin_val (q := q₁₃₉) (o := (10 * L)) (len := L) (by rw [s₁₃₉]; lia) (11 * L) L 7
-      (by rw [s₁₃₉]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₁ + 21 * c₁₂ + 266 * c₁₃ + 2646 * c₁₄) v₁₁q₁₃₉ v₁₂q₁₃₉ (by lia)
-  rw [← (show q₁₄₀ = R.subMulWin q₁₃₉ (10 * L) L (11 * L) L 7 from rfl)] at w₁₄₀ e₁₄₀
-  clear_value q₁₄₀
-  have s₁₄₀ := w₁₄₀.1.trans s₁₃₉
-  have v₁q₁₄₀ := (w₁₄₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₃₉
-  have v₂q₁₄₀ := (w₁₄₀.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₃₉
-  have v₃q₁₄₀ := (w₁₄₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₃₉
-  have v₄q₁₄₀ := (w₁₄₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₃₉
-  have v₅q₁₄₀ := (w₁₄₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₃₉
-  have v₆q₁₄₀ := (w₁₄₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₃₉
-  have v₇q₁₄₀ := (w₁₄₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₃₉
-  have v₈q₁₄₀ := (w₁₄₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₃₉
-  have v₉q₁₄₀ := (w₁₄₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₃₉
-  have v₁₀q₁₄₀ := (w₁₄₀.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₁₃₉
-  have v₁₂q₁₄₀ := (w₁₄₀.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₃₉
-  have v₁₃q₁₄₀ := (w₁₄₀.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₃₉
-  clear w₁₄₀ v₁₁q₁₃₉ s₁₃₉ v₁q₁₃₉ v₂q₁₃₉ v₃q₁₃₉ v₄q₁₃₉ v₅q₁₃₉ v₆q₁₃₉ v₇q₁₃₉ v₈q₁₃₉ v₉q₁₃₉ e₁₃₉ v₁₂q₁₃₉ v₁₃q₁₃₉
-  obtain ⟨w₁₄₁, e₁₄₁⟩ := subMulWin_val (q := q₁₄₀) (o := (11 * L)) (len := L) (by rw [s₁₄₀]; lia) (12 * L) L 7
-      (by rw [s₁₄₀]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₂ + 21 * c₁₃ + 266 * c₁₄) v₁₂q₁₄₀ v₁₃q₁₄₀ (by lia)
-  rw [← (show q₁₄₁ = R.subMulWin q₁₄₀ (11 * L) L (12 * L) L 7 from rfl)] at w₁₄₁ e₁₄₁
-  clear_value q₁₄₁
-  have s₁₄₁ := w₁₄₁.1.trans s₁₄₀
-  have v₁q₁₄₁ := (w₁₄₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₄₀
-  have v₂q₁₄₁ := (w₁₄₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₄₀
-  have v₃q₁₄₁ := (w₁₄₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₄₀
-  have v₄q₁₄₁ := (w₁₄₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₄₀
-  have v₅q₁₄₁ := (w₁₄₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₄₀
-  have v₆q₁₄₁ := (w₁₄₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₄₀
-  have v₇q₁₄₁ := (w₁₄₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₄₀
-  have v₈q₁₄₁ := (w₁₄₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₄₀
-  have v₉q₁₄₁ := (w₁₄₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₄₀
-  have v₁₀q₁₄₁ := (w₁₄₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₄₀
-  have v₁₁q₁₄₁ := (w₁₄₁.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₁₄₀
-  have v₁₃q₁₄₁ := (w₁₄₁.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₄₀
-  clear w₁₄₁ v₁₂q₁₄₀ s₁₄₀ v₁q₁₄₀ v₂q₁₄₀ v₃q₁₄₀ v₄q₁₄₀ v₅q₁₄₀ v₆q₁₄₀ v₇q₁₄₀ v₈q₁₄₀ v₉q₁₄₀ v₁₀q₁₄₀ e₁₄₀ v₁₃q₁₄₀
-  obtain ⟨w₁₄₂, e₁₄₂⟩ := subMulW_val (q := q₁₄₁) (o := (12 * L)) (len := L) (by rw [s₁₄₁]; lia) d (o + 14 * k) (n - 14 * k) 7 (by decide)
-      (V := c₁₃ + 21 * c₁₄) v₁₃q₁₄₁ hc₁₄ (by lia)
-  rw [← (show q₁₄₂ = R.subMulInto q₁₄₁ (12 * L) L d (o + 14 * k) (n - 14 * k) 7 from rfl)] at w₁₄₂ e₁₄₂
-  clear_value q₁₄₂
-  have s₁₄₂ := w₁₄₂.1.trans s₁₄₁
-  have v₁q₁₄₂ := (w₁₄₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₄₁
-  have v₂q₁₄₂ := (w₁₄₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₄₁
-  have v₃q₁₄₂ := (w₁₄₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₄₁
-  have v₄q₁₄₂ := (w₁₄₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₄₁
-  have v₅q₁₄₂ := (w₁₄₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₄₁
-  have v₆q₁₄₂ := (w₁₄₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₄₁
-  have v₇q₁₄₂ := (w₁₄₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₄₁
-  have v₈q₁₄₂ := (w₁₄₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₄₁
-  have v₉q₁₄₂ := (w₁₄₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₄₁
-  have v₁₀q₁₄₂ := (w₁₄₂.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₄₁
-  have v₁₁q₁₄₂ := (w₁₄₂.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₄₁
-  have v₁₂q₁₄₂ := (w₁₄₂.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₁₄₁
-  clear w₁₄₂ v₁₃q₁₄₁ s₁₄₁ v₁q₁₄₁ v₂q₁₄₁ v₃q₁₄₁ v₄q₁₄₁ v₅q₁₄₁ v₆q₁₄₁ v₇q₁₄₁ v₈q₁₄₁ v₉q₁₄₁ v₁₀q₁₄₁ v₁₁q₁₄₁ e₁₄₁
-  obtain ⟨w₁₄₃, e₁₄₃⟩ := subMulWin_val (q := q₁₄₂) (o := (5 * L)) (len := L) (by rw [s₁₄₂]; lia) (6 * L) L 6
-      (by rw [s₁₄₂]; lia) (by lia) (by lia) (by decide)
-      (V := c₆ + 15 * c₇ + 140 * c₈ + 1050 * c₉ + 6951 * c₁₀ + 42525 * c₁₁ + 246730 * c₁₂ + 1379400 * c₁₃ + 7508501 * c₁₄) v₆q₁₄₂ v₇q₁₄₂ (by lia)
-  rw [← (show q₁₄₃ = R.subMulWin q₁₄₂ (5 * L) L (6 * L) L 6 from rfl)] at w₁₄₃ e₁₄₃
-  clear_value q₁₄₃
-  have s₁₄₃ := w₁₄₃.1.trans s₁₄₂
-  have v₁q₁₄₃ := (w₁₄₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₄₂
-  have v₂q₁₄₃ := (w₁₄₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₄₂
-  have v₃q₁₄₃ := (w₁₄₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₄₂
-  have v₄q₁₄₃ := (w₁₄₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₄₂
-  have v₅q₁₄₃ := (w₁₄₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₄₂
-  have v₇q₁₄₃ := (w₁₄₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₄₂
-  have v₈q₁₄₃ := (w₁₄₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₄₂
-  have v₉q₁₄₃ := (w₁₄₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₄₂
-  have v₁₀q₁₄₃ := (w₁₄₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₄₂
-  have v₁₁q₁₄₃ := (w₁₄₃.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₄₂
-  have v₁₂q₁₄₃ := (w₁₄₃.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₄₂
-  have v₁₃q₁₄₃ := (w₁₄₃.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₁₄₂
-  clear w₁₄₃ v₆q₁₄₂ s₁₄₂ v₁q₁₄₂ v₂q₁₄₂ v₃q₁₄₂ v₄q₁₄₂ v₅q₁₄₂ v₇q₁₄₂ v₈q₁₄₂ v₉q₁₄₂ v₁₀q₁₄₂ v₁₁q₁₄₂ v₁₂q₁₄₂ e₁₄₂
-  obtain ⟨w₁₄₄, e₁₄₄⟩ := subMulWin_val (q := q₁₄₃) (o := (6 * L)) (len := L) (by rw [s₁₄₃]; lia) (7 * L) L 6
-      (by rw [s₁₄₃]; lia) (by lia) (by lia) (by decide)
-      (V := c₇ + 15 * c₈ + 140 * c₉ + 1050 * c₁₀ + 6951 * c₁₁ + 42525 * c₁₂ + 246730 * c₁₃ + 1379400 * c₁₄) v₇q₁₄₃ v₈q₁₄₃ (by lia)
-  rw [← (show q₁₄₄ = R.subMulWin q₁₄₃ (6 * L) L (7 * L) L 6 from rfl)] at w₁₄₄ e₁₄₄
-  clear_value q₁₄₄
-  have s₁₄₄ := w₁₄₄.1.trans s₁₄₃
-  have v₁q₁₄₄ := (w₁₄₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₄₃
-  have v₂q₁₄₄ := (w₁₄₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₄₃
-  have v₃q₁₄₄ := (w₁₄₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₄₃
-  have v₄q₁₄₄ := (w₁₄₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₄₃
-  have v₅q₁₄₄ := (w₁₄₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₄₃
-  have v₆q₁₄₄ := (w₁₄₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₁₄₃
-  have v₈q₁₄₄ := (w₁₄₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₄₃
-  have v₉q₁₄₄ := (w₁₄₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₄₃
-  have v₁₀q₁₄₄ := (w₁₄₄.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₄₃
-  have v₁₁q₁₄₄ := (w₁₄₄.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₄₃
-  have v₁₂q₁₄₄ := (w₁₄₄.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₄₃
-  have v₁₃q₁₄₄ := (w₁₄₄.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₄₃
-  clear w₁₄₄ v₇q₁₄₃ s₁₄₃ v₁q₁₄₃ v₂q₁₄₃ v₃q₁₄₃ v₄q₁₄₃ v₅q₁₄₃ e₁₄₃ v₈q₁₄₃ v₉q₁₄₃ v₁₀q₁₄₃ v₁₁q₁₄₃ v₁₂q₁₄₃ v₁₃q₁₄₃
-  obtain ⟨w₁₄₅, e₁₄₅⟩ := subMulWin_val (q := q₁₄₄) (o := (7 * L)) (len := L) (by rw [s₁₄₄]; lia) (8 * L) L 6
-      (by rw [s₁₄₄]; lia) (by lia) (by lia) (by decide)
-      (V := c₈ + 15 * c₉ + 140 * c₁₀ + 1050 * c₁₁ + 6951 * c₁₂ + 42525 * c₁₃ + 246730 * c₁₄) v₈q₁₄₄ v₉q₁₄₄ (by lia)
-  rw [← (show q₁₄₅ = R.subMulWin q₁₄₄ (7 * L) L (8 * L) L 6 from rfl)] at w₁₄₅ e₁₄₅
-  clear_value q₁₄₅
-  have s₁₄₅ := w₁₄₅.1.trans s₁₄₄
-  have v₁q₁₄₅ := (w₁₄₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₄₄
-  have v₂q₁₄₅ := (w₁₄₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₄₄
-  have v₃q₁₄₅ := (w₁₄₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₄₄
-  have v₄q₁₄₅ := (w₁₄₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₄₄
-  have v₅q₁₄₅ := (w₁₄₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₄₄
-  have v₆q₁₄₅ := (w₁₄₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₄₄
-  have v₇q₁₄₅ := (w₁₄₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₁₄₄
-  have v₉q₁₄₅ := (w₁₄₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₄₄
-  have v₁₀q₁₄₅ := (w₁₄₅.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₄₄
-  have v₁₁q₁₄₅ := (w₁₄₅.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₄₄
-  have v₁₂q₁₄₅ := (w₁₄₅.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₄₄
-  have v₁₃q₁₄₅ := (w₁₄₅.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₄₄
-  clear w₁₄₅ v₈q₁₄₄ s₁₄₄ v₁q₁₄₄ v₂q₁₄₄ v₃q₁₄₄ v₄q₁₄₄ v₅q₁₄₄ v₆q₁₄₄ e₁₄₄ v₉q₁₄₄ v₁₀q₁₄₄ v₁₁q₁₄₄ v₁₂q₁₄₄ v₁₃q₁₄₄
-  obtain ⟨w₁₄₆, e₁₄₆⟩ := subMulWin_val (q := q₁₄₅) (o := (8 * L)) (len := L) (by rw [s₁₄₅]; lia) (9 * L) L 6
-      (by rw [s₁₄₅]; lia) (by lia) (by lia) (by decide)
-      (V := c₉ + 15 * c₁₀ + 140 * c₁₁ + 1050 * c₁₂ + 6951 * c₁₃ + 42525 * c₁₄) v₉q₁₄₅ v₁₀q₁₄₅ (by lia)
-  rw [← (show q₁₄₆ = R.subMulWin q₁₄₅ (8 * L) L (9 * L) L 6 from rfl)] at w₁₄₆ e₁₄₆
-  clear_value q₁₄₆
-  have s₁₄₆ := w₁₄₆.1.trans s₁₄₅
-  have v₁q₁₄₆ := (w₁₄₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₄₅
-  have v₂q₁₄₆ := (w₁₄₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₄₅
-  have v₃q₁₄₆ := (w₁₄₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₄₅
-  have v₄q₁₄₆ := (w₁₄₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₄₅
-  have v₅q₁₄₆ := (w₁₄₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₄₅
-  have v₆q₁₄₆ := (w₁₄₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₄₅
-  have v₇q₁₄₆ := (w₁₄₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₄₅
-  have v₈q₁₄₆ := (w₁₄₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₁₄₅
-  have v₁₀q₁₄₆ := (w₁₄₆.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₄₅
-  have v₁₁q₁₄₆ := (w₁₄₆.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₄₅
-  have v₁₂q₁₄₆ := (w₁₄₆.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₄₅
-  have v₁₃q₁₄₆ := (w₁₄₆.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₄₅
-  clear w₁₄₆ v₉q₁₄₅ s₁₄₅ v₁q₁₄₅ v₂q₁₄₅ v₃q₁₄₅ v₄q₁₄₅ v₅q₁₄₅ v₆q₁₄₅ v₇q₁₄₅ e₁₄₅ v₁₀q₁₄₅ v₁₁q₁₄₅ v₁₂q₁₄₅ v₁₃q₁₄₅
-  obtain ⟨w₁₄₇, e₁₄₇⟩ := subMulWin_val (q := q₁₄₆) (o := (9 * L)) (len := L) (by rw [s₁₄₆]; lia) (10 * L) L 6
-      (by rw [s₁₄₆]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₀ + 15 * c₁₁ + 140 * c₁₂ + 1050 * c₁₃ + 6951 * c₁₄) v₁₀q₁₄₆ v₁₁q₁₄₆ (by lia)
-  rw [← (show q₁₄₇ = R.subMulWin q₁₄₆ (9 * L) L (10 * L) L 6 from rfl)] at w₁₄₇ e₁₄₇
-  clear_value q₁₄₇
-  have s₁₄₇ := w₁₄₇.1.trans s₁₄₆
-  have v₁q₁₄₇ := (w₁₄₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₄₆
-  have v₂q₁₄₇ := (w₁₄₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₄₆
-  have v₃q₁₄₇ := (w₁₄₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₄₆
-  have v₄q₁₄₇ := (w₁₄₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₄₆
-  have v₅q₁₄₇ := (w₁₄₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₄₆
-  have v₆q₁₄₇ := (w₁₄₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₄₆
-  have v₇q₁₄₇ := (w₁₄₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₄₆
-  have v₈q₁₄₇ := (w₁₄₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₄₆
-  have v₉q₁₄₇ := (w₁₄₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₁₄₆
-  have v₁₁q₁₄₇ := (w₁₄₇.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₄₆
-  have v₁₂q₁₄₇ := (w₁₄₇.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₄₆
-  have v₁₃q₁₄₇ := (w₁₄₇.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₄₆
-  clear w₁₄₇ v₁₀q₁₄₆ s₁₄₆ v₁q₁₄₆ v₂q₁₄₆ v₃q₁₄₆ v₄q₁₄₆ v₅q₁₄₆ v₆q₁₄₆ v₇q₁₄₆ v₈q₁₄₆ e₁₄₆ v₁₁q₁₄₆ v₁₂q₁₄₆ v₁₃q₁₄₆
-  obtain ⟨w₁₄₈, e₁₄₈⟩ := subMulWin_val (q := q₁₄₇) (o := (10 * L)) (len := L) (by rw [s₁₄₇]; lia) (11 * L) L 6
-      (by rw [s₁₄₇]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₁ + 15 * c₁₂ + 140 * c₁₃ + 1050 * c₁₄) v₁₁q₁₄₇ v₁₂q₁₄₇ (by lia)
-  rw [← (show q₁₄₈ = R.subMulWin q₁₄₇ (10 * L) L (11 * L) L 6 from rfl)] at w₁₄₈ e₁₄₈
-  clear_value q₁₄₈
-  have s₁₄₈ := w₁₄₈.1.trans s₁₄₇
-  have v₁q₁₄₈ := (w₁₄₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₄₇
-  have v₂q₁₄₈ := (w₁₄₈.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₄₇
-  have v₃q₁₄₈ := (w₁₄₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₄₇
-  have v₄q₁₄₈ := (w₁₄₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₄₇
-  have v₅q₁₄₈ := (w₁₄₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₄₇
-  have v₆q₁₄₈ := (w₁₄₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₄₇
-  have v₇q₁₄₈ := (w₁₄₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₄₇
-  have v₈q₁₄₈ := (w₁₄₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₄₇
-  have v₉q₁₄₈ := (w₁₄₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₄₇
-  have v₁₀q₁₄₈ := (w₁₄₈.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₁₄₇
-  have v₁₂q₁₄₈ := (w₁₄₈.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₄₇
-  have v₁₃q₁₄₈ := (w₁₄₈.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₄₇
-  clear w₁₄₈ v₁₁q₁₄₇ s₁₄₇ v₁q₁₄₇ v₂q₁₄₇ v₃q₁₄₇ v₄q₁₄₇ v₅q₁₄₇ v₆q₁₄₇ v₇q₁₄₇ v₈q₁₄₇ v₉q₁₄₇ e₁₄₇ v₁₂q₁₄₇ v₁₃q₁₄₇
-  obtain ⟨w₁₄₉, e₁₄₉⟩ := subMulWin_val (q := q₁₄₈) (o := (11 * L)) (len := L) (by rw [s₁₄₈]; lia) (12 * L) L 6
-      (by rw [s₁₄₈]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₂ + 15 * c₁₃ + 140 * c₁₄) v₁₂q₁₄₈ v₁₃q₁₄₈ (by lia)
-  rw [← (show q₁₄₉ = R.subMulWin q₁₄₈ (11 * L) L (12 * L) L 6 from rfl)] at w₁₄₉ e₁₄₉
-  clear_value q₁₄₉
-  have s₁₄₉ := w₁₄₉.1.trans s₁₄₈
-  have v₁q₁₄₉ := (w₁₄₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₄₈
-  have v₂q₁₄₉ := (w₁₄₉.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₄₈
-  have v₃q₁₄₉ := (w₁₄₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₄₈
-  have v₄q₁₄₉ := (w₁₄₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₄₈
-  have v₅q₁₄₉ := (w₁₄₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₄₈
-  have v₆q₁₄₉ := (w₁₄₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₄₈
-  have v₇q₁₄₉ := (w₁₄₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₄₈
-  have v₈q₁₄₉ := (w₁₄₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₄₈
-  have v₉q₁₄₉ := (w₁₄₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₄₈
-  have v₁₀q₁₄₉ := (w₁₄₉.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₄₈
-  have v₁₁q₁₄₉ := (w₁₄₉.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₁₄₈
-  have v₁₃q₁₄₉ := (w₁₄₉.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₄₈
-  clear w₁₄₉ v₁₂q₁₄₈ s₁₄₈ v₁q₁₄₈ v₂q₁₄₈ v₃q₁₄₈ v₄q₁₄₈ v₅q₁₄₈ v₆q₁₄₈ v₇q₁₄₈ v₈q₁₄₈ v₉q₁₄₈ v₁₀q₁₄₈ e₁₄₈ v₁₃q₁₄₈
-  obtain ⟨w₁₅₀, e₁₅₀⟩ := subMulW_val (q := q₁₄₉) (o := (12 * L)) (len := L) (by rw [s₁₄₉]; lia) d (o + 14 * k) (n - 14 * k) 6 (by decide)
-      (V := c₁₃ + 15 * c₁₄) v₁₃q₁₄₉ hc₁₄ (by lia)
-  rw [← (show q₁₅₀ = R.subMulInto q₁₄₉ (12 * L) L d (o + 14 * k) (n - 14 * k) 6 from rfl)] at w₁₅₀ e₁₅₀
-  clear_value q₁₅₀
-  have s₁₅₀ := w₁₅₀.1.trans s₁₄₉
-  have v₁q₁₅₀ := (w₁₅₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₄₉
-  have v₂q₁₅₀ := (w₁₅₀.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₄₉
-  have v₃q₁₅₀ := (w₁₅₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₄₉
-  have v₄q₁₅₀ := (w₁₅₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₄₉
-  have v₅q₁₅₀ := (w₁₅₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₄₉
-  have v₆q₁₅₀ := (w₁₅₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₄₉
-  have v₇q₁₅₀ := (w₁₅₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₄₉
-  have v₈q₁₅₀ := (w₁₅₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₄₉
-  have v₉q₁₅₀ := (w₁₅₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₄₉
-  have v₁₀q₁₅₀ := (w₁₅₀.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₄₉
-  have v₁₁q₁₅₀ := (w₁₅₀.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₄₉
-  have v₁₂q₁₅₀ := (w₁₅₀.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₁₄₉
-  clear w₁₅₀ v₁₃q₁₄₉ s₁₄₉ v₁q₁₄₉ v₂q₁₄₉ v₃q₁₄₉ v₄q₁₄₉ v₅q₁₄₉ v₆q₁₄₉ v₇q₁₄₉ v₈q₁₄₉ v₉q₁₄₉ v₁₀q₁₄₉ v₁₁q₁₄₉ e₁₄₉
-  obtain ⟨w₁₅₁, e₁₅₁⟩ := subMulWin_val (q := q₁₅₀) (o := (4 * L)) (len := L) (by rw [s₁₅₀]; lia) (5 * L) L 5
-      (by rw [s₁₅₀]; lia) (by lia) (by lia) (by decide)
-      (V := c₅ + 10 * c₆ + 65 * c₇ + 350 * c₈ + 1701 * c₉ + 7770 * c₁₀ + 34105 * c₁₁ + 145750 * c₁₂ + 611501 * c₁₃ + 2532530 * c₁₄) v₅q₁₅₀ v₆q₁₅₀ (by lia)
-  rw [← (show q₁₅₁ = R.subMulWin q₁₅₀ (4 * L) L (5 * L) L 5 from rfl)] at w₁₅₁ e₁₅₁
-  clear_value q₁₅₁
-  have s₁₅₁ := w₁₅₁.1.trans s₁₅₀
-  have v₁q₁₅₁ := (w₁₅₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₅₀
-  have v₂q₁₅₁ := (w₁₅₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₅₀
-  have v₃q₁₅₁ := (w₁₅₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₅₀
-  have v₄q₁₅₁ := (w₁₅₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₅₀
-  have v₆q₁₅₁ := (w₁₅₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₅₀
-  have v₇q₁₅₁ := (w₁₅₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₅₀
-  have v₈q₁₅₁ := (w₁₅₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₅₀
-  have v₉q₁₅₁ := (w₁₅₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₅₀
-  have v₁₀q₁₅₁ := (w₁₅₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₅₀
-  have v₁₁q₁₅₁ := (w₁₅₁.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₅₀
-  have v₁₂q₁₅₁ := (w₁₅₁.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₅₀
-  have v₁₃q₁₅₁ := (w₁₅₁.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₁₅₀
-  clear w₁₅₁ v₅q₁₅₀ s₁₅₀ v₁q₁₅₀ v₂q₁₅₀ v₃q₁₅₀ v₄q₁₅₀ v₆q₁₅₀ v₇q₁₅₀ v₈q₁₅₀ v₉q₁₅₀ v₁₀q₁₅₀ v₁₁q₁₅₀ v₁₂q₁₅₀ e₁₅₀
-  obtain ⟨w₁₅₂, e₁₅₂⟩ := subMulWin_val (q := q₁₅₁) (o := (5 * L)) (len := L) (by rw [s₁₅₁]; lia) (6 * L) L 5
-      (by rw [s₁₅₁]; lia) (by lia) (by lia) (by decide)
-      (V := c₆ + 10 * c₇ + 65 * c₈ + 350 * c₉ + 1701 * c₁₀ + 7770 * c₁₁ + 34105 * c₁₂ + 145750 * c₁₃ + 611501 * c₁₄) v₆q₁₅₁ v₇q₁₅₁ (by lia)
-  rw [← (show q₁₅₂ = R.subMulWin q₁₅₁ (5 * L) L (6 * L) L 5 from rfl)] at w₁₅₂ e₁₅₂
-  clear_value q₁₅₂
-  have s₁₅₂ := w₁₅₂.1.trans s₁₅₁
-  have v₁q₁₅₂ := (w₁₅₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₅₁
-  have v₂q₁₅₂ := (w₁₅₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₅₁
-  have v₃q₁₅₂ := (w₁₅₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₅₁
-  have v₄q₁₅₂ := (w₁₅₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₅₁
-  have v₅q₁₅₂ := (w₁₅₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₁₅₁
-  have v₇q₁₅₂ := (w₁₅₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₅₁
-  have v₈q₁₅₂ := (w₁₅₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₅₁
-  have v₉q₁₅₂ := (w₁₅₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₅₁
-  have v₁₀q₁₅₂ := (w₁₅₂.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₅₁
-  have v₁₁q₁₅₂ := (w₁₅₂.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₅₁
-  have v₁₂q₁₅₂ := (w₁₅₂.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₅₁
-  have v₁₃q₁₅₂ := (w₁₅₂.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₅₁
-  clear w₁₅₂ v₆q₁₅₁ s₁₅₁ v₁q₁₅₁ v₂q₁₅₁ v₃q₁₅₁ v₄q₁₅₁ e₁₅₁ v₇q₁₅₁ v₈q₁₅₁ v₉q₁₅₁ v₁₀q₁₅₁ v₁₁q₁₅₁ v₁₂q₁₅₁ v₁₃q₁₅₁
-  obtain ⟨w₁₅₃, e₁₅₃⟩ := subMulWin_val (q := q₁₅₂) (o := (6 * L)) (len := L) (by rw [s₁₅₂]; lia) (7 * L) L 5
-      (by rw [s₁₅₂]; lia) (by lia) (by lia) (by decide)
-      (V := c₇ + 10 * c₈ + 65 * c₉ + 350 * c₁₀ + 1701 * c₁₁ + 7770 * c₁₂ + 34105 * c₁₃ + 145750 * c₁₄) v₇q₁₅₂ v₈q₁₅₂ (by lia)
-  rw [← (show q₁₅₃ = R.subMulWin q₁₅₂ (6 * L) L (7 * L) L 5 from rfl)] at w₁₅₃ e₁₅₃
-  clear_value q₁₅₃
-  have s₁₅₃ := w₁₅₃.1.trans s₁₅₂
-  have v₁q₁₅₃ := (w₁₅₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₅₂
-  have v₂q₁₅₃ := (w₁₅₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₅₂
-  have v₃q₁₅₃ := (w₁₅₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₅₂
-  have v₄q₁₅₃ := (w₁₅₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₅₂
-  have v₅q₁₅₃ := (w₁₅₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₅₂
-  have v₆q₁₅₃ := (w₁₅₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₁₅₂
-  have v₈q₁₅₃ := (w₁₅₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₅₂
-  have v₉q₁₅₃ := (w₁₅₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₅₂
-  have v₁₀q₁₅₃ := (w₁₅₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₅₂
-  have v₁₁q₁₅₃ := (w₁₅₃.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₅₂
-  have v₁₂q₁₅₃ := (w₁₅₃.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₅₂
-  have v₁₃q₁₅₃ := (w₁₅₃.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₅₂
-  clear w₁₅₃ v₇q₁₅₂ s₁₅₂ v₁q₁₅₂ v₂q₁₅₂ v₃q₁₅₂ v₄q₁₅₂ v₅q₁₅₂ e₁₅₂ v₈q₁₅₂ v₉q₁₅₂ v₁₀q₁₅₂ v₁₁q₁₅₂ v₁₂q₁₅₂ v₁₃q₁₅₂
-  obtain ⟨w₁₅₄, e₁₅₄⟩ := subMulWin_val (q := q₁₅₃) (o := (7 * L)) (len := L) (by rw [s₁₅₃]; lia) (8 * L) L 5
-      (by rw [s₁₅₃]; lia) (by lia) (by lia) (by decide)
-      (V := c₈ + 10 * c₉ + 65 * c₁₀ + 350 * c₁₁ + 1701 * c₁₂ + 7770 * c₁₃ + 34105 * c₁₄) v₈q₁₅₃ v₉q₁₅₃ (by lia)
-  rw [← (show q₁₅₄ = R.subMulWin q₁₅₃ (7 * L) L (8 * L) L 5 from rfl)] at w₁₅₄ e₁₅₄
-  clear_value q₁₅₄
-  have s₁₅₄ := w₁₅₄.1.trans s₁₅₃
-  have v₁q₁₅₄ := (w₁₅₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₅₃
-  have v₂q₁₅₄ := (w₁₅₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₅₃
-  have v₃q₁₅₄ := (w₁₅₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₅₃
-  have v₄q₁₅₄ := (w₁₅₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₅₃
-  have v₅q₁₅₄ := (w₁₅₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₅₃
-  have v₆q₁₅₄ := (w₁₅₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₅₃
-  have v₇q₁₅₄ := (w₁₅₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₁₅₃
-  have v₉q₁₅₄ := (w₁₅₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₅₃
-  have v₁₀q₁₅₄ := (w₁₅₄.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₅₃
-  have v₁₁q₁₅₄ := (w₁₅₄.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₅₃
-  have v₁₂q₁₅₄ := (w₁₅₄.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₅₃
-  have v₁₃q₁₅₄ := (w₁₅₄.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₅₃
-  clear w₁₅₄ v₈q₁₅₃ s₁₅₃ v₁q₁₅₃ v₂q₁₅₃ v₃q₁₅₃ v₄q₁₅₃ v₅q₁₅₃ v₆q₁₅₃ e₁₅₃ v₉q₁₅₃ v₁₀q₁₅₃ v₁₁q₁₅₃ v₁₂q₁₅₃ v₁₃q₁₅₃
-  obtain ⟨w₁₅₅, e₁₅₅⟩ := subMulWin_val (q := q₁₅₄) (o := (8 * L)) (len := L) (by rw [s₁₅₄]; lia) (9 * L) L 5
-      (by rw [s₁₅₄]; lia) (by lia) (by lia) (by decide)
-      (V := c₉ + 10 * c₁₀ + 65 * c₁₁ + 350 * c₁₂ + 1701 * c₁₃ + 7770 * c₁₄) v₉q₁₅₄ v₁₀q₁₅₄ (by lia)
-  rw [← (show q₁₅₅ = R.subMulWin q₁₅₄ (8 * L) L (9 * L) L 5 from rfl)] at w₁₅₅ e₁₅₅
-  clear_value q₁₅₅
-  have s₁₅₅ := w₁₅₅.1.trans s₁₅₄
-  have v₁q₁₅₅ := (w₁₅₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₅₄
-  have v₂q₁₅₅ := (w₁₅₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₅₄
-  have v₃q₁₅₅ := (w₁₅₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₅₄
-  have v₄q₁₅₅ := (w₁₅₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₅₄
-  have v₅q₁₅₅ := (w₁₅₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₅₄
-  have v₆q₁₅₅ := (w₁₅₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₅₄
-  have v₇q₁₅₅ := (w₁₅₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₅₄
-  have v₈q₁₅₅ := (w₁₅₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₁₅₄
-  have v₁₀q₁₅₅ := (w₁₅₅.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₅₄
-  have v₁₁q₁₅₅ := (w₁₅₅.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₅₄
-  have v₁₂q₁₅₅ := (w₁₅₅.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₅₄
-  have v₁₃q₁₅₅ := (w₁₅₅.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₅₄
-  clear w₁₅₅ v₉q₁₅₄ s₁₅₄ v₁q₁₅₄ v₂q₁₅₄ v₃q₁₅₄ v₄q₁₅₄ v₅q₁₅₄ v₆q₁₅₄ v₇q₁₅₄ e₁₅₄ v₁₀q₁₅₄ v₁₁q₁₅₄ v₁₂q₁₅₄ v₁₃q₁₅₄
-  obtain ⟨w₁₅₆, e₁₅₆⟩ := subMulWin_val (q := q₁₅₅) (o := (9 * L)) (len := L) (by rw [s₁₅₅]; lia) (10 * L) L 5
-      (by rw [s₁₅₅]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₀ + 10 * c₁₁ + 65 * c₁₂ + 350 * c₁₃ + 1701 * c₁₄) v₁₀q₁₅₅ v₁₁q₁₅₅ (by lia)
-  rw [← (show q₁₅₆ = R.subMulWin q₁₅₅ (9 * L) L (10 * L) L 5 from rfl)] at w₁₅₆ e₁₅₆
-  clear_value q₁₅₆
-  have s₁₅₆ := w₁₅₆.1.trans s₁₅₅
-  have v₁q₁₅₆ := (w₁₅₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₅₅
-  have v₂q₁₅₆ := (w₁₅₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₅₅
-  have v₃q₁₅₆ := (w₁₅₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₅₅
-  have v₄q₁₅₆ := (w₁₅₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₅₅
-  have v₅q₁₅₆ := (w₁₅₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₅₅
-  have v₆q₁₅₆ := (w₁₅₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₅₅
-  have v₇q₁₅₆ := (w₁₅₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₅₅
-  have v₈q₁₅₆ := (w₁₅₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₅₅
-  have v₉q₁₅₆ := (w₁₅₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₁₅₅
-  have v₁₁q₁₅₆ := (w₁₅₆.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₅₅
-  have v₁₂q₁₅₆ := (w₁₅₆.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₅₅
-  have v₁₃q₁₅₆ := (w₁₅₆.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₅₅
-  clear w₁₅₆ v₁₀q₁₅₅ s₁₅₅ v₁q₁₅₅ v₂q₁₅₅ v₃q₁₅₅ v₄q₁₅₅ v₅q₁₅₅ v₆q₁₅₅ v₇q₁₅₅ v₈q₁₅₅ e₁₅₅ v₁₁q₁₅₅ v₁₂q₁₅₅ v₁₃q₁₅₅
-  obtain ⟨w₁₅₇, e₁₅₇⟩ := subMulWin_val (q := q₁₅₆) (o := (10 * L)) (len := L) (by rw [s₁₅₆]; lia) (11 * L) L 5
-      (by rw [s₁₅₆]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₁ + 10 * c₁₂ + 65 * c₁₃ + 350 * c₁₄) v₁₁q₁₅₆ v₁₂q₁₅₆ (by lia)
-  rw [← (show q₁₅₇ = R.subMulWin q₁₅₆ (10 * L) L (11 * L) L 5 from rfl)] at w₁₅₇ e₁₅₇
-  clear_value q₁₅₇
-  have s₁₅₇ := w₁₅₇.1.trans s₁₅₆
-  have v₁q₁₅₇ := (w₁₅₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₅₆
-  have v₂q₁₅₇ := (w₁₅₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₅₆
-  have v₃q₁₅₇ := (w₁₅₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₅₆
-  have v₄q₁₅₇ := (w₁₅₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₅₆
-  have v₅q₁₅₇ := (w₁₅₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₅₆
-  have v₆q₁₅₇ := (w₁₅₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₅₆
-  have v₇q₁₅₇ := (w₁₅₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₅₆
-  have v₈q₁₅₇ := (w₁₅₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₅₆
-  have v₉q₁₅₇ := (w₁₅₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₅₆
-  have v₁₀q₁₅₇ := (w₁₅₇.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₁₅₆
-  have v₁₂q₁₅₇ := (w₁₅₇.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₅₆
-  have v₁₃q₁₅₇ := (w₁₅₇.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₅₆
-  clear w₁₅₇ v₁₁q₁₅₆ s₁₅₆ v₁q₁₅₆ v₂q₁₅₆ v₃q₁₅₆ v₄q₁₅₆ v₅q₁₅₆ v₆q₁₅₆ v₇q₁₅₆ v₈q₁₅₆ v₉q₁₅₆ e₁₅₆ v₁₂q₁₅₆ v₁₃q₁₅₆
-  obtain ⟨w₁₅₈, e₁₅₈⟩ := subMulWin_val (q := q₁₅₇) (o := (11 * L)) (len := L) (by rw [s₁₅₇]; lia) (12 * L) L 5
-      (by rw [s₁₅₇]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₂ + 10 * c₁₃ + 65 * c₁₄) v₁₂q₁₅₇ v₁₃q₁₅₇ (by lia)
-  rw [← (show q₁₅₈ = R.subMulWin q₁₅₇ (11 * L) L (12 * L) L 5 from rfl)] at w₁₅₈ e₁₅₈
-  clear_value q₁₅₈
-  have s₁₅₈ := w₁₅₈.1.trans s₁₅₇
-  have v₁q₁₅₈ := (w₁₅₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₅₇
-  have v₂q₁₅₈ := (w₁₅₈.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₅₇
-  have v₃q₁₅₈ := (w₁₅₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₅₇
-  have v₄q₁₅₈ := (w₁₅₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₅₇
-  have v₅q₁₅₈ := (w₁₅₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₅₇
-  have v₆q₁₅₈ := (w₁₅₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₅₇
-  have v₇q₁₅₈ := (w₁₅₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₅₇
-  have v₈q₁₅₈ := (w₁₅₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₅₇
-  have v₉q₁₅₈ := (w₁₅₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₅₇
-  have v₁₀q₁₅₈ := (w₁₅₈.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₅₇
-  have v₁₁q₁₅₈ := (w₁₅₈.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₁₅₇
-  have v₁₃q₁₅₈ := (w₁₅₈.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₅₇
-  clear w₁₅₈ v₁₂q₁₅₇ s₁₅₇ v₁q₁₅₇ v₂q₁₅₇ v₃q₁₅₇ v₄q₁₅₇ v₅q₁₅₇ v₆q₁₅₇ v₇q₁₅₇ v₈q₁₅₇ v₉q₁₅₇ v₁₀q₁₅₇ e₁₅₇ v₁₃q₁₅₇
-  obtain ⟨w₁₅₉, e₁₅₉⟩ := subMulW_val (q := q₁₅₈) (o := (12 * L)) (len := L) (by rw [s₁₅₈]; lia) d (o + 14 * k) (n - 14 * k) 5 (by decide)
-      (V := c₁₃ + 10 * c₁₄) v₁₃q₁₅₈ hc₁₄ (by lia)
-  rw [← (show q₁₅₉ = R.subMulInto q₁₅₈ (12 * L) L d (o + 14 * k) (n - 14 * k) 5 from rfl)] at w₁₅₉ e₁₅₉
-  clear_value q₁₅₉
-  have s₁₅₉ := w₁₅₉.1.trans s₁₅₈
-  have v₁q₁₅₉ := (w₁₅₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₅₈
-  have v₂q₁₅₉ := (w₁₅₉.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₅₈
-  have v₃q₁₅₉ := (w₁₅₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₅₈
-  have v₄q₁₅₉ := (w₁₅₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₅₈
-  have v₅q₁₅₉ := (w₁₅₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₅₈
-  have v₆q₁₅₉ := (w₁₅₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₅₈
-  have v₇q₁₅₉ := (w₁₅₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₅₈
-  have v₈q₁₅₉ := (w₁₅₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₅₈
-  have v₉q₁₅₉ := (w₁₅₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₅₈
-  have v₁₀q₁₅₉ := (w₁₅₉.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₅₈
-  have v₁₁q₁₅₉ := (w₁₅₉.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₅₈
-  have v₁₂q₁₅₉ := (w₁₅₉.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₁₅₈
-  clear w₁₅₉ v₁₃q₁₅₈ s₁₅₈ v₁q₁₅₈ v₂q₁₅₈ v₃q₁₅₈ v₄q₁₅₈ v₅q₁₅₈ v₆q₁₅₈ v₇q₁₅₈ v₈q₁₅₈ v₉q₁₅₈ v₁₀q₁₅₈ v₁₁q₁₅₈ e₁₅₈
-  obtain ⟨w₁₆₀, e₁₆₀⟩ := subMulWin_val (q := q₁₅₉) (o := (3 * L)) (len := L) (by rw [s₁₅₉]; lia) (4 * L) L 4
-      (by rw [s₁₅₉]; lia) (by lia) (by lia) (by decide)
-      (V := c₄ + 6 * c₅ + 25 * c₆ + 90 * c₇ + 301 * c₈ + 966 * c₉ + 3025 * c₁₀ + 9330 * c₁₁ + 28501 * c₁₂ + 86526 * c₁₃ + 261625 * c₁₄) v₄q₁₅₉ v₅q₁₅₉ (by lia)
-  rw [← (show q₁₆₀ = R.subMulWin q₁₅₉ (3 * L) L (4 * L) L 4 from rfl)] at w₁₆₀ e₁₆₀
-  clear_value q₁₆₀
-  have s₁₆₀ := w₁₆₀.1.trans s₁₅₉
-  have v₁q₁₆₀ := (w₁₆₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₅₉
-  have v₂q₁₆₀ := (w₁₆₀.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₅₉
-  have v₃q₁₆₀ := (w₁₆₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₅₉
-  have v₅q₁₆₀ := (w₁₆₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₅₉
-  have v₆q₁₆₀ := (w₁₆₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₅₉
-  have v₇q₁₆₀ := (w₁₆₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₅₉
-  have v₈q₁₆₀ := (w₁₆₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₅₉
-  have v₉q₁₆₀ := (w₁₆₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₅₉
-  have v₁₀q₁₆₀ := (w₁₆₀.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₅₉
-  have v₁₁q₁₆₀ := (w₁₆₀.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₅₉
-  have v₁₂q₁₆₀ := (w₁₆₀.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₅₉
-  have v₁₃q₁₆₀ := (w₁₆₀.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₁₅₉
-  clear w₁₆₀ v₄q₁₅₉ s₁₅₉ v₁q₁₅₉ v₂q₁₅₉ v₃q₁₅₉ v₅q₁₅₉ v₆q₁₅₉ v₇q₁₅₉ v₈q₁₅₉ v₉q₁₅₉ v₁₀q₁₅₉ v₁₁q₁₅₉ v₁₂q₁₅₉ e₁₅₉
-  obtain ⟨w₁₆₁, e₁₆₁⟩ := subMulWin_val (q := q₁₆₀) (o := (4 * L)) (len := L) (by rw [s₁₆₀]; lia) (5 * L) L 4
-      (by rw [s₁₆₀]; lia) (by lia) (by lia) (by decide)
-      (V := c₅ + 6 * c₆ + 25 * c₇ + 90 * c₈ + 301 * c₉ + 966 * c₁₀ + 3025 * c₁₁ + 9330 * c₁₂ + 28501 * c₁₃ + 86526 * c₁₄) v₅q₁₆₀ v₆q₁₆₀ (by lia)
-  rw [← (show q₁₆₁ = R.subMulWin q₁₆₀ (4 * L) L (5 * L) L 4 from rfl)] at w₁₆₁ e₁₆₁
-  clear_value q₁₆₁
-  have s₁₆₁ := w₁₆₁.1.trans s₁₆₀
-  have v₁q₁₆₁ := (w₁₆₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₆₀
-  have v₂q₁₆₁ := (w₁₆₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₆₀
-  have v₃q₁₆₁ := (w₁₆₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₆₀
-  have v₄q₁₆₁ := (w₁₆₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₁₆₀
-  have v₆q₁₆₁ := (w₁₆₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₆₀
-  have v₇q₁₆₁ := (w₁₆₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₆₀
-  have v₈q₁₆₁ := (w₁₆₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₆₀
-  have v₉q₁₆₁ := (w₁₆₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₆₀
-  have v₁₀q₁₆₁ := (w₁₆₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₆₀
-  have v₁₁q₁₆₁ := (w₁₆₁.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₆₀
-  have v₁₂q₁₆₁ := (w₁₆₁.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₆₀
-  have v₁₃q₁₆₁ := (w₁₆₁.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₆₀
-  clear w₁₆₁ v₅q₁₆₀ s₁₆₀ v₁q₁₆₀ v₂q₁₆₀ v₃q₁₆₀ e₁₆₀ v₆q₁₆₀ v₇q₁₆₀ v₈q₁₆₀ v₉q₁₆₀ v₁₀q₁₆₀ v₁₁q₁₆₀ v₁₂q₁₆₀ v₁₃q₁₆₀
-  obtain ⟨w₁₆₂, e₁₆₂⟩ := subMulWin_val (q := q₁₆₁) (o := (5 * L)) (len := L) (by rw [s₁₆₁]; lia) (6 * L) L 4
-      (by rw [s₁₆₁]; lia) (by lia) (by lia) (by decide)
-      (V := c₆ + 6 * c₇ + 25 * c₈ + 90 * c₉ + 301 * c₁₀ + 966 * c₁₁ + 3025 * c₁₂ + 9330 * c₁₃ + 28501 * c₁₄) v₆q₁₆₁ v₇q₁₆₁ (by lia)
-  rw [← (show q₁₆₂ = R.subMulWin q₁₆₁ (5 * L) L (6 * L) L 4 from rfl)] at w₁₆₂ e₁₆₂
-  clear_value q₁₆₂
-  have s₁₆₂ := w₁₆₂.1.trans s₁₆₁
-  have v₁q₁₆₂ := (w₁₆₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₆₁
-  have v₂q₁₆₂ := (w₁₆₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₆₁
-  have v₃q₁₆₂ := (w₁₆₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₆₁
-  have v₄q₁₆₂ := (w₁₆₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₆₁
-  have v₅q₁₆₂ := (w₁₆₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₁₆₁
-  have v₇q₁₆₂ := (w₁₆₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₆₁
-  have v₈q₁₆₂ := (w₁₆₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₆₁
-  have v₉q₁₆₂ := (w₁₆₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₆₁
-  have v₁₀q₁₆₂ := (w₁₆₂.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₆₁
-  have v₁₁q₁₆₂ := (w₁₆₂.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₆₁
-  have v₁₂q₁₆₂ := (w₁₆₂.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₆₁
-  have v₁₃q₁₆₂ := (w₁₆₂.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₆₁
-  clear w₁₆₂ v₆q₁₆₁ s₁₆₁ v₁q₁₆₁ v₂q₁₆₁ v₃q₁₆₁ v₄q₁₆₁ e₁₆₁ v₇q₁₆₁ v₈q₁₆₁ v₉q₁₆₁ v₁₀q₁₆₁ v₁₁q₁₆₁ v₁₂q₁₆₁ v₁₃q₁₆₁
-  obtain ⟨w₁₆₃, e₁₆₃⟩ := subMulWin_val (q := q₁₆₂) (o := (6 * L)) (len := L) (by rw [s₁₆₂]; lia) (7 * L) L 4
-      (by rw [s₁₆₂]; lia) (by lia) (by lia) (by decide)
-      (V := c₇ + 6 * c₈ + 25 * c₉ + 90 * c₁₀ + 301 * c₁₁ + 966 * c₁₂ + 3025 * c₁₃ + 9330 * c₁₄) v₇q₁₆₂ v₈q₁₆₂ (by lia)
-  rw [← (show q₁₆₃ = R.subMulWin q₁₆₂ (6 * L) L (7 * L) L 4 from rfl)] at w₁₆₃ e₁₆₃
-  clear_value q₁₆₃
-  have s₁₆₃ := w₁₆₃.1.trans s₁₆₂
-  have v₁q₁₆₃ := (w₁₆₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₆₂
-  have v₂q₁₆₃ := (w₁₆₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₆₂
-  have v₃q₁₆₃ := (w₁₆₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₆₂
-  have v₄q₁₆₃ := (w₁₆₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₆₂
-  have v₅q₁₆₃ := (w₁₆₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₆₂
-  have v₆q₁₆₃ := (w₁₆₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₁₆₂
-  have v₈q₁₆₃ := (w₁₆₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₆₂
-  have v₉q₁₆₃ := (w₁₆₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₆₂
-  have v₁₀q₁₆₃ := (w₁₆₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₆₂
-  have v₁₁q₁₆₃ := (w₁₆₃.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₆₂
-  have v₁₂q₁₆₃ := (w₁₆₃.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₆₂
-  have v₁₃q₁₆₃ := (w₁₆₃.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₆₂
-  clear w₁₆₃ v₇q₁₆₂ s₁₆₂ v₁q₁₆₂ v₂q₁₆₂ v₃q₁₆₂ v₄q₁₆₂ v₅q₁₆₂ e₁₆₂ v₈q₁₆₂ v₉q₁₆₂ v₁₀q₁₆₂ v₁₁q₁₆₂ v₁₂q₁₆₂ v₁₃q₁₆₂
-  obtain ⟨w₁₆₄, e₁₆₄⟩ := subMulWin_val (q := q₁₆₃) (o := (7 * L)) (len := L) (by rw [s₁₆₃]; lia) (8 * L) L 4
-      (by rw [s₁₆₃]; lia) (by lia) (by lia) (by decide)
-      (V := c₈ + 6 * c₉ + 25 * c₁₀ + 90 * c₁₁ + 301 * c₁₂ + 966 * c₁₃ + 3025 * c₁₄) v₈q₁₆₃ v₉q₁₆₃ (by lia)
-  rw [← (show q₁₆₄ = R.subMulWin q₁₆₃ (7 * L) L (8 * L) L 4 from rfl)] at w₁₆₄ e₁₆₄
-  clear_value q₁₆₄
-  have s₁₆₄ := w₁₆₄.1.trans s₁₆₃
-  have v₁q₁₆₄ := (w₁₆₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₆₃
-  have v₂q₁₆₄ := (w₁₆₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₆₃
-  have v₃q₁₆₄ := (w₁₆₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₆₃
-  have v₄q₁₆₄ := (w₁₆₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₆₃
-  have v₅q₁₆₄ := (w₁₆₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₆₃
-  have v₆q₁₆₄ := (w₁₆₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₆₃
-  have v₇q₁₆₄ := (w₁₆₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₁₆₃
-  have v₉q₁₆₄ := (w₁₆₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₆₃
-  have v₁₀q₁₆₄ := (w₁₆₄.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₆₃
-  have v₁₁q₁₆₄ := (w₁₆₄.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₆₃
-  have v₁₂q₁₆₄ := (w₁₆₄.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₆₃
-  have v₁₃q₁₆₄ := (w₁₆₄.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₆₃
-  clear w₁₆₄ v₈q₁₆₃ s₁₆₃ v₁q₁₆₃ v₂q₁₆₃ v₃q₁₆₃ v₄q₁₆₃ v₅q₁₆₃ v₆q₁₆₃ e₁₆₃ v₉q₁₆₃ v₁₀q₁₆₃ v₁₁q₁₆₃ v₁₂q₁₆₃ v₁₃q₁₆₃
-  obtain ⟨w₁₆₅, e₁₆₅⟩ := subMulWin_val (q := q₁₆₄) (o := (8 * L)) (len := L) (by rw [s₁₆₄]; lia) (9 * L) L 4
-      (by rw [s₁₆₄]; lia) (by lia) (by lia) (by decide)
-      (V := c₉ + 6 * c₁₀ + 25 * c₁₁ + 90 * c₁₂ + 301 * c₁₃ + 966 * c₁₄) v₉q₁₆₄ v₁₀q₁₆₄ (by lia)
-  rw [← (show q₁₆₅ = R.subMulWin q₁₆₄ (8 * L) L (9 * L) L 4 from rfl)] at w₁₆₅ e₁₆₅
-  clear_value q₁₆₅
-  have s₁₆₅ := w₁₆₅.1.trans s₁₆₄
-  have v₁q₁₆₅ := (w₁₆₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₆₄
-  have v₂q₁₆₅ := (w₁₆₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₆₄
-  have v₃q₁₆₅ := (w₁₆₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₆₄
-  have v₄q₁₆₅ := (w₁₆₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₆₄
-  have v₅q₁₆₅ := (w₁₆₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₆₄
-  have v₆q₁₆₅ := (w₁₆₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₆₄
-  have v₇q₁₆₅ := (w₁₆₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₆₄
-  have v₈q₁₆₅ := (w₁₆₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₁₆₄
-  have v₁₀q₁₆₅ := (w₁₆₅.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₆₄
-  have v₁₁q₁₆₅ := (w₁₆₅.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₆₄
-  have v₁₂q₁₆₅ := (w₁₆₅.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₆₄
-  have v₁₃q₁₆₅ := (w₁₆₅.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₆₄
-  clear w₁₆₅ v₉q₁₆₄ s₁₆₄ v₁q₁₆₄ v₂q₁₆₄ v₃q₁₆₄ v₄q₁₆₄ v₅q₁₆₄ v₆q₁₆₄ v₇q₁₆₄ e₁₆₄ v₁₀q₁₆₄ v₁₁q₁₆₄ v₁₂q₁₆₄ v₁₃q₁₆₄
-  obtain ⟨w₁₆₆, e₁₆₆⟩ := subMulWin_val (q := q₁₆₅) (o := (9 * L)) (len := L) (by rw [s₁₆₅]; lia) (10 * L) L 4
-      (by rw [s₁₆₅]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₀ + 6 * c₁₁ + 25 * c₁₂ + 90 * c₁₃ + 301 * c₁₄) v₁₀q₁₆₅ v₁₁q₁₆₅ (by lia)
-  rw [← (show q₁₆₆ = R.subMulWin q₁₆₅ (9 * L) L (10 * L) L 4 from rfl)] at w₁₆₆ e₁₆₆
-  clear_value q₁₆₆
-  have s₁₆₆ := w₁₆₆.1.trans s₁₆₅
-  have v₁q₁₆₆ := (w₁₆₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₆₅
-  have v₂q₁₆₆ := (w₁₆₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₆₅
-  have v₃q₁₆₆ := (w₁₆₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₆₅
-  have v₄q₁₆₆ := (w₁₆₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₆₅
-  have v₅q₁₆₆ := (w₁₆₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₆₅
-  have v₆q₁₆₆ := (w₁₆₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₆₅
-  have v₇q₁₆₆ := (w₁₆₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₆₅
-  have v₈q₁₆₆ := (w₁₆₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₆₅
-  have v₉q₁₆₆ := (w₁₆₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₁₆₅
-  have v₁₁q₁₆₆ := (w₁₆₆.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₆₅
-  have v₁₂q₁₆₆ := (w₁₆₆.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₆₅
-  have v₁₃q₁₆₆ := (w₁₆₆.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₆₅
-  clear w₁₆₆ v₁₀q₁₆₅ s₁₆₅ v₁q₁₆₅ v₂q₁₆₅ v₃q₁₆₅ v₄q₁₆₅ v₅q₁₆₅ v₆q₁₆₅ v₇q₁₆₅ v₈q₁₆₅ e₁₆₅ v₁₁q₁₆₅ v₁₂q₁₆₅ v₁₃q₁₆₅
-  obtain ⟨w₁₆₇, e₁₆₇⟩ := subMulWin_val (q := q₁₆₆) (o := (10 * L)) (len := L) (by rw [s₁₆₆]; lia) (11 * L) L 4
-      (by rw [s₁₆₆]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₁ + 6 * c₁₂ + 25 * c₁₃ + 90 * c₁₄) v₁₁q₁₆₆ v₁₂q₁₆₆ (by lia)
-  rw [← (show q₁₆₇ = R.subMulWin q₁₆₆ (10 * L) L (11 * L) L 4 from rfl)] at w₁₆₇ e₁₆₇
-  clear_value q₁₆₇
-  have s₁₆₇ := w₁₆₇.1.trans s₁₆₆
-  have v₁q₁₆₇ := (w₁₆₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₆₆
-  have v₂q₁₆₇ := (w₁₆₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₆₆
-  have v₃q₁₆₇ := (w₁₆₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₆₆
-  have v₄q₁₆₇ := (w₁₆₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₆₆
-  have v₅q₁₆₇ := (w₁₆₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₆₆
-  have v₆q₁₆₇ := (w₁₆₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₆₆
-  have v₇q₁₆₇ := (w₁₆₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₆₆
-  have v₈q₁₆₇ := (w₁₆₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₆₆
-  have v₉q₁₆₇ := (w₁₆₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₆₆
-  have v₁₀q₁₆₇ := (w₁₆₇.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₁₆₆
-  have v₁₂q₁₆₇ := (w₁₆₇.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₆₆
-  have v₁₃q₁₆₇ := (w₁₆₇.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₆₆
-  clear w₁₆₇ v₁₁q₁₆₆ s₁₆₆ v₁q₁₆₆ v₂q₁₆₆ v₃q₁₆₆ v₄q₁₆₆ v₅q₁₆₆ v₆q₁₆₆ v₇q₁₆₆ v₈q₁₆₆ v₉q₁₆₆ e₁₆₆ v₁₂q₁₆₆ v₁₃q₁₆₆
-  obtain ⟨w₁₆₈, e₁₆₈⟩ := subMulWin_val (q := q₁₆₇) (o := (11 * L)) (len := L) (by rw [s₁₆₇]; lia) (12 * L) L 4
-      (by rw [s₁₆₇]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₂ + 6 * c₁₃ + 25 * c₁₄) v₁₂q₁₆₇ v₁₃q₁₆₇ (by lia)
-  rw [← (show q₁₆₈ = R.subMulWin q₁₆₇ (11 * L) L (12 * L) L 4 from rfl)] at w₁₆₈ e₁₆₈
-  clear_value q₁₆₈
-  have s₁₆₈ := w₁₆₈.1.trans s₁₆₇
-  have v₁q₁₆₈ := (w₁₆₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₆₇
-  have v₂q₁₆₈ := (w₁₆₈.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₆₇
-  have v₃q₁₆₈ := (w₁₆₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₆₇
-  have v₄q₁₆₈ := (w₁₆₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₆₇
-  have v₅q₁₆₈ := (w₁₆₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₆₇
-  have v₆q₁₆₈ := (w₁₆₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₆₇
-  have v₇q₁₆₈ := (w₁₆₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₆₇
-  have v₈q₁₆₈ := (w₁₆₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₆₇
-  have v₉q₁₆₈ := (w₁₆₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₆₇
-  have v₁₀q₁₆₈ := (w₁₆₈.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₆₇
-  have v₁₁q₁₆₈ := (w₁₆₈.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₁₆₇
-  have v₁₃q₁₆₈ := (w₁₆₈.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₆₇
-  clear w₁₆₈ v₁₂q₁₆₇ s₁₆₇ v₁q₁₆₇ v₂q₁₆₇ v₃q₁₆₇ v₄q₁₆₇ v₅q₁₆₇ v₆q₁₆₇ v₇q₁₆₇ v₈q₁₆₇ v₉q₁₆₇ v₁₀q₁₆₇ e₁₆₇ v₁₃q₁₆₇
-  obtain ⟨w₁₆₉, e₁₆₉⟩ := subMulW_val (q := q₁₆₈) (o := (12 * L)) (len := L) (by rw [s₁₆₈]; lia) d (o + 14 * k) (n - 14 * k) 4 (by decide)
-      (V := c₁₃ + 6 * c₁₄) v₁₃q₁₆₈ hc₁₄ (by lia)
-  rw [← (show q₁₆₉ = R.subMulInto q₁₆₈ (12 * L) L d (o + 14 * k) (n - 14 * k) 4 from rfl)] at w₁₆₉ e₁₆₉
-  clear_value q₁₆₉
-  have s₁₆₉ := w₁₆₉.1.trans s₁₆₈
-  have v₁q₁₆₉ := (w₁₆₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₆₈
-  have v₂q₁₆₉ := (w₁₆₉.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₆₈
-  have v₃q₁₆₉ := (w₁₆₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₆₈
-  have v₄q₁₆₉ := (w₁₆₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₆₈
-  have v₅q₁₆₉ := (w₁₆₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₆₈
-  have v₆q₁₆₉ := (w₁₆₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₆₈
-  have v₇q₁₆₉ := (w₁₆₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₆₈
-  have v₈q₁₆₉ := (w₁₆₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₆₈
-  have v₉q₁₆₉ := (w₁₆₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₆₈
-  have v₁₀q₁₆₉ := (w₁₆₉.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₆₈
-  have v₁₁q₁₆₉ := (w₁₆₉.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₆₈
-  have v₁₂q₁₆₉ := (w₁₆₉.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₁₆₈
-  clear w₁₆₉ v₁₃q₁₆₈ s₁₆₈ v₁q₁₆₈ v₂q₁₆₈ v₃q₁₆₈ v₄q₁₆₈ v₅q₁₆₈ v₆q₁₆₈ v₇q₁₆₈ v₈q₁₆₈ v₉q₁₆₈ v₁₀q₁₆₈ v₁₁q₁₆₈ e₁₆₈
-  obtain ⟨w₁₇₀, e₁₇₀⟩ := subMulWin_val (q := q₁₆₉) (o := (2 * L)) (len := L) (by rw [s₁₆₉]; lia) (3 * L) L 3
-      (by rw [s₁₆₉]; lia) (by lia) (by lia) (by decide)
-      (V := c₃ + 3 * c₄ + 7 * c₅ + 15 * c₆ + 31 * c₇ + 63 * c₈ + 127 * c₉ + 255 * c₁₀ + 511 * c₁₁ + 1023 * c₁₂ + 2047 * c₁₃ + 4095 * c₁₄) v₃q₁₆₉ v₄q₁₆₉ (by lia)
-  rw [← (show q₁₇₀ = R.subMulWin q₁₆₉ (2 * L) L (3 * L) L 3 from rfl)] at w₁₇₀ e₁₇₀
-  clear_value q₁₇₀
-  have s₁₇₀ := w₁₇₀.1.trans s₁₆₉
-  have v₁q₁₇₀ := (w₁₇₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₆₉
-  have v₂q₁₇₀ := (w₁₇₀.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₆₉
-  have v₄q₁₇₀ := (w₁₇₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₆₉
-  have v₅q₁₇₀ := (w₁₇₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₆₉
-  have v₆q₁₇₀ := (w₁₇₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₆₉
-  have v₇q₁₇₀ := (w₁₇₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₆₉
-  have v₈q₁₇₀ := (w₁₇₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₆₉
-  have v₉q₁₇₀ := (w₁₇₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₆₉
-  have v₁₀q₁₇₀ := (w₁₇₀.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₆₉
-  have v₁₁q₁₇₀ := (w₁₇₀.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₆₉
-  have v₁₂q₁₇₀ := (w₁₇₀.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₆₉
-  have v₁₃q₁₇₀ := (w₁₇₀.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₁₆₉
-  clear w₁₇₀ v₃q₁₆₉ s₁₆₉ v₁q₁₆₉ v₂q₁₆₉ v₄q₁₆₉ v₅q₁₆₉ v₆q₁₆₉ v₇q₁₆₉ v₈q₁₆₉ v₉q₁₆₉ v₁₀q₁₆₉ v₁₁q₁₆₉ v₁₂q₁₆₉ e₁₆₉
-  obtain ⟨w₁₇₁, e₁₇₁⟩ := subMulWin_val (q := q₁₇₀) (o := (3 * L)) (len := L) (by rw [s₁₇₀]; lia) (4 * L) L 3
-      (by rw [s₁₇₀]; lia) (by lia) (by lia) (by decide)
-      (V := c₄ + 3 * c₅ + 7 * c₆ + 15 * c₇ + 31 * c₈ + 63 * c₉ + 127 * c₁₀ + 255 * c₁₁ + 511 * c₁₂ + 1023 * c₁₃ + 2047 * c₁₄) v₄q₁₇₀ v₅q₁₇₀ (by lia)
-  rw [← (show q₁₇₁ = R.subMulWin q₁₇₀ (3 * L) L (4 * L) L 3 from rfl)] at w₁₇₁ e₁₇₁
-  clear_value q₁₇₁
-  have s₁₇₁ := w₁₇₁.1.trans s₁₇₀
-  have v₁q₁₇₁ := (w₁₇₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₇₀
-  have v₂q₁₇₁ := (w₁₇₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₇₀
-  have v₃q₁₇₁ := (w₁₇₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₁₇₀
-  have v₅q₁₇₁ := (w₁₇₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₇₀
-  have v₆q₁₇₁ := (w₁₇₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₇₀
-  have v₇q₁₇₁ := (w₁₇₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₇₀
-  have v₈q₁₇₁ := (w₁₇₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₇₀
-  have v₉q₁₇₁ := (w₁₇₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₇₀
-  have v₁₀q₁₇₁ := (w₁₇₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₇₀
-  have v₁₁q₁₇₁ := (w₁₇₁.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₇₀
-  have v₁₂q₁₇₁ := (w₁₇₁.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₇₀
-  have v₁₃q₁₇₁ := (w₁₇₁.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₇₀
-  clear w₁₇₁ v₄q₁₇₀ s₁₇₀ v₁q₁₇₀ v₂q₁₇₀ e₁₇₀ v₅q₁₇₀ v₆q₁₇₀ v₇q₁₇₀ v₈q₁₇₀ v₉q₁₇₀ v₁₀q₁₇₀ v₁₁q₁₇₀ v₁₂q₁₇₀ v₁₃q₁₇₀
-  obtain ⟨w₁₇₂, e₁₇₂⟩ := subMulWin_val (q := q₁₇₁) (o := (4 * L)) (len := L) (by rw [s₁₇₁]; lia) (5 * L) L 3
-      (by rw [s₁₇₁]; lia) (by lia) (by lia) (by decide)
-      (V := c₅ + 3 * c₆ + 7 * c₇ + 15 * c₈ + 31 * c₉ + 63 * c₁₀ + 127 * c₁₁ + 255 * c₁₂ + 511 * c₁₃ + 1023 * c₁₄) v₅q₁₇₁ v₆q₁₇₁ (by lia)
-  rw [← (show q₁₇₂ = R.subMulWin q₁₇₁ (4 * L) L (5 * L) L 3 from rfl)] at w₁₇₂ e₁₇₂
-  clear_value q₁₇₂
-  have s₁₇₂ := w₁₇₂.1.trans s₁₇₁
-  have v₁q₁₇₂ := (w₁₇₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₇₁
-  have v₂q₁₇₂ := (w₁₇₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₇₁
-  have v₃q₁₇₂ := (w₁₇₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₇₁
-  have v₄q₁₇₂ := (w₁₇₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₁₇₁
-  have v₆q₁₇₂ := (w₁₇₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₇₁
-  have v₇q₁₇₂ := (w₁₇₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₇₁
-  have v₈q₁₇₂ := (w₁₇₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₇₁
-  have v₉q₁₇₂ := (w₁₇₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₇₁
-  have v₁₀q₁₇₂ := (w₁₇₂.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₇₁
-  have v₁₁q₁₇₂ := (w₁₇₂.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₇₁
-  have v₁₂q₁₇₂ := (w₁₇₂.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₇₁
-  have v₁₃q₁₇₂ := (w₁₇₂.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₇₁
-  clear w₁₇₂ v₅q₁₇₁ s₁₇₁ v₁q₁₇₁ v₂q₁₇₁ v₃q₁₇₁ e₁₇₁ v₆q₁₇₁ v₇q₁₇₁ v₈q₁₇₁ v₉q₁₇₁ v₁₀q₁₇₁ v₁₁q₁₇₁ v₁₂q₁₇₁ v₁₃q₁₇₁
-  obtain ⟨w₁₇₃, e₁₇₃⟩ := subMulWin_val (q := q₁₇₂) (o := (5 * L)) (len := L) (by rw [s₁₇₂]; lia) (6 * L) L 3
-      (by rw [s₁₇₂]; lia) (by lia) (by lia) (by decide)
-      (V := c₆ + 3 * c₇ + 7 * c₈ + 15 * c₉ + 31 * c₁₀ + 63 * c₁₁ + 127 * c₁₂ + 255 * c₁₃ + 511 * c₁₄) v₆q₁₇₂ v₇q₁₇₂ (by lia)
-  rw [← (show q₁₇₃ = R.subMulWin q₁₇₂ (5 * L) L (6 * L) L 3 from rfl)] at w₁₇₃ e₁₇₃
-  clear_value q₁₇₃
-  have s₁₇₃ := w₁₇₃.1.trans s₁₇₂
-  have v₁q₁₇₃ := (w₁₇₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₇₂
-  have v₂q₁₇₃ := (w₁₇₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₇₂
-  have v₃q₁₇₃ := (w₁₇₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₇₂
-  have v₄q₁₇₃ := (w₁₇₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₇₂
-  have v₅q₁₇₃ := (w₁₇₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₁₇₂
-  have v₇q₁₇₃ := (w₁₇₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₇₂
-  have v₈q₁₇₃ := (w₁₇₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₇₂
-  have v₉q₁₇₃ := (w₁₇₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₇₂
-  have v₁₀q₁₇₃ := (w₁₇₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₇₂
-  have v₁₁q₁₇₃ := (w₁₇₃.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₇₂
-  have v₁₂q₁₇₃ := (w₁₇₃.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₇₂
-  have v₁₃q₁₇₃ := (w₁₇₃.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₇₂
-  clear w₁₇₃ v₆q₁₇₂ s₁₇₂ v₁q₁₇₂ v₂q₁₇₂ v₃q₁₇₂ v₄q₁₇₂ e₁₇₂ v₇q₁₇₂ v₈q₁₇₂ v₉q₁₇₂ v₁₀q₁₇₂ v₁₁q₁₇₂ v₁₂q₁₇₂ v₁₃q₁₇₂
-  obtain ⟨w₁₇₄, e₁₇₄⟩ := subMulWin_val (q := q₁₇₃) (o := (6 * L)) (len := L) (by rw [s₁₇₃]; lia) (7 * L) L 3
-      (by rw [s₁₇₃]; lia) (by lia) (by lia) (by decide)
-      (V := c₇ + 3 * c₈ + 7 * c₉ + 15 * c₁₀ + 31 * c₁₁ + 63 * c₁₂ + 127 * c₁₃ + 255 * c₁₄) v₇q₁₇₃ v₈q₁₇₃ (by lia)
-  rw [← (show q₁₇₄ = R.subMulWin q₁₇₃ (6 * L) L (7 * L) L 3 from rfl)] at w₁₇₄ e₁₇₄
-  clear_value q₁₇₄
-  have s₁₇₄ := w₁₇₄.1.trans s₁₇₃
-  have v₁q₁₇₄ := (w₁₇₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₇₃
-  have v₂q₁₇₄ := (w₁₇₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₇₃
-  have v₃q₁₇₄ := (w₁₇₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₇₃
-  have v₄q₁₇₄ := (w₁₇₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₇₃
-  have v₅q₁₇₄ := (w₁₇₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₇₃
-  have v₆q₁₇₄ := (w₁₇₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₁₇₃
-  have v₈q₁₇₄ := (w₁₇₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₇₃
-  have v₉q₁₇₄ := (w₁₇₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₇₃
-  have v₁₀q₁₇₄ := (w₁₇₄.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₇₃
-  have v₁₁q₁₇₄ := (w₁₇₄.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₇₃
-  have v₁₂q₁₇₄ := (w₁₇₄.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₇₃
-  have v₁₃q₁₇₄ := (w₁₇₄.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₇₃
-  clear w₁₇₄ v₇q₁₇₃ s₁₇₃ v₁q₁₇₃ v₂q₁₇₃ v₃q₁₇₃ v₄q₁₇₃ v₅q₁₇₃ e₁₇₃ v₈q₁₇₃ v₉q₁₇₃ v₁₀q₁₇₃ v₁₁q₁₇₃ v₁₂q₁₇₃ v₁₃q₁₇₃
-  obtain ⟨w₁₇₅, e₁₇₅⟩ := subMulWin_val (q := q₁₇₄) (o := (7 * L)) (len := L) (by rw [s₁₇₄]; lia) (8 * L) L 3
-      (by rw [s₁₇₄]; lia) (by lia) (by lia) (by decide)
-      (V := c₈ + 3 * c₉ + 7 * c₁₀ + 15 * c₁₁ + 31 * c₁₂ + 63 * c₁₃ + 127 * c₁₄) v₈q₁₇₄ v₉q₁₇₄ (by lia)
-  rw [← (show q₁₇₅ = R.subMulWin q₁₇₄ (7 * L) L (8 * L) L 3 from rfl)] at w₁₇₅ e₁₇₅
-  clear_value q₁₇₅
-  have s₁₇₅ := w₁₇₅.1.trans s₁₇₄
-  have v₁q₁₇₅ := (w₁₇₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₇₄
-  have v₂q₁₇₅ := (w₁₇₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₇₄
-  have v₃q₁₇₅ := (w₁₇₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₇₄
-  have v₄q₁₇₅ := (w₁₇₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₇₄
-  have v₅q₁₇₅ := (w₁₇₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₇₄
-  have v₆q₁₇₅ := (w₁₇₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₇₄
-  have v₇q₁₇₅ := (w₁₇₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₁₇₄
-  have v₉q₁₇₅ := (w₁₇₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₇₄
-  have v₁₀q₁₇₅ := (w₁₇₅.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₇₄
-  have v₁₁q₁₇₅ := (w₁₇₅.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₇₄
-  have v₁₂q₁₇₅ := (w₁₇₅.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₇₄
-  have v₁₃q₁₇₅ := (w₁₇₅.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₇₄
-  clear w₁₇₅ v₈q₁₇₄ s₁₇₄ v₁q₁₇₄ v₂q₁₇₄ v₃q₁₇₄ v₄q₁₇₄ v₅q₁₇₄ v₆q₁₇₄ e₁₇₄ v₉q₁₇₄ v₁₀q₁₇₄ v₁₁q₁₇₄ v₁₂q₁₇₄ v₁₃q₁₇₄
-  obtain ⟨w₁₇₆, e₁₇₆⟩ := subMulWin_val (q := q₁₇₅) (o := (8 * L)) (len := L) (by rw [s₁₇₅]; lia) (9 * L) L 3
-      (by rw [s₁₇₅]; lia) (by lia) (by lia) (by decide)
-      (V := c₉ + 3 * c₁₀ + 7 * c₁₁ + 15 * c₁₂ + 31 * c₁₃ + 63 * c₁₄) v₉q₁₇₅ v₁₀q₁₇₅ (by lia)
-  rw [← (show q₁₇₆ = R.subMulWin q₁₇₅ (8 * L) L (9 * L) L 3 from rfl)] at w₁₇₆ e₁₇₆
-  clear_value q₁₇₆
-  have s₁₇₆ := w₁₇₆.1.trans s₁₇₅
-  have v₁q₁₇₆ := (w₁₇₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₇₅
-  have v₂q₁₇₆ := (w₁₇₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₇₅
-  have v₃q₁₇₆ := (w₁₇₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₇₅
-  have v₄q₁₇₆ := (w₁₇₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₇₅
-  have v₅q₁₇₆ := (w₁₇₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₇₅
-  have v₆q₁₇₆ := (w₁₇₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₇₅
-  have v₇q₁₇₆ := (w₁₇₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₇₅
-  have v₈q₁₇₆ := (w₁₇₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₁₇₅
-  have v₁₀q₁₇₆ := (w₁₇₆.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₇₅
-  have v₁₁q₁₇₆ := (w₁₇₆.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₇₅
-  have v₁₂q₁₇₆ := (w₁₇₆.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₇₅
-  have v₁₃q₁₇₆ := (w₁₇₆.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₇₅
-  clear w₁₇₆ v₉q₁₇₅ s₁₇₅ v₁q₁₇₅ v₂q₁₇₅ v₃q₁₇₅ v₄q₁₇₅ v₅q₁₇₅ v₆q₁₇₅ v₇q₁₇₅ e₁₇₅ v₁₀q₁₇₅ v₁₁q₁₇₅ v₁₂q₁₇₅ v₁₃q₁₇₅
-  obtain ⟨w₁₇₇, e₁₇₇⟩ := subMulWin_val (q := q₁₇₆) (o := (9 * L)) (len := L) (by rw [s₁₇₆]; lia) (10 * L) L 3
-      (by rw [s₁₇₆]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₀ + 3 * c₁₁ + 7 * c₁₂ + 15 * c₁₃ + 31 * c₁₄) v₁₀q₁₇₆ v₁₁q₁₇₆ (by lia)
-  rw [← (show q₁₇₇ = R.subMulWin q₁₇₆ (9 * L) L (10 * L) L 3 from rfl)] at w₁₇₇ e₁₇₇
-  clear_value q₁₇₇
-  have s₁₇₇ := w₁₇₇.1.trans s₁₇₆
-  have v₁q₁₇₇ := (w₁₇₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₇₆
-  have v₂q₁₇₇ := (w₁₇₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₇₆
-  have v₃q₁₇₇ := (w₁₇₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₇₆
-  have v₄q₁₇₇ := (w₁₇₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₇₆
-  have v₅q₁₇₇ := (w₁₇₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₇₆
-  have v₆q₁₇₇ := (w₁₇₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₇₆
-  have v₇q₁₇₇ := (w₁₇₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₇₆
-  have v₈q₁₇₇ := (w₁₇₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₇₆
-  have v₉q₁₇₇ := (w₁₇₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₁₇₆
-  have v₁₁q₁₇₇ := (w₁₇₇.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₇₆
-  have v₁₂q₁₇₇ := (w₁₇₇.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₇₆
-  have v₁₃q₁₇₇ := (w₁₇₇.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₇₆
-  clear w₁₇₇ v₁₀q₁₇₆ s₁₇₆ v₁q₁₇₆ v₂q₁₇₆ v₃q₁₇₆ v₄q₁₇₆ v₅q₁₇₆ v₆q₁₇₆ v₇q₁₇₆ v₈q₁₇₆ e₁₇₆ v₁₁q₁₇₆ v₁₂q₁₇₆ v₁₃q₁₇₆
-  obtain ⟨w₁₇₈, e₁₇₈⟩ := subMulWin_val (q := q₁₇₇) (o := (10 * L)) (len := L) (by rw [s₁₇₇]; lia) (11 * L) L 3
-      (by rw [s₁₇₇]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₁ + 3 * c₁₂ + 7 * c₁₃ + 15 * c₁₄) v₁₁q₁₇₇ v₁₂q₁₇₇ (by lia)
-  rw [← (show q₁₇₈ = R.subMulWin q₁₇₇ (10 * L) L (11 * L) L 3 from rfl)] at w₁₇₈ e₁₇₈
-  clear_value q₁₇₈
-  have s₁₇₈ := w₁₇₈.1.trans s₁₇₇
-  have v₁q₁₇₈ := (w₁₇₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₇₇
-  have v₂q₁₇₈ := (w₁₇₈.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₇₇
-  have v₃q₁₇₈ := (w₁₇₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₇₇
-  have v₄q₁₇₈ := (w₁₇₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₇₇
-  have v₅q₁₇₈ := (w₁₇₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₇₇
-  have v₆q₁₇₈ := (w₁₇₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₇₇
-  have v₇q₁₇₈ := (w₁₇₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₇₇
-  have v₈q₁₇₈ := (w₁₇₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₇₇
-  have v₉q₁₇₈ := (w₁₇₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₇₇
-  have v₁₀q₁₇₈ := (w₁₇₈.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₁₇₇
-  have v₁₂q₁₇₈ := (w₁₇₈.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₇₇
-  have v₁₃q₁₇₈ := (w₁₇₈.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₇₇
-  clear w₁₇₈ v₁₁q₁₇₇ s₁₇₇ v₁q₁₇₇ v₂q₁₇₇ v₃q₁₇₇ v₄q₁₇₇ v₅q₁₇₇ v₆q₁₇₇ v₇q₁₇₇ v₈q₁₇₇ v₉q₁₇₇ e₁₇₇ v₁₂q₁₇₇ v₁₃q₁₇₇
-  obtain ⟨w₁₇₉, e₁₇₉⟩ := subMulWin_val (q := q₁₇₈) (o := (11 * L)) (len := L) (by rw [s₁₇₈]; lia) (12 * L) L 3
-      (by rw [s₁₇₈]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₂ + 3 * c₁₃ + 7 * c₁₄) v₁₂q₁₇₈ v₁₃q₁₇₈ (by lia)
-  rw [← (show q₁₇₉ = R.subMulWin q₁₇₈ (11 * L) L (12 * L) L 3 from rfl)] at w₁₇₉ e₁₇₉
-  clear_value q₁₇₉
-  have s₁₇₉ := w₁₇₉.1.trans s₁₇₈
-  have v₁q₁₇₉ := (w₁₇₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₇₈
-  have v₂q₁₇₉ := (w₁₇₉.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₇₈
-  have v₃q₁₇₉ := (w₁₇₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₇₈
-  have v₄q₁₇₉ := (w₁₇₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₇₈
-  have v₅q₁₇₉ := (w₁₇₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₇₈
-  have v₆q₁₇₉ := (w₁₇₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₇₈
-  have v₇q₁₇₉ := (w₁₇₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₇₈
-  have v₈q₁₇₉ := (w₁₇₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₇₈
-  have v₉q₁₇₉ := (w₁₇₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₇₈
-  have v₁₀q₁₇₉ := (w₁₇₉.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₇₈
-  have v₁₁q₁₇₉ := (w₁₇₉.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₁₇₈
-  have v₁₃q₁₇₉ := (w₁₇₉.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₇₈
-  clear w₁₇₉ v₁₂q₁₇₈ s₁₇₈ v₁q₁₇₈ v₂q₁₇₈ v₃q₁₇₈ v₄q₁₇₈ v₅q₁₇₈ v₆q₁₇₈ v₇q₁₇₈ v₈q₁₇₈ v₉q₁₇₈ v₁₀q₁₇₈ e₁₇₈ v₁₃q₁₇₈
-  obtain ⟨w₁₈₀, e₁₈₀⟩ := subMulW_val (q := q₁₇₉) (o := (12 * L)) (len := L) (by rw [s₁₇₉]; lia) d (o + 14 * k) (n - 14 * k) 3 (by decide)
-      (V := c₁₃ + 3 * c₁₄) v₁₃q₁₇₉ hc₁₄ (by lia)
-  rw [← (show q₁₈₀ = R.subMulInto q₁₇₉ (12 * L) L d (o + 14 * k) (n - 14 * k) 3 from rfl)] at w₁₈₀ e₁₈₀
-  clear_value q₁₈₀
-  have s₁₈₀ := w₁₈₀.1.trans s₁₇₉
-  have v₁q₁₈₀ := (w₁₈₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₇₉
-  have v₂q₁₈₀ := (w₁₈₀.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₇₉
-  have v₃q₁₈₀ := (w₁₈₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₇₉
-  have v₄q₁₈₀ := (w₁₈₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₇₉
-  have v₅q₁₈₀ := (w₁₈₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₇₉
-  have v₆q₁₈₀ := (w₁₈₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₇₉
-  have v₇q₁₈₀ := (w₁₈₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₇₉
-  have v₈q₁₈₀ := (w₁₈₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₇₉
-  have v₉q₁₈₀ := (w₁₈₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₇₉
-  have v₁₀q₁₈₀ := (w₁₈₀.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₇₉
-  have v₁₁q₁₈₀ := (w₁₈₀.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₇₉
-  have v₁₂q₁₈₀ := (w₁₈₀.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₁₇₉
-  clear w₁₈₀ v₁₃q₁₇₉ s₁₇₉ v₁q₁₇₉ v₂q₁₇₉ v₃q₁₇₉ v₄q₁₇₉ v₅q₁₇₉ v₆q₁₇₉ v₇q₁₇₉ v₈q₁₇₉ v₉q₁₇₉ v₁₀q₁₇₉ v₁₁q₁₇₉ e₁₇₉
-  obtain ⟨w₁₈₁, e₁₈₁⟩ := subMulWin_val (q := q₁₈₀) (o := L) (len := L) (by rw [s₁₈₀]; lia) (2 * L) L 2
-      (by rw [s₁₈₀]; lia) (by lia) (by lia) (by decide)
-      (V := c₂ + c₃ + c₄ + c₅ + c₆ + c₇ + c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) v₂q₁₈₀ v₃q₁₈₀ (by lia)
-  rw [← (show q₁₈₁ = R.subMulWin q₁₈₀ L L (2 * L) L 2 from rfl)] at w₁₈₁ e₁₈₁
-  clear_value q₁₈₁
-  have s₁₈₁ := w₁₈₁.1.trans s₁₈₀
-  have v₁q₁₈₁ := (w₁₈₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₈₀
-  have v₃q₁₈₁ := (w₁₈₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₈₀
-  have v₄q₁₈₁ := (w₁₈₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₈₀
-  have v₅q₁₈₁ := (w₁₈₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₈₀
-  have v₆q₁₈₁ := (w₁₈₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₈₀
-  have v₇q₁₈₁ := (w₁₈₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₈₀
-  have v₈q₁₈₁ := (w₁₈₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₈₀
-  have v₉q₁₈₁ := (w₁₈₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₈₀
-  have v₁₀q₁₈₁ := (w₁₈₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₈₀
-  have v₁₁q₁₈₁ := (w₁₈₁.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₈₀
-  have v₁₂q₁₈₁ := (w₁₈₁.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₈₀
-  have v₁₃q₁₈₁ := (w₁₈₁.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₁₈₀
-  clear w₁₈₁ v₂q₁₈₀ s₁₈₀ v₁q₁₈₀ v₃q₁₈₀ v₄q₁₈₀ v₅q₁₈₀ v₆q₁₈₀ v₇q₁₈₀ v₈q₁₈₀ v₉q₁₈₀ v₁₀q₁₈₀ v₁₁q₁₈₀ v₁₂q₁₈₀ e₁₈₀
-  obtain ⟨w₁₈₂, e₁₈₂⟩ := subMulWin_val (q := q₁₈₁) (o := (2 * L)) (len := L) (by rw [s₁₈₁]; lia) (3 * L) L 2
-      (by rw [s₁₈₁]; lia) (by lia) (by lia) (by decide)
-      (V := c₃ + c₄ + c₅ + c₆ + c₇ + c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) v₃q₁₈₁ v₄q₁₈₁ (by lia)
-  rw [← (show q₁₈₂ = R.subMulWin q₁₈₁ (2 * L) L (3 * L) L 2 from rfl)] at w₁₈₂ e₁₈₂
-  clear_value q₁₈₂
-  have s₁₈₂ := w₁₈₂.1.trans s₁₈₁
-  have v₁q₁₈₂ := (w₁₈₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₈₁
-  have v₂q₁₈₂ := (w₁₈₂.valAt_eq (lo := L) (n := L) (by lia)).trans e₁₈₁
-  have v₄q₁₈₂ := (w₁₈₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₈₁
-  have v₅q₁₈₂ := (w₁₈₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₈₁
-  have v₆q₁₈₂ := (w₁₈₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₈₁
-  have v₇q₁₈₂ := (w₁₈₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₈₁
-  have v₈q₁₈₂ := (w₁₈₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₈₁
-  have v₉q₁₈₂ := (w₁₈₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₈₁
-  have v₁₀q₁₈₂ := (w₁₈₂.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₈₁
-  have v₁₁q₁₈₂ := (w₁₈₂.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₈₁
-  have v₁₂q₁₈₂ := (w₁₈₂.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₈₁
-  have v₁₃q₁₈₂ := (w₁₈₂.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₈₁
-  clear w₁₈₂ v₃q₁₈₁ s₁₈₁ v₁q₁₈₁ e₁₈₁ v₄q₁₈₁ v₅q₁₈₁ v₆q₁₈₁ v₇q₁₈₁ v₈q₁₈₁ v₉q₁₈₁ v₁₀q₁₈₁ v₁₁q₁₈₁ v₁₂q₁₈₁ v₁₃q₁₈₁
-  obtain ⟨w₁₈₃, e₁₈₃⟩ := subMulWin_val (q := q₁₈₂) (o := (3 * L)) (len := L) (by rw [s₁₈₂]; lia) (4 * L) L 2
-      (by rw [s₁₈₂]; lia) (by lia) (by lia) (by decide)
-      (V := c₄ + c₅ + c₆ + c₇ + c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) v₄q₁₈₂ v₅q₁₈₂ (by lia)
-  rw [← (show q₁₈₃ = R.subMulWin q₁₈₂ (3 * L) L (4 * L) L 2 from rfl)] at w₁₈₃ e₁₈₃
-  clear_value q₁₈₃
-  have s₁₈₃ := w₁₈₃.1.trans s₁₈₂
-  have v₁q₁₈₃ := (w₁₈₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₈₂
-  have v₂q₁₈₃ := (w₁₈₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₈₂
-  have v₃q₁₈₃ := (w₁₈₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₁₈₂
-  have v₅q₁₈₃ := (w₁₈₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₈₂
-  have v₆q₁₈₃ := (w₁₈₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₈₂
-  have v₇q₁₈₃ := (w₁₈₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₈₂
-  have v₈q₁₈₃ := (w₁₈₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₈₂
-  have v₉q₁₈₃ := (w₁₈₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₈₂
-  have v₁₀q₁₈₃ := (w₁₈₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₈₂
-  have v₁₁q₁₈₃ := (w₁₈₃.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₈₂
-  have v₁₂q₁₈₃ := (w₁₈₃.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₈₂
-  have v₁₃q₁₈₃ := (w₁₈₃.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₈₂
-  clear w₁₈₃ v₄q₁₈₂ s₁₈₂ v₁q₁₈₂ v₂q₁₈₂ e₁₈₂ v₅q₁₈₂ v₆q₁₈₂ v₇q₁₈₂ v₈q₁₈₂ v₉q₁₈₂ v₁₀q₁₈₂ v₁₁q₁₈₂ v₁₂q₁₈₂ v₁₃q₁₈₂
-  obtain ⟨w₁₈₄, e₁₈₄⟩ := subMulWin_val (q := q₁₈₃) (o := (4 * L)) (len := L) (by rw [s₁₈₃]; lia) (5 * L) L 2
-      (by rw [s₁₈₃]; lia) (by lia) (by lia) (by decide)
-      (V := c₅ + c₆ + c₇ + c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) v₅q₁₈₃ v₆q₁₈₃ (by lia)
-  rw [← (show q₁₈₄ = R.subMulWin q₁₈₃ (4 * L) L (5 * L) L 2 from rfl)] at w₁₈₄ e₁₈₄
-  clear_value q₁₈₄
-  have s₁₈₄ := w₁₈₄.1.trans s₁₈₃
-  have v₁q₁₈₄ := (w₁₈₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₈₃
-  have v₂q₁₈₄ := (w₁₈₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₈₃
-  have v₃q₁₈₄ := (w₁₈₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₈₃
-  have v₄q₁₈₄ := (w₁₈₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₁₈₃
-  have v₆q₁₈₄ := (w₁₈₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₈₃
-  have v₇q₁₈₄ := (w₁₈₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₈₃
-  have v₈q₁₈₄ := (w₁₈₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₈₃
-  have v₉q₁₈₄ := (w₁₈₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₈₃
-  have v₁₀q₁₈₄ := (w₁₈₄.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₈₃
-  have v₁₁q₁₈₄ := (w₁₈₄.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₈₃
-  have v₁₂q₁₈₄ := (w₁₈₄.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₈₃
-  have v₁₃q₁₈₄ := (w₁₈₄.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₈₃
-  clear w₁₈₄ v₅q₁₈₃ s₁₈₃ v₁q₁₈₃ v₂q₁₈₃ v₃q₁₈₃ e₁₈₃ v₆q₁₈₃ v₇q₁₈₃ v₈q₁₈₃ v₉q₁₈₃ v₁₀q₁₈₃ v₁₁q₁₈₃ v₁₂q₁₈₃ v₁₃q₁₈₃
-  obtain ⟨w₁₈₅, e₁₈₅⟩ := subMulWin_val (q := q₁₈₄) (o := (5 * L)) (len := L) (by rw [s₁₈₄]; lia) (6 * L) L 2
-      (by rw [s₁₈₄]; lia) (by lia) (by lia) (by decide)
-      (V := c₆ + c₇ + c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) v₆q₁₈₄ v₇q₁₈₄ (by lia)
-  rw [← (show q₁₈₅ = R.subMulWin q₁₈₄ (5 * L) L (6 * L) L 2 from rfl)] at w₁₈₅ e₁₈₅
-  clear_value q₁₈₅
-  have s₁₈₅ := w₁₈₅.1.trans s₁₈₄
-  have v₁q₁₈₅ := (w₁₈₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₈₄
-  have v₂q₁₈₅ := (w₁₈₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₈₄
-  have v₃q₁₈₅ := (w₁₈₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₈₄
-  have v₄q₁₈₅ := (w₁₈₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₈₄
-  have v₅q₁₈₅ := (w₁₈₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₁₈₄
-  have v₇q₁₈₅ := (w₁₈₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₈₄
-  have v₈q₁₈₅ := (w₁₈₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₈₄
-  have v₉q₁₈₅ := (w₁₈₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₈₄
-  have v₁₀q₁₈₅ := (w₁₈₅.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₈₄
-  have v₁₁q₁₈₅ := (w₁₈₅.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₈₄
-  have v₁₂q₁₈₅ := (w₁₈₅.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₈₄
-  have v₁₃q₁₈₅ := (w₁₈₅.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₈₄
-  clear w₁₈₅ v₆q₁₈₄ s₁₈₄ v₁q₁₈₄ v₂q₁₈₄ v₃q₁₈₄ v₄q₁₈₄ e₁₈₄ v₇q₁₈₄ v₈q₁₈₄ v₉q₁₈₄ v₁₀q₁₈₄ v₁₁q₁₈₄ v₁₂q₁₈₄ v₁₃q₁₈₄
-  obtain ⟨w₁₈₆, e₁₈₆⟩ := subMulWin_val (q := q₁₈₅) (o := (6 * L)) (len := L) (by rw [s₁₈₅]; lia) (7 * L) L 2
-      (by rw [s₁₈₅]; lia) (by lia) (by lia) (by decide)
-      (V := c₇ + c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) v₇q₁₈₅ v₈q₁₈₅ (by lia)
-  rw [← (show q₁₈₆ = R.subMulWin q₁₈₅ (6 * L) L (7 * L) L 2 from rfl)] at w₁₈₆ e₁₈₆
-  clear_value q₁₈₆
-  have s₁₈₆ := w₁₈₆.1.trans s₁₈₅
-  have v₁q₁₈₆ := (w₁₈₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₈₅
-  have v₂q₁₈₆ := (w₁₈₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₈₅
-  have v₃q₁₈₆ := (w₁₈₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₈₅
-  have v₄q₁₈₆ := (w₁₈₆.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₈₅
-  have v₅q₁₈₆ := (w₁₈₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₈₅
-  have v₆q₁₈₆ := (w₁₈₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₁₈₅
-  have v₈q₁₈₆ := (w₁₈₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₈₅
-  have v₉q₁₈₆ := (w₁₈₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₈₅
-  have v₁₀q₁₈₆ := (w₁₈₆.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₈₅
-  have v₁₁q₁₈₆ := (w₁₈₆.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₈₅
-  have v₁₂q₁₈₆ := (w₁₈₆.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₈₅
-  have v₁₃q₁₈₆ := (w₁₈₆.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₈₅
-  clear w₁₈₆ v₇q₁₈₅ s₁₈₅ v₁q₁₈₅ v₂q₁₈₅ v₃q₁₈₅ v₄q₁₈₅ v₅q₁₈₅ e₁₈₅ v₈q₁₈₅ v₉q₁₈₅ v₁₀q₁₈₅ v₁₁q₁₈₅ v₁₂q₁₈₅ v₁₃q₁₈₅
-  obtain ⟨w₁₈₇, e₁₈₇⟩ := subMulWin_val (q := q₁₈₆) (o := (7 * L)) (len := L) (by rw [s₁₈₆]; lia) (8 * L) L 2
-      (by rw [s₁₈₆]; lia) (by lia) (by lia) (by decide)
-      (V := c₈ + c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) v₈q₁₈₆ v₉q₁₈₆ (by lia)
-  rw [← (show q₁₈₇ = R.subMulWin q₁₈₆ (7 * L) L (8 * L) L 2 from rfl)] at w₁₈₇ e₁₈₇
-  clear_value q₁₈₇
-  have s₁₈₇ := w₁₈₇.1.trans s₁₈₆
-  have v₁q₁₈₇ := (w₁₈₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₈₆
-  have v₂q₁₈₇ := (w₁₈₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₈₆
-  have v₃q₁₈₇ := (w₁₈₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₈₆
-  have v₄q₁₈₇ := (w₁₈₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₈₆
-  have v₅q₁₈₇ := (w₁₈₇.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₈₆
-  have v₆q₁₈₇ := (w₁₈₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₈₆
-  have v₇q₁₈₇ := (w₁₈₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₁₈₆
-  have v₉q₁₈₇ := (w₁₈₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₈₆
-  have v₁₀q₁₈₇ := (w₁₈₇.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₈₆
-  have v₁₁q₁₈₇ := (w₁₈₇.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₈₆
-  have v₁₂q₁₈₇ := (w₁₈₇.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₈₆
-  have v₁₃q₁₈₇ := (w₁₈₇.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₈₆
-  clear w₁₈₇ v₈q₁₈₆ s₁₈₆ v₁q₁₈₆ v₂q₁₈₆ v₃q₁₈₆ v₄q₁₈₆ v₅q₁₈₆ v₆q₁₈₆ e₁₈₆ v₉q₁₈₆ v₁₀q₁₈₆ v₁₁q₁₈₆ v₁₂q₁₈₆ v₁₃q₁₈₆
-  obtain ⟨w₁₈₈, e₁₈₈⟩ := subMulWin_val (q := q₁₈₇) (o := (8 * L)) (len := L) (by rw [s₁₈₇]; lia) (9 * L) L 2
-      (by rw [s₁₈₇]; lia) (by lia) (by lia) (by decide)
-      (V := c₉ + c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) v₉q₁₈₇ v₁₀q₁₈₇ (by lia)
-  rw [← (show q₁₈₈ = R.subMulWin q₁₈₇ (8 * L) L (9 * L) L 2 from rfl)] at w₁₈₈ e₁₈₈
-  clear_value q₁₈₈
-  have s₁₈₈ := w₁₈₈.1.trans s₁₈₇
-  have v₁q₁₈₈ := (w₁₈₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₈₇
-  have v₂q₁₈₈ := (w₁₈₈.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₈₇
-  have v₃q₁₈₈ := (w₁₈₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₈₇
-  have v₄q₁₈₈ := (w₁₈₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₈₇
-  have v₅q₁₈₈ := (w₁₈₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₈₇
-  have v₆q₁₈₈ := (w₁₈₈.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₈₇
-  have v₇q₁₈₈ := (w₁₈₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₈₇
-  have v₈q₁₈₈ := (w₁₈₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₁₈₇
-  have v₁₀q₁₈₈ := (w₁₈₈.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₈₇
-  have v₁₁q₁₈₈ := (w₁₈₈.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₈₇
-  have v₁₂q₁₈₈ := (w₁₈₈.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₈₇
-  have v₁₃q₁₈₈ := (w₁₈₈.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₈₇
-  clear w₁₈₈ v₉q₁₈₇ s₁₈₇ v₁q₁₈₇ v₂q₁₈₇ v₃q₁₈₇ v₄q₁₈₇ v₅q₁₈₇ v₆q₁₈₇ v₇q₁₈₇ e₁₈₇ v₁₀q₁₈₇ v₁₁q₁₈₇ v₁₂q₁₈₇ v₁₃q₁₈₇
-  obtain ⟨w₁₈₉, e₁₈₉⟩ := subMulWin_val (q := q₁₈₈) (o := (9 * L)) (len := L) (by rw [s₁₈₈]; lia) (10 * L) L 2
-      (by rw [s₁₈₈]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₀ + c₁₁ + c₁₂ + c₁₃ + c₁₄) v₁₀q₁₈₈ v₁₁q₁₈₈ (by lia)
-  rw [← (show q₁₈₉ = R.subMulWin q₁₈₈ (9 * L) L (10 * L) L 2 from rfl)] at w₁₈₉ e₁₈₉
-  clear_value q₁₈₉
-  have s₁₈₉ := w₁₈₉.1.trans s₁₈₈
-  have v₁q₁₈₉ := (w₁₈₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₈₈
-  have v₂q₁₈₉ := (w₁₈₉.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₈₈
-  have v₃q₁₈₉ := (w₁₈₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₈₈
-  have v₄q₁₈₉ := (w₁₈₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₈₈
-  have v₅q₁₈₉ := (w₁₈₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₈₈
-  have v₆q₁₈₉ := (w₁₈₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₈₈
-  have v₇q₁₈₉ := (w₁₈₉.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₈₈
-  have v₈q₁₈₉ := (w₁₈₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₈₈
-  have v₉q₁₈₉ := (w₁₈₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₁₈₈
-  have v₁₁q₁₈₉ := (w₁₈₉.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₈₈
-  have v₁₂q₁₈₉ := (w₁₈₉.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₈₈
-  have v₁₃q₁₈₉ := (w₁₈₉.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₈₈
-  clear w₁₈₉ v₁₀q₁₈₈ s₁₈₈ v₁q₁₈₈ v₂q₁₈₈ v₃q₁₈₈ v₄q₁₈₈ v₅q₁₈₈ v₆q₁₈₈ v₇q₁₈₈ v₈q₁₈₈ e₁₈₈ v₁₁q₁₈₈ v₁₂q₁₈₈ v₁₃q₁₈₈
-  obtain ⟨w₁₉₀, e₁₉₀⟩ := subMulWin_val (q := q₁₈₉) (o := (10 * L)) (len := L) (by rw [s₁₈₉]; lia) (11 * L) L 2
-      (by rw [s₁₈₉]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₁ + c₁₂ + c₁₃ + c₁₄) v₁₁q₁₈₉ v₁₂q₁₈₉ (by lia)
-  rw [← (show q₁₉₀ = R.subMulWin q₁₈₉ (10 * L) L (11 * L) L 2 from rfl)] at w₁₉₀ e₁₉₀
-  clear_value q₁₉₀
-  have s₁₉₀ := w₁₉₀.1.trans s₁₈₉
-  have v₁q₁₉₀ := (w₁₉₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₈₉
-  have v₂q₁₉₀ := (w₁₉₀.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₈₉
-  have v₃q₁₉₀ := (w₁₉₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₈₉
-  have v₄q₁₉₀ := (w₁₉₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₈₉
-  have v₅q₁₉₀ := (w₁₉₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₈₉
-  have v₆q₁₉₀ := (w₁₉₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₈₉
-  have v₇q₁₉₀ := (w₁₉₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₈₉
-  have v₈q₁₉₀ := (w₁₉₀.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₈₉
-  have v₉q₁₉₀ := (w₁₉₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₈₉
-  have v₁₀q₁₉₀ := (w₁₉₀.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₁₈₉
-  have v₁₂q₁₉₀ := (w₁₉₀.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₈₉
-  have v₁₃q₁₉₀ := (w₁₉₀.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₈₉
-  clear w₁₉₀ v₁₁q₁₈₉ s₁₈₉ v₁q₁₈₉ v₂q₁₈₉ v₃q₁₈₉ v₄q₁₈₉ v₅q₁₈₉ v₆q₁₈₉ v₇q₁₈₉ v₈q₁₈₉ v₉q₁₈₉ e₁₈₉ v₁₂q₁₈₉ v₁₃q₁₈₉
-  obtain ⟨w₁₉₁, e₁₉₁⟩ := subMulWin_val (q := q₁₉₀) (o := (11 * L)) (len := L) (by rw [s₁₉₀]; lia) (12 * L) L 2
-      (by rw [s₁₉₀]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₂ + c₁₃ + c₁₄) v₁₂q₁₉₀ v₁₃q₁₉₀ (by lia)
-  rw [← (show q₁₉₁ = R.subMulWin q₁₉₀ (11 * L) L (12 * L) L 2 from rfl)] at w₁₉₁ e₁₉₁
-  clear_value q₁₉₁
-  have s₁₉₁ := w₁₉₁.1.trans s₁₉₀
-  have v₁q₁₉₁ := (w₁₉₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₉₀
-  have v₂q₁₉₁ := (w₁₉₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₉₀
-  have v₃q₁₉₁ := (w₁₉₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₉₀
-  have v₄q₁₉₁ := (w₁₉₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₉₀
-  have v₅q₁₉₁ := (w₁₉₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₉₀
-  have v₆q₁₉₁ := (w₁₉₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₉₀
-  have v₇q₁₉₁ := (w₁₉₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₉₀
-  have v₈q₁₉₁ := (w₁₉₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₉₀
-  have v₉q₁₉₁ := (w₁₉₁.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₉₀
-  have v₁₀q₁₉₁ := (w₁₉₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₉₀
-  have v₁₁q₁₉₁ := (w₁₉₁.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₁₉₀
-  have v₁₃q₁₉₁ := (w₁₉₁.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₉₀
-  clear w₁₉₁ v₁₂q₁₉₀ s₁₉₀ v₁q₁₉₀ v₂q₁₉₀ v₃q₁₉₀ v₄q₁₉₀ v₅q₁₉₀ v₆q₁₉₀ v₇q₁₉₀ v₈q₁₉₀ v₉q₁₉₀ v₁₀q₁₉₀ e₁₉₀ v₁₃q₁₉₀
-  obtain ⟨w₁₉₂, e₁₉₂⟩ := subMulW_val (q := q₁₉₁) (o := (12 * L)) (len := L) (by rw [s₁₉₁]; lia) d (o + 14 * k) (n - 14 * k) 2 (by decide)
-      (V := c₁₃ + c₁₄) v₁₃q₁₉₁ hc₁₄ (by lia)
-  rw [← (show q₁₉₂ = R.subMulInto q₁₉₁ (12 * L) L d (o + 14 * k) (n - 14 * k) 2 from rfl)] at w₁₉₂ e₁₉₂
-  clear_value q₁₉₂
-  have s₁₉₂ := w₁₉₂.1.trans s₁₉₁
-  have v₁q₁₉₂ := (w₁₉₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₉₁
-  have v₂q₁₉₂ := (w₁₉₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₉₁
-  have v₃q₁₉₂ := (w₁₉₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₉₁
-  have v₄q₁₉₂ := (w₁₉₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₉₁
-  have v₅q₁₉₂ := (w₁₉₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₉₁
-  have v₆q₁₉₂ := (w₁₉₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₉₁
-  have v₇q₁₉₂ := (w₁₉₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₉₁
-  have v₈q₁₉₂ := (w₁₉₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₉₁
-  have v₉q₁₉₂ := (w₁₉₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₉₁
-  have v₁₀q₁₉₂ := (w₁₉₂.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₉₁
-  have v₁₁q₁₉₂ := (w₁₉₂.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₉₁
-  have v₁₂q₁₉₂ := (w₁₉₂.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₁₉₁
-  clear w₁₉₂ v₁₃q₁₉₁ s₁₉₁ v₁q₁₉₁ v₂q₁₉₁ v₃q₁₉₁ v₄q₁₉₁ v₅q₁₉₁ v₆q₁₉₁ v₇q₁₉₁ v₈q₁₉₁ v₉q₁₉₁ v₁₀q₁₉₁ v₁₁q₁₉₁ e₁₉₁
-  obtain ⟨w₁₉₃, e₁₉₃⟩ := subMulWin_val (q := q₁₉₂) (o := 0) (len := L) (by rw [s₁₉₂]; lia) L L 1
-      (by rw [s₁₉₂]; lia) (by lia) (by lia) (by decide)
-      (V := c₁) v₁q₁₉₂ v₂q₁₉₂ (by lia)
-  rw [← (show q₁₉₃ = R.subMulWin q₁₉₂ 0 L L L 1 from rfl)] at w₁₉₃ e₁₉₃
-  clear_value q₁₉₃
-  have s₁₉₃ := w₁₉₃.1.trans s₁₉₂
-  have v₂q₁₉₃ := (w₁₉₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₉₂
-  have v₃q₁₉₃ := (w₁₉₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₉₂
-  have v₄q₁₉₃ := (w₁₉₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₉₂
-  have v₅q₁₉₃ := (w₁₉₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₉₂
-  have v₆q₁₉₃ := (w₁₉₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₉₂
-  have v₇q₁₉₃ := (w₁₉₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₉₂
-  have v₈q₁₉₃ := (w₁₉₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₉₂
-  have v₉q₁₉₃ := (w₁₉₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₉₂
-  have v₁₀q₁₉₃ := (w₁₉₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₉₂
-  have v₁₁q₁₉₃ := (w₁₉₃.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₉₂
-  have v₁₂q₁₉₃ := (w₁₉₃.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₉₂
-  have v₁₃q₁₉₃ := (w₁₉₃.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans e₁₉₂
-  clear w₁₉₃ v₁q₁₉₂ s₁₉₂ v₂q₁₉₂ v₃q₁₉₂ v₄q₁₉₂ v₅q₁₉₂ v₆q₁₉₂ v₇q₁₉₂ v₈q₁₉₂ v₉q₁₉₂ v₁₀q₁₉₂ v₁₁q₁₉₂ v₁₂q₁₉₂ e₁₉₂
-  obtain ⟨w₁₉₄, e₁₉₄⟩ := subMulWin_val (q := q₁₉₃) (o := L) (len := L) (by rw [s₁₉₃]; lia) (2 * L) L 1
-      (by rw [s₁₉₃]; lia) (by lia) (by lia) (by decide)
-      (V := c₂) v₂q₁₉₃ v₃q₁₉₃ (by lia)
-  rw [← (show q₁₉₄ = R.subMulWin q₁₉₃ L L (2 * L) L 1 from rfl)] at w₁₉₄ e₁₉₄
-  clear_value q₁₉₄
-  have s₁₉₄ := w₁₉₄.1.trans s₁₉₃
-  have v₁q₁₉₄ := (w₁₉₄.valAt_eq (lo := 0) (n := L) (by lia)).trans e₁₉₃
-  have v₃q₁₉₄ := (w₁₉₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₉₃
-  have v₄q₁₉₄ := (w₁₉₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₉₃
-  have v₅q₁₉₄ := (w₁₉₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₉₃
-  have v₆q₁₉₄ := (w₁₉₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₉₃
-  have v₇q₁₉₄ := (w₁₉₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₉₃
-  have v₈q₁₉₄ := (w₁₉₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₉₃
-  have v₉q₁₉₄ := (w₁₉₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₉₃
-  have v₁₀q₁₉₄ := (w₁₉₄.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₉₃
-  have v₁₁q₁₉₄ := (w₁₉₄.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₉₃
-  have v₁₂q₁₉₄ := (w₁₉₄.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₉₃
-  have v₁₃q₁₉₄ := (w₁₉₄.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₉₃
-  clear w₁₉₄ v₂q₁₉₃ s₁₉₃ e₁₉₃ v₃q₁₉₃ v₄q₁₉₃ v₅q₁₉₃ v₆q₁₉₃ v₇q₁₉₃ v₈q₁₉₃ v₉q₁₉₃ v₁₀q₁₉₃ v₁₁q₁₉₃ v₁₂q₁₉₃ v₁₃q₁₉₃
-  obtain ⟨w₁₉₅, e₁₉₅⟩ := subMulWin_val (q := q₁₉₄) (o := (2 * L)) (len := L) (by rw [s₁₉₄]; lia) (3 * L) L 1
-      (by rw [s₁₉₄]; lia) (by lia) (by lia) (by decide)
-      (V := c₃) v₃q₁₉₄ v₄q₁₉₄ (by lia)
-  rw [← (show q₁₉₅ = R.subMulWin q₁₉₄ (2 * L) L (3 * L) L 1 from rfl)] at w₁₉₅ e₁₉₅
-  clear_value q₁₉₅
-  have s₁₉₅ := w₁₉₅.1.trans s₁₉₄
-  have v₁q₁₉₅ := (w₁₉₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₉₄
-  have v₂q₁₉₅ := (w₁₉₅.valAt_eq (lo := L) (n := L) (by lia)).trans e₁₉₄
-  have v₄q₁₉₅ := (w₁₉₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₉₄
-  have v₅q₁₉₅ := (w₁₉₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₉₄
-  have v₆q₁₉₅ := (w₁₉₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₉₄
-  have v₇q₁₉₅ := (w₁₉₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₉₄
-  have v₈q₁₉₅ := (w₁₉₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₉₄
-  have v₉q₁₉₅ := (w₁₉₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₉₄
-  have v₁₀q₁₉₅ := (w₁₉₅.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₉₄
-  have v₁₁q₁₉₅ := (w₁₉₅.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₉₄
-  have v₁₂q₁₉₅ := (w₁₉₅.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₉₄
-  have v₁₃q₁₉₅ := (w₁₉₅.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₉₄
-  clear w₁₉₅ v₃q₁₉₄ s₁₉₄ v₁q₁₉₄ e₁₉₄ v₄q₁₉₄ v₅q₁₉₄ v₆q₁₉₄ v₇q₁₉₄ v₈q₁₉₄ v₉q₁₉₄ v₁₀q₁₉₄ v₁₁q₁₉₄ v₁₂q₁₉₄ v₁₃q₁₉₄
-  obtain ⟨w₁₉₆, e₁₉₆⟩ := subMulWin_val (q := q₁₉₅) (o := (3 * L)) (len := L) (by rw [s₁₉₅]; lia) (4 * L) L 1
-      (by rw [s₁₉₅]; lia) (by lia) (by lia) (by decide)
-      (V := c₄) v₄q₁₉₅ v₅q₁₉₅ (by lia)
-  rw [← (show q₁₉₆ = R.subMulWin q₁₉₅ (3 * L) L (4 * L) L 1 from rfl)] at w₁₉₆ e₁₉₆
-  clear_value q₁₉₆
-  have s₁₉₆ := w₁₉₆.1.trans s₁₉₅
-  have v₁q₁₉₆ := (w₁₉₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₉₅
-  have v₂q₁₉₆ := (w₁₉₆.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₉₅
-  have v₃q₁₉₆ := (w₁₉₆.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₁₉₅
-  have v₅q₁₉₆ := (w₁₉₆.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₉₅
-  have v₆q₁₉₆ := (w₁₉₆.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₉₅
-  have v₇q₁₉₆ := (w₁₉₆.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₉₅
-  have v₈q₁₉₆ := (w₁₉₆.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₉₅
-  have v₉q₁₉₆ := (w₁₉₆.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₉₅
-  have v₁₀q₁₉₆ := (w₁₉₆.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₉₅
-  have v₁₁q₁₉₆ := (w₁₉₆.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₉₅
-  have v₁₂q₁₉₆ := (w₁₉₆.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₉₅
-  have v₁₃q₁₉₆ := (w₁₉₆.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₉₅
-  clear w₁₉₆ v₄q₁₉₅ s₁₉₅ v₁q₁₉₅ v₂q₁₉₅ e₁₉₅ v₅q₁₉₅ v₆q₁₉₅ v₇q₁₉₅ v₈q₁₉₅ v₉q₁₉₅ v₁₀q₁₉₅ v₁₁q₁₉₅ v₁₂q₁₉₅ v₁₃q₁₉₅
-  obtain ⟨w₁₉₇, e₁₉₇⟩ := subMulWin_val (q := q₁₉₆) (o := (4 * L)) (len := L) (by rw [s₁₉₆]; lia) (5 * L) L 1
-      (by rw [s₁₉₆]; lia) (by lia) (by lia) (by decide)
-      (V := c₅) v₅q₁₉₆ v₆q₁₉₆ (by lia)
-  rw [← (show q₁₉₇ = R.subMulWin q₁₉₆ (4 * L) L (5 * L) L 1 from rfl)] at w₁₉₇ e₁₉₇
-  clear_value q₁₉₇
-  have s₁₉₇ := w₁₉₇.1.trans s₁₉₆
-  have v₁q₁₉₇ := (w₁₉₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₉₆
-  have v₂q₁₉₇ := (w₁₉₇.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₉₆
-  have v₃q₁₉₇ := (w₁₉₇.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₉₆
-  have v₄q₁₉₇ := (w₁₉₇.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans e₁₉₆
-  have v₆q₁₉₇ := (w₁₉₇.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₉₆
-  have v₇q₁₉₇ := (w₁₉₇.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₉₆
-  have v₈q₁₉₇ := (w₁₉₇.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₉₆
-  have v₉q₁₉₇ := (w₁₉₇.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₉₆
-  have v₁₀q₁₉₇ := (w₁₉₇.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₉₆
-  have v₁₁q₁₉₇ := (w₁₉₇.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₉₆
-  have v₁₂q₁₉₇ := (w₁₉₇.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₉₆
-  have v₁₃q₁₉₇ := (w₁₉₇.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₉₆
-  clear w₁₉₇ v₅q₁₉₆ s₁₉₆ v₁q₁₉₆ v₂q₁₉₆ v₃q₁₉₆ e₁₉₆ v₆q₁₉₆ v₇q₁₉₆ v₈q₁₉₆ v₉q₁₉₆ v₁₀q₁₉₆ v₁₁q₁₉₆ v₁₂q₁₉₆ v₁₃q₁₉₆
-  obtain ⟨w₁₉₈, e₁₉₈⟩ := subMulWin_val (q := q₁₉₇) (o := (5 * L)) (len := L) (by rw [s₁₉₇]; lia) (6 * L) L 1
-      (by rw [s₁₉₇]; lia) (by lia) (by lia) (by decide)
-      (V := c₆) v₆q₁₉₇ v₇q₁₉₇ (by lia)
-  rw [← (show q₁₉₈ = R.subMulWin q₁₉₇ (5 * L) L (6 * L) L 1 from rfl)] at w₁₉₈ e₁₉₈
-  clear_value q₁₉₈
-  have s₁₉₈ := w₁₉₈.1.trans s₁₉₇
-  have v₁q₁₉₈ := (w₁₉₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₉₇
-  have v₂q₁₉₈ := (w₁₉₈.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₉₇
-  have v₃q₁₉₈ := (w₁₉₈.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₉₇
-  have v₄q₁₉₈ := (w₁₉₈.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₉₇
-  have v₅q₁₉₈ := (w₁₉₈.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans e₁₉₇
-  have v₇q₁₉₈ := (w₁₉₈.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₁₉₇
-  have v₈q₁₉₈ := (w₁₉₈.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₉₇
-  have v₉q₁₉₈ := (w₁₉₈.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₉₇
-  have v₁₀q₁₉₈ := (w₁₉₈.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₉₇
-  have v₁₁q₁₉₈ := (w₁₉₈.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₉₇
-  have v₁₂q₁₉₈ := (w₁₉₈.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₉₇
-  have v₁₃q₁₉₈ := (w₁₉₈.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₉₇
-  clear w₁₉₈ v₆q₁₉₇ s₁₉₇ v₁q₁₉₇ v₂q₁₉₇ v₃q₁₉₇ v₄q₁₉₇ e₁₉₇ v₇q₁₉₇ v₈q₁₉₇ v₉q₁₉₇ v₁₀q₁₉₇ v₁₁q₁₉₇ v₁₂q₁₉₇ v₁₃q₁₉₇
-  obtain ⟨w₁₉₉, e₁₉₉⟩ := subMulWin_val (q := q₁₉₈) (o := (6 * L)) (len := L) (by rw [s₁₉₈]; lia) (7 * L) L 1
-      (by rw [s₁₉₈]; lia) (by lia) (by lia) (by decide)
-      (V := c₇) v₇q₁₉₈ v₈q₁₉₈ (by lia)
-  rw [← (show q₁₉₉ = R.subMulWin q₁₉₈ (6 * L) L (7 * L) L 1 from rfl)] at w₁₉₉ e₁₉₉
-  clear_value q₁₉₉
-  have s₁₉₉ := w₁₉₉.1.trans s₁₉₈
-  have v₁q₁₉₉ := (w₁₉₉.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₉₈
-  have v₂q₁₉₉ := (w₁₉₉.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₉₈
-  have v₃q₁₉₉ := (w₁₉₉.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₉₈
-  have v₄q₁₉₉ := (w₁₉₉.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₉₈
-  have v₅q₁₉₉ := (w₁₉₉.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₉₈
-  have v₆q₁₉₉ := (w₁₉₉.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans e₁₉₈
-  have v₈q₁₉₉ := (w₁₉₉.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₁₉₈
-  have v₉q₁₉₉ := (w₁₉₉.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₉₈
-  have v₁₀q₁₉₉ := (w₁₉₉.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₉₈
-  have v₁₁q₁₉₉ := (w₁₉₉.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₉₈
-  have v₁₂q₁₉₉ := (w₁₉₉.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₉₈
-  have v₁₃q₁₉₉ := (w₁₉₉.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₉₈
-  clear w₁₉₉ v₇q₁₉₈ s₁₉₈ v₁q₁₉₈ v₂q₁₉₈ v₃q₁₉₈ v₄q₁₉₈ v₅q₁₉₈ e₁₉₈ v₈q₁₉₈ v₉q₁₉₈ v₁₀q₁₉₈ v₁₁q₁₉₈ v₁₂q₁₉₈ v₁₃q₁₉₈
-  obtain ⟨w₂₀₀, e₂₀₀⟩ := subMulWin_val (q := q₁₉₉) (o := (7 * L)) (len := L) (by rw [s₁₉₉]; lia) (8 * L) L 1
-      (by rw [s₁₉₉]; lia) (by lia) (by lia) (by decide)
-      (V := c₈) v₈q₁₉₉ v₉q₁₉₉ (by lia)
-  rw [← (show q₂₀₀ = R.subMulWin q₁₉₉ (7 * L) L (8 * L) L 1 from rfl)] at w₂₀₀ e₂₀₀
-  clear_value q₂₀₀
-  have s₂₀₀ := w₂₀₀.1.trans s₁₉₉
-  have v₁q₂₀₀ := (w₂₀₀.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₁₉₉
-  have v₂q₂₀₀ := (w₂₀₀.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₁₉₉
-  have v₃q₂₀₀ := (w₂₀₀.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₁₉₉
-  have v₄q₂₀₀ := (w₂₀₀.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₁₉₉
-  have v₅q₂₀₀ := (w₂₀₀.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₁₉₉
-  have v₆q₂₀₀ := (w₂₀₀.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₁₉₉
-  have v₇q₂₀₀ := (w₂₀₀.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans e₁₉₉
-  have v₉q₂₀₀ := (w₂₀₀.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₁₉₉
-  have v₁₀q₂₀₀ := (w₂₀₀.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₁₉₉
-  have v₁₁q₂₀₀ := (w₂₀₀.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₁₉₉
-  have v₁₂q₂₀₀ := (w₂₀₀.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₁₉₉
-  have v₁₃q₂₀₀ := (w₂₀₀.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₁₉₉
-  clear w₂₀₀ v₈q₁₉₉ s₁₉₉ v₁q₁₉₉ v₂q₁₉₉ v₃q₁₉₉ v₄q₁₉₉ v₅q₁₉₉ v₆q₁₉₉ e₁₉₉ v₉q₁₉₉ v₁₀q₁₉₉ v₁₁q₁₉₉ v₁₂q₁₉₉ v₁₃q₁₉₉
-  obtain ⟨w₂₀₁, e₂₀₁⟩ := subMulWin_val (q := q₂₀₀) (o := (8 * L)) (len := L) (by rw [s₂₀₀]; lia) (9 * L) L 1
-      (by rw [s₂₀₀]; lia) (by lia) (by lia) (by decide)
-      (V := c₉) v₉q₂₀₀ v₁₀q₂₀₀ (by lia)
-  rw [← (show q₂₀₁ = R.subMulWin q₂₀₀ (8 * L) L (9 * L) L 1 from rfl)] at w₂₀₁ e₂₀₁
-  clear_value q₂₀₁
-  have s₂₀₁ := w₂₀₁.1.trans s₂₀₀
-  have v₁q₂₀₁ := (w₂₀₁.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₀₀
-  have v₂q₂₀₁ := (w₂₀₁.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₀₀
-  have v₃q₂₀₁ := (w₂₀₁.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₀₀
-  have v₄q₂₀₁ := (w₂₀₁.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₀₀
-  have v₅q₂₀₁ := (w₂₀₁.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₀₀
-  have v₆q₂₀₁ := (w₂₀₁.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₂₀₀
-  have v₇q₂₀₁ := (w₂₀₁.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₂₀₀
-  have v₈q₂₀₁ := (w₂₀₁.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans e₂₀₀
-  have v₁₀q₂₀₁ := (w₂₀₁.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₂₀₀
-  have v₁₁q₂₀₁ := (w₂₀₁.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₂₀₀
-  have v₁₂q₂₀₁ := (w₂₀₁.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₂₀₀
-  have v₁₃q₂₀₁ := (w₂₀₁.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₂₀₀
-  clear w₂₀₁ v₉q₂₀₀ s₂₀₀ v₁q₂₀₀ v₂q₂₀₀ v₃q₂₀₀ v₄q₂₀₀ v₅q₂₀₀ v₆q₂₀₀ v₇q₂₀₀ e₂₀₀ v₁₀q₂₀₀ v₁₁q₂₀₀ v₁₂q₂₀₀ v₁₃q₂₀₀
-  obtain ⟨w₂₀₂, e₂₀₂⟩ := subMulWin_val (q := q₂₀₁) (o := (9 * L)) (len := L) (by rw [s₂₀₁]; lia) (10 * L) L 1
-      (by rw [s₂₀₁]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₀) v₁₀q₂₀₁ v₁₁q₂₀₁ (by lia)
-  rw [← (show q₂₀₂ = R.subMulWin q₂₀₁ (9 * L) L (10 * L) L 1 from rfl)] at w₂₀₂ e₂₀₂
-  clear_value q₂₀₂
-  have s₂₀₂ := w₂₀₂.1.trans s₂₀₁
-  have v₁q₂₀₂ := (w₂₀₂.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₀₁
-  have v₂q₂₀₂ := (w₂₀₂.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₀₁
-  have v₃q₂₀₂ := (w₂₀₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₀₁
-  have v₄q₂₀₂ := (w₂₀₂.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₀₁
-  have v₅q₂₀₂ := (w₂₀₂.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₀₁
-  have v₆q₂₀₂ := (w₂₀₂.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₂₀₁
-  have v₇q₂₀₂ := (w₂₀₂.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₂₀₁
-  have v₈q₂₀₂ := (w₂₀₂.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₂₀₁
-  have v₉q₂₀₂ := (w₂₀₂.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans e₂₀₁
-  have v₁₁q₂₀₂ := (w₂₀₂.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₂₀₁
-  have v₁₂q₂₀₂ := (w₂₀₂.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₂₀₁
-  have v₁₃q₂₀₂ := (w₂₀₂.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₂₀₁
-  clear w₂₀₂ v₁₀q₂₀₁ s₂₀₁ v₁q₂₀₁ v₂q₂₀₁ v₃q₂₀₁ v₄q₂₀₁ v₅q₂₀₁ v₆q₂₀₁ v₇q₂₀₁ v₈q₂₀₁ e₂₀₁ v₁₁q₂₀₁ v₁₂q₂₀₁ v₁₃q₂₀₁
-  obtain ⟨w₂₀₃, e₂₀₃⟩ := subMulWin_val (q := q₂₀₂) (o := (10 * L)) (len := L) (by rw [s₂₀₂]; lia) (11 * L) L 1
-      (by rw [s₂₀₂]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₁) v₁₁q₂₀₂ v₁₂q₂₀₂ (by lia)
-  rw [← (show q₂₀₃ = R.subMulWin q₂₀₂ (10 * L) L (11 * L) L 1 from rfl)] at w₂₀₃ e₂₀₃
-  clear_value q₂₀₃
-  have s₂₀₃ := w₂₀₃.1.trans s₂₀₂
-  have v₁q₂₀₃ := (w₂₀₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₀₂
-  have v₂q₂₀₃ := (w₂₀₃.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₀₂
-  have v₃q₂₀₃ := (w₂₀₃.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₀₂
-  have v₄q₂₀₃ := (w₂₀₃.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₀₂
-  have v₅q₂₀₃ := (w₂₀₃.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₀₂
-  have v₆q₂₀₃ := (w₂₀₃.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₂₀₂
-  have v₇q₂₀₃ := (w₂₀₃.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₂₀₂
-  have v₈q₂₀₃ := (w₂₀₃.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₂₀₂
-  have v₉q₂₀₃ := (w₂₀₃.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₂₀₂
-  have v₁₀q₂₀₃ := (w₂₀₃.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₂₀₂
-  have v₁₂q₂₀₃ := (w₂₀₃.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans v₁₂q₂₀₂
-  have v₁₃q₂₀₃ := (w₂₀₃.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₂₀₂
-  clear w₂₀₃ v₁₁q₂₀₂ s₂₀₂ v₁q₂₀₂ v₂q₂₀₂ v₃q₂₀₂ v₄q₂₀₂ v₅q₂₀₂ v₆q₂₀₂ v₇q₂₀₂ v₈q₂₀₂ v₉q₂₀₂ e₂₀₂ v₁₂q₂₀₂ v₁₃q₂₀₂
-  obtain ⟨w₂₀₄, e₂₀₄⟩ := subMulWin_val (q := q₂₀₃) (o := (11 * L)) (len := L) (by rw [s₂₀₃]; lia) (12 * L) L 1
-      (by rw [s₂₀₃]; lia) (by lia) (by lia) (by decide)
-      (V := c₁₂) v₁₂q₂₀₃ v₁₃q₂₀₃ (by lia)
-  rw [← (show q₂₀₄ = R.subMulWin q₂₀₃ (11 * L) L (12 * L) L 1 from rfl)] at w₂₀₄ e₂₀₄
-  clear_value q₂₀₄
-  have s₂₀₄ := w₂₀₄.1.trans s₂₀₃
-  have v₁q₂₀₄ := (w₂₀₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₀₃
-  have v₂q₂₀₄ := (w₂₀₄.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₀₃
-  have v₃q₂₀₄ := (w₂₀₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₀₃
-  have v₄q₂₀₄ := (w₂₀₄.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₀₃
-  have v₅q₂₀₄ := (w₂₀₄.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₀₃
-  have v₆q₂₀₄ := (w₂₀₄.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₂₀₃
-  have v₇q₂₀₄ := (w₂₀₄.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₂₀₃
-  have v₈q₂₀₄ := (w₂₀₄.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₂₀₃
-  have v₉q₂₀₄ := (w₂₀₄.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₂₀₃
-  have v₁₀q₂₀₄ := (w₂₀₄.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₂₀₃
-  have v₁₁q₂₀₄ := (w₂₀₄.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₂₀₃
-  have v₁₃q₂₀₄ := (w₂₀₄.valAt_eq (lo := (12 * L)) (n := L) (by lia)).trans v₁₃q₂₀₃
-  clear w₂₀₄ v₁₂q₂₀₃ s₂₀₃ v₁q₂₀₃ v₂q₂₀₃ v₃q₂₀₃ v₄q₂₀₃ v₅q₂₀₃ v₆q₂₀₃ v₇q₂₀₃ v₈q₂₀₃ v₉q₂₀₃ v₁₀q₂₀₃ e₂₀₃ v₁₃q₂₀₃
-  obtain ⟨w₂₀₅, e₂₀₅⟩ := subW_val (q := q₂₀₄) (o := (12 * L)) (len := L) (by rw [s₂₀₄]; lia) d (o + 14 * k) (n - 14 * k)
-      (V := c₁₃) v₁₃q₂₀₄ hc₁₄ (by lia)
-  rw [← (show q₂₀₅ = R.subInto q₂₀₄ (12 * L) L d (o + 14 * k) (n - 14 * k) from rfl)] at w₂₀₅ e₂₀₅
-  clear_value q₂₀₅
-  have s₂₀₅ := w₂₀₅.1.trans s₂₀₄
-  have v₁q₂₀₅ := (w₂₀₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂₀₄
-  have v₂q₂₀₅ := (w₂₀₅.valAt_eq (lo := L) (n := L) (by lia)).trans v₂q₂₀₄
-  have v₃q₂₀₅ := (w₂₀₅.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans v₃q₂₀₄
-  have v₄q₂₀₅ := (w₂₀₅.valAt_eq (lo := (3 * L)) (n := L) (by lia)).trans v₄q₂₀₄
-  have v₅q₂₀₅ := (w₂₀₅.valAt_eq (lo := (4 * L)) (n := L) (by lia)).trans v₅q₂₀₄
-  have v₆q₂₀₅ := (w₂₀₅.valAt_eq (lo := (5 * L)) (n := L) (by lia)).trans v₆q₂₀₄
-  have v₇q₂₀₅ := (w₂₀₅.valAt_eq (lo := (6 * L)) (n := L) (by lia)).trans v₇q₂₀₄
-  have v₈q₂₀₅ := (w₂₀₅.valAt_eq (lo := (7 * L)) (n := L) (by lia)).trans v₈q₂₀₄
-  have v₉q₂₀₅ := (w₂₀₅.valAt_eq (lo := (8 * L)) (n := L) (by lia)).trans v₉q₂₀₄
-  have v₁₀q₂₀₅ := (w₂₀₅.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans v₁₀q₂₀₄
-  have v₁₁q₂₀₅ := (w₂₀₅.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans v₁₁q₂₀₄
-  have v₁₂q₂₀₅ := (w₂₀₅.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₂₀₄
-  clear w₂₀₅ v₁₃q₂₀₄ s₂₀₄ v₁q₂₀₄ v₂q₂₀₄ v₃q₂₀₄ v₄q₂₀₄ v₅q₂₀₄ v₆q₂₀₄ v₇q₂₀₄ v₈q₂₀₄ v₉q₂₀₄ v₁₀q₂₀₄ v₁₁q₂₀₄ e₂₀₄
+  have v₁₀q₁₀₉ := (w₁₀₉.valAt_eq (lo := (9 * L)) (n := L) (by lia)).trans e₁₀₈a
+  have v₁₁q₁₀₉ := (w₁₀₉.valAt_eq (lo := (10 * L)) (n := L) (by lia)).trans e₁₀₈b
+  have v₁₂q₁₀₉ := (w₁₀₉.valAt_eq (lo := (11 * L)) (n := L) (by lia)).trans e₁₀₈c
+  clear w₁₀₉ v₁₃q₁₀₈ s₁₀₈ v₁q₁₀₈ v₂q₁₀₈ v₃q₁₀₈ v₄q₁₀₈ v₅q₁₀₈ v₆q₁₀₈ v₇q₁₀₈ v₈q₁₀₈ v₉q₁₀₈ e₁₀₈a e₁₀₈b e₁₀₈c
   -- The recombination.
   obtain ⟨z₁, z₂⟩ := zero_mid d o n (k + k) (14 * k) hd (by lia) (by lia)
   rw [hc₀, hc₁₄] at z₂
   rw [← (show A₀ = R.zeroInto d (o + (k + k)) (14 * k - (k + k)) from rfl)] at z₁ z₂
   replace z₁ := z₁.mono (o' := o) (len' := n) (by lia) (by lia)
   obtain ⟨a₁w, a₁v⟩ := add_coef A₀ o n k (by rw [z₁.1]; exact hd) (by lia)
-      q₂₀₅ 0 L c₁ v₁q₂₀₅ (by
+      q₁₀₉ 0 L c₁ v₁q₁₀₉ (by
     rw [z₂]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -10126,10 +7370,10 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
     lia)
   rw [z₂] at a₁v
-  rw [← (show A₁ = R.addInto A₀ (o + k) (n - k) q₂₀₅ 0 (min (n - k) L) from rfl)] at a₁w a₁v
+  rw [← (show A₁ = R.addInto A₀ (o + k) (n - k) q₁₀₉ 0 (min (n - k) L) from rfl)] at a₁w a₁v
   have a₁w' := a₁w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans z₁
   obtain ⟨a₂w, a₂v⟩ := add_coef A₁ o n (2 * k) (by rw [a₁w'.1]; exact hd) (by lia)
-      q₂₀₅ L L c₂ v₂q₂₀₅ (by
+      q₁₀₉ L L c₂ v₂q₁₀₉ (by
     rw [a₁v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -10147,10 +7391,10 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
     lia)
   rw [a₁v] at a₂v
-  rw [← (show A₂ = R.addInto A₁ (o + (2 * k)) (n - (2 * k)) q₂₀₅ L (min (n - (2 * k)) L) from rfl)] at a₂w a₂v
+  rw [← (show A₂ = R.addInto A₁ (o + (2 * k)) (n - (2 * k)) q₁₀₉ L (min (n - (2 * k)) L) from rfl)] at a₂w a₂v
   have a₂w' := a₂w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₁w'
   obtain ⟨a₃w, a₃v⟩ := add_coef A₂ o n (3 * k) (by rw [a₂w'.1]; exact hd) (by lia)
-      q₂₀₅ (2 * L) L c₃ v₃q₂₀₅ (by
+      q₁₀₉ (2 * L) L c₃ v₃q₁₀₉ (by
     rw [a₂v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -10168,10 +7412,10 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
     lia)
   rw [a₂v] at a₃v
-  rw [← (show A₃ = R.addInto A₂ (o + (3 * k)) (n - (3 * k)) q₂₀₅ (2 * L) (min (n - (3 * k)) L) from rfl)] at a₃w a₃v
+  rw [← (show A₃ = R.addInto A₂ (o + (3 * k)) (n - (3 * k)) q₁₀₉ (2 * L) (min (n - (3 * k)) L) from rfl)] at a₃w a₃v
   have a₃w' := a₃w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₂w'
   obtain ⟨a₄w, a₄v⟩ := add_coef A₃ o n (4 * k) (by rw [a₃w'.1]; exact hd) (by lia)
-      q₂₀₅ (3 * L) L c₄ v₄q₂₀₅ (by
+      q₁₀₉ (3 * L) L c₄ v₄q₁₀₉ (by
     rw [a₃v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -10189,10 +7433,10 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
     lia)
   rw [a₃v] at a₄v
-  rw [← (show A₄ = R.addInto A₃ (o + (4 * k)) (n - (4 * k)) q₂₀₅ (3 * L) (min (n - (4 * k)) L) from rfl)] at a₄w a₄v
+  rw [← (show A₄ = R.addInto A₃ (o + (4 * k)) (n - (4 * k)) q₁₀₉ (3 * L) (min (n - (4 * k)) L) from rfl)] at a₄w a₄v
   have a₄w' := a₄w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₃w'
   obtain ⟨a₅w, a₅v⟩ := add_coef A₄ o n (5 * k) (by rw [a₄w'.1]; exact hd) (by lia)
-      q₂₀₅ (4 * L) L c₅ v₅q₂₀₅ (by
+      q₁₀₉ (4 * L) L c₅ v₅q₁₀₉ (by
     rw [a₄v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -10210,10 +7454,10 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
     lia)
   rw [a₄v] at a₅v
-  rw [← (show A₅ = R.addInto A₄ (o + (5 * k)) (n - (5 * k)) q₂₀₅ (4 * L) (min (n - (5 * k)) L) from rfl)] at a₅w a₅v
+  rw [← (show A₅ = R.addInto A₄ (o + (5 * k)) (n - (5 * k)) q₁₀₉ (4 * L) (min (n - (5 * k)) L) from rfl)] at a₅w a₅v
   have a₅w' := a₅w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₄w'
   obtain ⟨a₆w, a₆v⟩ := add_coef A₅ o n (6 * k) (by rw [a₅w'.1]; exact hd) (by lia)
-      q₂₀₅ (5 * L) L c₆ v₆q₂₀₅ (by
+      q₁₀₉ (5 * L) L c₆ v₆q₁₀₉ (by
     rw [a₅v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -10231,10 +7475,10 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
     lia)
   rw [a₅v] at a₆v
-  rw [← (show A₆ = R.addInto A₅ (o + (6 * k)) (n - (6 * k)) q₂₀₅ (5 * L) (min (n - (6 * k)) L) from rfl)] at a₆w a₆v
+  rw [← (show A₆ = R.addInto A₅ (o + (6 * k)) (n - (6 * k)) q₁₀₉ (5 * L) (min (n - (6 * k)) L) from rfl)] at a₆w a₆v
   have a₆w' := a₆w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₅w'
   obtain ⟨a₇w, a₇v⟩ := add_coef A₆ o n (7 * k) (by rw [a₆w'.1]; exact hd) (by lia)
-      q₂₀₅ (6 * L) L c₇ v₇q₂₀₅ (by
+      q₁₀₉ (6 * L) L c₇ v₇q₁₀₉ (by
     rw [a₆v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -10252,10 +7496,10 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
     lia)
   rw [a₆v] at a₇v
-  rw [← (show A₇ = R.addInto A₆ (o + (7 * k)) (n - (7 * k)) q₂₀₅ (6 * L) (min (n - (7 * k)) L) from rfl)] at a₇w a₇v
+  rw [← (show A₇ = R.addInto A₆ (o + (7 * k)) (n - (7 * k)) q₁₀₉ (6 * L) (min (n - (7 * k)) L) from rfl)] at a₇w a₇v
   have a₇w' := a₇w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₆w'
   obtain ⟨a₈w, a₈v⟩ := add_coef A₇ o n (8 * k) (by rw [a₇w'.1]; exact hd) (by lia)
-      q₂₀₅ (7 * L) L c₈ v₈q₂₀₅ (by
+      q₁₀₉ (7 * L) L c₈ v₈q₁₀₉ (by
     rw [a₇v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -10273,10 +7517,10 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
     lia)
   rw [a₇v] at a₈v
-  rw [← (show A₈ = R.addInto A₇ (o + (8 * k)) (n - (8 * k)) q₂₀₅ (7 * L) (min (n - (8 * k)) L) from rfl)] at a₈w a₈v
+  rw [← (show A₈ = R.addInto A₇ (o + (8 * k)) (n - (8 * k)) q₁₀₉ (7 * L) (min (n - (8 * k)) L) from rfl)] at a₈w a₈v
   have a₈w' := a₈w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₇w'
   obtain ⟨a₉w, a₉v⟩ := add_coef A₈ o n (9 * k) (by rw [a₈w'.1]; exact hd) (by lia)
-      q₂₀₅ (8 * L) L c₉ v₉q₂₀₅ (by
+      q₁₀₉ (8 * L) L c₉ v₉q₁₀₉ (by
     rw [a₈v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -10294,10 +7538,10 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
     lia)
   rw [a₈v] at a₉v
-  rw [← (show A₉ = R.addInto A₈ (o + (9 * k)) (n - (9 * k)) q₂₀₅ (8 * L) (min (n - (9 * k)) L) from rfl)] at a₉w a₉v
+  rw [← (show A₉ = R.addInto A₈ (o + (9 * k)) (n - (9 * k)) q₁₀₉ (8 * L) (min (n - (9 * k)) L) from rfl)] at a₉w a₉v
   have a₉w' := a₉w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₈w'
   obtain ⟨a₁₀w, a₁₀v⟩ := add_coef A₉ o n (10 * k) (by rw [a₉w'.1]; exact hd) (by lia)
-      q₂₀₅ (9 * L) L c₁₀ v₁₀q₂₀₅ (by
+      q₁₀₉ (9 * L) L c₁₀ v₁₀q₁₀₉ (by
     rw [a₉v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -10315,10 +7559,10 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
     lia)
   rw [a₉v] at a₁₀v
-  rw [← (show A₁₀ = R.addInto A₉ (o + (10 * k)) (n - (10 * k)) q₂₀₅ (9 * L) (min (n - (10 * k)) L) from rfl)] at a₁₀w a₁₀v
+  rw [← (show A₁₀ = R.addInto A₉ (o + (10 * k)) (n - (10 * k)) q₁₀₉ (9 * L) (min (n - (10 * k)) L) from rfl)] at a₁₀w a₁₀v
   have a₁₀w' := a₁₀w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₉w'
   obtain ⟨a₁₁w, a₁₁v⟩ := add_coef A₁₀ o n (11 * k) (by rw [a₁₀w'.1]; exact hd) (by lia)
-      q₂₀₅ (10 * L) L c₁₁ v₁₁q₂₀₅ (by
+      q₁₀₉ (10 * L) L c₁₁ v₁₁q₁₀₉ (by
     rw [a₁₀v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -10336,10 +7580,10 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
     lia)
   rw [a₁₀v] at a₁₁v
-  rw [← (show A₁₁ = R.addInto A₁₀ (o + (11 * k)) (n - (11 * k)) q₂₀₅ (10 * L) (min (n - (11 * k)) L) from rfl)] at a₁₁w a₁₁v
+  rw [← (show A₁₁ = R.addInto A₁₀ (o + (11 * k)) (n - (11 * k)) q₁₀₉ (10 * L) (min (n - (11 * k)) L) from rfl)] at a₁₁w a₁₁v
   have a₁₁w' := a₁₁w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₁₀w'
   obtain ⟨a₁₂w, a₁₂v⟩ := add_coef A₁₁ o n (12 * k) (by rw [a₁₁w'.1]; exact hd) (by lia)
-      q₂₀₅ (11 * L) L c₁₂ v₁₂q₂₀₅ (by
+      q₁₀₉ (11 * L) L c₁₂ v₁₂q₁₀₉ (by
     rw [a₁₁v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -10357,10 +7601,10 @@ public theorem interp14W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (14 * k)) * c₁₄ = T₁₄ at htot ⊢
     lia)
   rw [a₁₁v] at a₁₂v
-  rw [← (show A₁₂ = R.addInto A₁₁ (o + (12 * k)) (n - (12 * k)) q₂₀₅ (11 * L) (min (n - (12 * k)) L) from rfl)] at a₁₂w a₁₂v
+  rw [← (show A₁₂ = R.addInto A₁₁ (o + (12 * k)) (n - (12 * k)) q₁₀₉ (11 * L) (min (n - (12 * k)) L) from rfl)] at a₁₂w a₁₂v
   have a₁₂w' := a₁₂w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₁₁w'
   obtain ⟨a₁₃w, a₁₃v⟩ := add_coef A₁₂ o n (13 * k) (by rw [a₁₂w'.1]; exact hd) (by lia)
-      q₂₀₅ (12 * L) L c₁₃ e₂₀₅ (by
+      q₁₀₉ (12 * L) L c₁₃ e₁₀₉ (by
     rw [a₁₂v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢

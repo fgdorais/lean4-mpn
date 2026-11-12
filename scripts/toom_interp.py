@@ -319,6 +319,40 @@ def fuse_first(passes, ws):
     assert all(sum(1 for p in passes if first_pass(p) and int(p.split()[0]) == j) == 2 for j in ws)
     return ms
 
+# The one-array interpolations whose chains of three passes are fused by `sub3Chain`.
+CHAIN = {5, 6, 10, 14}
+
+def win_pass(p):
+    """`(j, i, m)` for a pass `j - m*i` between two windows, else `None`."""
+    toks = p.split()
+    if len(toks) != 3 or toks[1] != '-':
+        return None
+    src = toks[2]
+    m = 1
+    if '*' in src:
+        ms, src = src.split('*')
+        m = int(ms)
+    if not src.isdigit():
+        return None
+    return int(toks[0]), int(src), m
+
+def chain_at(passes, i, st):
+    """`(a, b, c, e, m)` when the passes from `i` on are `a - m b`, `b - m c`, `c - m e` on whole
+    windows, the three written ones adjacent: each reads the old value of the next."""
+    ps = [win_pass(p) for p in passes[i:i + 3]]
+    if len(ps) < 3 or None in ps:
+        return None
+    (a, b, m1), (b2, c, m2), (c2, e, m3) = ps
+    if b2 != b or c2 != c or not (m1 == m2 == m3):
+        return None
+    if len({a, b, c, e}) != 4 or any(st[j][0] != 0 for j in (a, b, c, e)):
+        return None
+    if sorted((a, b, c)) != list(range(min(a, b, c), min(a, b, c) + 3)):
+        return None
+    if e in range(min(a, b, c), min(a, b, c) + 3):
+        return None
+    return a, b, c, e, m1
+
 def genW(D):
     """`interp{D}` on one array `W`, the value at `j` in the window of `L` limbs at `(j - 1) L`: the
     same passes, a window of `W` minus another by `subMulWin`, and in the proof the values of the
@@ -335,10 +369,53 @@ def genW(D):
     code, proof, names = [], [], []
     curW, sz = 'W', 'hW'
     q = 0
-    for p in passes:
+    pi = 0
+    while pi < len(passes):
+        p = passes[pi]
+        pi += 1
         q += 1
         qn = f'q{sub(q)}'
         names.append(qn)
+        ch = chain_at(passes, pi - 1, st) if D in CHAIN else None
+        if ch:
+            # Three passes `a - m b`, `b - m c`, `c - m e` in one, each from the old value of the
+            # next window, by `sub3Chain`.
+            pi += 2
+            a, b, c, e, m = ch
+            fw = [a, b, c]
+            new = {j: addv(st[j][2], scale(st[nx][2], m), -1) for j, nx in zip(fw, (b, c, e))}
+            for j in fw:
+                check(new[j], p)
+            x = min(fw)
+            call = (f'R.sub3Chain {curW} {at(a, 0)} {at(b, 0)} {at(c, 0)} {at(e, 0)} L {m}')
+            vs = ' '.join(f'(V{sub(i + 1)} := {expr(new[j])})' for i, j in enumerate(fw))
+            hvs_ = ' '.join(st[j][1] for j in (a, b, c, e))
+            wn, sn = f'w{sub(q)}', f's{sub(q)}'
+            ens = [f'e{sub(q)}{"abc"[i]}' for i in range(3)]
+            proof.append(f'  obtain ⟨{wn}, {", ".join(ens)}⟩ := sub3ChainW_val (q := {curW}) '
+                         f'(o₁ := {at(a, 0)}) (o₂ := {at(b, 0)})\n      (o₃ := {at(c, 0)}) '
+                         f'(o₄ := {at(e, 0)}) (len := L) {at(x, 0)} (3 * L) (by rw [{sz}]; lia)'
+                         f' (by lia) (by lia) {m}\n      {vs}\n'
+                         f'      {hvs_} (by lia) (by lia) (by lia)')
+            proof.append(f'  rw [← (show {qn} = {call} from rfl)] at {wn} {" ".join(ens)}')
+            proof.append(f'  clear_value {qn}')
+            proof.append(f'  have {sn} := {wn}.1.trans {sz}')
+            dead = [wn] + [st[j][1] for j in fw] + ([sz] if sz != 'hW' else [])
+            for i, j in enumerate(fw):
+                st[j] = [0, ens[i], new[j]]
+            for i in ws:
+                if i in fw:
+                    continue
+                io, ivh, ival = st[i]
+                nv = f'v{sub(i)}q{sub(q)}'
+                proof.append(f'  have {nv} := ({wn}.valAt_eq (lo := {at(i, io)}) (n := {ln(io)}) '
+                             f'(by lia)).trans {ivh}')
+                dead.append(ivh)
+                st[i][1] = nv
+            proof.append(f'  clear {" ".join(dead)}')
+            code.append('  let W := ' + re.sub(rf'\b{curW}\b', 'W', call))
+            curW, sz = qn, sn
+            continue
         if p == 'fuse':
             # The first stage in one pass: each window minus `X0 + m Xd`, by `sub3Lin`.
             fw = sorted(ms)

@@ -957,6 +957,151 @@ private theorem borrow_win (X D : A) (o len sl Sv : Nat) (c : L) (hsl : sl ≤ l
   subst hc₂
   lia
 
+/--
+One limb of `D - y v`: `z - y v - c` modulo `2ʷ` and the borrow out, at most `v + 1`, for a
+chain of windows each minus a multiple of the next.
+-/
+@[inline, expose] public def chainStep (v : L) (n : USize) (j : USize) (_ : j < n) (z y c : L) :
+    L × L :=
+  let p := WordArray.mulAdd2 (A := A) y v (WordArray.zero A) c
+  let q := WordArray.subC (A := A) z p.1 (WordArray.zero A)
+  (q.1, WordArray.add (A := A) p.2 q.2)
+
+/-- `Dᵢ - v Dᵢ₊₁` in three windows of a chain of four in one pass, from the old values. -/
+public def sub3ChainK (d : A) (o₁ o₂ o₃ o₄ len v : Nat) : A :=
+  if h : winOK d o₁ len = true ∧ winOK d o₂ len = true ∧ winOK d o₃ len = true ∧
+      winOK d o₄ len = true ∧ v + 1 < 2 ^ LA.w ∧ v < 4294967295 then
+    have h₁ := winOK_spec h.1
+    have h₂ := winOK_spec h.2.1
+    have h₃ := winOK_spec h.2.2.1
+    have h₄ := winOK_spec h.2.2.2.1
+    F.fold3ChainThen len.toUSize (chainStep (A := A) (R.ofUSize v.toUSize) len.toUSize)
+      (chainStep (A := A) (R.ofUSize v.toUSize) len.toUSize) (chainStep (A := A) (R.ofUSize v.toUSize) len.toUSize)
+      d o₁.toUSize o₂.toUSize o₃.toUSize o₄.toUSize h₁.2.2.2 h₂.2.2.2 h₃.2.2.2 h₄.2.2.2 0
+      R.zero R.zero R.zero fun arr _ _ _ _ => arr
+  else
+    let V₁ := valAt d o₁ len
+    let V₂ := valAt d o₂ len
+    let V₃ := valAt d o₃ len
+    let V₄ := valAt d o₄ len
+    let d := writeNat d o₁ len (V₁ - v * V₂)
+    let d := writeNat d o₂ len (V₂ - v * V₃)
+    writeNat d o₃ len (V₃ - v * V₄)
+
+omit F in
+/-- The law of `chainStep`, with its borrow at most `v + 1`. -/
+private theorem chainStep_law (v : Nat) (hv : v + 1 < 2 ^ LA.w) (hv' : v < 4294967295)
+    (n j : USize) (h : j < n) (z y c : L) (hc : LA.val c ≤ v + 1) :
+    LA.val (chainStep (A := A) (R.ofUSize v.toUSize) n j h z y c).2 ≤ v + 1 ∧
+      LA.val (chainStep (A := A) (R.ofUSize v.toUSize) n j h z y c).1 + v * LA.val y + LA.val c =
+        LA.val z + 2 ^ LA.w * LA.val (chainStep (A := A) (R.ofUSize v.toUSize) n j h z y c).2 := by
+  have ev := val_ofUSize_lt (R := R) (v := v) (by lia) hv'
+  simp only [chainStep]
+  have m := R.val_mulAdd2 y (R.ofUSize v.toUSize) R.zero c
+  generalize R.mulAdd2 y (R.ofUSize v.toUSize) R.zero c = p at m ⊢
+  have sc := R.val_subC z p.1 R.zero
+  generalize R.subC z p.1 R.zero = q at sc ⊢
+  rw [R.val_add]
+  rw [R.val_zero, ev] at *
+  have hW := R.four_le
+  have ly := LA.val_lt y
+  have lz := LA.val_lt z
+  have lp := LA.val_lt p.1
+  have lq := LA.val_lt q.1
+  generalize 2 ^ LA.w = W at *
+  generalize LA.val p.1 = lo at *
+  generalize LA.val p.2 = hi at *
+  generalize LA.val q.1 = o at *
+  generalize LA.val q.2 = bit at *
+  have hyv : LA.val y * v + v ≤ W * v := by
+    have := Nat.mul_le_mul_right v (show LA.val y + 1 ≤ W by lia)
+    rw [Nat.add_mul, Nat.one_mul] at this
+    exact this
+  have hhi : hi ≤ v + 1 :=
+    Nat.le_of_mul_le_mul_left (show W * hi ≤ W * (v + 1) by rw [Nat.mul_succ]; lia) (by lia)
+  have hbit : bit < 2 := Nat.lt_of_mul_lt_mul_left (show W * bit < W * 2 by lia)
+  have hsum : hi + bit ≤ v + 1 := by
+    rcases Nat.lt_or_ge hi (v + 1) with e | e
+    · lia
+    · have e' : hi = v + 1 := by lia
+      subst e'
+      have : lo = 0 := by rw [Nat.mul_succ] at m; lia
+      subst this
+      have : bit < 1 := Nat.lt_of_mul_lt_mul_left (show W * bit < W * 1 by lia)
+      lia
+  rw [Nat.mod_eq_of_lt (by lia : hi + bit < W)]
+  refine ⟨hsum, ?_⟩
+  rw [Nat.mul_comm v]
+  lia
+
+/-- A window whose value plus `M` is `V` plus a multiple of `2^(w len)`, with `M ≤ V`, is `V - M`. -/
+private theorem no_borrow {X M V P Q : Nat} (h : X + M + 0 = V + P * Q) (hX : X < P)
+    (hM : M ≤ V) : X = V - M := by
+  rcases Nat.eq_zero_or_pos Q with h0 | hpos
+  · subst h0; lia
+  · have := Nat.le_mul_of_pos_right P hpos; lia
+
+public theorem sub3ChainK_spec (d : A) (o₁ o₂ o₃ o₄ len v : Nat)
+    (h₁ : o₁ + len ≤ LA.size d) (h₂ : o₂ + len ≤ LA.size d) (h₃ : o₃ + len ≤ LA.size d)
+    (_h₄ : o₄ + len ≤ LA.size d)
+    (d₁₂ : o₁ + len ≤ o₂ ∨ o₂ + len ≤ o₁) (d₁₃ : o₁ + len ≤ o₃ ∨ o₃ + len ≤ o₁)
+    (d₁₄ : o₁ + len ≤ o₄ ∨ o₄ + len ≤ o₁) (d₂₃ : o₂ + len ≤ o₃ ∨ o₃ + len ≤ o₂)
+    (d₂₄ : o₂ + len ≤ o₄ ∨ o₄ + len ≤ o₂) (d₃₄ : o₃ + len ≤ o₄ ∨ o₄ + len ≤ o₃)
+    (hb₁ : v * valAt d o₂ len ≤ valAt d o₁ len) (hb₂ : v * valAt d o₃ len ≤ valAt d o₂ len)
+    (hb₃ : v * valAt d o₄ len ≤ valAt d o₃ len) :
+    LA.size (sub3ChainK d o₁ o₂ o₃ o₄ len v) = LA.size d ∧
+      (∀ i, (i < o₁ ∨ o₁ + len ≤ i) → (i < o₂ ∨ o₂ + len ≤ i) → (i < o₃ ∨ o₃ + len ≤ i) →
+        LA.get (sub3ChainK d o₁ o₂ o₃ o₄ len v) i = LA.get d i) ∧
+      valAt (sub3ChainK d o₁ o₂ o₃ o₄ len v) o₁ len = valAt d o₁ len - v * valAt d o₂ len ∧
+      valAt (sub3ChainK d o₁ o₂ o₃ o₄ len v) o₂ len = valAt d o₂ len - v * valAt d o₃ len ∧
+      valAt (sub3ChainK d o₁ o₂ o₃ o₄ len v) o₃ len = valAt d o₃ len - v * valAt d o₄ len := by
+  unfold sub3ChainK
+  split
+  · rename_i h
+    have hw := h.2.2.2.2.1
+    have hw' := h.2.2.2.2.2
+    obtain ⟨-, e₁, eL, -⟩ := winOK_spec h.1
+    obtain ⟨-, e₂, -, -⟩ := winOK_spec h.2.1
+    obtain ⟨-, e₃, -, -⟩ := winOK_spec h.2.2.1
+    obtain ⟨-, e₄, -, -⟩ := winOK_spec h.2.2.2.1
+    rw [F.fold3ChainThen_eq, foldUInPlace3ChainThen]
+    obtain ⟨f₀, f₁, f₂, f₃, f₄⟩ := foldUInPlace3Chain_spec len.toUSize _ _ _ v v v
+      (fun c => LA.val c) (fun c => LA.val c) (fun c => LA.val c)
+      (fun c => LA.val c ≤ v + 1) (fun c => LA.val c ≤ v + 1) (fun c => LA.val c ≤ v + 1)
+      (fun j h z y c hc => (chainStep_law (A := A) v hw hw' _ j h z y c hc).1)
+      (fun j h z y c hc => (chainStep_law (A := A) v hw hw' _ j h z y c hc).1)
+      (fun j h z y c hc => (chainStep_law (A := A) v hw hw' _ j h z y c hc).1)
+      (fun j h z y c hc => (chainStep_law (A := A) v hw hw' _ j h z y c hc).2)
+      (fun j h z y c hc => (chainStep_law (A := A) v hw hw' _ j h z y c hc).2)
+      (fun j h z y c hc => (chainStep_law (A := A) v hw hw' _ j h z y c hc).2)
+      d o₁.toUSize o₂.toUSize o₃.toUSize o₄.toUSize _ _ _ _
+      (by rw [e₁, e₂, eL]; lia) (by rw [e₁, e₃, eL]; lia) (by rw [e₁, e₄, eL]; lia)
+      (by rw [e₂, e₃, eL]; lia) (by rw [e₂, e₄, eL]; lia) (by rw [e₃, e₄, eL]; lia)
+      0 R.zero R.zero R.zero
+      (by rw [R.val_zero]; lia) (by rw [R.val_zero]; lia) (by rw [R.val_zero]; lia)
+    simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, e₁, e₂, e₃, e₄, eL,
+      R.val_zero] at f₁ f₂ f₃ f₄
+    generalize foldUInPlace3Chain len.toUSize _ _ _ d o₁.toUSize o₂.toUSize o₃.toUSize
+      o₄.toUSize _ _ _ _ 0 R.zero R.zero R.zero = X at f₀ f₁ f₂ f₃ f₄ ⊢
+    exact ⟨f₀, fun i hi₁ hi₂ hi₃ => f₁ i (by lia) (by lia) (by lia),
+      no_borrow f₂ (valAt_lt ..) hb₁, no_borrow f₃ (valAt_lt ..) hb₂,
+      no_borrow f₄ (valAt_lt ..) hb₃⟩
+  · dsimp only
+    have lt : ∀ o (y : Nat), valAt d o len - y < 2 ^ (LA.w * len) :=
+      fun o y => Nat.lt_of_le_of_lt (Nat.sub_le _ _) (valAt_lt ..)
+    obtain ⟨w₁, v₁e⟩ := fallback d o₁ len _ h₁ (lt o₁ (v * valAt d o₂ len))
+    generalize writeNat d o₁ len _ = D₁ at w₁ v₁e ⊢
+    obtain ⟨w₂, v₂e⟩ := fallback D₁ o₂ len _ (by rw [w₁.1]; exact h₂)
+      (lt o₂ (v * valAt d o₃ len))
+    generalize writeNat D₁ o₂ len _ = D₂ at w₂ v₂e ⊢
+    obtain ⟨w₃, v₃e⟩ := fallback D₂ o₃ len _ (by rw [w₂.1, w₁.1]; exact h₃)
+      (lt o₃ (v * valAt d o₄ len))
+    generalize writeNat D₂ o₃ len _ = D₃ at w₃ v₃e ⊢
+    refine ⟨w₃.1.trans (w₂.1.trans w₁.1), fun i hi₁ hi₂ hi₃ => ?_, ?_, ?_, v₃e⟩
+    · rw [w₃.2 i hi₃, w₂.2 i hi₂, w₁.2 i hi₁]
+    · rw [w₃.valAt_eq (by lia), w₂.valAt_eq (by lia), v₁e]
+    · rw [w₃.valAt_eq (by lia), v₂e]
+
 public theorem sub3LinK_spec (d : A) (o₁ o₂ o₃ len : Nat) (s : A) (so sl to tl v₁ v₂ v₃ : Nat)
     (h₁ : o₁ + len ≤ LA.size d) (h₂ : o₂ + len ≤ LA.size d) (h₃ : o₃ + len ≤ LA.size d)
     (h₁₂ : o₁ + len ≤ o₂) (h₂₃ : o₂ + len ≤ o₃)
@@ -1444,6 +1589,8 @@ public instance toomOpsW [B : ToomBase A L] : ToomOps A L where
   evals3_spec := evals3K_spec B.w_ge
   sub3Lin := sub3LinK
   sub3Lin_spec := sub3LinK_spec
+  sub3Chain := sub3ChainK
+  sub3Chain_spec := sub3ChainK_spec
   shlTop := shlTopK
   shlTop_spec := shlTopK_spec
   shr := shrK

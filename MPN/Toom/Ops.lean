@@ -150,6 +150,25 @@ public class ToomOps (A : Type) (L : outParam Type) [LimbArray A L] where
       valAt (sub3Lin d o₁ o₂ o₃ len s so sl to tl v₁ v₂ v₃) o₃ len =
         valAt d o₃ len - (valAt s so sl + valAt s to tl * v₃)
   /--
+  A chain `D₁ - v D₂`, `D₂ - v D₃`, `D₃ - v D₄` of four disjoint windows of `len` limbs of `d`,
+  each from the old value of the next, in one pass: `sub3Chain d o₁ o₂ o₃ o₄ len v`.
+  -/
+  sub3Chain : A → Nat → Nat → Nat → Nat → Nat → Nat → A
+  sub3Chain_spec : ∀ (d : A) (o₁ o₂ o₃ o₄ len v : Nat),
+    o₁ + len ≤ LimbArray.size d → o₂ + len ≤ LimbArray.size d → o₃ + len ≤ LimbArray.size d →
+    o₄ + len ≤ LimbArray.size d →
+    (o₁ + len ≤ o₂ ∨ o₂ + len ≤ o₁) → (o₁ + len ≤ o₃ ∨ o₃ + len ≤ o₁) →
+    (o₁ + len ≤ o₄ ∨ o₄ + len ≤ o₁) → (o₂ + len ≤ o₃ ∨ o₃ + len ≤ o₂) →
+    (o₂ + len ≤ o₄ ∨ o₄ + len ≤ o₂) → (o₃ + len ≤ o₄ ∨ o₄ + len ≤ o₃) →
+    v * valAt d o₂ len ≤ valAt d o₁ len → v * valAt d o₃ len ≤ valAt d o₂ len →
+    v * valAt d o₄ len ≤ valAt d o₃ len →
+    LimbArray.size (sub3Chain d o₁ o₂ o₃ o₄ len v) = LimbArray.size d ∧
+      (∀ i, (i < o₁ ∨ o₁ + len ≤ i) → (i < o₂ ∨ o₂ + len ≤ i) → (i < o₃ ∨ o₃ + len ≤ i) →
+        LimbArray.get (sub3Chain d o₁ o₂ o₃ o₄ len v) i = LimbArray.get d i) ∧
+      valAt (sub3Chain d o₁ o₂ o₃ o₄ len v) o₁ len = valAt d o₁ len - v * valAt d o₂ len ∧
+      valAt (sub3Chain d o₁ o₂ o₃ o₄ len v) o₂ len = valAt d o₂ len - v * valAt d o₃ len ∧
+      valAt (sub3Chain d o₁ o₂ o₃ o₄ len v) o₃ len = valAt d o₃ len - v * valAt d o₄ len
+  /--
   `D 2^(w - 1)`, wrapped: an even `D` that fits in all but the top limb ends up halved in the
   limbs from the second on.
   -/
