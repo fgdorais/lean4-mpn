@@ -71,10 +71,14 @@ Below 256 limbs, under the target's 4× of `Nat` but far from `mpn`:
   `ToomOps.sub3Lin`, and since `3d7140e` each operand's values are one pass of `ToomOps.evals3`
   (nine before), both on `WordFolds.fold3Then` with three loop variables (lean4-scalar-arrays#84):
   together −3% to −4% from 384 to 504 limbs and −3% at 3584 on 64-bit limbs, neutral on 32-bit
-  limbs. What is left: the second stage of the interpolation, passes between windows of the same
-  array, which needs a fold that writes some windows while reading others, and five loop variables
-  to take in the shift and the exact division (four is the limit); and one-pass values for the other shapes (`evalsW` has them only for
-  three pieces at three points). Since `a8c9827` Toom-3 by 2, Toom-4 by 2, Toom-4 and the Toom-3 and
+  limbs. Since `eb1c37c` every run of three passes `w₁ -= v w₂; w₂ -= v w₃; w₃ -= v w₄` (each from
+  the old value of the next window) is one pass of `ToomOps.sub3Chain` on
+  `WordFolds.fold3ChainThen`, at degrees 5, 6, 10 and 14: 205 passes to 109 at degree 14, −3% to −5%
+  from 768 to 4096 limbs on 64-bit limbs, −1% on 32-bit limbs. What is left: chains of other
+  shapes (two windows, the top window from `d` in the conversion from Newton's basis, the passes
+  around a shift or an exact division, which need five loop variables where four is the limit);
+  Toom-3's and Toom-4's second stages, which have no chain of three; and one-pass values for the
+  other shapes (`evalsW` has them only for three pieces at three points). Since `a8c9827` Toom-3 by 2, Toom-4 by 2, Toom-4 and the Toom-3 and
   Toom-4 squares are on one array too (`ONE_ARRAY`), Toom-4 by 3 since `b37f746`, with the first
   stage fused for three windows at degrees 4 to 6, and Toom-6 and Toom-8 since `7a6c28c` (all
   methods; on 32-bit limbs Toom-8 lost 1.5–2% there, gaining 2–3.5% on 64-bit limbs). One-pass values for two points or two pieces (Toom-3 by 2, the short operand of
