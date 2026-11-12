@@ -5,9 +5,10 @@ usage: scripts/toom_methods.py > MPN/Toom/Methods.lean
 
 A method splits `a` into `p` pieces of `k` limbs and `b` into `q` (or squares `a`), writes the
 product of the low pieces and the product of the top pieces into the window of the result, the
-products of the values at `1, …, D - 1`, `D = p + q - 2`, into new arrays of `2 k + 2` limbs, and
-interpolates with `interpD` of `MPN.Toom.Interp`. The proof names the pieces, expands the values
-as polynomials in them, and checks the identities of the coefficients with `grind`.
+values at `1, …, D - 1`, `D = p + q - 2`, of each operand and their products in windows of one
+array each (`pointsW`, `pointsSqrW`), and interpolates with `interpDW` of `MPN.Toom.Interp`. The
+proof names the pieces, expands the values as polynomials in them, and checks the identities of
+the coefficients with `grind`.
 """
 
 SUB = str.maketrans('0123456789', '₀₁₂₃₄₅₆₇₈₉')
@@ -22,9 +23,6 @@ MUL = [('toom33', 'Toom-3', 3, 3), ('toom42', 'Toom-4 by 2', 4, 2), ('toom32', '
 SQR = [('toom3Sqr', 'The Toom-3 square', 3), ('toom4Sqr', 'The Toom-4 square', 4),
        ('toom6Sqr', 'The Toom-6 square', 6), ('toom8Sqr', 'The Toom-8 square', 8)]
 HEART = {4: None, 3: None, 5: 2000000, 6: 2000000, 10: 8000000, 14: 16000000}
-# The methods whose values and their products or squares live in windows of one array each
-# (`pointsW`, `pointsSqrW`), interpolated by `interpDW`.
-ONE_ARRAY = {'toom33', 'toom42', 'toom32', 'toom3Sqr', 'toom44', 'toom4Sqr', 'toom43', 'toom66', 'toom6Sqr', 'toom88', 'toom8Sqr'}
 
 def wat(j):
     return '0' if j == 1 else ('(k + k + 2)' if j == 2 else f'{j - 1} * (k + k + 2)')
@@ -66,8 +64,7 @@ nonempty.
 public abbrev {shape} (al bl k : Nat) : Prop :=
   1 ≤ k ∧ {mk(p - 1)} < al ∧ al ≤ {mk(p)} ∧ {mk(q - 1)} < bl ∧ {last}
 ''')
-    ws = ' '.join(f'(w {j})' for j in range(1, D))
-    if square and name in ONE_ARRAY:
+    if square:
         out.append(f'''/--
 {title}: `a` in {p} pieces of `k` limbs, at most, the top one nonempty, the values and their
 squares in windows of one array each (`pointsSqrW`).
@@ -78,17 +75,7 @@ squares in windows of one array each (`pointsSqrW`).
   let d := sq d (o + {mk(D)}) a (ao + {mk(p - 1)}) (al - {mk(p - 1)}) (by obtain {pat} := hk; lia)
   interp{D}W d o ({n}) k (k + k + 2) (pointsSqrW sq a ao al k {p} {D - 1} (by obtain {pat} := hk; lia))
 ''')
-    elif square:
-        out.append(f'''/-- {title}: `a` in {p} pieces of `k` limbs, at most, the top one nonempty. -/
-@[expose, specialize] public def {name} (d : A) (o : Nat) (a : A) (ao al k : Nat)
-    (hk : {shape} al k) (sq : SqrFn A al) : A :=
-  let d := sq d o a ao k (by obtain {pat} := hk; lia)
-  let d := sq d (o + {mk(D)}) a (ao + {mk(p - 1)}) (al - {mk(p - 1)}) (by obtain {pat} := hk; lia)
-  let w (j : Nat) := sq (R.zeros (k + k + 2)) 0 (evalAt a ao al k {p} j (k + 1)) 0 (k + 1)
-    (by obtain {pat} := hk; lia)
-  interp{D} d o ({n}) k (k + k + 2) {ws}
-''')
-    elif name in ONE_ARRAY:
+    else:
         out.append(f'''/--
 {title}: `a` in {p} pieces of `k` limbs and `b` in {q}, at most, the top ones nonempty, the values
 and their products in windows of one array each (`pointsW`).
@@ -101,17 +88,6 @@ and their products in windows of one array each (`pointsW`).
   interp{D}W d o ({n}) k (k + k + 2)
     (pointsW mul a ao al b bo bl k {p} {q} {D - 1} (by obtain {pat} := hk; lia))
 ''')
-    else:
-        out.append(f'''/-- {title}: `a` in {p} pieces of `k` limbs and `b` in {q}, at most, the top ones nonempty. -/
-@[expose, specialize] public def {name} (d : A) (o : Nat) (a : A) (ao al : Nat) (b : A)
-    (bo bl k : Nat) (hk : {shape} al bl k) (mul : MulFn A (al + bl)) : A :=
-  let d := mul d o a ao k b bo k (by obtain {pat} := hk; lia)
-  let d := mul d (o + {mk(D)}) a (ao + {mk(p - 1)}) (al - {mk(p - 1)}) b (bo + {mk(q - 1)})
-    (bl - {mk(q - 1)}) (by obtain {pat} := hk; lia)
-  let w (j : Nat) := mul (R.zeros (k + k + 2)) 0 (evalAt a ao al k {p} j (k + 1)) 0 (k + 1)
-    (evalAt b bo bl k {q} j (k + 1)) 0 (k + 1) (by obtain {pat} := hk; lia)
-  interp{D} d o ({n}) k (k + k + 2) {ws}
-''')
     # The proof.
     B = 'A' if square else 'B'
     qq = p if square else q
@@ -119,15 +95,13 @@ and their products in windows of one array each (`pointsW`).
     if HEART[D]:
         pr.append(f'set_option maxHeartbeats {HEART[D]} in')
     if square:
-        pw = ''
-        if name in ONE_ARRAY:
-            pw = (f'\n  obtain ⟨sW, pW⟩ := pointsSqrW_spec sq hsq a ao al k {p} {D - 1} (by decide)\n'
-                  f'    {cases(D - 1, "p")}\n    (by lia)')
-            for j in range(1, D):
-                pw += (f'\n  have e{sub(j)} := pW {j} (by decide) (by decide)'
-                       f'\n  rw [show ({j} - 1) * (k + k + 2) = {wat(j)} by lia] at e{sub(j)}')
-            pw += ('\n  simp only [sumRange_succ, sumRange_zero, Nat.zero_add, Nat.pow_zero, '
-                   'Nat.mul_one,\n    Nat.pow_one] at ' + ' '.join(f'e{sub(j)}' for j in range(1, D)))
+        pw = (f'\n  obtain ⟨sW, pW⟩ := pointsSqrW_spec sq hsq a ao al k {p} {D - 1} (by decide)\n'
+              f'    {cases(D - 1, "p")}\n    (by lia)')
+        for j in range(1, D):
+            pw += (f'\n  have e{sub(j)} := pW {j} (by decide) (by decide)'
+                   f'\n  rw [show ({j} - 1) * (k + k + 2) = {wat(j)} by lia] at e{sub(j)}')
+        pw += ('\n  simp only [sumRange_succ, sumRange_zero, Nat.zero_add, Nat.pow_zero, '
+               'Nat.mul_one,\n    Nat.pow_one] at ' + ' '.join(f'e{sub(j)}' for j in range(1, D)))
         pr.append(f'''public theorem {name}_spec (d : A) (o : Nat) (a : A) (ao al k : Nat) (hk : {shape} al k)
     (sq : SqrFn A al) (hsq : IsSqr sq) (hd : o + (al + al) ≤ LA.size d) :
     Writes ({name} d o a ao al k hk sq) d o (al + al) ∧
@@ -136,9 +110,8 @@ and their products in windows of one array each (`pointsW`).
   dsimp only [{name}]
   have hab := mul_lt a a ao al ao al
   have hA := valAt_eq_pieces a k {p} ao al (by lia)
-  have pA (j : Nat) (hj : 1 ≤ j) := point_sqr_spec sq hsq a ao al k {p} j (by decide) hj
   simp only [sumRange_succ, sumRange_zero, Nat.zero_add, Nat.pow_zero, Nat.mul_one,
-    Nat.pow_one] at hA pA{pw}
+    Nat.pow_one] at hA{pw}
   have a₀ := piece_full a ao al k 0 (by lia)
   have aT := piece_top a ao al k {p - 1} (by lia)
   simp only [Nat.zero_mul, Nat.add_zero] at a₀ aT''')
@@ -160,20 +133,15 @@ and their products in windows of one array each (`pointsW`).
   have hc₀ : valAt d₂ o (k + k) = A₀ * A₀ := by rw [← v₁]; exact w₂.valAt_eq (by lia)
   -- The values at the points.
   have p₃ : k + 1 < al := by lia''')
-        if name not in ONE_ARRAY:
-            for j in range(1, D):
-                pr.append(f'  obtain ⟨s{sub(j)}, e{sub(j)}⟩ := pA {j} (by decide) (by decide) p₃')
     else:
-        pw_obtain = ''
-        if name in ONE_ARRAY:
-            pw_obtain = (f'\n  obtain ⟨sW, pW⟩ := pointsW_spec mul hmul a ao al b bo bl k {p} {q} {D - 1} '
-                         f'(by decide) (by decide)\n    {cases(D - 1, "p")}\n    {cases(D - 1, "q")}\n'
-                         f'    (by lia)')
-            for j in range(1, D):
-                pw_obtain += (f'\n  have e{sub(j)} := pW {j} (by decide) (by decide)'
-                              f'\n  rw [show ({j} - 1) * (k + k + 2) = {wat(j)} by lia] at e{sub(j)}')
-            pw_obtain += ('\n  simp only [sumRange_succ, sumRange_zero, Nat.zero_add, Nat.pow_zero, '
-                          'Nat.mul_one,\n    Nat.pow_one] at ' + ' '.join(f'e{sub(j)}' for j in range(1, D)))
+        pw_obtain = (f'\n  obtain ⟨sW, pW⟩ := pointsW_spec mul hmul a ao al b bo bl k {p} {q} {D - 1} '
+                     f'(by decide) (by decide)\n    {cases(D - 1, "p")}\n    {cases(D - 1, "q")}\n'
+                     f'    (by lia)')
+        for j in range(1, D):
+            pw_obtain += (f'\n  have e{sub(j)} := pW {j} (by decide) (by decide)'
+                          f'\n  rw [show ({j} - 1) * (k + k + 2) = {wat(j)} by lia] at e{sub(j)}')
+        pw_obtain += ('\n  simp only [sumRange_succ, sumRange_zero, Nat.zero_add, Nat.pow_zero, '
+                      'Nat.mul_one,\n    Nat.pow_one] at ' + ' '.join(f'e{sub(j)}' for j in range(1, D)))
         pr.append(f'''public theorem {name}_spec (d : A) (o : Nat) (a : A) (ao al : Nat) (b : A) (bo bl k : Nat)
     (hk : {shape} al bl k) (mul : MulFn A (al + bl)) (hmul : IsMul mul)
     (hd : o + (al + bl) ≤ LA.size d) :
@@ -184,10 +152,8 @@ and their products in windows of one array each (`pointsW`).
   have hab := mul_lt a b ao al bo bl
   have hA := valAt_eq_pieces a k {p} ao al (by lia)
   have hB := valAt_eq_pieces b k {q} bo bl (by lia)
-  have pA (j : Nat) (hj : 1 ≤ j) := point_spec mul hmul a ao al b bo bl k {p} {q} j (by decide)
-    (by decide) hj
   simp only [sumRange_succ, sumRange_zero, Nat.zero_add, Nat.pow_zero, Nat.mul_one,
-    Nat.pow_one] at hA hB pA{pw_obtain}
+    Nat.pow_one] at hA hB{pw_obtain}
   have a₀ := piece_full a ao al k 0 (by lia)
   have aT := piece_top a ao al k {p - 1} (by lia)
   have b₀ := piece_full b bo bl k 0 (by lia)
@@ -216,9 +182,6 @@ and their products in windows of one array each (`pointsW`).
   have hc₀ : valAt d₂ o (k + k) = A₀ * B₀ := by rw [← v₁]; exact w₂.valAt_eq (by lia)
   -- The values at the points.
   have p₃ : k + 1 + (k + 1) < al + bl := by lia''')
-        if name not in ONE_ARRAY:
-            for j in range(1, D):
-                pr.append(f'  obtain ⟨s{sub(j)}, e{sub(j)}⟩ := pA {j} (by decide) (by decide) (by decide) p₃')
     cs = coeffs(p, qq, 'A', B)
     pr.append('  -- The interpolation.')
     pr.append('  generalize hX : 2 ^ (LA.w * k) = X at *')
@@ -243,14 +206,11 @@ and their products in windows of one array each (`pointsW`).
     have := Nat.mul_le_mul_left (X * X) h32
     lia''')
         hbm = '\n    (by refine Nat.lt_of_le_of_lt (Nat.le_of_eq ?_) hbm; grind)'
-    ss = ' '.join(f's{sub(j)}' for j in range(1, D))
     es = '\n    '.join(f'(by rw [e{sub(j)}]; grind)' for j in range(1, D))
     cargs = ' '.join(f'({c})' for c in cs)
     hxs = ', '.join(['hX'] + [f'hX{i}' for i in range(2, D + 1)])
-    wa = '_ ' * (D - 1)
-    if name in ONE_ARRAY:
-        wa, ss = '_ ', 'sW'
-    pr.append(f'''  obtain ⟨f₁, f₂⟩ := interp{D}{"W" if name in ONE_ARRAY else ""}_spec d₂ o ({n}) k (k + k + 2) {wa}
+    wa, ss = '_ ', 'sW'
+    pr.append(f'''  obtain ⟨f₁, f₂⟩ := interp{D}W_spec d₂ o ({n}) k (k + k + 2) {wa}
     {cargs}
     (by rw [w₂.1, w₁.1]; exact hd) (by lia) (by lia) {ss} hc₀ v₂
     {es}{hbm}
@@ -273,11 +233,10 @@ public import MPN.Toom.Toom
 
 Generated by `scripts/toom_methods.py`; do not edit. Each method splits `a` into `p` pieces of `k`
 limbs and `b` into `q`, or squares `a`, writes the product of the low pieces and the product of
-the top pieces into the window of the result and the products of the values at `1, …, D - 1`,
-`D = p + q - 2`, into new arrays of `2 k + 2` limbs, and interpolates. Toom-3, Toom-3 by 2,
-Toom-4 by 2, Toom-4 and the Toom-3 and Toom-4 squares keep the values of each operand and their
-products or squares in windows of one array each instead (`pointsW`, `pointsSqrW`, `interpDW`). The
-products are those of a multiplier `mul` given as an argument, which `mulToom` makes recursive.
+the top pieces into the window of the result, keeps the values at `1, …, D - 1`, `D = p + q - 2`,
+of each operand and their products or squares in windows of one array each (`pointsW`,
+`pointsSqrW`), and interpolates (`interpDW`). The products are those of a multiplier `mul` given
+as an argument, which `mulToom` makes recursive.
 -/
 
 namespace MPN.Toom

@@ -20,12 +20,14 @@ that every intermediate value of the interpolation is a natural number (`MPN.Too
 * Toom-3 (`3 × 3` pieces, degree 4), Toom-3 by 2 (`3 × 2`, degree 3) and Toom-4 by 2 (`4 × 2`,
   degree 4, with the interpolation of Toom-3);
 * Toom-4 (`4 × 4`, degree 6) and Toom-4 by 3 (`4 × 3`, degree 5);
-* Toom-6 (`6 × 6`, degree 10);
-* the squares of Toom-3, Toom-4 and Toom-6.
+* Toom-6 (`6 × 6`, degree 10) and Toom-8 (`8 × 8`, degree 14);
+* the squares of Toom-3, Toom-4, Toom-6 and Toom-8.
 
 Each method writes the product of the low pieces and the product of the top pieces into the
-window of the result, the products of the values at the other points into new arrays of `2 k + 2`
-limbs, and interpolates. `mulToom cfg` chooses by the sizes, and is `mulKaratsuba` below the
+window of the result, the values at the other points of each operand into windows of `k + 1` limbs
+of one array (`evalsW`, one pass by `ToomOps.evals3` for three pieces at three points), their
+products into windows of `2 k + 2` limbs of another (`pointsW`, `pointsSqrW`), and interpolates in
+place. `mulToom cfg` chooses by the sizes, and is `mulKaratsuba` below the
 thresholds of `cfg`.
 -/
 
@@ -82,19 +84,10 @@ public theorem valAt_eq_pieces (x : A) (k : Nat) :
 
 /-! ## Evaluations -/
 
-/-- Adds pieces `i` to `p - 1` of `x`, times `jⁱ`, to the `len` limbs of `e`, with `jp = jⁱ`. -/
-@[expose, specialize] public def evalLoop (x : A) (xo xl k j p len : Nat) (e : A) (i jp : Nat) : A :=
-  if i < p then
-    evalLoop x xo xl k j p len (R.addMulInto e 0 len x (xo + i * k) (min k (xl - i * k)) jp)
-      (i + 1) (jp * j)
-  else e
-termination_by p - i
-
-/-- The value at `j` of the polynomial of the `p` pieces of `x`, in a new array of `len` limbs. -/
-@[expose, specialize] public def evalAt (x : A) (xo xl k p j len : Nat) : A :=
-  evalLoop x xo xl k j p len (R.addInto (R.zeros len) 0 len x xo (min k xl)) 1 j
-
-/-- `evalLoop` into the window at `eo` of `e`. -/
+/--
+Adds pieces `i` to `p - 1` of `x`, times `jⁱ`, to the window of `len` limbs at `eo` of `e`, with
+`jp = jⁱ`.
+-/
 @[expose, specialize] public def evalLoopW (x : A) (xo xl k j p len : Nat) (e : A) (eo i jp : Nat) :
     A :=
   if i < p then
@@ -103,37 +96,12 @@ termination_by p - i
   else e
 termination_by p - i
 
-/-- `evalAt` into the window at `eo` of `e`, which is zero. -/
+/--
+The value at `j` of the polynomial of the `p` pieces of `x`, into the window of `len` limbs at `eo`
+of `e`, which is zero.
+-/
 @[expose, specialize] public def evalInto (e : A) (eo : Nat) (x : A) (xo xl k p j len : Nat) : A :=
   evalLoopW x xo xl k j p len (R.addInto e eo len x xo (min k xl)) eo 1 j
-
-private theorem evalLoop_spec (x : A) (xo xl k j p len : Nat) (hj : 1 ≤ j)
-    (hjp : j ^ (p - 1) < 2 ^ 32) :
-    ∀ m (e : A) i jp, p - i = m → jp = j ^ i → LA.size e = len →
-      valAt e 0 len + sumRange (fun l => piece x xo xl k (i + l) * j ^ (i + l)) m <
-        2 ^ (LA.w * len) →
-      LA.size (evalLoop x xo xl k j p len e i jp) = len ∧
-        valAt (evalLoop x xo xl k j p len e i jp) 0 len =
-          valAt e 0 len + sumRange (fun l => piece x xo xl k (i + l) * j ^ (i + l)) m
-  | 0, e, i, jp, hm, _, he, _ => by
-    have hc : ¬ i < p := by lia
-    rw [evalLoop]; simp only [hc, ↓reduceIte]; exact ⟨he, by simp⟩
-  | m + 1, e, i, jp, hm, hjp, he, hlt => by
-    subst hjp
-    have hc : i < p := by lia
-    rw [evalLoop]; simp only [hc, ↓reduceIte]
-    rw [sumRange_succ_left, Nat.add_zero] at hlt ⊢
-    have hji : j ^ i < 2 ^ 32 := Nat.lt_of_le_of_lt (Nat.pow_le_pow_right hj (by lia)) hjp
-    obtain ⟨w, v⟩ := R.addMulInto_spec e 0 len x (xo + i * k) (min k (xl - i * k)) (j ^ i)
-      (by lia) (lt_limb hji) (by rw [← piece]; lia)
-    have hs : ∀ l, piece x xo xl k (i + (l + 1)) * j ^ (i + (l + 1)) =
-        piece x xo xl k (i + 1 + l) * j ^ (i + 1 + l) := fun l => by rw [Nat.add_assoc, Nat.add_comm 1]
-    rw [sumRange_congr (fun l _ => hs l)] at hlt ⊢
-    have := evalLoop_spec x xo xl k j p len hj hjp m _ (i + 1) _ (by lia) (Nat.pow_succ ..).symm
-      (w.1.trans he)
-      (by rw [v, ← piece]; lia)
-    rw [this.2, v, ← piece]
-    exact ⟨this.1, by lia⟩
 
 private theorem evalLoopW_spec (x : A) (xo xl k j p len eo : Nat) (hj : 1 ≤ j)
     (hjp : j ^ (p - 1) < 2 ^ 32) :
@@ -174,58 +142,9 @@ private theorem sum_le (f : Nat → Nat) (j X : Nat) (hf : ∀ i, f i < X) :
     lia
 
 /--
-The value of the evaluation at `1 ≤ j` of `p` pieces into `k + 1` limbs, which holds it when the
-sum of the powers of `j` fits in 32 bits.
+The value of the evaluation at `1 ≤ j` of `p` pieces into a window of `k + 1` limbs, which holds
+it when the sum of the powers of `j` fits in 32 bits.
 -/
-public theorem evalAt_spec (x : A) (xo xl k p j : Nat) (hp : 1 ≤ p) (hj : 1 ≤ j)
-    (hjp : sumRange (fun i => j ^ i) p ≤ 2 ^ 32) :
-    LA.size (evalAt x xo xl k p j (k + 1)) = k + 1 ∧
-      valAt (evalAt x xo xl k p j (k + 1)) 0 (k + 1) =
-        sumRange (fun i => piece x xo xl k i * j ^ i) p := by
-  have hX := Nat.two_pow_pos (LA.w * k)
-  have hP : 2 ^ (LA.w * (k + 1)) = 2 ^ (LA.w * k) * 2 ^ LA.w := by rw [Nat.mul_succ, Nat.pow_add]
-  have h32 : 2 ^ 32 ≤ 2 ^ LA.w := Nat.pow_le_pow_right (by decide) R.w_ge
-  -- The whole sum fits.
-  have hsum : sumRange (fun i => piece x xo xl k i * j ^ i) p < 2 ^ (LA.w * (k + 1)) := by
-    have := sum_le (piece x xo xl k) j _ (piece_lt x xo xl k) p
-    have := Nat.mul_le_mul_left (2 ^ (LA.w * k) - 1) hjp
-    rw [hP]
-    have := Nat.mul_le_mul_left (2 ^ (LA.w * k) - 1) h32
-    have : (2 ^ (LA.w * k) - 1) * 2 ^ LA.w < 2 ^ (LA.w * k) * 2 ^ LA.w :=
-      Nat.mul_lt_mul_of_pos_right (by lia) (Nat.two_pow_pos _)
-    lia
-  have hsplit := sumRange_succ_left (fun i => piece x xo xl k i * j ^ i) (p - 1)
-  rw [show p - 1 + 1 = p by lia] at hsplit
-  have hz : valAt (R.zeros (k + 1)) 0 (k + 1) = 0 :=
-    valAt_eq_zero _ fun i _ _ => R.val_get_zeros _ i
-  have hp0 : piece x xo xl k 0 = valAt x xo (min k xl) := by simp [piece]
-  obtain ⟨w₀, v₀⟩ := R.addInto_spec (R.zeros (k + 1)) 0 (k + 1) x xo (min k xl)
-    (by rw [R.size_zeros]; lia) (by rw [hz, ← hp0]; simp only [Nat.pow_zero, Nat.mul_one] at hsplit; lia)
-  rw [hz, Nat.zero_add, ← hp0] at v₀
-  have hjp' : j ^ (p - 1) < 2 ^ 32 := by
-    have h₁ := sumRange_succ (fun i => j ^ i) (p - 1)
-    rw [show p - 1 + 1 = p by lia] at h₁
-    rcases Nat.eq_zero_or_pos (p - 1) with h | h
-    · rw [h, Nat.pow_zero]; decide
-    · have h₂ := sumRange_succ_left (fun i => j ^ i) (p - 2)
-      rw [show p - 2 + 1 = p - 1 by lia, Nat.pow_zero] at h₂
-      lia
-  have := evalLoop_spec x xo xl k j p (k + 1) hj hjp' (p - 1) _ 1 j rfl (Nat.pow_one j).symm
-    (by rw [w₀.1, R.size_zeros]) (by
-      rw [v₀]
-      have e : ∀ l, piece x xo xl k (1 + l) * j ^ (1 + l) = piece x xo xl k (l + 1) * j ^ (l + 1) :=
-        fun l => by rw [Nat.add_comm]
-      rw [sumRange_congr (fun l _ => e l)]
-      simp only [Nat.pow_zero, Nat.mul_one] at hsplit
-      lia)
-  refine ⟨this.1, ?_⟩
-  rw [evalAt, this.2, v₀]
-  have e : ∀ l, piece x xo xl k (1 + l) * j ^ (1 + l) = piece x xo xl k (l + 1) * j ^ (l + 1) :=
-    fun l => by rw [Nat.add_comm]
-  rw [sumRange_congr (fun l _ => e l)]
-  simp only [Nat.pow_zero, Nat.mul_one] at hsplit
-  lia
-
 public theorem evalInto_spec (e : A) (eo : Nat) (x : A) (xo xl k p j : Nat) (hp : 1 ≤ p)
     (hj : 1 ≤ j) (hjp : sumRange (fun i => j ^ i) p ≤ 2 ^ 32) (he : eo + (k + 1) ≤ LA.size e)
     (hz : valAt e eo (k + 1) = 0) :
@@ -284,23 +203,6 @@ public abbrev MulFn (A : Type) (N : Nat) : Type :=
   ∀ d o x xo xl y yo yl h, o + (xl + yl) ≤ LA.size d →
     Writes (f d o x xo xl y yo yl h) d o (xl + yl) ∧
       valAt (f d o x xo xl y yo yl h) o (xl + yl) = valAt x xo xl * valAt y yo yl
-
-/-- The product of the values at `j` of `p` pieces of `x` and `q` of `y`, in `2 k + 2` limbs. -/
-public theorem point_spec {N : Nat} (mul : MulFn A N) (hmul : IsMul mul) (x : A) (xo xl : Nat)
-    (y : A) (yo yl k p q j : Nat) (hp : 1 ≤ p) (hq : 1 ≤ q) (hj : 1 ≤ j)
-    (hjp : sumRange (fun i => j ^ i) p ≤ 2 ^ 32) (hjq : sumRange (fun i => j ^ i) q ≤ 2 ^ 32)
-    (h : k + 1 + (k + 1) < N) :
-    LA.size (mul (R.zeros (k + k + 2)) 0 (evalAt x xo xl k p j (k + 1)) 0 (k + 1)
-        (evalAt y yo yl k q j (k + 1)) 0 (k + 1) h) = k + k + 2 ∧
-      valAt (mul (R.zeros (k + k + 2)) 0 (evalAt x xo xl k p j (k + 1)) 0 (k + 1)
-        (evalAt y yo yl k q j (k + 1)) 0 (k + 1) h) 0 (k + k + 2) =
-        sumRange (fun i => piece x xo xl k i * j ^ i) p *
-          sumRange (fun i => piece y yo yl k i * j ^ i) q := by
-  obtain ⟨w, v⟩ := hmul (R.zeros (k + k + 2)) 0 (evalAt x xo xl k p j (k + 1)) 0 (k + 1)
-    (evalAt y yo yl k q j (k + 1)) 0 (k + 1) h (by rw [R.size_zeros]; lia)
-  rw [show k + 1 + (k + 1) = k + k + 2 by lia, (evalAt_spec x xo xl k p j hp hj hjp).2,
-    (evalAt_spec y yo yl k q j hq hj hjq).2] at v
-  exact ⟨w.1.trans (R.size_zeros _), v⟩
 
 /-! ## The values and their products in windows of one array -/
 
@@ -470,19 +372,6 @@ public abbrev SqrFn (A : Type) (N : Nat) : Type :=
   ∀ d o x xo xl h, o + (xl + xl) ≤ LA.size d →
     Writes (f d o x xo xl h) d o (xl + xl) ∧
       valAt (f d o x xo xl h) o (xl + xl) = valAt x xo xl * valAt x xo xl
-
-/-- The square of the value at `j` of `p` pieces of `x`, in `2 k + 2` limbs. -/
-public theorem point_sqr_spec {N : Nat} (sq : SqrFn A N) (hsq : IsSqr sq) (x : A) (xo xl k p j : Nat)
-    (hp : 1 ≤ p) (hj : 1 ≤ j) (hjp : sumRange (fun i => j ^ i) p ≤ 2 ^ 32) (h : k + 1 < N) :
-    LA.size (sq (R.zeros (k + k + 2)) 0 (evalAt x xo xl k p j (k + 1)) 0 (k + 1) h) = k + k + 2 ∧
-      valAt (sq (R.zeros (k + k + 2)) 0 (evalAt x xo xl k p j (k + 1)) 0 (k + 1) h) 0
-        (k + k + 2) =
-        sumRange (fun i => piece x xo xl k i * j ^ i) p *
-          sumRange (fun i => piece x xo xl k i * j ^ i) p := by
-  obtain ⟨w, v⟩ := hsq (R.zeros (k + k + 2)) 0 (evalAt x xo xl k p j (k + 1)) 0 (k + 1) h
-    (by rw [R.size_zeros]; lia)
-  rw [show k + 1 + (k + 1) = k + k + 2 by lia, (evalAt_spec x xo xl k p j hp hj hjp).2] at v
-  exact ⟨w.1.trans (R.size_zeros _), v⟩
 
 /-- The squares of the values at `j, …, m` in `E`, into the windows of `2 k + 2` limbs of `W`. -/
 @[expose, specialize] public def sqrsLoop {N : Nat} (sq : SqrFn A N) (E : A) (k m : Nat)

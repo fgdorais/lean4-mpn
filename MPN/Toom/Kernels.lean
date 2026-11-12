@@ -23,7 +23,11 @@ folds over the window written, and otherwise writes the value of its specificati
   `FFT.decrAt`);
 * `addMulIntoK` and `subMulIntoK` add and subtract `S v`, by `addMul1W` and `subMul1W` and the
   carry or borrow;
-* `zeroIntoK` writes zeros.
+* `zeroIntoK` writes zeros;
+* `evals3K`, `sub3LinK` and `sub3ChainK` read or write three windows in one pass
+  (`WordFolds.fold3Then`, `WordFolds.fold3ChainThen`): the values of three pieces at `1`, `2` and
+  `3`, three windows minus `S + vᵢ T`, and a chain of three windows each minus `v` times the old
+  value of the next.
 -/
 
 namespace MPN.WordArray

@@ -25,75 +25,11 @@ variable {A L : Type} [LA : LimbArray A L] [R : ToomOps A L]
 public theorem lt_limb {m : Nat} (h : m < 2 ^ 32) : m < 2 ^ LA.w :=
   Nat.lt_of_lt_of_le h (Nat.pow_le_pow_right (by decide) R.w_ge)
 
-/-! ## Passes by values -/
+/-! ## Passes by values
 
-public theorem sub_val {q : A} {o len : Nat} (h : o + len ≤ LA.size q) (s : A) (so sl : Nat)
-    {Q S V : Nat} (hq : valAt q o len = Q) (hs : valAt s so sl = S) (hV : Q = S + V) :
-    LA.size (R.subInto q o len s so sl) = LA.size q ∧
-      valAt (R.subInto q o len s so sl) o len = V := by
-  obtain ⟨w, e⟩ := R.subInto_spec q o len s so sl h (by lia)
-  exact ⟨w.1, by rw [e]; lia⟩
-
-public theorem subMul_val {q : A} {o len : Nat} (h : o + len ≤ LA.size q) (s : A) (so sl m : Nat)
-    (hm : m < 2 ^ 32) {Q S V : Nat} (hq : valAt q o len = Q) (hs : valAt s so sl = S)
-    (hV : Q = m * S + V) :
-    LA.size (R.subMulInto q o len s so sl m) = LA.size q ∧
-      valAt (R.subMulInto q o len s so sl m) o len = V := by
-  obtain ⟨w, e⟩ := R.subMulInto_spec q o len s so sl m h (lt_limb hm) (by rw [hq, hs]; lia)
-  exact ⟨w.1, by rw [e, hq, hs]; lia⟩
-
-public theorem div_val {q : A} {o len : Nat} (h : o + len ≤ LA.size q) (d : Nat) (hd : d % 2 = 1)
-    (hd' : d < 2 ^ 32) {Q V : Nat} (hq : valAt q o len = Q) (hV : Q = d * V) :
-    LA.size (R.divExact q o len d) = LA.size q ∧ valAt (R.divExact q o len d) o len = V := by
-  have hd0 : 0 < d := by lia
-  obtain ⟨w, e⟩ := R.divExact_spec q o len d h hd (lt_limb hd') (by rw [hq, hV]; simp)
-  exact ⟨w.1, by rw [e, hq, hV, Nat.mul_div_cancel_left _ hd0]⟩
-
-public theorem shr_val {q : A} {o len : Nat} (h : o + len ≤ LA.size q) (s : Nat) (hs₀ : 0 < s)
-    (hs : s < 32) {Q V : Nat} (hq : valAt q o len = Q) (hV : Q = 2 ^ s * V) :
-    LA.size (R.shr q o len s) = LA.size q ∧ valAt (R.shr q o len s) o len = V := by
-  obtain ⟨w, e⟩ := R.shr_spec q o len s h hs₀ (by have := R.w_ge; lia)
-  exact ⟨w.1, by rw [e, hq, hV, Nat.mul_div_cancel_left _ (Nat.two_pow_pos _)]⟩
-
-/-- `shlTop` halves an even value below `2^(w (len - 1))` into the limbs from the second on. -/
-public theorem half_val {q : A} {len : Nat} (h : len ≤ LA.size q) (h₁ : 1 ≤ len) {Q V : Nat}
-    (hq : valAt q 0 len = Q) (hV : Q = 2 * V) (hlt : Q < 2 ^ (LA.w * (len - 1))) :
-    LA.size (R.shlTop q 0 len) = LA.size q ∧ valAt (R.shlTop q 0 len) 1 (len - 1) = V := by
-  obtain ⟨w, e⟩ := R.shlTop_spec q 0 len (by lia)
-  refine ⟨w.1, ?_⟩
-  have hw := LA.w_pos
-  have hB : 2 ^ LA.w = 2 * 2 ^ (LA.w - 1) := by
-    rw [← Nat.pow_succ']; congr 1; lia
-  have hP : 2 ^ (LA.w * len) = 2 ^ LA.w * 2 ^ (LA.w * (len - 1)) := by
-    rw [← Nat.pow_add]; congr 1
-    conv => lhs; rw [show len = (len - 1) + 1 by lia]
-    rw [Nat.mul_succ, Nat.add_comm]
-  -- The value times `2^(w - 1)` is `V 2ʷ`, which fits.
-  have hfit : Q * 2 ^ (LA.w - 1) = 2 ^ LA.w * V := by rw [hV, hB]; grind
-  have hVlt : V < 2 ^ (LA.w * (len - 1)) := by lia
-  rw [hq, hfit, hP, Nat.mod_eq_of_lt (Nat.mul_lt_mul_of_pos_left hVlt (Nat.two_pow_pos _))] at e
-  have hs := valAt_add (R.shlTop q 0 len) 0 1 (len - 1)
-  rw [show 1 + (len - 1) = len by lia, e, valAt_one, Nat.mul_one, Nat.zero_add] at hs
-  -- The low limb is `0`, and the others are `V`.
-  have hlo := LA.val_lt (LA.get (R.shlTop q 0 len) 0)
-  have h0 : LA.val (LA.get (R.shlTop q 0 len) 0) = 0 := by
-    have := congrArg (· % 2 ^ LA.w) hs
-    simp only [Nat.mul_mod_right, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hlo] at this
-    exact this.symm
-  rw [h0, Nat.zero_add] at hs
-  exact (Nat.eq_of_mul_eq_mul_left (Nat.two_pow_pos _) hs).symm
-
-omit R in
-/-- The low `len - 1` limbs of a value that fits in them. -/
-public theorem low_val {q : A} {len : Nat} (_hlen : 1 ≤ len) {Q : Nat} (hq : valAt q 0 len = Q)
-    (hlt : Q < 2 ^ (LA.w * (len - 1))) : valAt q 0 (len - 1) = Q := by
-  rw [valAt_mod q 0 (Nat.sub_le len 1), hq, Nat.mod_eq_of_lt hlt]
-
-/-! ## Passes by values within one array
-
-The same passes on windows of one array, which return what they leave unchanged (`Writes`), so
-that the values of the other windows carry over; `subMulWin_val` subtracts a window of the same
-array.
+The passes on windows of one array, which return what they leave unchanged (`Writes`), so that
+the values of the other windows carry over; `subMulWin_val` subtracts a window of the same array,
+`sub3W_val` and `sub3ChainW_val` write three windows in one pass.
 -/
 
 public theorem subW_val {q : A} {o len : Nat} (h : o + len ≤ LA.size q) (s : A) (so sl : Nat)
@@ -181,7 +117,10 @@ public theorem shrW_val {q : A} {o len : Nat} (h : o + len ≤ LA.size q) (s : N
   obtain ⟨w, e⟩ := R.shr_spec q o len s h hs₀ (by have := R.w_ge; lia)
   exact ⟨w, by rw [e, hq, hV, Nat.mul_div_cancel_left _ (Nat.two_pow_pos _)]⟩
 
-/-- `half_val` on the window at `b`. -/
+/--
+`shlTop` halves an even value below `2^(w (len - 1))` of the window at `b` into its limbs from the
+second on.
+-/
 public theorem halfW_val {q : A} {b len : Nat} (h : b + len ≤ LA.size q) (h₁ : 1 ≤ len)
     {Q V : Nat} (hq : valAt q b len = Q) (hV : Q = 2 * V) (hlt : Q < 2 ^ (LA.w * (len - 1))) :
     Writes (R.shlTop q b len) q b len ∧ valAt (R.shlTop q b len) (b + 1) (len - 1) = V := by
@@ -208,7 +147,7 @@ public theorem halfW_val {q : A} {b len : Nat} (h : b + len ≤ LA.size q) (h₁
   exact (Nat.eq_of_mul_eq_mul_left (Nat.two_pow_pos _) hs).symm
 
 omit R in
-/-- `low_val` on the window at `b`. -/
+/-- The low `len - 1` limbs of the window at `b`, for a value that fits in them. -/
 public theorem lowW_val {q : A} {b len : Nat} (_hlen : 1 ≤ len) {Q : Nat} (hq : valAt q b len = Q)
     (hlt : Q < 2 ^ (LA.w * (len - 1))) : valAt q b (len - 1) = Q := by
   rw [valAt_mod q b (Nat.sub_le len 1), hq, Nat.mod_eq_of_lt hlt]

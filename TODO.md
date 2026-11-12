@@ -65,26 +65,20 @@ Below 256 limbs, under the target's 4× of `Nat` but far from `mpn`:
   writes no quotient (`6d99d39`). On 64-bit limbs `MPN.Nat`'s `/` is 1.3–1.7× `Nat` from 2 to 8
   limbs and `%` 1.1–1.6×; what is left of the fixed cost is the array of the division, the shifted
   divisor and the result, and on 64-bit limbs the slice structures of `Num.divModBase`.
-- [ ] **Toom-3's interpolation in fused passes**, as Toom-4's already are (`MPN.Toom.Kernels`).
-  Since `bf95b76` each operand's three values are windows of one array and their products windows
-  of another; since `85578e7` the first stage of the interpolation (eight passes) is one pass of
-  `ToomOps.sub3Lin`, and since `3d7140e` each operand's values are one pass of `ToomOps.evals3`
-  (nine before), both on `WordFolds.fold3Then` with three loop variables (lean4-scalar-arrays#84):
-  together −3% to −4% from 384 to 504 limbs and −3% at 3584 on 64-bit limbs, neutral on 32-bit
-  limbs. Since `eb1c37c` every run of three passes `w₁ -= v w₂; w₂ -= v w₃; w₃ -= v w₄` (each from
-  the old value of the next window) is one pass of `ToomOps.sub3Chain` on
-  `WordFolds.fold3ChainThen`, at degrees 5, 6, 10 and 14: 205 passes to 109 at degree 14, −3% to −5%
-  from 768 to 4096 limbs on 64-bit limbs, −1% on 32-bit limbs. What is left: chains of other
-  shapes (two windows, the top window from `d` in the conversion from Newton's basis, the passes
-  around a shift or an exact division, which need five loop variables where four is the limit);
-  Toom-3's and Toom-4's second stages, which have no chain of three; and one-pass values for the
-  other shapes (`evalsW` has them only for three pieces at three points). Since `a8c9827` Toom-3 by 2, Toom-4 by 2, Toom-4 and the Toom-3 and
-  Toom-4 squares are on one array too (`ONE_ARRAY`), Toom-4 by 3 since `b37f746`, with the first
-  stage fused for three windows at degrees 4 to 6, and Toom-6 and Toom-8 since `7a6c28c` (all
-  methods; on 32-bit limbs Toom-8 lost 1.5–2% there, gaining 2–3.5% on 64-bit limbs). One-pass values for two points or two pieces (Toom-3 by 2, the short operand of
-  Toom-4 by 2) by `evals3` computing the third point lost 0.6% (2026-11-11: two multiply-adds per
-  limb and point, more than the passes they replace); they need a step without the empty piece
-  and a fold of two windows, for under 1% of Toom-3 by 2.
+- [ ] **Toom passes left unfused** (the one-array work ended 2026-11-11, history in the BENCH
+  files): every method keeps its values and products in windows of one array, the first stage of
+  degrees 4 to 6 is one pass (`ToomOps.sub3Lin`), the values of three pieces at three points one
+  pass (`ToomOps.evals3`), and each run of three chained passes one pass (`ToomOps.sub3Chain`).
+  What is left, each worth a few percent at most:
+  - the values of Toom-6 and Toom-8, one pass per piece and point (`evalsW`'s generic loop): 5% of
+    `mulToom` at 3584 limbs on 64-bit limbs before `eb1c37c`, and several points per pass would
+    need one carry each;
+  - chains of other shapes: of two windows, ending in the result (the top window minus `m c_D` in
+    the conversion from Newton's basis), or around a shift or an exact division, which need five
+    loop variables (four is the limit);
+  - Toom-3's and Toom-4's second stages, which have no chain of three;
+  - one-pass values for two points or two pieces (Toom-3 by 2, Toom-4 by 2): `evals3` with the
+    third point lost 0.6%, so it needs its own step and a fold of two windows, for under 1%.
 - [ ] **A shorter dependency chain in division by a limb**, for CPUs with slow division (GMP's
   `mpn_div_qr_1n_pi1`, which keeps a partly reduced two-limb remainder and takes the quotient off
   the chain): the loop is bound by the latency of one step, about 14–15 cycles on Zen 3, and a
