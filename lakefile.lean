@@ -140,7 +140,7 @@ package «lean4-mpn» where
   testDriver := "MPNTest"
 
 require «lean4-scalar-arrays» from git
-  "https://github.com/fgdorais/lean4-scalar-arrays" @ "v1.3.0"
+  "https://github.com/fgdorais/lean4-scalar-arrays" @ "v1.4.0"
 
 -- Loops aligned to 32 bytes in the shared code and on 32-bit limbs: at 64, the loops unrolled
 -- twice of `sub` and `mul1` (about 72 bytes) put most of their instructions in one 64-byte window
