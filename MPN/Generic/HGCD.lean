@@ -371,7 +371,7 @@ on their leading words, for one), applied with `applyInvC` while they make the n
 `b ≥ Bˢ`, at most `fuel` of them, with the product of their matrices.
 -/
 @[specialize o step]
-def baseLoop (step : α → α → Option (Mat2 α)) (s : Nat) (a b : α) (M : Mat2 α) :
+public def baseLoop (step : α → α → Option (Mat2 α)) (s : Nat) (a b : α) (M : Mat2 α) :
     Nat → Mat2 α × α × α
   | 0 => (M, a, b)
   | fuel + 1 =>
@@ -545,8 +545,8 @@ then one step of Euclid's algorithm, then the same for the top limbs of what is 
 from top limbs that went too far for the full numbers is dropped. Only the determinant and the
 exact relation are proved (`hgcd_ok`): the caller checks how far the numbers came down.
 -/
-@[specialize o step]
-public def hgcd (step : α → α → Option (Mat2 α)) (T : Nat) (a b : α) : Mat2 α × α × α :=
+public def hgcd (base : Nat → α → α → Mat2 α × α × α) (T : Nat) (a b : α) :
+    Mat2 α × α × α :=
   let n := o.size a
   let s := n / 2 + 1
   if !(o.le (o.pow s) b) then (o.matId, a, b)
@@ -634,9 +634,9 @@ public theorem hgcd_ok (base : Nat → α → α → Mat2 α × α × α)
 One reduction of `a ≥ b` for the greatest common divisor: the numbers of `hgcd`, the larger first.
 It keeps the greatest common divisor (`gcd_hgcdReduce`); the caller checks that they got smaller.
 -/
-@[specialize o step]
-public def hgcdReduce (step : α → α → Option (Mat2 α)) (T : Nat) (a b : α) : α × α :=
-  let p := (o.hgcd step T a b).2
+@[specialize o base]
+public def hgcdReduce (base : Nat → α → α → Mat2 α × α × α) (T : Nat) (a b : α) : α × α :=
+  let p := (o.hgcd base T a b).2
   if o.le p.2 p.1 then p else (p.2, p.1)
 
 public theorem gcd_hgcdReduce (base : Nat → α → α → Mat2 α × α × α)
@@ -658,6 +658,7 @@ extended to `a` and `b` by `applySplit`; by `hgcdReduce` when the matrix went to
 costs more per limb on longer numbers, so a reduction by a sixth of the limbs from a third of them
 costs less per limb than one by half of them from all of them.
 -/
+@[specialize o base]
 public def hgcdReduceP (base : Nat → α → α → Mat2 α × α × α) (T : Nat) (a b : α) : α × α :=
   let p := 2 * o.size a / 3
   let R := o.hgcd base T (o.hi p a) (o.hi p b)
