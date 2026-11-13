@@ -12,9 +12,10 @@ The target on 64-bit limbs (since 2026-11-09): within 4× of GMP's kernels, the 
 bench, from 256 limbs (16,384 bits), and within 4× of `Nat` below. Below 256 limbs the gaps to
 `mpn` are fixed costs, mostly the allocation of results and, in the square root's recursion, of
 every step, which call for different work than the algorithms and kernels of large numbers; all
-operations are within 4× of `Nat` there. Against `mpn` (`0987e74`, `599df9a`), products are
-2.0–3.3×, squares 2.0–3.7×, division 1.5–3.0×, `gcd` 1.5–2.4× and the square root 2.3–3.0× from 256
-limbs; subtraction is 3.3–3.4× since `2b3324c`. The items over the target come first.
+operations are within 4× of `Nat` there. Against `mpn` from 256 to 16384 limbs, products are
+2.2–2.8× and squares 2.2–3.2× since the Toom passes on one array (`4782391`, 2026-11-13; worst
+at 4096, where Toom-8 hands over to the FFT); from 256 limbs (`0987e74`, `599df9a`) division is
+1.5–3.0×, `gcd` 1.5–2.4× and the square root 2.3–3.0×; subtraction is 3.3–3.4× since `2b3324c`. The items over the target come first.
 
 - [ ] **Reading decimal strings** from 256 limbs is 4.2–4.9× `mpn_set_str` (`2a87ccd`), a little
   over the target: the digits are an array by one fold (`digitArray`) and divide and conquer starts
