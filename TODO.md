@@ -84,6 +84,10 @@ Below 256 limbs, under the target's 4× of `Nat` but far from `mpn`:
   `mpn_div_qr_1n_pi1`, which keeps a partly reduced two-limb remainder and takes the quotient off
   the chain): the loop is bound by the latency of one step, about 14–15 cycles on Zen 3, and a
   precomputed reciprocal alone does not shorten it (3% slower on Zen 3, whose divider is fast).
+- [ ] **What is left of the M2 regression of lean4-scalar-arrays#73**, after its fix in its
+  v1.6.0 (lean4-scalar-arrays#100, here since `c0b4cf3`): main is within ±3% of `53e387d` on the M2
+  except 32-bit `mul` and `bmul`, 7–8% slower at 16 limbs only (likely code layout), and 64-bit
+  `and`, `or` and `xor`, 5–13% slower at 2 to 6 limbs.
 - [ ] **Small sizes accepted for sharing**: `MPN.W64.sqrtRem` on arrays is 11.5% slower at 4
   limbs, from its conversions through `GNat` (`Bridge.sqrtRem`), and `MPN.W32.ofNat` 2–10% from the
   shared writer of a `Nat` (`WordArray.ofNatW`), against the old two limbs per word of 32-bit
