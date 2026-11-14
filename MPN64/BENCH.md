@@ -82,7 +82,7 @@ so five runs make the tables reliable. Within one run, distrust a row whose spre
 | `auto2`, `auto4`, `auto8` | `MPN.mul` | `n` by `n / 2`, `n / 4`, `n / 8` limbs | as `auto`, with the unbalanced products split into pieces |
 | `autobS` | `MPN.mul` | `n` by `S` limbs, for example `autob256` | as `auto2` |
 | `fftbS`, `toombS` | `MPN.FFT.fftMul`, `MPN.mulToom` | `n` by `S` limbs, for example `fftb256` | for tuning `mulFFTMin` |
-| `fftsqr` | `MPN.FFT.fftSqr` | `n` limbs | one forward transform, the pointwise squares by `sqrKaratsuba`, `k = fftK (2 n)` |
+| `fftsqr` | `MPN.FFT.fftSqr` | `n` limbs | one forward transform, the pointwise squares by `sqrToom` (`sqrKaratsuba` before 2026-11-14), `k = fftK (2 n)` |
 | `fsqK` | `MPN.FFT.fftSqr` | `n` limbs | as `fftsqr` with `2ᴷ` pieces, for example `fsq9` |
 | `toomsqr` | `MPN.sqrToom` | `n` limbs | the Toom-8 square from 2816 limbs (`sqrToom8`), the Toom-6 square from 1039 (`sqrToom6`), the Toom-4 square from 1000 (`sqrToom4`), the Toom-3 square from 600 (`sqrToom3`), `sqrKaratsuba` below |
 | `autosqr` | `MPN.sqr` | `n` limbs | the FFT from `sqrFFT = 2816` limbs, `sqrToom` below |

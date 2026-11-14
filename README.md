@@ -91,7 +91,7 @@ lake build bench64 tune64      # the executables, which `lake build` does not bu
 | `MPN.Generic.HGCD` | half-gcd over `NatOps` (Schönhage, Möller), with the instance's base case |
 | `MPN.Generic.Radix` | decimal strings by divide and conquer over `NatOps` |
 | `MPN.Trim` | trimming (`trimTo k`, `isTrimmedTo k`), the limbs of a `Nat` by halves (`ofNatW`, `ofNatLen`), and comparison of windows and arrays (`ltWin`, `ltA`) on any `WordArray`, with `valAt` as their specification |
-| `MPN.Dispatch` | the products and squares of both widths, written into a window: the choice between the FFT, the Toom methods and unbalanced pieces by the thresholds of a `MulConfig`; the wrapped product modulo `β^N - 1` of Barrett's division (`mulModW`) |
+| `MPN.Dispatch` | the products and squares of both widths, written into a window: the choice between the FFT, the Toom methods and unbalanced pieces by the thresholds of a `MulConfig`; the FFT's pointwise products and squares by the FFT itself from those thresholds, two levels deep (`mulPD`, `sqrPD`), and by the Toom methods below; the wrapped product modulo `β^N - 1` of Barrett's division (`mulModW`) |
 | `MPN.Bridge` | `Bridge A α`, a width's `NatOps α` with the conversions from and to `GNat A`, and over it Zimmermann's square root (`sqrtZ`), half-gcd and Lehmer's step on `GNat` |
 | `MPN.Dispatch.Div` | the choice of a division of normalized operands over `NatOps` (divide and conquer, Barrett's division, the quotient alone) by the thresholds of a `DivConfig`, and of a square root over `GNat` (`SqrtConfig`) |
 

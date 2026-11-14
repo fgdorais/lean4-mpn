@@ -381,6 +381,34 @@ def checkFFT (m n k : Nat) : Bool :=
 #guard [(50, 40, 3), (1, 1, 1), (7, 3, 2), (100, 1, 4), (64, 64, 5), (300, 200, 6), (200, 7, 7),
   (150, 150, 8), (1000, 900, 5)].all fun (m, n, k) => checkFFT m n k
 
+/-- `MPN.W64.config` with the FFT on its own pointwise products and squares from 8 limbs. -/
+def fftRecConfig : MPN.W64.Config := { MPN.W64.config with mulFFT := 8, sqrFFT := 8 }
+
+/--
+Checks `fftMul` and `fftSqr` with `2ᵏ` pieces and `fftRecConfig` on an `m`-limb `a` and an `n`-limb
+`b`, and that they take the FFT path.
+-/
+def checkFFTRec (m n k : Nat) : Bool :=
+  let pad : UInt64 := 0xAAAAAAAAAAAAAAAA
+  let r := UInt64Array.replicate (m + n + 2) pad
+  let q := UInt64Array.replicate (2 * m + 2) pad
+  let p := MPN.W64.FFT.fftParams (m + n) k
+  let p₂ := MPN.W64.FFT.fftParams (2 * m) k
+  decide (MPN.W64.FFT.FFTCheck (inner r (m + n)) (limbs m 1).toUSlice (limbs n 1).toUSlice k p.1
+    p.2) &&
+  decide (MPN.W64.FFT.FFTCheck (inner q (2 * m)) (limbs m 1).toUSlice (limbs m 1).toUSlice k p₂.1
+    p₂.2) &&
+  [(randomLimbs m 1, randomLimbs n 2), (2 ^ (64 * m) - 1, 2 ^ (64 * n) - 1)].all fun (x, y) =>
+    let s := MPN.W64.FFT.fftMul fftRecConfig (inner r (m + n)) (limbs m x).toUSlice
+      (limbs n y).toUSlice k
+    let t := MPN.W64.FFT.fftSqr fftRecConfig (inner q (2 * m)) (limbs m x).toUSlice k
+    window s 1 (m + n) == x * y && s[0]! == pad && s[m + n + 1]! == pad &&
+      window t 1 (2 * m) == x * x && t[0]! == pad && t[2 * m + 1]! == pad
+
+-- Two levels of the FFT on its pointwise products: for 600 limbs by `2⁶` pieces, residues of 42
+-- limbs, multiplied by `2⁵` pieces with residues of 8, multiplied by `2⁴` pieces in turn.
+#guard [(600, 600, 6), (600, 451, 6), (1000, 999, 7)].all fun (m, n, k) => checkFFTRec m n k
+
 /-- Checks `MPN.mul` on an `m`-limb `a` and an `n`-limb `b`, in both orders. -/
 def checkMPNMul (m n : Nat) : Bool :=
   let pad : UInt64 := 0xAAAAAAAAAAAAAAAA

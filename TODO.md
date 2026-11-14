@@ -93,9 +93,15 @@ Below 256 limbs, under the target's 4× of `Nat` but far from `mpn`:
 
 ## Algorithms
 
-- [ ] **The FFT, next**: the pointwise products of residues by the FFT itself at very large sizes
-  (GMP's recursive `mpn_mul_fft`), the shift by `2ˢ` fused into the butterflies' pass (`a ± b` is one
-  pass since `971e47d`, `WinOps.addSubMod`), and `fftK` tuned per machine.
+- [ ] **The FFT, next**: the shift by `2ˢ` fused into the butterflies' pass (`a ± b` is one pass
+  since `971e47d`, `WinOps.addSubMod`), which needs a table of the windows' offsets so that a
+  butterfly can write its shifted difference into the scratch window and swap the two, like GMP's
+  pointers; and `fftK` tuned per machine. The pointwise products and squares go through the FFT
+  itself from `mulFFT` and `sqrFFT` limbs, two levels deep (`Dispatch.mulPD`, `Dispatch.sqrPD`),
+  as full products reduced afterwards; with `fftK`'s `K ≈ √(c T)` their residues have about
+  `0.6 √T` limbs and reach the thresholds only from about 10⁸ limbs, so the recursion waits for a
+  smaller `K` at large sizes, and then for GMP's negacyclic product modulo `2ᴺ + 1` (half the
+  transform) to be worth its algebra.
 - [ ] **Toom-8½, Toom-6 by 5 and the like**: the generators (`scripts/toom_interp.py`,
   `scripts/toom_methods.py`) handle any degree, and `newton_schedule` keeps the multipliers below
   the degree. Unbalanced Toom-6 and Toom-8 shapes (beyond six fifths, eight sevenths) still go to
