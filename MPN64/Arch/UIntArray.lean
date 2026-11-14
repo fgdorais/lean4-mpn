@@ -9,7 +9,7 @@ public import ScalarArray.UInt64
 public import MPN64.Arch.UInt
 public import MPN.LimbArray
 public import MPN.WordArray
-public import ScalarArray.InPlaceSyntax
+public import ScalarArray.Notation
 import all Init.Data.UInt.Log2
 import all Init.Data.Fin.Log2
 
@@ -997,8 +997,8 @@ as a fold, #78 for the `then`).
   have := hr.1; have := ht.1; have := hx.1; have := hy.1
   inplace arr do
     for k in j...n with (c₁ := b₁) (c₂ := b₂) do
-      let x ← arr[xs + k]
-      let y ← arr[ys + k]
+      let x := arr[xs + k]
+      let y := arr[ys + k]
       let (u, d₁) := f₁ k (USize.lt_iff_toNat_lt.2 (by assumption)) x y c₁
       let (v, d₂) := f₂ k (USize.lt_iff_toNat_lt.2 (by assumption)) x y c₂
       arr[rs + k] := u
@@ -1062,9 +1062,9 @@ variables: `foldUInPlace3Then`.
   have := hr.1; have := ht.1; have := hu.1
   inplace arr do
     for k in j...n with (c₁ := b₁) (c₂ := b₂) (c₃ := b₃) do
-      let x ← arr[rs + k]
-      let y ← arr[ts + k]
-      let z ← arr[us + k]
+      let x := arr[rs + k]
+      let y := arr[ts + k]
+      let z := arr[us + k]
       let (u, d₁) := f₁ k (USize.lt_iff_toNat_lt.2 (by assumption)) x c₁
       let (v, d₂) := f₂ k (USize.lt_iff_toNat_lt.2 (by assumption)) y c₂
       let (w, d₃) := f₃ k (USize.lt_iff_toNat_lt.2 (by assumption)) z c₃
@@ -1131,10 +1131,10 @@ limb and the limb of the next window.
   have := hr.1; have := ht.1; have := hu.1; have := hv.1
   inplace arr do
     for k in j...n with (c₁ := b₁) (c₂ := b₂) (c₃ := b₃) do
-      let x ← arr[rs + k]
-      let y ← arr[ts + k]
-      let z ← arr[us + k]
-      let t ← arr[vs + k]
+      let x := arr[rs + k]
+      let y := arr[ts + k]
+      let z := arr[us + k]
+      let t := arr[vs + k]
       let (u, d₁) := f₁ k (USize.lt_iff_toNat_lt.2 (by assumption)) x y c₁
       let (v, d₂) := f₂ k (USize.lt_iff_toNat_lt.2 (by assumption)) y z c₂
       let (w, d₃) := f₃ k (USize.lt_iff_toNat_lt.2 (by assumption)) z t c₃

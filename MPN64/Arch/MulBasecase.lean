@@ -6,7 +6,7 @@ module
 
 public import MPN64.Arch.UIntArray
 public import MPN.MulLimbW
-public import ScalarArray.InPlaceSyntax
+public import ScalarArray.Notation
 
 /-!
 # Schoolbook multiplication
@@ -548,7 +548,7 @@ unboxed (`forIn2Bind`), and the program ends with `then`, so that its result is 
   let x₁ := b[i + 1]'h'
   inplace arr do
     for k in 0...a.size with (c₀ := (0 : UInt64)) (c₁ := (0 : UInt64)) do
-      let z ← arr[rs + i + k]
+      let z := arr[rs + i + k]
       let (w, d₀, d₁) := addMul2Word z (a[k]'(USize.lt_iff_toNat_lt.2 (by assumption))) x₀ x₁ c₀ c₁
       arr[rs + i + k] := w
       c₀ := d₀
@@ -567,8 +567,8 @@ public theorem run_addMul2Loop {N : Nat} {γ : Type} (a : USlice) (x₀ x₁ : U
     (arr : UInt64Array) (hr : LoopBound arr off a.size)
     (j : USize) (hlo : lo.toNat ≤ j.toNat) (c : UInt64 × UInt64) (hs : arr.size = N) :
     (InPlace.Tail.forIn2From lo a.size j hlo c.1 c.2 (fun k' _ hj next c₀ c₁ =>
-        InPlace.Tail.readThen (off + k') (InPlaceSyntax.toNat_add_lt_of_window hw hj) fun z =>
-          InPlace.Tail.writeThen (off + k') (InPlaceSyntax.toNat_add_lt_of_window hw hj)
+        InPlace.Tail.readThen (off + k') (ScalarArray.Notation.toNat_add_lt_of_window hw hj) fun z =>
+          InPlace.Tail.writeThen (off + k') (ScalarArray.Notation.toNat_add_lt_of_window hw hj)
               (addMul2Word z (a[k']'(USize.lt_iff_toNat_lt.2 hj)) x₀ x₁ c₀ c₁).1
             (next (addMul2Word z (a[k']'(USize.lt_iff_toNat_lt.2 hj)) x₀ x₁ c₀ c₁).2.1
               (addMul2Word z (a[k']'(USize.lt_iff_toNat_lt.2 hj)) x₀ x₁ c₀ c₁).2.2)) k).run arr hs =
