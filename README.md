@@ -45,11 +45,16 @@ widths build in one environment, and the tests (`lake test`) check both. The bra
 
 ## Using it
 
+The package needs Lean and lean4-scalar-arrays, nothing else. The `main` branch follows the newest
+Lean release, including release candidates, as lean4-scalar-arrays does; each release names its
+toolchain in `lean-toolchain`. Releases are tagged `vX.Y.Z`. Add one to your `lakefile.toml`, or
+`main` for the latest changes:
+
 ```toml
 [[require]]
 name = "lean4-mpn"
 git = "https://github.com/fgdorais/lean4-mpn"
-rev = "main"
+rev = "v0.1.0"
 ```
 
 then `import MPN.Default` for `MPN.Nat`, or `import MPN64` / `import MPN32` for a width. The
@@ -63,6 +68,18 @@ lake build bench64 tune64      # the executables, which `lake build` does not bu
 .lake/build/bin/bench64        # see MPN64/BENCH.md; bench32 and MPN32/BENCH.md for 32-bit limbs
 .lake/build/bin/tune64         # the thresholds for this machine
 ```
+
+## Stability
+
+Releases are git tags `vX.Y.Z`, with release notes on GitHub. Before 1.0.0 a minor version may
+change the API; a patch version does not. What may change in any release, even after 1.0.0:
+
+- the kernels, classes and proofs behind the numbers (`MPN.Toom`, `MPN.FFT`, `MPN.Generic`,
+  `MPN.Dispatch`, the `Arch/` modules, …), which are there to be shared, not used directly;
+- the fields of `MPN.W32.Config` and `MPN.W64.Config`, and so the threshold options, and their
+  default values;
+- which lemmas are `@[simp]` or `@[grind]`;
+- what changes in Lean or lean4-scalar-arrays force; the release notes say when this happens.
 
 ## The shared modules
 
@@ -109,3 +126,16 @@ thresholds of the shared dispatchers once for any width (`tuneMul`, `tuneSqr`, `
 tuners measure size crossovers; the choices of algorithm follow GMP's on modern platforms.
 
 What is left to do is in [TODO.md](TODO.md).
+
+## Documentation
+
+The documentation of the latest release is at
+[www.dorais.org/lean4-mpn/doc](https://www.dorais.org/lean4-mpn/doc/), and each release has its
+documentation attached on GitHub. `lake build MPN:docs MPN32:docs MPN64:docs MPN.Default:docs` in
+the `docs` directory generates it locally.
+
+-----
+
+* The `Lean 4 / MPN` library is copyright © 2026 François G. Dorais. The library is released under
+  the [Apache 2.0 license](https://www.apache.org/licenses/LICENSE-2.0). See the file LICENSE for
+  additional details.
