@@ -414,11 +414,11 @@ program's result pair cost 14–15% of the squares from 16 to 88 limbs.
   let x₀ := a[i]'(USize.lt_iff_toNat_lt.2 hi')
   let x₁ := a[i + 1]'(USize.lt_iff_toNat_lt.2 hf.2.1)
   inplace arr do
-    let z ← arr[rs + i + (i + 1)]
+    let z := arr[rs + i + (i + 1)]
     let (w, e₀, e₁) := addMul2Word z x₁ x₀ 0 0 0
     arr[rs + i + (i + 1)] := w
     for j in (i + 1 + 1)...a.size with (c₀ := e₀) (c₁ := e₁) do
-      let z ← arr[rs + i + j]
+      let z := arr[rs + i + j]
       let (w, d₀, d₁) := addMul2Word z (a[j]'(USize.lt_iff_toNat_lt.2 (by assumption))) x₀ x₁ c₀ c₁
       arr[rs + i + j] := w
       c₀ := d₀
