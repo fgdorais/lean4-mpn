@@ -23,8 +23,9 @@ and `mpn_sqr`, choosing the algorithm by the sizes with the thresholds of a `Mul
 * `sqr` squares by the FFT (`fftSqrW`) from `sqrFFT` limbs, and by the Toom methods otherwise.
 
 The FFT has `2ᵏ` pieces for the least `k` with `4ᵏ ≥ c T`, `T` the size of the product and `c`
-the factor `fftKFactor` of the width, and multiplies its pointwise products by the Toom methods
-(`mulP`, `sqrP`). Each function writes the limbs of its window only, and its window holds the
+the factor `fftKFactor` of the width, and multiplies its pointwise products by the FFT itself
+from `mulFFT` and `sqrFFT` limbs, `fftDepth` levels deep, and by the Toom methods below
+(`mulPD`, `sqrPD`). Each function writes the limbs of its window only, and its window holds the
 product, whatever the thresholds.
 -/
 
@@ -82,15 +83,89 @@ public theorem isMulP (cfg : Toom.Config) (n : Nat) : FFTOps.IsMulP (mulP (A := 
   rw [show n + 1 + (n + 1) = 2 * n + 2 by lia] at s₂
   exact ⟨s₁.trans hP, s₂⟩
 
-/-- The pointwise squares of the FFT: Karatsuba's square into `P`. -/
+/-- The pointwise squares of the FFT: the Toom squares into `P`. -/
 @[expose] public def sqrP (cfg : Toom.Config) (P arr : A) (x n : Nat) : A :=
-  Toom.sqrKaratsuba cfg P 0 arr x (n + 1)
+  Toom.sqrToom cfg P 0 arr x (n + 1)
 
 public theorem isSqrP (cfg : Toom.Config) (n : Nat) : FFTOps.IsSqrP (sqrP (A := A) cfg) n := by
   intro P arr x hP _ _ _
-  obtain ⟨⟨s₁, -⟩, s₂⟩ := Toom.sqrKaratsuba_spec cfg (n + 1) P 0 arr x (n + 1) rfl (by lia)
+  obtain ⟨⟨s₁, -⟩, s₂⟩ := Toom.sqrToom_spec cfg P 0 arr x (n + 1) (by lia)
   rw [show n + 1 + (n + 1) = 2 * n + 2 by lia] at s₂
   exact ⟨s₁.trans hP, s₂⟩
+
+/--
+The depth of the FFT's recursion on its pointwise products: an FFT's residues of `n + 1` limbs
+have about `0.6 √T` limbs for a product of `T` limbs, so two levels reach products far beyond
+memory.
+-/
+public def fftDepth : Nat := 2
+
+/--
+The pointwise products of an FFT with `d` levels of recursion below it, like GMP's `mpn_mul_fft`
+on its residues: the full product of two residues of `n + 1` limbs by the FFT itself, from
+`mulFFT` limbs, with `d - 1` levels below it, reduced afterwards like the Toom products; the Toom
+methods (`mulP`) at depth `0`, below `mulFFT` limbs, or when the parameters do not suit the sizes.
+GMP multiplies its residues modulo `2ᴺ + 1` directly, by a negacyclic transform of half the size;
+the full product costs about twice that, so the threshold is `mulFFT` itself.
+-/
+@[expose] public def mulPD (cfg : MulConfig) : Nat → A → A → Nat → Nat → Nat → A
+  | 0, P, arr, x, y, n => mulP cfg.toConfig P arr x y n
+  | d + 1, P, arr, x, y, n =>
+    if cfg.mulFFT ≤ n + 1 then
+      let k := fftK cfg.fftKFactor (2 * n + 2)
+      let p := FFTOps.fftParams LA.w (2 * n + 2) k
+      if FFTOps.FFTCheck P 0 (2 * n + 2) arr x (n + 1) arr y (n + 1) k p.1 p.2 then
+        FFTOps.fftMulAt (mulPD cfg d) P 0 arr x (n + 1) arr y (n + 1) k p.1 p.2
+      else mulP cfg.toConfig P arr x y n
+    else mulP cfg.toConfig P arr x y n
+
+public theorem isMulPD (cfg : MulConfig) :
+    ∀ (d n : Nat), FFTOps.IsMulP (mulPD (A := A) cfg d) n
+  | 0, n => isMulP cfg.toConfig n
+  | d + 1, n => by
+    intro P arr x y hP hPS hS hx hy
+    simp only [mulPD]
+    split
+    · split
+      · rename_i h
+        obtain ⟨s₁, -, s₃⟩ := FFTOps.fftMulAt_spec (mulPD cfg d) P 0 arr x (n + 1) arr y (n + 1)
+          _ _ _ (FFTOps.FFTCheck.params h) (isMulPD cfg d _)
+        rw [show n + 1 + (n + 1) = 2 * n + 2 by lia] at s₃
+        exact ⟨s₁.trans hP, s₃⟩
+      · exact isMulP cfg.toConfig n P arr x y hP hPS hS hx hy
+    · exact isMulP cfg.toConfig n P arr x y hP hPS hS hx hy
+
+/--
+The pointwise squares of an FFT with `d` levels of recursion below it: the square of a residue of
+`n + 1` limbs by the FFT itself from `sqrFFT` limbs, with `d - 1` levels below it, and the Toom
+squares (`sqrP`) otherwise.
+-/
+@[expose] public def sqrPD (cfg : MulConfig) : Nat → A → A → Nat → Nat → A
+  | 0, P, arr, x, n => sqrP cfg.toConfig P arr x n
+  | d + 1, P, arr, x, n =>
+    if cfg.sqrFFT ≤ n + 1 then
+      let k := fftK cfg.fftKFactor (2 * n + 2)
+      let p := FFTOps.fftParams LA.w (2 * n + 2) k
+      if FFTOps.FFTCheck P 0 (2 * n + 2) arr x (n + 1) arr x (n + 1) k p.1 p.2 then
+        FFTOps.fftSqrAt (sqrPD cfg d) P 0 arr x (n + 1) k p.1 p.2
+      else sqrP cfg.toConfig P arr x n
+    else sqrP cfg.toConfig P arr x n
+
+public theorem isSqrPD (cfg : MulConfig) :
+    ∀ (d n : Nat), FFTOps.IsSqrP (sqrPD (A := A) cfg d) n
+  | 0, n => isSqrP cfg.toConfig n
+  | d + 1, n => by
+    intro P arr x hP hPS hS hx
+    simp only [sqrPD]
+    split
+    · split
+      · rename_i h
+        obtain ⟨s₁, -, s₃⟩ := FFTOps.fftSqrAt_spec (sqrPD cfg d) P 0 arr x (n + 1) _ _ _
+          (FFTOps.FFTCheck.params h) (isSqrPD cfg d _)
+        rw [show n + 1 + (n + 1) = 2 * n + 2 by lia] at s₃
+        exact ⟨s₁.trans hP, s₃⟩
+      · exact isSqrP cfg.toConfig n P arr x hP hPS hS hx
+    · exact isSqrP cfg.toConfig n P arr x hP hPS hS hx
 
 /-! ## The FFT -/
 
@@ -102,7 +177,7 @@ methods when the parameters of `fftParams` do not suit the sizes.
     (bo bl k : Nat) : A :=
   let p := FFTOps.fftParams LA.w (al + bl) k
   if FFTOps.FFTCheck d o (al + bl) a ao al b bo bl k p.1 p.2 then
-    FFTOps.fftMulAt (mulP cfg.toConfig) d o a ao al b bo bl k p.1 p.2
+    FFTOps.fftMulAt (mulPD cfg fftDepth) d o a ao al b bo bl k p.1 p.2
   else Toom.mulToom cfg.toConfig d o a ao al b bo bl
 
 public theorem fftMulW_spec (cfg : MulConfig) (d : A) (o : Nat) (a : A) (ao al : Nat) (b : A)
@@ -113,8 +188,8 @@ public theorem fftMulW_spec (cfg : MulConfig) (d : A) (o : Nat) (a : A) (ao al :
   dsimp only
   split
   · rename_i h
-    obtain ⟨s₁, s₂, s₃⟩ := FFTOps.fftMulAt_spec (mulP cfg.toConfig) _ _ _ _ _ _ _ _ k _ _
-      (FFTOps.FFTCheck.params h) (isMulP _ _)
+    obtain ⟨s₁, s₂, s₃⟩ := FFTOps.fftMulAt_spec (mulPD cfg fftDepth) _ _ _ _ _ _ _ _ k _ _
+      (FFTOps.FFTCheck.params h) (isMulPD _ _ _)
     exact ⟨⟨s₁, s₂⟩, s₃⟩
   · exact Toom.mulToom_spec _ _ _ _ _ _ _ _ _ hd
 
@@ -125,7 +200,7 @@ methods when the parameters of `fftParams` do not suit the size.
 @[expose] public def fftSqrW (cfg : MulConfig) (d : A) (o : Nat) (a : A) (ao al k : Nat) : A :=
   let p := FFTOps.fftParams LA.w (al + al) k
   if FFTOps.FFTCheck d o (al + al) a ao al a ao al k p.1 p.2 then
-    FFTOps.fftSqrAt (sqrP cfg.toConfig) d o a ao al k p.1 p.2
+    FFTOps.fftSqrAt (sqrPD cfg fftDepth) d o a ao al k p.1 p.2
   else Toom.sqrToom cfg.toConfig d o a ao al
 
 public theorem fftSqrW_spec (cfg : MulConfig) (d : A) (o : Nat) (a : A) (ao al k : Nat)
@@ -136,8 +211,8 @@ public theorem fftSqrW_spec (cfg : MulConfig) (d : A) (o : Nat) (a : A) (ao al k
   dsimp only
   split
   · rename_i h
-    obtain ⟨s₁, s₂, s₃⟩ := FFTOps.fftSqrAt_spec (sqrP cfg.toConfig) _ _ _ _ _ k _ _
-      (FFTOps.FFTCheck.params h) (isSqrP _ _)
+    obtain ⟨s₁, s₂, s₃⟩ := FFTOps.fftSqrAt_spec (sqrPD cfg fftDepth) _ _ _ _ _ k _ _
+      (FFTOps.FFTCheck.params h) (isSqrPD _ _ _)
     exact ⟨⟨s₁, s₂⟩, s₃⟩
   · exact Toom.sqrToom_spec _ _ _ _ _ _ hd
 
@@ -361,7 +436,7 @@ wrapped product (`FFTOps.fftMulModAt`) when the product is longer than the modul
     let nn := FFTOps.fftModN LA.w k m
     let r := W.zeros (m * 2 ^ k + nn + 1)
     if FFTOps.FFTModCheck r 0 (m * 2 ^ k + nn + 1) a ao al b bo bl k m nn then
-      FFTOps.fftMulModAt (mulP cfg.toConfig) r 0 a ao al b bo bl k m nn
+      FFTOps.fftMulModAt (mulPD cfg fftDepth) r 0 a ao al b bo bl k m nn
     else mul cfg (W.zeros (al + bl)) 0 a ao al b bo bl
   else mul cfg (W.zeros (al + bl)) 0 a ao al b bo bl
 
@@ -381,8 +456,8 @@ public theorem mulModW_spec (cfg : MulConfig) (n : Nat) (a : A) (ao al : Nat) (b
   split
   · split
     · rename_i h
-      obtain ⟨s₁, -, e⟩ := FFTOps.fftMulModAt_spec (mulP cfg.toConfig) _ _ _ _ _ _ _ _ _ _ _
-        (FFTOps.FFTModCheck.params h) (isMulP _ _)
+      obtain ⟨s₁, -, e⟩ := FFTOps.fftMulModAt_spec (mulPD cfg fftDepth) _ _ _ _ _ _ _ _ _ _ _
+        (FFTOps.FFTModCheck.params h) (isMulPD _ _ _)
       rw [s₁, W.size_zeros]
       exact e
     · rw [hmul]

@@ -218,6 +218,26 @@ def fftConfig : Config := { mulKaratsuba := 8, mulFFT := 40 }
     toNat (mulLimbsWith fftConfig (ofNat (2 ^ (32 * m) - 1)) (ofNat (2 ^ (32 * n) - 1))) ==
       (2 ^ (32 * m) - 1) * (2 ^ (32 * n) - 1)
 
+-- The FFT on its own pointwise products and squares from 8 limbs, two levels deep: for 600 limbs,
+-- residues of 23 limbs by `2⁷` pieces, then of 10 by `2⁴` pieces, then of 6.
+def fftRecConfig : Config :=
+  { mulKaratsuba := 8, mulFFT := 8, mulFFTMin := 8, sqrKaratsuba := 8, sqrFFT := 8 }
+
+#guard [(600, 600), (600, 450), (1000, 999)].all fun (m, n) =>
+  let x := sample1 (32 * m) 43
+  let y := sample1 (32 * n) 47
+  let r := mulLimbsWith fftRecConfig (ofNat x) (ofNat y)
+  r.size == m + n && toNat r == x * y &&
+    toNat (mulLimbsWith fftRecConfig (ofNat (2 ^ (32 * m) - 1)) (ofNat (2 ^ (32 * n) - 1))) ==
+      (2 ^ (32 * m) - 1) * (2 ^ (32 * n) - 1)
+
+#guard [600, 1000].all fun n =>
+  let x := sample1 (32 * n) 43
+  let r := sqrLimbsWith fftRecConfig (ofNat x)
+  r.size == n + n && toNat r == x * x &&
+    toNat (sqrLimbsWith fftRecConfig (ofNat (2 ^ (32 * n) - 1))) ==
+      (2 ^ (32 * n) - 1) * (2 ^ (32 * n) - 1)
+
 -- Toom-3 squaring from 12 limbs, over Karatsuba squaring from 4 and the schoolbook square.
 def sqrToomConfig : Config := { sqrBasecase := 2, sqrKaratsuba := 4, sqrToom3 := 12 }
 
