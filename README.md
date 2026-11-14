@@ -54,7 +54,7 @@ toolchain in `lean-toolchain`. Releases are tagged `vX.Y.Z`. Add one to your `la
 [[require]]
 name = "lean4-mpn"
 git = "https://github.com/fgdorais/lean4-mpn"
-rev = "v0.1.0"
+rev = "v1.0.0"
 ```
 
 then `import MPN.Default` for `MPN.Nat`, or `import MPN64` / `import MPN32` for a width. The
@@ -71,8 +71,9 @@ lake build bench64 tune64      # the executables, which `lake build` does not bu
 
 ## Stability
 
-Releases are git tags `vX.Y.Z`, with release notes on GitHub. Before 1.0.0 a minor version may
-change the API; a patch version does not. What may change in any release, even after 1.0.0:
+Releases are git tags `vX.Y.Z`, with release notes on GitHub. Starting with version 1.0.0,
+breaking changes to the API are made only in a new major version. The following are not covered
+by this promise:
 
 - the kernels, classes and proofs behind the numbers (`MPN.Toom`, `MPN.FFT`, `MPN.Generic`,
   `MPN.Dispatch`, the `Arch/` modules, …), which are there to be shared, not used directly;
