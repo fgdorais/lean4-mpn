@@ -1,0 +1,1 @@
+{"declarations":[],"imports":["Init","MPN32.Arch.Comba","MPN32.Arch.DivTwo","MPN32.Arch.LinComb","MPN32.Arch.Rows","MPN32.Arch.SqrBasecase","MPN32.Arch.UInt","MPN32.Arch.UIntArray"],"instances":[],"name":"MPN32.Arch"}
