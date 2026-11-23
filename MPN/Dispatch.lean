@@ -276,7 +276,7 @@ public theorem chunkLoop_spec (cfg : MulConfig) (T c rs : Nat) (a : A) (ao al : 
           cnt :=
       sumRange_congr fun j _ => by rw [show i + (j + 1) = i + 1 + j by lia]
     rw [hs'] at hsum ⊢
-    rw [chunkLoop]
+    rw [chunkLoop]; dsimp only
     -- The product of piece `i` by `B`.
     have hpl : min c (al - i * c) ≤ al := Nat.le_trans (Nat.min_le_right _ _) (Nat.sub_le _ _)
     obtain ⟨⟨p₁, -⟩, p₂⟩ := mulBal_spec cfg (W.zeros (min c (al - i * c) + bl)) 0 a (ao + i * c)

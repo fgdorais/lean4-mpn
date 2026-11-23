@@ -337,7 +337,7 @@ private theorem ltLoopW_iff (a : A) (ao al : Nat) (b : A) (bo bl : Nat) (i : Nat
   induction i with
   | zero => simp [ltLoopW]
   | succ i ih =>
-    rw [valAt_min_succ, valAt_min_succ, ltLoopW]
+    rw [valAt_min_succ, valAt_min_succ, ltLoopW]; dsimp only
     have hla := valAt_lt a ao (min al i)
     have hlb := valAt_lt b bo (min bl i)
     have ha : 2 ^ (LA.w * min al i) ≤ 2 ^ (LA.w * i) :=

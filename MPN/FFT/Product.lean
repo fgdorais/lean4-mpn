@@ -327,7 +327,7 @@ public theorem pointLoop_spec (mulP : A → A → Nat → Nat → Nat → A) (n 
     rw [Nat.add_mul, Nat.one_mul] at hw
     obtain ⟨m₁, m₂⟩ := hmul P arr (oA + p * (n + 1)) (oB + p * (n + 1)) hP hPS hS (by lia)
       (by lia)
-    rw [pointLoop]
+    rw [pointLoop]; dsimp only
     generalize mulP P arr (oA + p * (n + 1)) (oB + p * (n + 1)) n = P' at *
     obtain ⟨hvA, hvB⟩ := hv p (Nat.le_refl _) (by lia)
     simp only [coef, win, fermatW] at hvA hvB m₂
@@ -385,7 +385,7 @@ public theorem pointSqrLoop_spec (sqrP : A → A → Nat → Nat → A) (n oA : 
     have hw := Nat.mul_le_mul_right (n + 1) (show p + 1 ≤ p + (cnt + 1) by lia)
     rw [Nat.add_mul, Nat.one_mul] at hw
     obtain ⟨m₁, m₂⟩ := hsqr P arr (oA + p * (n + 1)) hP hPS hS (by lia)
-    rw [pointSqrLoop]
+    rw [pointSqrLoop]; dsimp only
     generalize sqrP P arr (oA + p * (n + 1)) n = P' at *
     have hvA := hv p (Nat.le_refl _) (by lia)
     simp only [coef, win, fermatW] at hvA m₂

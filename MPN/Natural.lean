@@ -349,7 +349,7 @@ private theorem small_lt_large (a : UInt64) (b : A)
     | small b =>
       have ha := a.toNat_lt
       have hb := b.toNat_lt
-      rw [add]
+      rw [add]; dsimp only
       split
       · rename_i h
         rw [UInt64.lt_iff_toNat_lt, UInt64.toNat_add] at h

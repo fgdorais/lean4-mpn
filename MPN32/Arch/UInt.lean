@@ -45,7 +45,7 @@ public theorem UInt8.addWithCarry_spec (x y : UInt8) (c : Bool) :
       x.toNat + y.toNat + c.toNat := by
   have := x.toNat_lt
   have := y.toNat_lt
-  rw [addWithCarry, high_ne_zero]
+  rw [addWithCarry]; simp only [high_ne_zero]
   cases c <;> simp [UInt16.toNat_add, Bool.toUInt16, Bool.toNat] <;> split <;> lia
 
 public theorem UInt8.subWithBorrow_spec (x y : UInt8) (b : Bool) :
@@ -53,7 +53,7 @@ public theorem UInt8.subWithBorrow_spec (x y : UInt8) (b : Bool) :
       x.toNat + (x.subWithBorrow y b).2.toNat * 2 ^ 8 := by
   have := x.toNat_lt
   have := y.toNat_lt
-  rw [subWithBorrow, high_ne_zero]
+  rw [subWithBorrow]; simp only [high_ne_zero]
   cases b <;>
     simp only [UInt16.toNat_toUInt8, UInt16.toNat_sub, UInt8.toNat_toUInt16, Bool.toUInt16,
       Bool.toNat, Bool.cond_false, Bool.cond_true, UInt16.toNat_zero, UInt16.toNat_one,
@@ -99,7 +99,7 @@ public theorem UInt16.addWithCarry_spec (x y : UInt16) (c : Bool) :
       x.toNat + y.toNat + c.toNat := by
   have := x.toNat_lt
   have := y.toNat_lt
-  rw [addWithCarry, high_ne_zero]
+  rw [addWithCarry]; simp only [high_ne_zero]
   cases c <;> simp [UInt32.toNat_add, Bool.toUInt32, Bool.toNat] <;> split <;> lia
 
 public theorem UInt16.subWithBorrow_spec (x y : UInt16) (b : Bool) :
@@ -107,7 +107,7 @@ public theorem UInt16.subWithBorrow_spec (x y : UInt16) (b : Bool) :
       x.toNat + (x.subWithBorrow y b).2.toNat * 2 ^ 16 := by
   have := x.toNat_lt
   have := y.toNat_lt
-  rw [subWithBorrow, high_ne_zero]
+  rw [subWithBorrow]; simp only [high_ne_zero]
   cases b <;>
     simp only [UInt32.toNat_toUInt16, UInt32.toNat_sub, UInt16.toNat_toUInt32, Bool.toUInt32,
       Bool.toNat, Bool.cond_false, Bool.cond_true, UInt32.toNat_zero, UInt32.toNat_one,
@@ -179,7 +179,7 @@ public theorem UInt32.addWithCarry_spec (x y : UInt32) (c : Bool) :
       x.toNat + y.toNat + c.toNat := by
   have := x.toNat_lt
   have := y.toNat_lt
-  rw [addWithCarry, high_ne_zero]
+  rw [addWithCarry]; simp only [high_ne_zero]
   cases c <;> simp [UInt64.toNat_add, Bool.toUInt64, Bool.toNat] <;> split <;> lia
 
 public theorem UInt32.subWithBorrow_spec (x y : UInt32) (b : Bool) :
@@ -187,7 +187,7 @@ public theorem UInt32.subWithBorrow_spec (x y : UInt32) (b : Bool) :
       x.toNat + (x.subWithBorrow y b).2.toNat * 2 ^ 32 := by
   have := x.toNat_lt
   have := y.toNat_lt
-  rw [subWithBorrow, high_ne_zero]
+  rw [subWithBorrow]; simp only [high_ne_zero]
   cases b <;>
     simp only [UInt64.toNat_toUInt32, UInt64.toNat_sub, UInt32.toNat_toUInt64, Bool.toUInt64,
       Bool.toNat, Bool.cond_false, Bool.cond_true, UInt64.toNat_zero, UInt64.toNat_one,

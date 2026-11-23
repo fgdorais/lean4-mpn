@@ -71,7 +71,7 @@ lake build bench64  # then .lake/build/bin/bench64, see BENCH.md
 lake exe tune64     # the thresholds for this machine, see below
 ```
 
-The toolchain is Lean `v4.36.0-rc2`. [BENCH.md](BENCH.md) has the timings against `Nat`, how to
+The toolchain is Lean `v4.37.0-rc1`. [BENCH.md](BENCH.md) has the timings against `Nat`, how to
 run them, and a history of the changes that affected speed.
 
 ## Tuning

@@ -222,7 +222,7 @@ open IsNat in
 public theorem isNatB_eq (s : String) : isNatB s = s.isNat := by
   rw [← isNatFast_eq, isNatB, IsNat.loop_eq, List.drop_zero, isNatFast]
   have hb : s.toByteArray.data.toList = s.toList.flatMap String.utf8EncodeChar := by
-    rw [← String.utf8Encode_toList, List.utf8Encode, List.toList_data_toByteArray]
+    rw [← String.utf8Encode_toList, List.utf8Encode]
   rw [hb, IsNat.foldl_bytes, String.foldl_eq_foldl_toList]
 
 end MPN

@@ -434,14 +434,15 @@ limbs so far, the chunk and its digits in the arguments of the loop instead of a
 /-- An ASCII character is one byte of UTF-8, its value. -/
 private theorem utf8Encode_ascii (l : List Char) (h : ∀ c ∈ l, c.val ≤ 127) :
     l.utf8Encode = (l.map fun c => c.val.toUInt8).toByteArray := by
-  rw [List.utf8Encode]
-  congr 1
-  induction l with
-  | nil => rfl
-  | cons c cs ih =>
-    rw [List.flatMap_cons, List.map_cons,
-      String.utf8EncodeChar_eq_singleton (Char.utf8Size_eq_one_iff.2 (h c (by simp))),
-      ih (fun d hd => h d (by simp [hd])), List.singleton_append]
+  have e : l.flatMap String.utf8EncodeChar = l.map fun c => c.val.toUInt8 := by
+    induction l with
+    | nil => rfl
+    | cons c cs ih =>
+      rw [List.flatMap_cons, List.map_cons,
+        String.utf8EncodeChar_eq_singleton (Char.utf8Size_eq_one_iff.2 (h c (by simp))),
+        ih (fun d hd => h d (by simp [hd])), List.singleton_append]
+  rw [List.utf8Encode, e]
+  exact (congrArg (fun l => ByteArray.mk (Array.mk l)) List.toList_data_toByteArray).symm
 
 /-- The bytes of a string of ASCII characters are its characters. -/
 private theorem bytes_ascii (s : String) (h : ∀ c ∈ s.toList, c.val ≤ 127) :
