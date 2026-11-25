@@ -16,8 +16,8 @@ at `(j - 1) L` of one array `W`, turns the `w_j` into the coefficients `c_j` in 
 them into the result. The points are natural numbers, so every intermediate value is a natural
 number: each subtraction takes away a part of the value it subtracts from, and each division is
 exact. The first stage of degrees 4 to 6 takes `c₀` and `c_D` from three windows in one pass
-(`sub3Lin`), and each run of three passes `w_a - m w_b`, `w_b - m w_c`, `w_c - m w_e` is one pass
-(`sub3Chain`).
+(`sub3Lin`), each run of three passes `w_a - m w_b`, `w_b - m w_c`, `w_c - m w_e` is one pass
+(`sub3Chain`), and the second stage of degree 4 is the three passes of `toom3Stage`.
 -/
 
 namespace MPN.Toom
@@ -145,15 +145,7 @@ at `0, L, …, 2 L`, and the passes between two of them by `subMulWin`.
 -/
 @[expose, specialize] public def interp4W (d : A) (o n k L : Nat) (W : A) : A :=
   let W := R.sub3Lin W 0 L (2 * L) L d o (k + k) (o + 4 * k) (n - 4 * k) 1 16 81
-  let W := R.shlTop W L L
-  let W := R.divExact W (2 * L) L 3
-  let W := R.subMulWin W (L + 1) (L - 1) 0 (L - 1) 1
-  let W := R.subMulWin W (2 * L) L 0 L 1
-  let W := R.shlTop W (2 * L) L
-  let W := R.subMulWin W (2 * L + 1) (L - 1) (L + 1) (L - 1) 1
-  let W := R.subMulWin W (L + 1) (L - 1) (2 * L + 1) (L - 1) 3
-  let W := R.subMulWin W 0 L (L + 1) (L - 1) 1
-  let W := R.subMulWin W 0 L (2 * L + 1) (L - 1) 1
+  let W := R.toom3Stage W L
   -- The recombination.
   let d := R.zeroInto d (o + (k + k)) (4 * k - (k + k))
   let d := R.addInto d (o + k) (n - k) W 0 (min (n - k) L)
@@ -174,7 +166,7 @@ public theorem interp4W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
       valAt (interp4W d o n k L W) o n = c₀ + 2 ^ (LA.w * k) * c₁ + 2 ^ (LA.w * (2 * k)) * c₂ + 2 ^
           (LA.w * (3 * k)) * c₃ + 2 ^ (LA.w * (4 * k)) * c₄ := by
   unfold interp4W
-  extract_lets q₁ q₂ q₃ q₄ q₅ q₆ q₇ q₈ q₉ q₁₀ A₀ A₁ A₂
+  extract_lets q₁ q₂ A₀ A₁ A₂
   obtain ⟨w₁, e₁a, e₁b, e₁c⟩ := sub3W_val (q := W) (o₁ := 0) (o₂ := L)
       (o₃ := (2 * L)) (len := L) (by rw [hW]; lia) (by lia) (by lia)
       d o (k + k) (o + 4 * k) (n - 4 * k) 1 16 81
@@ -184,92 +176,18 @@ public theorem interp4W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
   clear_value q₁
   have s₁ := w₁.1.trans hW
   clear w₁ hv₁ hv₂ hv₃
-  obtain ⟨w₂, e₂⟩ := halfW_val (q := q₁) (b := L) (len := L) (by rw [s₁]; lia) (by lia)
-      (V := c₁ + 2 * c₂ + 4 * c₃) e₁b (by lia) (by lia)
-  rw [← (show q₂ = R.shlTop q₁ L L from rfl)] at w₂ e₂
+  obtain ⟨s₂, e₂a, e₂b, e₂c⟩ := R.toom3Stage_spec q₁ L c₁ c₂ c₃ hL s₁
+      e₁a e₁b e₁c (by lia)
+  rw [← (show q₂ = R.toom3Stage q₁ L from rfl)] at s₂ e₂a e₂b e₂c
   clear_value q₂
-  have s₂ := w₂.1.trans s₁
-  have v₁q₂ := (w₂.valAt_eq (lo := 0) (n := L) (by lia)).trans e₁a
-  have v₃q₂ := (w₂.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₁c
-  clear w₂ e₁b s₁ e₁a e₁c
-  obtain ⟨w₃, e₃⟩ := divW_val (q := q₂) (o := (2 * L)) (len := L) (by rw [s₂]; lia) 3 (by decide) (by decide)
-      (V := c₁ + 3 * c₂ + 9 * c₃) v₃q₂ (by lia)
-  rw [← (show q₃ = R.divExact q₂ (2 * L) L 3 from rfl)] at w₃ e₃
-  clear_value q₃
-  have s₃ := w₃.1.trans s₂
-  have v₁q₃ := (w₃.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₂
-  have v₂q₃ := (w₃.valAt_eq (lo := (L + 1)) (n := (L - 1)) (by lia)).trans e₂
-  clear w₃ v₃q₂ s₂ v₁q₂ e₂
-  have l₄ := lowW_val (b := 0) (by lia) v₁q₃ (by lia)
-  obtain ⟨w₄, e₄⟩ := subMulWin_val (q := q₃) (o := (L + 1)) (len := (L - 1)) (by rw [s₃]; lia) 0 (L - 1) 1
-      (by rw [s₃]; lia) (by lia) (by lia) (by decide)
-      (V := c₂ + 3 * c₃) v₂q₃ l₄ (by lia)
-  rw [← (show q₄ = R.subMulWin q₃ (L + 1) (L - 1) 0 (L - 1) 1 from rfl)] at w₄ e₄
-  clear_value q₄
-  have s₄ := w₄.1.trans s₃
-  have v₁q₄ := (w₄.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₃
-  have v₃q₄ := (w₄.valAt_eq (lo := (2 * L)) (n := L) (by lia)).trans e₃
-  clear w₄ v₂q₃ l₄ s₃ v₁q₃ e₃
-  obtain ⟨w₅, e₅⟩ := subMulWin_val (q := q₄) (o := (2 * L)) (len := L) (by rw [s₄]; lia) 0 L 1
-      (by rw [s₄]; lia) (by lia) (by lia) (by decide)
-      (V := 2 * c₂ + 8 * c₃) v₃q₄ v₁q₄ (by lia)
-  rw [← (show q₅ = R.subMulWin q₄ (2 * L) L 0 L 1 from rfl)] at w₅ e₅
-  clear_value q₅
-  have s₅ := w₅.1.trans s₄
-  have v₁q₅ := (w₅.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₄
-  have v₂q₅ := (w₅.valAt_eq (lo := (L + 1)) (n := (L - 1)) (by lia)).trans e₄
-  clear w₅ v₃q₄ s₄ v₁q₄ e₄
-  obtain ⟨w₆, e₆⟩ := halfW_val (q := q₅) (b := (2 * L)) (len := L) (by rw [s₅]; lia) (by lia)
-      (V := c₂ + 4 * c₃) e₅ (by lia) (by lia)
-  rw [← (show q₆ = R.shlTop q₅ (2 * L) L from rfl)] at w₆ e₆
-  clear_value q₆
-  have s₆ := w₆.1.trans s₅
-  have v₁q₆ := (w₆.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₅
-  have v₂q₆ := (w₆.valAt_eq (lo := (L + 1)) (n := (L - 1)) (by lia)).trans v₂q₅
-  clear w₆ e₅ s₅ v₁q₅ v₂q₅
-  obtain ⟨w₇, e₇⟩ := subMulWin_val (q := q₆) (o := (2 * L + 1)) (len := (L - 1)) (by rw [s₆]; lia) (L + 1) (L - 1) 1
-      (by rw [s₆]; lia) (by lia) (by lia) (by decide)
-      (V := c₃) e₆ v₂q₆ (by lia)
-  rw [← (show q₇ = R.subMulWin q₆ (2 * L + 1) (L - 1) (L + 1) (L - 1) 1 from rfl)] at w₇ e₇
-  clear_value q₇
-  have s₇ := w₇.1.trans s₆
-  have v₁q₇ := (w₇.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₆
-  have v₂q₇ := (w₇.valAt_eq (lo := (L + 1)) (n := (L - 1)) (by lia)).trans v₂q₆
-  clear w₇ e₆ s₆ v₁q₆ v₂q₆
-  obtain ⟨w₈, e₈⟩ := subMulWin_val (q := q₇) (o := (L + 1)) (len := (L - 1)) (by rw [s₇]; lia) (2 * L + 1) (L - 1) 3
-      (by rw [s₇]; lia) (by lia) (by lia) (by decide)
-      (V := c₂) v₂q₇ e₇ (by lia)
-  rw [← (show q₈ = R.subMulWin q₇ (L + 1) (L - 1) (2 * L + 1) (L - 1) 3 from rfl)] at w₈ e₈
-  clear_value q₈
-  have s₈ := w₈.1.trans s₇
-  have v₁q₈ := (w₈.valAt_eq (lo := 0) (n := L) (by lia)).trans v₁q₇
-  have v₃q₈ := (w₈.valAt_eq (lo := (2 * L + 1)) (n := (L - 1)) (by lia)).trans e₇
-  clear w₈ v₂q₇ s₇ v₁q₇ e₇
-  obtain ⟨w₉, e₉⟩ := subMulWin_val (q := q₈) (o := 0) (len := L) (by rw [s₈]; lia) (L + 1) (L - 1) 1
-      (by rw [s₈]; lia) (by lia) (by lia) (by decide)
-      (V := c₁ + c₃) v₁q₈ e₈ (by lia)
-  rw [← (show q₉ = R.subMulWin q₈ 0 L (L + 1) (L - 1) 1 from rfl)] at w₉ e₉
-  clear_value q₉
-  have s₉ := w₉.1.trans s₈
-  have v₂q₉ := (w₉.valAt_eq (lo := (L + 1)) (n := (L - 1)) (by lia)).trans e₈
-  have v₃q₉ := (w₉.valAt_eq (lo := (2 * L + 1)) (n := (L - 1)) (by lia)).trans v₃q₈
-  clear w₉ v₁q₈ s₈ e₈ v₃q₈
-  obtain ⟨w₁₀, e₁₀⟩ := subMulWin_val (q := q₉) (o := 0) (len := L) (by rw [s₉]; lia) (2 * L + 1) (L - 1) 1
-      (by rw [s₉]; lia) (by lia) (by lia) (by decide)
-      (V := c₁) e₉ v₃q₉ (by lia)
-  rw [← (show q₁₀ = R.subMulWin q₉ 0 L (2 * L + 1) (L - 1) 1 from rfl)] at w₁₀ e₁₀
-  clear_value q₁₀
-  have s₁₀ := w₁₀.1.trans s₉
-  have v₂q₁₀ := (w₁₀.valAt_eq (lo := (L + 1)) (n := (L - 1)) (by lia)).trans v₂q₉
-  have v₃q₁₀ := (w₁₀.valAt_eq (lo := (2 * L + 1)) (n := (L - 1)) (by lia)).trans v₃q₉
-  clear w₁₀ e₉ s₉ v₂q₉ v₃q₉
+  clear e₁a e₁b e₁c s₁
   -- The recombination.
   obtain ⟨z₁, z₂⟩ := zero_mid d o n (k + k) (4 * k) hd (by lia) (by lia)
   rw [hc₀, hc₄] at z₂
   rw [← (show A₀ = R.zeroInto d (o + (k + k)) (4 * k - (k + k)) from rfl)] at z₁ z₂
   replace z₁ := z₁.mono (o' := o) (len' := n) (by lia) (by lia)
   obtain ⟨a₁w, a₁v⟩ := add_coef A₀ o n k (by rw [z₁.1]; exact hd) (by lia)
-      q₁₀ 0 L c₁ e₁₀ (by
+      q₂ 0 L c₁ e₂a (by
     rw [z₂]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -277,10 +195,10 @@ public theorem interp4W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (4 * k)) * c₄ = T₄ at htot ⊢
     lia)
   rw [z₂] at a₁v
-  rw [← (show A₁ = R.addInto A₀ (o + k) (n - k) q₁₀ 0 (min (n - k) L) from rfl)] at a₁w a₁v
+  rw [← (show A₁ = R.addInto A₀ (o + k) (n - k) q₂ 0 (min (n - k) L) from rfl)] at a₁w a₁v
   have a₁w' := a₁w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans z₁
   obtain ⟨a₂w, a₂v⟩ := add_coef A₁ o n (2 * k) (by rw [a₁w'.1]; exact hd) (by lia)
-      q₁₀ (L + 1) (L - 1) c₂ v₂q₁₀ (by
+      q₂ (L + 1) (L - 1) c₂ e₂b (by
     rw [a₁v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢
@@ -288,10 +206,10 @@ public theorem interp4W_spec (d : A) (o n k L : Nat) (W : A) (c₀ c₁ c₂ c�
     generalize 2 ^ (LA.w * (4 * k)) * c₄ = T₄ at htot ⊢
     lia)
   rw [a₁v] at a₂v
-  rw [← (show A₂ = R.addInto A₁ (o + (2 * k)) (n - (2 * k)) q₁₀ (L + 1) (min (n - (2 * k)) (L - 1)) from rfl)] at a₂w a₂v
+  rw [← (show A₂ = R.addInto A₁ (o + (2 * k)) (n - (2 * k)) q₂ (L + 1) (min (n - (2 * k)) (L - 1)) from rfl)] at a₂w a₂v
   have a₂w' := a₂w.mono (o' := o) (len' := n) (by lia) (by lia) |>.trans a₁w'
   obtain ⟨a₃w, a₃v⟩ := add_coef A₂ o n (3 * k) (by rw [a₂w'.1]; exact hd) (by lia)
-      q₁₀ (2 * L + 1) (L - 1) c₃ v₃q₁₀ (by
+      q₂ (2 * L + 1) (L - 1) c₃ e₂c (by
     rw [a₂v]
     generalize 2 ^ (LA.w * k) * c₁ = T₁ at htot ⊢
     generalize 2 ^ (LA.w * (2 * k)) * c₂ = T₂ at htot ⊢

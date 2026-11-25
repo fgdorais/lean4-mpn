@@ -169,6 +169,19 @@ public class ToomOps (A : Type) (L : outParam Type) [LimbArray A L] where
       valAt (sub3Chain d o₁ o₂ o₃ o₄ len v) o₂ len = valAt d o₂ len - v * valAt d o₃ len ∧
       valAt (sub3Chain d o₁ o₂ o₃ o₄ len v) o₃ len = valAt d o₃ len - v * valAt d o₄ len
   /--
+  Toom-3's second stage: from `c₁ + c₂ + c₃`, `2 c₁ + 4 c₂ + 8 c₃` and `3 c₁ + 9 c₂ + 27 c₃` in the
+  windows of `n` limbs at `0`, `n` and `2 n` of `W`, `c₁` in the window at `0` and `c₂` and `c₃`
+  in the windows of `n - 1` limbs at `n + 1` and `2 n + 1`, in three passes: `toom3Stage W n`.
+  -/
+  toom3Stage : A → Nat → A
+  toom3Stage_spec : ∀ (W : A) (n c₁ c₂ c₃ : Nat), 2 ≤ n → LimbArray.size W = 3 * n →
+    valAt W 0 n = c₁ + c₂ + c₃ → valAt W n n = 2 * c₁ + 4 * c₂ + 8 * c₃ →
+    valAt W (2 * n) n = 3 * c₁ + 9 * c₂ + 27 * c₃ →
+    3 * c₁ + 9 * c₂ + 27 * c₃ < 2 ^ (LimbArray.w A * (n - 1)) →
+    LimbArray.size (toom3Stage W n) = 3 * n ∧ valAt (toom3Stage W n) 0 n = c₁ ∧
+      valAt (toom3Stage W n) (n + 1) (n - 1) = c₂ ∧
+      valAt (toom3Stage W n) (2 * n + 1) (n - 1) = c₃
+  /--
   `D 2^(w - 1)`, wrapped: an even `D` that fits in all but the top limb ends up halved in the
   limbs from the second on.
   -/
