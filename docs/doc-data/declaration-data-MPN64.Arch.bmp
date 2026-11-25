@@ -1,0 +1,1 @@
+{"declarations":[],"imports":["Init","MPN64.Arch.LinComb","MPN64.Arch.MulBasecase","MPN64.Arch.SqrBasecase","MPN64.Arch.UInt","MPN64.Arch.UIntArray"],"instances":[],"name":"MPN64.Arch"}
