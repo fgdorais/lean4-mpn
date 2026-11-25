@@ -75,9 +75,14 @@ Below 256 limbs, under the target's 4× of `Nat` but far from `mpn`:
     `mulToom` at 3584 limbs on 64-bit limbs before `eb1c37c`, and several points per pass would
     need one carry each;
   - chains of other shapes: of two windows, ending in the result (the top window minus `m c_D` in
-    the conversion from Newton's basis), or around a shift or an exact division, which need five
-    loop variables (four is the limit);
-  - Toom-3's and Toom-4's second stages, which have no chain of three;
+    the conversion from Newton's basis), or around a shift or an exact division (`inplace` loops
+    take up to eight loop variables since lean4-scalar-arrays v2.0.0, so four is no longer the
+    limit);
+  - Toom-4's second stage, which has no chain of three (Toom-3's is three passes,
+    `ToomOps.toom3Stage`, and its first and second passes could be one, with seven loop
+    variables: 0.1 µs of 45 µs at 384 limbs on x86);
+  - the recombination of Toom-3's products (a zeroing and three additions, 1.7% of Toom-3 at 384
+    limbs on x86);
   - one-pass values for two points or two pieces (Toom-3 by 2, Toom-4 by 2): `evals3` with the
     third point lost 0.6%, so it needs its own step and a fold of two windows, for under 1%.
 - [ ] **A shorter dependency chain in division by a limb**, for CPUs with slow division (GMP's

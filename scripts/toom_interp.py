@@ -150,6 +150,10 @@ def fuse_first(passes, ws):
     assert all(sum(1 for p in passes if first_pass(p) and int(p.split()[0]) == j) == 2 for j in ws)
     return ms
 
+# The one-array interpolations whose second stage, from the values of the first stage at `1`, `2`
+# and `3`, is the three passes of `toom3Stage`.
+STAGE3 = {4}
+
 # The one-array interpolations whose chains of three passes are fused by `sub3Chain`.
 CHAIN = {5, 6, 10, 14}
 
@@ -197,6 +201,9 @@ def genW(D):
     ms = fuse_first(passes, ws) if D in FUSE else None
     if ms:
         passes = ['fuse'] + [p for p in passes if not (first_pass(p) and int(p.split()[0]) in ms)]
+    if D in STAGE3:
+        assert passes[0] == 'fuse'
+        passes = ['fuse', 'stage3']
     code, proof, names = [], [], []
     curW, sz = 'W', 'hW'
     q = 0
@@ -282,6 +289,25 @@ def genW(D):
                 dead.append(ivh)
                 st[i][1] = nv
             proof.append(f'  clear {" ".join(dead)}')
+            code.append('  let W := ' + re.sub(rf'\b{curW}\b', 'W', call))
+            curW, sz = qn, sn
+            continue
+        if p == 'stage3':
+            # The second stage in three passes, by `toom3Stage`.
+            for j in ws:
+                assert st[j][0] == 0 and st[j][2] == {i: Fraction(j ** i) for i in (1, 2, 3)}, p
+            call = f'R.toom3Stage {curW} L'
+            wn, sn = f'w{sub(q)}', f's{sub(q)}'
+            ens = [f'e{sub(q)}{"abc"[i]}' for i in range(3)]
+            hvs_ = ' '.join(st[j][1] for j in ws)
+            proof.append(f'  obtain ⟨{sn}, {", ".join(ens)}⟩ := R.toom3Stage_spec {curW} L c₁ c₂ c₃ '
+                         f'hL {sz}\n      {hvs_} (by lia)')
+            proof.append(f'  rw [← (show {qn} = {call} from rfl)] at {sn} {" ".join(ens)}')
+            proof.append(f'  clear_value {qn}')
+            dead = [st[j][1] for j in ws] + ([sz] if sz != 'hW' else [])
+            proof.append(f'  clear {" ".join(dead)}')
+            for i, j in enumerate(ws):
+                st[j] = [0 if j == 1 else 1, ens[i], {j: Fraction(1)}]
             code.append('  let W := ' + re.sub(rf'\b{curW}\b', 'W', call))
             curW, sz = qn, sn
             continue
@@ -471,8 +497,8 @@ at `(j - 1) L` of one array `W`, turns the `w_j` into the coefficients `c_j` in 
 them into the result. The points are natural numbers, so every intermediate value is a natural
 number: each subtraction takes away a part of the value it subtracts from, and each division is
 exact. The first stage of degrees 4 to 6 takes `c₀` and `c_D` from three windows in one pass
-(`sub3Lin`), and each run of three passes `w_a - m w_b`, `w_b - m w_c`, `w_c - m w_e` is one pass
-(`sub3Chain`).
+(`sub3Lin`), each run of three passes `w_a - m w_b`, `w_b - m w_c`, `w_c - m w_e` is one pass
+(`sub3Chain`), and the second stage of degree 4 is the three passes of `toom3Stage`.
 -/
 
 namespace MPN.Toom

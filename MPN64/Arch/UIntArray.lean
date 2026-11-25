@@ -1192,6 +1192,83 @@ private theorem run_fold3Chain {β₁ β₂ β₃ γ : Type} (n lo : USize)
     simp only [InPlace.Tail.run_readThen, InPlace.Tail.run_writeThen, hf]
     exact ih _ _ _ (by rw [USize.toNat_add_one_of_lt h]; lia) _ _ _ _ _ _ _ _
 
+/--
+`main`'s `foldUInPlace3RThen` with an accumulator of four parts, as an `inplace` program: each
+step reads limbs `xs + k`, `ys + k` and `zs + k` and writes limb `rs + k`, with the four parts as
+four loop variables.
+-/
+@[inline, expose] public def foldUInPlace3R4ThenLib {β₁ β₂ β₃ β₄ γ : Type} (n : USize)
+    (f : (j : USize) → j < n → UInt64 → UInt64 → UInt64 → β₁ → β₂ → β₃ → β₄ → UInt64 × β₁ × β₂ × β₃ × β₄)
+    (arr : UInt64Array) (rs xs ys zs : USize) (hr : LoopBound arr rs n) (hx : LoopBound arr xs n)
+    (hy : LoopBound arr ys n) (hz : LoopBound arr zs n) (j : USize) (b₁ : β₁) (b₂ : β₂)
+    (b₃ : β₃) (b₄ : β₄) (g : (arr' : UInt64Array) → arr'.size = arr.size → β₁ → β₂ → β₃ → β₄ → γ) :
+    γ :=
+  have := hr.1; have := hx.1; have := hy.1; have := hz.1
+  inplace arr do
+    for k in j...n with (c₁ := b₁) (c₂ := b₂) (c₃ := b₃) (c₄ := b₄) do
+      let x := arr[xs + k]
+      let y := arr[ys + k]
+      let z := arr[zs + k]
+      let (u, d₁, d₂, d₃, d₄) := f k (USize.lt_iff_toNat_lt.2 (by assumption)) x y z c₁ c₂ c₃ c₄
+      arr[rs + k] := u
+      c₁ := d₁
+      c₂ := d₂
+      c₃ := d₃
+      c₄ := d₄
+    return (c₁, c₂, c₃, c₄)
+  then fun (c₁, c₂, c₃, c₄) arr' h => g arr' h c₁ c₂ c₃ c₄
+
+/-- The loop of `foldUInPlace3R4ThenLib` is `foldUInPlace3R`, followed by the rest `k`. -/
+private theorem run_fold3R4 {β₁ β₂ β₃ β₄ γ : Type} (n lo : USize)
+    (f : (j : USize) → j < n → UInt64 → UInt64 → UInt64 → β₁ → β₂ → β₃ → β₄ → UInt64 × β₁ × β₂ × β₃ × β₄)
+    (arr₀ : UInt64Array) (rs xs ys zs : USize) (hr : LoopBound arr₀ rs n) (hx : LoopBound arr₀ xs n)
+    (hy : LoopBound arr₀ ys n) (hz : LoopBound arr₀ zs n)
+    (k : β₁ → β₂ → β₃ → β₄ → InPlace.Tail arr₀.size γ) :
+    ∀ (arr : UInt64Array) (hs : arr.size = arr₀.size) (j : USize) (hlo : lo.toNat ≤ j.toNat)
+      (b₁ : β₁) (b₂ : β₂) (b₃ : β₃) (b₄ : β₄) hr' hx' hy' hz',
+      (InPlace.Tail.forIn4From lo n j hlo b₁ b₂ b₃ b₄ (fun k' _ hk next c₁ c₂ c₃ c₄ =>
+        InPlace.Tail.readThen (xs + k') (hx.uset_bound (USize.lt_iff_toNat_lt.2 hk)) fun x =>
+          InPlace.Tail.readThen (ys + k') (hy.uset_bound (USize.lt_iff_toNat_lt.2 hk)) fun y =>
+            InPlace.Tail.readThen (zs + k') (hz.uset_bound (USize.lt_iff_toNat_lt.2 hk)) fun z =>
+              InPlace.Tail.writeThen (rs + k') (hr.uset_bound (USize.lt_iff_toNat_lt.2 hk))
+                (f k' (USize.lt_iff_toNat_lt.2 hk) x y z c₁ c₂ c₃ c₄).1
+                (next (f k' (USize.lt_iff_toNat_lt.2 hk) x y z c₁ c₂ c₃ c₄).2.1
+                  (f k' (USize.lt_iff_toNat_lt.2 hk) x y z c₁ c₂ c₃ c₄).2.2.1
+                  (f k' (USize.lt_iff_toNat_lt.2 hk) x y z c₁ c₂ c₃ c₄).2.2.2.1
+                  (f k' (USize.lt_iff_toNat_lt.2 hk) x y z c₁ c₂ c₃ c₄).2.2.2.2)) k).run arr hs =
+        (k (MPN.WordArray.foldUInPlace3R n (fun j h x y z c => f j h x y z c.1 c.2.1 c.2.2.1 c.2.2.2)
+              arr rs xs ys zs hr' hx' hy' hz' j (b₁, b₂, b₃, b₄)).2.1
+            (MPN.WordArray.foldUInPlace3R n (fun j h x y z c => f j h x y z c.1 c.2.1 c.2.2.1 c.2.2.2)
+              arr rs xs ys zs hr' hx' hy' hz' j (b₁, b₂, b₃, b₄)).2.2.1
+            (MPN.WordArray.foldUInPlace3R n (fun j h x y z c => f j h x y z c.1 c.2.1 c.2.2.1 c.2.2.2)
+              arr rs xs ys zs hr' hx' hy' hz' j (b₁, b₂, b₃, b₄)).2.2.2.1
+            (MPN.WordArray.foldUInPlace3R n (fun j h x y z c => f j h x y z c.1 c.2.1 c.2.2.1 c.2.2.2)
+              arr rs xs ys zs hr' hx' hy' hz' j (b₁, b₂, b₃, b₄)).2.2.2.2).run
+          (MPN.WordArray.foldUInPlace3R n (fun j h x y z c => f j h x y z c.1 c.2.1 c.2.2.1 c.2.2.2)
+            arr rs xs ys zs hr' hx' hy' hz' j (b₁, b₂, b₃, b₄)).1
+          (Eq.trans (MPN.WordArray.size_foldUInPlace3R (A := UInt64Array) ..) hs) := by
+  intro arr hs j
+  induction hd : n.toNat - j.toNat generalizing arr j with
+  | zero =>
+    intro hlo b₁ b₂ b₃ b₄ hr' hx' hy' hz'
+    have h : ¬ j < n := fun h => by have := USize.lt_iff_toNat_lt.1 h; lia
+    have hf := MPN.WordArray.foldUInPlace3R.eq_1 n
+      (fun j h x y z c => f j h x y z c.1 c.2.1 c.2.2.1 c.2.2.2) arr rs xs ys zs hr' hx' hy' hz' j
+      (b₁, b₂, b₃, b₄)
+    rw [dite_eq_right_of_eq_false (eq_false h)] at hf
+    rw [InPlace.Tail.forIn4From_eq, dite_eq_right_of_eq_false (eq_false h)]
+    simp only [hf]
+  | succ d ih =>
+    intro hlo b₁ b₂ b₃ b₄ hr' hx' hy' hz'
+    have h : j < n := USize.lt_iff_toNat_lt.2 (by lia)
+    rw [InPlace.Tail.forIn4From_eq, dite_eq_left_of_eq_true (eq_true h)]
+    have hf := MPN.WordArray.foldUInPlace3R.eq_1 n
+      (fun j h x y z c => f j h x y z c.1 c.2.1 c.2.2.1 c.2.2.2) arr rs xs ys zs hr' hx' hy' hz' j
+      (b₁, b₂, b₃, b₄)
+    rw [dite_eq_left_of_eq_true (eq_true h)] at hf
+    simp only [InPlace.Tail.run_readThen, InPlace.Tail.run_writeThen, hf]
+    exact ih _ _ _ (by rw [USize.toNat_add_one_of_lt h]; lia) _ _ _ _ _ _ _ _ _
+
 /-- `main`'s in-place loops on `UInt64Array`, by `foldlInPlaceRangeThen` and `foldlInPlace2Then`. -/
 public instance wordFolds64 : MPN.WordFolds UInt64Array UInt64 where
   fold2Then := foldUInPlace2ThenLib
@@ -1240,6 +1317,13 @@ public instance wordFolds64 : MPN.WordFolds UInt64Array UInt64 where
     rw [run_fold3Chain n j f₁ f₂ f₃ arr rs ts us vs hr ht hu hv _ arr rfl j (Nat.le_refl _) b₁ b₂
       b₃ hr ht hu hv]
     simp only [InPlace.Tail.run_done, MPN.WordArray.foldUInPlace3ChainThen]
+  fold3R4Then := foldUInPlace3R4ThenLib
+  fold3R4Then_eq := by
+    intro β₁ β₂ β₃ β₄ γ n f arr rs xs ys zs hr hx hy hz j b₁ b₂ b₃ b₄ g
+    simp only [foldUInPlace3R4ThenLib, runInPlaceThenOf_eq, InPlace.Tail.forIn4_eq]
+    rw [run_fold3R4 n j f arr rs xs ys zs hr hx hy hz _ arr rfl j (Nat.le_refl _) b₁ b₂ b₃ b₄
+      hr hx hy hz]
+    simp only [InPlace.Tail.run_done, MPN.WordArray.foldUInPlace3RThen]
 
 /-- A sub-slice of a whole array, `toUSlice`. -/
 public theorem toUSlice_slice (a : UInt64Array) {i j : USize} (hij : i.toNat ≤ j.toNat)

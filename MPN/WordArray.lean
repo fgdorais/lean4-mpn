@@ -1216,6 +1216,164 @@ public def foldUInPlace3ChainThen {β₁ β₂ β₃ γ : Type} (n : USize)
     (foldUInPlace3Chain n f₁ f₂ f₃ arr rs ts us vs hr ht hu hv j b₁ b₂ b₃).2.2.1
     (foldUInPlace3Chain n f₁ f₂ f₃ arr rs ts us vs hr ht hu hv j b₁ b₂ b₃).2.2.2
 
+/-! ## One window written while reading three
+
+`foldUInPlace3R n f arr rs xs ys zs hr hx hy hz j b` replaces limbs `rs + j` to `rs + n - 1` of
+`arr` with `f` of limbs `xs + j`, `ys + j` and `zs + j` of `arr` itself, read at the time of the
+step, for a pass whose step reads the limb it replaces and two others, like the passes of
+`Toom.interp4W`'s second stage. A window read may be the window written.
+-/
+
+/-- Replaces limbs `rs + j` to `rs + n - 1` of `arr` with `f` of limbs `xs + j`, `ys + j`, `zs + j`. -/
+@[expose] public def foldUInPlace3R {β : Type} (n : USize)
+    (f : (j : USize) → j < n → L → L → L → β → L × β)
+    (arr : A) (rs xs ys zs : USize) (hr : LoopBound arr rs n) (hx : LoopBound arr xs n)
+    (hy : LoopBound arr ys n) (hz : LoopBound arr zs n) (j : USize) (b : β) : A × β :=
+  if h : j < n then
+    let p := f j h (R.uget arr (xs + j) (hx.uset_bound h)) (R.uget arr (ys + j) (hy.uset_bound h))
+      (R.uget arr (zs + j) (hz.uset_bound h)) b
+    foldUInPlace3R n f (R.uset arr (rs + j) p.1 (hr.uset_bound h)) rs xs ys zs (hr.of_uset ..)
+      (hx.of_uset ..) (hy.of_uset ..) (hz.of_uset ..) (j + 1) p.2
+  else
+    (arr, b)
+termination_by n.toNat - j.toNat
+decreasing_by
+  have := USize.lt_iff_toNat_lt.1 h
+  rw [USize.toNat_add_one_of_lt h]
+  lia
+
+public theorem size_foldUInPlace3R {β : Type} (n : USize)
+    (f : (j : USize) → j < n → L → L → L → β → L × β) (arr : A)
+    (rs xs ys zs : USize) (hr : LoopBound arr rs n) (hx : LoopBound arr xs n)
+    (hy : LoopBound arr ys n) (hz : LoopBound arr zs n) (j : USize) (b : β) :
+    LA.size (foldUInPlace3R n f arr rs xs ys zs hr hx hy hz j b).1 = LA.size arr := by
+  induction arr, hr, hx, hy, hz, j, b using foldUInPlace3R.induct (R := R) n f rs xs ys zs with
+  | case1 arr hr hx hy hz j b h p ih =>
+    rw [foldUInPlace3R]
+    simp only [h, ↓reduceDIte]
+    exact ih.trans (R.size_uset ..)
+  | case2 arr hr hx hy hz j b h =>
+    rw [foldUInPlace3R]
+    simp only [h, ↓reduceDIte]
+
+/-- `foldUInPlace3R` followed by `g` on the new array and the last accumulator. -/
+@[expose]
+public def foldUInPlace3RThen {β γ : Type} (n : USize)
+    (f : (j : USize) → j < n → L → L → L → β → L × β) (arr : A)
+    (rs xs ys zs : USize) (hr : LoopBound arr rs n) (hx : LoopBound arr xs n)
+    (hy : LoopBound arr ys n) (hz : LoopBound arr zs n) (j : USize) (b : β)
+    (g : (arr' : A) → LA.size arr' = LA.size arr → β → γ) : γ :=
+  g (foldUInPlace3R n f arr rs xs ys zs hr hx hy hz j b).1 (size_foldUInPlace3R ..)
+    (foldUInPlace3R n f arr rs xs ys zs hr hx hy hz j b).2
+
+/-- One step of the law of `foldUInPlace3R`, from the law of the rest. -/
+private theorem law3R_step {o V P' Q' X Y Z x y z Pp Qp Pb Qb W B uo ux uy uz vx vy vz : Nat}
+    (ih : uo * V + B * P' + ux * X + uy * Y + uz * Z + Qp = vx * X + vy * Y + vz * Z + B * Q' + Pp)
+    (hl : uo * o + W * Pp + ux * x + uy * y + uz * z + Qb = vx * x + vy * y + vz * z + W * Qp + Pb) :
+    uo * (o + W * V) + B * W * P' + ux * (x + W * X) + uy * (y + W * Y) + uz * (z + W * Z) + Qb =
+      vx * (x + W * X) + vy * (y + W * Y) + vz * (z + W * Z) + B * W * Q' + Pb := by
+  have := congrArg (W * ·) ih
+  simp only [Nat.mul_add] at this
+  grind
+
+/--
+The value of `foldUInPlace3R` for a step with a linear law, as `foldUInPlace2_spec` with a third
+limb read and a multiplier `uo` of the limb written: if every step turns limbs `x`, `y`, `z` and
+the accumulator `c` into a limb `out` and an accumulator `c'` with
+`uo out + 2ʷ P c' + ux x + uy y + uz z + Q c = vx x + vy y + vz z + 2ʷ Q c' + P c`, then the
+window written and the last accumulator satisfy the same law with the values of the windows, as
+long as the windows read are not overwritten before they are read.
+-/
+public theorem foldUInPlace3R_spec {β : Type} (n : USize)
+    (f : (j : USize) → j < n → L → L → L → β → L × β) (P Q : β → Nat)
+    (uo ux uy uz vx vy vz : Nat) (I : β → Prop) (inv : ∀ j h x y z c, I c → I (f j h x y z c).2)
+    (law : ∀ j h x y z c, I c → uo * LA.val (f j h x y z c).1 + 2 ^ LA.w * P (f j h x y z c).2 +
+      ux * LA.val x + uy * LA.val y + uz * LA.val z + Q c =
+        vx * LA.val x + vy * LA.val y + vz * LA.val z + 2 ^ LA.w * Q (f j h x y z c).2 + P c)
+    (arr : A) (rs xs ys zs : USize) (hr : LoopBound arr rs n) (hx : LoopBound arr xs n)
+    (hy : LoopBound arr ys n) (hz : LoopBound arr zs n)
+    (hdx : rs.toNat ≤ xs.toNat ∨ xs.toNat + n.toNat ≤ rs.toNat)
+    (hdy : rs.toNat ≤ ys.toNat ∨ ys.toNat + n.toNat ≤ rs.toNat)
+    (hdz : rs.toNat ≤ zs.toNat ∨ zs.toNat + n.toNat ≤ rs.toNat) (j : USize) (b : β) (hb : I b) :
+    LA.size (foldUInPlace3R n f arr rs xs ys zs hr hx hy hz j b).1 = LA.size arr ∧
+      I (foldUInPlace3R n f arr rs xs ys zs hr hx hy hz j b).2 ∧
+      (∀ i, (i < rs.toNat + j.toNat ∨ rs.toNat + n.toNat ≤ i) →
+        LA.get (foldUInPlace3R n f arr rs xs ys zs hr hx hy hz j b).1 i = LA.get arr i) ∧
+      uo * LimbArray.valAt (foldUInPlace3R n f arr rs xs ys zs hr hx hy hz j b).1
+          (rs.toNat + j.toNat) (n.toNat - j.toNat) +
+        2 ^ (LA.w * (n.toNat - j.toNat)) *
+          P (foldUInPlace3R n f arr rs xs ys zs hr hx hy hz j b).2 +
+        ux * LimbArray.valAt arr (xs.toNat + j.toNat) (n.toNat - j.toNat) +
+        uy * LimbArray.valAt arr (ys.toNat + j.toNat) (n.toNat - j.toNat) +
+        uz * LimbArray.valAt arr (zs.toNat + j.toNat) (n.toNat - j.toNat) + Q b =
+      vx * LimbArray.valAt arr (xs.toNat + j.toNat) (n.toNat - j.toNat) +
+        vy * LimbArray.valAt arr (ys.toNat + j.toNat) (n.toNat - j.toNat) +
+        vz * LimbArray.valAt arr (zs.toNat + j.toNat) (n.toNat - j.toNat) +
+        2 ^ (LA.w * (n.toNat - j.toNat)) *
+          Q (foldUInPlace3R n f arr rs xs ys zs hr hx hy hz j b).2 + P b := by
+  induction arr, hr, hx, hy, hz, j, b using foldUInPlace3R.induct (R := R) n f rs xs ys zs with
+  | case1 arr hr hx hy hz j b h p ih =>
+    rw [foldUInPlace3R]
+    simp only [h, ↓reduceDIte]
+    have hI := inv j h (R.uget arr (xs + j) (hx.uset_bound h)) (R.uget arr (ys + j) (hy.uset_bound h))
+      (R.uget arr (zs + j) (hz.uset_bound h)) b hb
+    have hj := USize.lt_iff_toNat_lt.1 h
+    have hj₁ := USize.toNat_add_one_of_lt h
+    have hri := hr.toNat_add h
+    have hxi := hx.toNat_add h
+    have hyi := hy.toNat_add h
+    have hzi := hz.toNat_add h
+    obtain ⟨ih₁, ih₀, ih₂, ih₃⟩ := ih hI
+    rw [hj₁] at ih₂ ih₃
+    rw [R.size_uset] at ih₁
+    have hv : LA.get (foldUInPlace3R n f (R.uset arr (rs + j) p.1 (hr.uset_bound h)) rs xs ys zs
+        (hr.of_uset ..) (hx.of_uset ..) (hy.of_uset ..) (hz.of_uset ..) (j + 1) p.2).1
+          (rs.toNat + j.toNat) = p.1 := by
+      rw [ih₂ _ (.inl (by lia)), R.get_uset]
+      simp [hri]
+    have hX : LimbArray.valAt (R.uset arr (rs + j) p.1 (hr.uset_bound h))
+        (xs.toNat + (j.toNat + 1)) (n.toNat - (j.toNat + 1)) =
+          LimbArray.valAt arr (xs.toNat + (j.toNat + 1)) (n.toNat - (j.toNat + 1)) :=
+      valAt_uset_of _ _ _ _ _ _ (by rw [hri]; lia)
+    have hY : LimbArray.valAt (R.uset arr (rs + j) p.1 (hr.uset_bound h))
+        (ys.toNat + (j.toNat + 1)) (n.toNat - (j.toNat + 1)) =
+          LimbArray.valAt arr (ys.toNat + (j.toNat + 1)) (n.toNat - (j.toNat + 1)) :=
+      valAt_uset_of _ _ _ _ _ _ (by rw [hri]; lia)
+    have hZ : LimbArray.valAt (R.uset arr (rs + j) p.1 (hr.uset_bound h))
+        (zs.toNat + (j.toNat + 1)) (n.toNat - (j.toNat + 1)) =
+          LimbArray.valAt arr (zs.toNat + (j.toNat + 1)) (n.toNat - (j.toNat + 1)) :=
+      valAt_uset_of _ _ _ _ _ _ (by rw [hri]; lia)
+    have hx' : R.uget arr (xs + j) (hx.uset_bound h) = LA.get arr (xs.toNat + j.toNat) := by
+      rw [R.uget_eq, hxi]
+    have hy' : R.uget arr (ys + j) (hy.uset_bound h) = LA.get arr (ys.toNat + j.toNat) := by
+      rw [R.uget_eq, hyi]
+    have hz' : R.uget arr (zs + j) (hz.uset_bound h) = LA.get arr (zs.toNat + j.toNat) := by
+      rw [R.uget_eq, hzi]
+    refine ⟨ih₁, ih₀, fun i hi => ?_, ?_⟩
+    · rw [ih₂ i (by lia), R.get_uset]
+      simp only [hri]
+      split <;> lia
+    · rw [hX, hY, hZ] at ih₃
+      obtain ⟨k, hk⟩ : ∃ k, n.toNat - j.toNat = k + 1 := ⟨n.toNat - j.toNat - 1, by lia⟩
+      rw [show n.toNat - (j.toNat + 1) = k by lia, ← Nat.add_assoc, ← Nat.add_assoc,
+        ← Nat.add_assoc, ← Nat.add_assoc] at ih₃
+      have hl := law j h (R.uget arr (xs + j) (hx.uset_bound h))
+        (R.uget arr (ys + j) (hy.uset_bound h)) (R.uget arr (zs + j) (hz.uset_bound h)) b hb
+      rw [hk, LimbArray.valAt_succ, LimbArray.valAt_succ, LimbArray.valAt_succ,
+        LimbArray.valAt_succ, hv, Nat.mul_succ, Nat.pow_add, ← hx', ← hy', ← hz']
+      show _ * (_ + _ * LimbArray.valAt (foldUInPlace3R n f (R.uset arr (rs + j) p.1
+        (hr.uset_bound h)) rs xs ys zs (hr.of_uset ..) (hx.of_uset ..) (hy.of_uset ..)
+        (hz.of_uset ..) (j + 1) p.2).1 _ _) + _ * P (foldUInPlace3R n f (R.uset arr (rs + j) p.1
+        (hr.uset_bound h)) rs xs ys zs (hr.of_uset ..) (hx.of_uset ..) (hy.of_uset ..)
+        (hz.of_uset ..) (j + 1) p.2).2 + _ + _ + _ + _ = _
+      generalize (foldUInPlace3R n f (R.uset arr (rs + j) p.1 (hr.uset_bound h)) rs xs ys zs
+        (hr.of_uset ..) (hx.of_uset ..) (hy.of_uset ..) (hz.of_uset ..) (j + 1) p.2) = q at *
+      exact law3R_step ih₃ hl
+  | case2 arr hr hx hy hz j b h =>
+    rw [foldUInPlace3R]
+    have : n.toNat - j.toNat = 0 := by have := USize.lt_iff_toNat_lt (a := j) (b := n); lia
+    simp [h, this, Nat.add_comm, hb]
+
 end WordArray
 
 open WordArray in
@@ -1286,6 +1444,19 @@ public class WordFolds (A : Type) (L : outParam Type) [LA : LimbArray A L] [Word
   fold3ChainThen_eq : ∀ {β₁ β₂ β₃ γ : Type} n f₁ f₂ f₃ arr rs ts us vs hr ht hu hv j b₁ b₂ b₃ g,
     @fold3ChainThen β₁ β₂ β₃ γ n f₁ f₂ f₃ arr rs ts us vs hr ht hu hv j b₁ b₂ b₃ g =
       foldUInPlace3ChainThen n f₁ f₂ f₃ arr rs ts us vs hr ht hu hv j b₁ b₂ b₃ g
+  /--
+  `foldUInPlace3RThen` with an accumulator of four parts, compiled: one pass that writes one
+  window while reading three, with the parts kept apart, and unboxed when they are words.
+  -/
+  fold3R4Then : {β₁ β₂ β₃ β₄ γ : Type} → (n : USize) →
+    ((j : USize) → j < n → L → L → L → β₁ → β₂ → β₃ → β₄ → L × β₁ × β₂ × β₃ × β₄) →
+    (arr : A) → (rs xs ys zs : USize) → LoopBound arr rs n → LoopBound arr xs n →
+    LoopBound arr ys n → LoopBound arr zs n → USize → β₁ → β₂ → β₃ → β₄ →
+    ((arr' : A) → LA.size arr' = LA.size arr → β₁ → β₂ → β₃ → β₄ → γ) → γ
+  fold3R4Then_eq : ∀ {β₁ β₂ β₃ β₄ γ : Type} n f arr rs xs ys zs hr hx hy hz j b₁ b₂ b₃ b₄ g,
+    @fold3R4Then β₁ β₂ β₃ β₄ γ n f arr rs xs ys zs hr hx hy hz j b₁ b₂ b₃ b₄ g =
+      foldUInPlace3RThen n (fun j h x y z c => f j h x y z c.1 c.2.1 c.2.2.1 c.2.2.2) arr rs xs
+        ys zs hr hx hy hz j (b₁, b₂, b₃, b₄) (fun arr' h c => g arr' h c.1 c.2.1 c.2.2.1 c.2.2.2)
 
 namespace WordArray
 
@@ -1305,6 +1476,20 @@ public theorem fold2Then_cases {β γ : Type} {n : USize}
     ∃ a, ∃ ha : LA.size a = LA.size arr, ∃ c,
       foldUInPlace2 n f arr rs xs ys hr hx hy j b = (a, c) ∧ g a ha c = G := by
   rw [F.fold2Then_eq, foldUInPlace2Then] at h
+  exact ⟨_, _, _, rfl, h⟩
+
+/-- `fold3R4Then` as an intermediate result, like `fold2Then_cases`. -/
+public theorem fold3R4Then_cases {β₁ β₂ β₃ β₄ γ : Type} {n : USize}
+    {f : (j : USize) → j < n → L → L → L → β₁ → β₂ → β₃ → β₄ → L × β₁ × β₂ × β₃ × β₄} {arr : A}
+    {rs xs ys zs : USize} {hr : LoopBound arr rs n} {hx : LoopBound arr xs n}
+    {hy : LoopBound arr ys n} {hz : LoopBound arr zs n} {j : USize} {b₁ : β₁} {b₂ : β₂}
+    {b₃ : β₃} {b₄ : β₄} {g : (arr' : A) → LA.size arr' = LA.size arr → β₁ → β₂ → β₃ → β₄ → γ}
+    {G : γ} (h : F.fold3R4Then n f arr rs xs ys zs hr hx hy hz j b₁ b₂ b₃ b₄ g = G) :
+    ∃ a, ∃ ha : LA.size a = LA.size arr, ∃ c,
+      foldUInPlace3R n (fun j h x y z c => f j h x y z c.1 c.2.1 c.2.2.1 c.2.2.2) arr rs xs ys
+          zs hr hx hy hz j (b₁, b₂, b₃, b₄) = (a, c) ∧
+        g a ha c.1 c.2.1 c.2.2.1 c.2.2.2 = G := by
+  rw [F.fold3R4Then_eq, foldUInPlace3RThen] at h
   exact ⟨_, _, _, rfl, h⟩
 
 /-- `foldThen` as an intermediate result, like `fold2Then_cases`. -/
