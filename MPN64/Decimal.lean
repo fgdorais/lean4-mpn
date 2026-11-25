@@ -105,8 +105,11 @@ arrays themselves.
 /-- The size below which divide and conquer writes digits by chunks. -/
 public def decBaseSize : Nat := 16
 
-/-- The size, in digits, below which divide and conquer reads digits by chunks. -/
-public def parseBaseSize : Nat := 300
+/--
+The size, in digits, below which divide and conquer reads digits by chunks: 1200, from 150 to
+2400 the fastest or within 2% of it on an Apple M2 at every size from 256 to 4096 limbs.
+-/
+public def parseBaseSize : Nat := 1200
 
 private theorem hto (x : UInt64Array) : DecChunks.vA (id x) = ops64.val x := by
   rw [ops64_val, id, decVA_eq]

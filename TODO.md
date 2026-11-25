@@ -17,11 +17,14 @@ operations are within 4× of `Nat` there. Against `mpn` from 256 to 16384 limbs,
 at 4096, where Toom-8 hands over to the FFT); from 256 limbs (`0987e74`, `599df9a`) division is
 1.5–3.0×, `gcd` 1.5–2.4× and the square root 2.3–3.0×; subtraction is 3.3–3.4× since `2b3324c`. The items over the target come first.
 
-- [ ] **Reading decimal strings** from 256 limbs is 4.2–4.9× `mpn_set_str` (`2a87ccd`), a little
-  over the target: the digits are an array by one fold (`digitArray`) and divide and conquer starts
-  at `parseDC = 1024`. What is left is mostly the products of the divide and conquer and the
-  quadratic base case's new array per chunk (`mulAddA`, in place it needs a `push` in `WordArray`
-  and a fold); its leaves still read characters into a state cell (`parseBase`, `step`).
+- [ ] **Reading decimal strings** on an Apple M2 is 3.3–4.2× `mpn_set_str` from 128 to 4096 limbs
+  (2026-11-25: powers without their zero limbs, the base case in place, `parseDC = 704`), at the
+  target except near the crossover, 3.9–4.2× from 512 to 1024 limbs. What is left: the products
+  of the divide and conquer (two thirds of its time), the powers (about 10%), and two passes over
+  the string before the digits, the check (`isNatB`) and the search for `_` (`hasUnderscore`), which
+  one loop could do together, though `GNat.ofString?` checks before it calls `ofDecimal`. On x86
+  the base case's loop compiles to a separate low product (`imul` and `mul`), 25% more
+  instructions than a loop with one `mul`.
 - [ ] **Products and squares on an Apple M2** are a little over the target from about 3000 limbs
   (`6c9fe8e`, with the Zen 3 defaults): products 4.0–4.3× `mpn_mul` from 4096 to 16384 limbs (Toom-8
   at 4096, the FFT from 6144), squares 4.0–4.8× from 3072 (the Toom squares up to 4096). The M2's
@@ -42,12 +45,10 @@ Below 256 limbs, under the target's 4× of `Nat` but far from `mpn`:
   in-place division of `Schoolbook.workS` and kernels into one scratch buffer, would come to about
   4.3× at 16 limbs and 3× at 64 by that measurement; the recursion on arrays with the `Num`
   operations directly, without the generic layer, perhaps 1.5–1.8×.
-- [ ] **Decimal strings** below 256 limbs are 3.3–7.4× `mpn_set_str` to read and 2.5–4.1×
-  `mpn_get_str` to write (`81dfc27`): both read and check the UTF-8 bytes (`readB`, `isNatB`) and
-  write from words, dividing in place. Reading still makes two passes, the check and the digits,
-  about 1.5 ns per byte each, which one loop could do together, and a new array per chunk of 19
-  digits (`mulAddA`), which a multiplication in place would avoid (it needs a `push` in
-  `WordArray`).
+- [ ] **Decimal strings** below 256 limbs are 3.3–5.5× `mpn_set_str` to read on an Apple M2
+  (2026-11-25, in place) and 2.5–4.1× `mpn_get_str` to write (`81dfc27`): both read and check the
+  UTF-8 bytes (`readBI`, `isNatB`) and write from words, dividing in place. Reading still makes two
+  passes, the check and the digits, which one loop could do together.
 - [ ] **Division on 64-bit limbs**: since `c4bc02b` (Barrett's division by the top half of the
   divisor) `Num.div` runs at 2.3–3.0× `mpn_tdiv_qr` from 1024 limbs (2.9–3.6× `Nat`), worst near
   4096 where the divide-and-conquer division hands over. GMP's division is about 2.1 of its own
