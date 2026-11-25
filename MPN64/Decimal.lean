@@ -57,6 +57,13 @@ public instance dec64 : DecOps UInt64Array UInt64 where
   divRem_spec a := WordArray.divRem1InA_spec 1 div1RecipU a _ (by decide)
   mulAdd := WordArray.mulAddA 1
   vA_mulAdd a m v _ := WordArray.mulAddA_spec 1 a m v
+  alloc n := WordArray.zeros n
+  size_alloc := WordArray.size_zeros
+  val_get_alloc := WordArray.val_get_zeros
+  mulAddIn := WordArray.mulAddInA 1
+  mulAddIn_spec a u m v hu hz := WordArray.mulAddInA_spec 1 a u m v hu hz
+  trim := WordArray.trimTo 1
+  vA_trim := WordArray.valAt_trimTo 1
   chunkWord x := x
   toNat_chunkWord _ := rfl
   chunk0 := 0
