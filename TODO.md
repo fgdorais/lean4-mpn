@@ -105,7 +105,9 @@ Below 256 limbs, under the target's 4× of `Nat` but far from `mpn`:
   transforms, and a fold with three carries (the sum, the difference, the shift). By callgrind on
   64-bit limbs at 16384 limbs (2026-11-25), the products by `2ᵉ` are about 10% of the
   instructions of an FFT product (`rotShlAt` 7%, `rotAt` 4%), part of which a fused pass would
-  still do, which bounds the gain. Also `fftK` tuned per machine. The pointwise products and
+  still do, which bounds the gain. `fftK` on an Apple M2 (2026-11-25, `fft7` to `fft12`): the
+  default is within 1% of the best `2ᵏ` pieces from 8192 to 65536 limbs, and 11% slower at 4096
+  (`k = 9` against `8`), below `mulFFT`; Zen 3 not measured again. The pointwise products and
   squares go through the FFT itself from `mulFFT` and `sqrFFT` limbs, two levels deep
   (`Dispatch.mulPD`, `Dispatch.sqrPD`), as full products reduced afterwards; with `fftK`'s
   `K ≈ √(c T)` their residues have about `0.6 √T` limbs and reach the thresholds only from about
