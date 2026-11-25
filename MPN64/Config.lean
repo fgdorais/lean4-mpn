@@ -109,10 +109,10 @@ public structure Config extends Dispatch.MulConfig, Dispatch.DivConfig, Dispatch
   strDC : Nat := 44
   /--
   The size of the result, in limbs, from which decimal strings are read by divide and conquer, as
-  `tune64` measures it on an Apple M2 (640–704) and an x86 cloud machine (about 600) since the
-  powers without their zero limbs and the base case in place.
+  `tune64` measures it on an Apple M2 (576–640, with leaves of 1200 digits) since the powers
+  without their zero limbs and the base case in place; about 600 on an x86 cloud machine.
   -/
-  parseDC : Nat := 704
+  parseDC : Nat := 640
   deriving Repr
 
 /-- The thresholds of the Karatsuba and Toom methods of `MPN.Toom`, a projection. -/

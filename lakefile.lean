@@ -219,7 +219,3 @@ lean_exe bench64 where
 /-- Measures the thresholds of `MPN.W64.Config` on this machine: `lake exe tune64 [--verbose]`. -/
 lean_exe tune64 where
   root := `Tune.W64
-
-lean_exe prof where
-  root := `Bench.Prof
-  moreLinkObjs := #[mpnBench.o]

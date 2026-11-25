@@ -17,9 +17,9 @@ operations are within 4× of `Nat` there. Against `mpn` from 256 to 16384 limbs,
 at 4096, where Toom-8 hands over to the FFT); from 256 limbs (`0987e74`, `599df9a`) division is
 1.5–3.0×, `gcd` 1.5–2.4× and the square root 2.3–3.0×; subtraction is 3.3–3.4× since `2b3324c`. The items over the target come first.
 
-- [ ] **Reading decimal strings** on an Apple M2 is 3.3–4.2× `mpn_set_str` from 128 to 4096 limbs
-  (2026-11-25: powers without their zero limbs, the base case in place, `parseDC = 704`), at the
-  target except near the crossover, 3.9–4.2× from 512 to 1024 limbs. What is left: the products
+- [ ] **Reading decimal strings** on an Apple M2 is 3.3–4.0× `mpn_set_str` from 128 to 4096 limbs
+  (2026-11-25: powers without their zero limbs, the base case in place, `parseDC = 640`), at the
+  target except near the crossover, 3.9–4.0× from 512 to 640 limbs. What is left: the products
   of the divide and conquer (two thirds of its time), the powers (about 10%), and two passes over
   the string before the digits, the check (`isNatB`) and the search for `_` (`hasUnderscore`), which
   one loop could do together, though `GNat.ofString?` checks before it calls `ofDecimal`. On x86
