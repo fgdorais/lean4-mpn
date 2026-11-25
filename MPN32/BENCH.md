@@ -216,6 +216,7 @@ above; ratios before `15534f8` for `MPN.Nat` rows were inflated by the hashing c
 
 | date | commit | change | effect |
 |---|---|---|---|
+| 2026-11-25 | `e360111` | The FFT's products by `2ᵉ` with the shift in the passes of the rotation (`rotShlAt`, shared with 64-bit limbs) | On an Apple M2, from three alternating runs against `b577d62`, without `Nat`: `mul` −1.0% to −2.6% and `sqr` −2.2% to −2.6% from 16384 to 65536 limbs |
 | 2026-11-12 | `70cd04a` | `@[specialize]` on the generic half-gcd's operations and steps (`NatOps.hgcdReduce`, `hgcdReduceP`, `baseLoop` and the matrix helpers), not on the well-founded `hgcd` | From eight alternating rounds against `fa52842`: `bgcd` −9% at 64 limbs, −6% at 256, −2% at 1024, under 1% from 4096; `btostr`, `bofstr`, `bsqrt`, `bdiv`, `bmod` and `div` within ±0.8% |
 | 2026-11-11 | `eb1c37c` | Chains of three Toom interpolation passes in one (`ToomOps.sub3Chain`), shared with 64-bit limbs | From three alternating runs against `76822c7`, without `Nat`: `mul` −1% from 2048 to 4096 limbs, flat at 1024, 1536 and 6000; `sqr` ±1%; 64-bit limbs gain 3% to 5%. Measured again on 2026-11-13 (after rebasing on `1ede9a7`), `mul` at 2048 and 4096 limbs was flat (±1%), so 32-bit limbs neither gain nor lose |
 | 2026-11-11 | `7a6c28c` | Toom-6, Toom-8 and their squares on one array per stage, shared with 64-bit limbs | From three alternating runs against `b37f746`, without `Nat`: `mul` +1.5% to +2% at 3072 and 4096 limbs (Toom-8), ±1% from 1024 to 2048; `sqr` +1% at 3072; 64-bit limbs gain 2% to 3.5% |

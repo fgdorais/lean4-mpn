@@ -306,6 +306,66 @@ private theorem shlStep_inv (N : USize) (b : L) (hb₀ : 0 < LA.val b) (hb : LA.
       (fun c => LA.val c < 2 ^ LA.val b) (shlStep A N b j h x y c).2 :=
   fun _ _ x _ c hc => (WordArray.shl_step (A := A) x c b hb₀ hb hc).2
 
+variable (A) in
+/--
+`-(x 2ᵇ) - c` with a borrow, for `0 < b < w` and `c ≤ 2ᵇ`: the next `c` is the bits of `x` above,
+plus the borrow, so that it is at most `2ᵇ` again.
+-/
+@[inline, expose] public def negShlStep (N : USize) (b : L) (j : USize) (_ : j < N) (x _ c : L) :
+    L × L :=
+  let p := R.subC R.zero (R.shl x b) c
+  (p.1, R.add (R.shr x (R.sub (R.ofUSize R.wU) b)) p.2)
+
+omit LA in
+/-- The low limb of `x 2ᵇ` is a multiple of `2ᵇ`, so it leaves room for `2ᵇ` below `2ʷ`. -/
+private theorem shl_room [LA : LimbArray A L] [R : WordArray A L] (x b : L) (hb : LA.val b < LA.w) :
+    LA.val (R.shl x b) + 2 ^ LA.val b ≤ 2 ^ LA.w := by
+  rw [R.val_shl, Nat.mod_eq_of_lt hb]
+  have hPQ : 2 ^ LA.val b * 2 ^ (LA.w - LA.val b) = 2 ^ LA.w := by
+    rw [← Nat.pow_add]; congr 1; lia
+  rw [← hPQ, Nat.mul_comm (LA.val x), Nat.mul_mod_mul_left]
+  have := Nat.mod_lt (LA.val x) (Nat.two_pow_pos (LA.w - LA.val b))
+  have := Nat.mul_le_mul_left (2 ^ LA.val b)
+    (show LA.val x % 2 ^ (LA.w - LA.val b) + 1 ≤ 2 ^ (LA.w - LA.val b) by lia)
+  rw [Nat.mul_add_one] at this
+  exact this
+
+private theorem negShl_step (N : USize) (b : L) (hb₀ : 0 < LA.val b) (hb : LA.val b < LA.w)
+    (j : USize) (h : j < N) (x y c : L) (hc : LA.val c ≤ 2 ^ LA.val b) :
+    LA.val (negShlStep A N b j h x y c).1 + 2 ^ LA.val b * LA.val x + LA.val c =
+        2 ^ LA.w * LA.val (negShlStep A N b j h x y c).2 ∧
+      LA.val (negShlStep A N b j h x y c).2 ≤ 2 ^ LA.val b := by
+  obtain ⟨s₁, s₂⟩ := WordArray.shl_step (A := A) x R.zero b hb₀ hb
+    (by rw [R.val_zero]; exact Nat.two_pow_pos _)
+  rw [R.val_add, R.val_zero, Nat.add_zero, Nat.mod_eq_of_lt (LA.val_lt _), Nat.add_zero] at s₁
+  have hr := shl_room (A := A) x b hb
+  have e := R.val_subC R.zero (R.shl x b) c
+  rw [R.val_zero, Nat.zero_add] at e
+  have ho := LA.val_lt (R.subC R.zero (R.shl x b) c).1
+  have hbr : LA.val (R.subC R.zero (R.shl x b) c).2 ≤ 1 := by
+    rcases Nat.lt_or_ge (LA.val (R.subC R.zero (R.shl x b) c).2) 2 with h | h
+    · lia
+    · have := Nat.mul_le_mul_left (2 ^ LA.w) h; lia
+  have hbB : 2 ^ LA.val b < 2 ^ LA.w := Nat.pow_lt_pow_right (by decide) hb
+  simp only [negShlStep]
+  rw [R.val_add, Nat.mod_eq_of_lt (by lia), Nat.mul_add]
+  constructor <;> lia
+
+private theorem negShlStep_law (N : USize) (b : L) (hb₀ : 0 < LA.val b) (hb : LA.val b < LA.w) :
+    ∀ j h x y c, (fun c => LA.val c ≤ 2 ^ LA.val b) c →
+    LA.val (negShlStep A N b j h x y c).1 + 2 ^ LA.w * (fun _ => 0) (negShlStep A N b j h x y c).2 +
+      2 ^ LA.val b * LA.val x + 0 * LA.val y + LA.val c = 0 * LA.val x + 0 * LA.val y +
+      2 ^ LA.w * LA.val (negShlStep A N b j h x y c).2 + (fun _ => 0) c := by
+  intro j h x y c hc
+  have := (negShl_step N b hb₀ hb j h x y c hc).1
+  simp only
+  lia
+
+private theorem negShlStep_inv (N : USize) (b : L) (hb₀ : 0 < LA.val b) (hb : LA.val b < LA.w) :
+    ∀ j h x y c, (fun c => LA.val c ≤ 2 ^ LA.val b) c →
+      (fun c => LA.val c ≤ 2 ^ LA.val b) (negShlStep A N b j h x y c).2 :=
+  fun j h x y c hc => (negShl_step N b hb₀ hb j h x y c hc).2
+
 /-- A limb that is not zero, of a value at most `1`, is `1`. -/
 private theorem val_eq_one {x : L} (h : ¬R.isZero x = true) (h₁ : LA.val x < 2) : LA.val x = 1 := by
   have : LA.val x ≠ 0 := fun e => h ((R.isZero_iff x).2 e)
@@ -706,14 +766,13 @@ private theorem rot_value {V₁ V₂ Thi Tlo tn c₁ c₂ Pw Pr : Nat} (h₁ : V
   grind
 
 /--
-Writes `t 2ᵉ % F` into the window at `d`, for a residue `t` in the window at `t`, disjoint from
-it, and `e < w n`. With `e = w q + b`, the limbs of `t` above `n - q` wrap around negated, since
+Writes `t 2^(w q) % F` into the window at `d`, for a residue `t` in the window at `t`, disjoint
+from it, and `q = e / w < n`. The limbs of `t` above `n - q` wrap around negated, since
 `2^(w n) ≡ -1`: they are subtracted from zero into the low `q` limbs, the others are copied above
-them less the borrow and the top limb of `t`, and `1` is added when that borrows. The shift by
-`b` bits, when `b ≠ 0`, follows in place, then a reduction.
+them less the borrow and the top limb of `t`, and `1` is added when that borrows.
 -/
 @[expose, specialize]
-public def mulPow2At (arr : A) (n d t e : USize) (hd : Win arr n d) (ht : Win arr n t)
+public def rotAt (arr : A) (n d t e : USize) (hd : Win arr n d) (ht : Win arr n t)
     (he : e.toNat < LA.w * n.toNat) : A :=
   have hw : (e / R.wU).toNat < n.toNat := by
     rw [USize.toNat_div, R.toNat_wU]
@@ -735,14 +794,7 @@ public def mulPow2At (arr : A) (n d t e : USize) (hd : Win arr n d) (ht : Win ar
   have hd₃ : Win (R.uset a₂ (d + n) R.zero (by rw [hd₂.add (Nat.le_refl _)]; lia)) n d :=
     hd₂.of_size (R.size_uset ..)
   have hl₃ := hd₃.lb (by rw [hd.succ]; exact Nat.le_refl _)
-  have hd₄ := hd₃.of_size (incrAt_spec _ d (n + 1) hl₃ 0 c₂).1
-  if e % R.wU = 0 then
-    (incrAt (R.uset a₂ (d + n) R.zero _) d (n + 1) hl₃ 0 c₂).1
-  else
-    have hl₄ := hd₄.lb (by rw [hd.succ]; exact Nat.le_refl _)
-    F.fold2Then (n + 1) (shlStep A (n + 1) (R.ofUSize (e % R.wU)))
-      (incrAt (R.uset a₂ (d + n) R.zero _) d (n + 1) hl₃ 0 c₂).1 d d d hl₄ hl₄ hl₄ 0 R.zero
-      fun a₅ h₅ _ => normAt a₅ n d (hd₄.of_size h₅)
+  (incrAt (R.uset a₂ (d + n) R.zero _) d (n + 1) hl₃ 0 c₂).1
 
 /-- The residue of `mulPow2At` before the shift, from the values of its passes. -/
 private theorem rot_res {V₁ V₂ Thi Tlo tn c₁ c₂ I c Pw Pr B : Nat} (h₁ : V₁ + Thi = Pw * c₁)
@@ -775,15 +827,16 @@ private theorem rot_res {V₁ V₂ Thi Tlo tn c₁ c₂ I c Pw Pr B : Nat} (h₁
   rw [hi]
   exact rot_value h₁ h₂
 
-public theorem mulPow2At_spec (arr : A) (n d t e : USize) (hd : Win arr n d)
+public theorem rotAt_spec (arr : A) (n d t e : USize) (hd : Win arr n d)
     (ht : Win arr n t) (he : e.toNat < LA.w * n.toNat) (hn : 1 ≤ n.toNat)
     (hdt : d.toNat + n.toNat + 1 ≤ t.toNat ∨ t.toNat + n.toNat + 1 ≤ d.toNat)
     (hT : LimbArray.valAt arr t.toNat (n.toNat + 1) < fermatW LA.w n.toNat) :
-    LA.size (mulPow2At arr n d t e hd ht he) = LA.size arr ∧
+    LA.size (rotAt arr n d t e hd ht he) = LA.size arr ∧
       (∀ i, (i < d.toNat ∨ d.toNat + n.toNat + 1 ≤ i) →
-        LA.get (mulPow2At arr n d t e hd ht he) i = LA.get arr i) ∧
-      LimbArray.valAt (mulPow2At arr n d t e hd ht he) d.toNat (n.toNat + 1) =
-        LimbArray.valAt arr t.toNat (n.toNat + 1) * 2 ^ e.toNat % fermatW LA.w n.toNat := by
+        LA.get (rotAt arr n d t e hd ht he) i = LA.get arr i) ∧
+      LimbArray.valAt (rotAt arr n d t e hd ht he) d.toNat (n.toNat + 1) =
+        LimbArray.valAt arr t.toNat (n.toNat + 1) * 2 ^ (LA.w * (e.toNat / LA.w)) %
+          fermatW LA.w n.toNat := by
   have hw : (e / R.wU).toNat < n.toNat := by
     rw [USize.toNat_div, R.toNat_wU]
     exact (Nat.div_lt_iff_lt_mul LA.w_pos).2 (by rw [Nat.mul_comm]; exact he)
@@ -797,8 +850,8 @@ public theorem mulPow2At_spec (arr : A) (n d t e : USize) (hd : Win arr n d)
   have htn := ht.add (Nat.le_refl _)
   have hB4 := four_le (R := R)
   generalize hq : (e / R.wU).toNat = q at hw hnw htw hdw
-  generalize hG : mulPow2At arr n d t e hd ht he = G
-  rw [mulPow2At] at hG
+  generalize hG : rotAt arr n d t e hd ht he = G
+  rw [rotAt] at hG
   -- The negated limbs.
   obtain ⟨a₁, h₁, c₁, e₁, hG₁⟩ := fold2Then_cases hG
   clear hG
@@ -903,65 +956,353 @@ public theorem mulPow2At_spec (arr : A) (n d t e : USize) (hd : Win arr n d)
     intro i hi
     rw [i₂ i (by lia), R.get_uset, ite_eq_right_iff.2 (fun e => by rw [hdn] at e; lia),
       p₂u i (by lia), p₁u i (by lia)]
-  have hem : (e % R.wU).toNat = e.toNat % LA.w := by rw [USize.toNat_mod, R.toNat_wU]
-  have he₆ : e.toNat = LA.w * q + (e % R.wU).toNat := by
-    rw [← hq, USize.toNat_div, R.toNat_wU, hem]; exact (Nat.div_add_mod _ _).symm
   dsimp only at hG
-  split at hG
+  subst hG
+  have hq' : e.toNat / LA.w = q := by rw [← hq, USize.toNat_div, R.toNat_wU]
+  rw [hq']
+  exact ⟨hsz, hun, r₃.symm⟩
+
+/-- Adds the borrow `p.2` to the window of `n + 1` limbs of `p.1` at `d`. -/
+@[expose, specialize]
+public def addBorrowAt (p : A × L) (n d : USize) (hd : Win p.1 n d) : A :=
+  (incrAt p.1 d (n + 1) (hd.lb (by rw [hd.succ]; exact Nat.le_refl _)) 0 p.2).1
+
+omit F in
+public theorem addBorrowAt_spec (p : A × L) (n d : USize) (hd : Win p.1 n d)
+    (hv : LimbArray.valAt p.1 d.toNat (n.toNat + 1) + LA.val p.2 < 2 ^ (LA.w * (n.toNat + 1))) :
+    LA.size (addBorrowAt p n d hd) = LA.size p.1 ∧
+      (∀ i, (i < d.toNat ∨ d.toNat + n.toNat + 1 ≤ i) →
+        LA.get (addBorrowAt p n d hd) i = LA.get p.1 i) ∧
+      LimbArray.valAt (addBorrowAt p n d hd) d.toNat (n.toNat + 1) =
+        LimbArray.valAt p.1 d.toNat (n.toNat + 1) + LA.val p.2 := by
+  have hs := hd.succ
+  obtain ⟨i₁, i₂, i₃⟩ := incrAt_spec p.1 d (n + 1) (hd.lb (by rw [hd.succ]; exact Nat.le_refl _))
+    0 p.2
+  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, hs] at i₁ i₂ i₃
+  have hc : LA.val (incrAt p.1 d (n + 1) (hd.lb (by rw [hd.succ]; exact Nat.le_refl _)) 0 p.2).2 =
+      0 := by
+    rcases Nat.eq_zero_or_pos (LA.val (incrAt p.1 d (n + 1)
+      (hd.lb (by rw [hd.succ]; exact Nat.le_refl _)) 0 p.2).2) with h | h
+    · exact h
+    · have := Nat.mul_le_mul_left (2 ^ (LA.w * (n.toNat + 1))) h; lia
+  rw [hc, Nat.mul_zero, Nat.add_zero] at i₃
+  exact ⟨i₁, fun i hi => i₂ i (by lia), i₃⟩
+
+/--
+Clears the top limb of the window at `d`, subtracts `D` from its limbs `j` to `n - 1`, and adds
+`1` when that borrows, since `2^(w n) ≡ -1`. The loops stop as soon as the borrow or the carry is
+zero.
+-/
+@[expose, specialize]
+public def subTopAt (a : A) (n d j : USize) (hd : Win a n d) (D : L) : A :=
+  have hidx : (d + n).toNat < LA.size a := by rw [hd.add (Nat.le_refl _)]; lia
+  have hd₃ : Win (R.uset a (d + n) R.zero hidx) n d := hd.of_size (R.size_uset ..)
+  addBorrowAt (decrAt (R.uset a (d + n) R.zero hidx) d n (hd₃.lb (by lia)) j D) n d
+    (hd₃.of_size (decrAt_spec ..).1)
+
+omit F in
+public theorem subTopAt_spec (a : A) (n d j : USize) (hd : Win a n d) (D : L)
+    (hj : j.toNat < n.toNat) :
+    LA.size (subTopAt a n d j hd D) = LA.size a ∧
+      (∀ i, (i < d.toNat ∨ d.toNat + n.toNat + 1 ≤ i) →
+        LA.get (subTopAt a n d j hd D) i = LA.get a i) ∧
+      LimbArray.valAt (subTopAt a n d j hd D) d.toNat (n.toNat + 1) < fermatW LA.w n.toNat ∧
+      ∃ c, LimbArray.valAt (subTopAt a n d j hd D) d.toNat (n.toNat + 1) +
+          2 ^ (LA.w * j.toNat) * LA.val D =
+        LimbArray.valAt a d.toNat n.toNat + fermatW LA.w n.toNat * c := by
+  have hB4 := four_le (R := R)
+  have hon := hd.add (Nat.le_refl _)
+  have hidx : (d + n).toNat < LA.size a := by rw [hon]; lia
+  have hlb : LoopBound (R.uset a (d + n) R.zero hidx) d n :=
+    ((hd.of_size (R.size_uset ..))).lb (by lia)
+  dsimp only [subTopAt]
+  obtain ⟨d₁, d₂, d₃⟩ := decrAt_spec (R.uset a (d + n) R.zero hidx) d n hlb j D
+  rw [R.size_uset] at d₁
+  have hu : ∀ i, i ≠ d.toNat + n.toNat → LA.get (R.uset a (d + n) R.zero hidx) i = LA.get a i := by
+    intro i hi; rw [R.get_uset]; simp only [hon]; split <;> lia
+  have htop : LA.get (decrAt (R.uset a (d + n) R.zero hidx) d n hlb j D).1 (d.toNat + n.toNat) =
+      R.zero := by
+    rw [d₂ _ (.inr (by lia)), R.get_uset]; simp [hon]
+  -- The window in three parts: limbs below `j`, from `j` on, and the top limb.
+  have hsplit : ∀ x : A, LimbArray.valAt x d.toNat n.toNat = LimbArray.valAt x d.toNat j.toNat +
+      2 ^ (LA.w * j.toNat) * LimbArray.valAt x (d.toNat + j.toNat) (n.toNat - j.toNat) := by
+    intro x; rw [← LimbArray.valAt_add, Nat.add_sub_cancel' (Nat.le_of_lt hj)]
+  have hlo : LimbArray.valAt (decrAt (R.uset a (d + n) R.zero hidx) d n hlb j D).1 d.toNat
+      j.toNat = LimbArray.valAt a d.toNat j.toNat :=
+    LimbArray.valAt_congr _ fun i _ _ => by rw [d₂ i (by lia), hu i (by lia)]
+  have hhi : LimbArray.valAt (R.uset a (d + n) R.zero hidx) (d.toNat + j.toNat)
+      (n.toNat - j.toNat) =
+      LimbArray.valAt a (d.toNat + j.toNat) (n.toNat - j.toNat) :=
+    LimbArray.valAt_congr _ fun i _ _ => hu i (by lia)
+  rw [hhi] at d₃
+  have hwin : LimbArray.valAt (decrAt (R.uset a (d + n) R.zero hidx) d n hlb j D).1 d.toNat
+      (n.toNat + 1) = LimbArray.valAt a d.toNat j.toNat + 2 ^ (LA.w * j.toNat) *
+        LimbArray.valAt (decrAt (R.uset a (d + n) R.zero hidx) d n hlb j D).1
+          (d.toNat + j.toNat) (n.toNat - j.toNat) := by
+    rw [valAt_top, htop, R.val_zero, Nat.mul_zero, Nat.add_zero, hsplit, hlo]
+  have hPj : 2 ^ (LA.w * n.toNat) = 2 ^ (LA.w * j.toNat) * 2 ^ (LA.w * (n.toNat - j.toNat)) := by
+    rw [← Nat.pow_add, ← Nat.mul_add, Nat.add_sub_cancel' (Nat.le_of_lt hj)]
+  have hB1 : 2 ^ (LA.w * (n.toNat + 1)) = 2 ^ (LA.w * n.toNat) * 2 ^ LA.w := by
+    rw [Nat.mul_succ, Nat.pow_add]
+  have hW : 2 ^ LA.w ≤ 2 ^ (LA.w * (n.toNat - j.toNat)) := two_pow_le (A := A) _ (by lia)
+  have hD := LA.val_lt D
+  have hV' := LimbArray.valAt_lt (decrAt (R.uset a (d + n) R.zero hidx) d n hlb j D).1
+    (d.toNat + j.toNat) (n.toNat - j.toNat)
+  have hVl := LimbArray.valAt_lt a d.toNat j.toNat
+  have hbr : LA.val (decrAt (R.uset a (d + n) R.zero hidx) d n hlb j D).2 ≤ 1 := by
+    have := LimbArray.valAt_lt a (d.toNat + j.toNat) (n.toNat - j.toNat)
+    rcases Nat.lt_or_ge (LA.val (decrAt (R.uset a (d + n) R.zero hidx) d n hlb j D).2) 2 with h | h
+    · lia
+    · have := Nat.mul_le_mul_left (2 ^ (LA.w * (n.toNat - j.toNat))) h; lia
+  -- The window with the borrow is at most `2^(w n)`.
+  have hI : LimbArray.valAt (decrAt (R.uset a (d + n) R.zero hidx) d n hlb j D).1 d.toNat
+      (n.toNat + 1) + LA.val (decrAt (R.uset a (d + n) R.zero hidx) d n hlb j D).2 ≤
+        2 ^ (LA.w * n.toNat) := by
+    have := Nat.mul_le_mul_left (2 ^ (LA.w * j.toNat))
+      (show LimbArray.valAt (decrAt (R.uset a (d + n) R.zero hidx) d n hlb j D).1
+        (d.toNat + j.toNat) (n.toNat - j.toNat) + 1 ≤ 2 ^ (LA.w * (n.toNat - j.toNat)) by lia)
+    rw [Nat.mul_add_one] at this
+    rw [hwin, hPj]; lia
+  have hnB : 2 ^ (LA.w * n.toNat) * 2 ≤ 2 ^ (LA.w * n.toNat) * 2 ^ LA.w :=
+    Nat.mul_le_mul_left _ (by lia)
+  obtain ⟨b₁, b₂, b₃⟩ := addBorrowAt_spec (decrAt (R.uset a (d + n) R.zero hidx) d n hlb j D) n d
+    ((hd.of_size (R.size_uset ..)).of_size (decrAt_spec ..).1)
+    (by have := Nat.two_pow_pos (LA.w * n.toNat); rw [hB1]; lia)
+  refine ⟨b₁.trans d₁, fun i hi => by rw [b₂ i hi, d₂ i (by lia), hu i (by lia)],
+    by rw [b₃]; simp only [fermatW]; lia,
+    LA.val (decrAt (R.uset a (d + n) R.zero hidx) d n hlb j D).2, ?_⟩
+  rw [b₃, hwin, hsplit a, fermatW, hPj]
+  have := congrArg (2 ^ (LA.w * j.toNat) * ·) d₃
+  simp only [Nat.mul_add] at this
+  grind
+
+/-- The value of `rotShlAt`, as `Nat`s. -/
+private theorem rotShl_value {z zlo zmid top VA VB I c₁ c₂ D br P Pq PA : Nat}
+    (hz : z = zlo + PA * zmid + Pq * PA * top) (hA : VA + PA * c₁ = P * zlo)
+    (hB : VB + P * zmid + c₁ = Pq * c₂) (hD : D = c₂ + P * top)
+    (hfin : I + Pq * D = VB + Pq * VA + (Pq * PA + 1) * br) :
+    I + (Pq * PA + 1) * (Pq * D) = z * P * Pq + (Pq * PA + 1) * (VB + br) := by
+  have e₁ := congrArg (Pq * ·) hA
+  have e₂ := congrArg (Pq * PA * ·) hB
+  simp only [Nat.mul_add] at e₁ e₂
+  subst hz hD
+  grind
+
+/--
+Writes `t 2ᵉ % F` into the window at `d`, for a residue `t` in the window at `t`, disjoint from
+it, and `e = w q + b < w n` with `0 < b`, with the shift by `b` bits in the passes of the
+rotation: the low `n - q` limbs of `t` shifted into the window above its low `q` limbs, then the
+next `q` limbs shifted and negated into the low `q` limbs, since `2^(w n) ≡ -1`, with the bits
+shifted out of the first part. What is left, the bits shifted out of the second part and the top
+limb of `t` shifted, is subtracted from the limbs from `q` on by `subTopAt`.
+-/
+@[expose, specialize]
+public def rotShlAt (arr : A) (n d t e : USize) (hd : Win arr n d) (ht : Win arr n t)
+    (he : e.toNat < LA.w * n.toNat) : A :=
+  have hw : (e / R.wU).toNat < n.toNat := by
+    rw [USize.toNat_div, R.toNat_wU]
+    exact (Nat.div_lt_iff_lt_mul LA.w_pos).2 (by rw [Nat.mul_comm]; exact he)
+  have hnw : (n - e / R.wU).toNat = n.toNat - (e / R.wU).toNat :=
+    USize.toNat_sub_of_le _ _ (USize.le_iff_toNat_le.2 (by lia))
+  have htw : (t + (n - e / R.wU)).toNat = t.toNat + (n.toNat - (e / R.wU).toNat) := by
+    rw [← hnw]; exact ht.add (by rw [hnw]; lia)
+  have hlt : LoopBound arr t (n - e / R.wU) := ht.lb (by rw [hnw]; lia)
+  F.fold2Then (n - e / R.wU) (shlStep A (n - e / R.wU) (R.ofUSize (e % R.wU))) arr (d + e / R.wU)
+    t t (hd.lbAt (by lia) (by rw [hnw]; lia)) hlt hlt 0 R.zero fun a₁ h₁ c₁ =>
+  have hlw : LoopBound a₁ (t + (n - e / R.wU)) (e / R.wU) :=
+    ⟨by rw [htw, h₁]; lia, by rw [htw]; lia⟩
+  F.fold2Then (e / R.wU) (negShlStep A (e / R.wU) (R.ofUSize (e % R.wU))) a₁ d
+    (t + (n - e / R.wU)) (t + (n - e / R.wU)) ((hd.of_size h₁).lb (by lia)) hlw hlw 0 c₁
+    fun a₂ h₂ c₂ =>
+  have hd₂ := hd.of_size (h₂.trans h₁)
+  have htn : (t + n).toNat < LA.size a₂ := by
+    rw [(ht.of_size (h₂.trans h₁)).add (Nat.le_refl _), h₂, h₁]; lia
+  subTopAt a₂ n d (e / R.wU) hd₂
+    (R.add c₂ (R.shl (R.uget a₂ (t + n) htn) (R.ofUSize (e % R.wU))))
+
+public theorem rotShlAt_spec (arr : A) (n d t e : USize) (hd : Win arr n d)
+    (ht : Win arr n t) (he : e.toNat < LA.w * n.toNat) (h0 : ¬e % R.wU = 0)
+    (hdt : d.toNat + n.toNat + 1 ≤ t.toNat ∨ t.toNat + n.toNat + 1 ≤ d.toNat)
+    (hT : LimbArray.valAt arr t.toNat (n.toNat + 1) < fermatW LA.w n.toNat) :
+    LA.size (rotShlAt arr n d t e hd ht he) = LA.size arr ∧
+      (∀ i, (i < d.toNat ∨ d.toNat + n.toNat + 1 ≤ i) →
+        LA.get (rotShlAt arr n d t e hd ht he) i = LA.get arr i) ∧
+      LimbArray.valAt (rotShlAt arr n d t e hd ht he) d.toNat (n.toNat + 1) =
+        LimbArray.valAt arr t.toNat (n.toNat + 1) * 2 ^ e.toNat % fermatW LA.w n.toNat := by
+  have hw : (e / R.wU).toNat < n.toNat := by
+    rw [USize.toNat_div, R.toNat_wU]
+    exact (Nat.div_lt_iff_lt_mul LA.w_pos).2 (by rw [Nat.mul_comm]; exact he)
+  have hnw : (n - e / R.wU).toNat = n.toNat - (e / R.wU).toNat :=
+    USize.toNat_sub_of_le _ _ (USize.le_iff_toNat_le.2 (by lia))
+  have htw : (t + (n - e / R.wU)).toNat = t.toNat + (n.toNat - (e / R.wU).toNat) := by
+    rw [← hnw]; exact ht.add (by rw [hnw]; lia)
+  have hdw := hd.add (k := e / R.wU) (by lia)
+  have htn := ht.add (Nat.le_refl _)
+  have hB4 := four_le (R := R)
+  -- The shift.
+  have hem : (e % R.wU).toNat = e.toNat % LA.w := by rw [USize.toNat_mod, R.toNat_wU]
+  have he₆ : e.toNat = LA.w * (e / R.wU).toNat + (e % R.wU).toNat := by
+    rw [USize.toNat_div, R.toNat_wU, hem]; exact (Nat.div_add_mod _ _).symm
+  have hbv : LA.val (R.ofUSize (e % R.wU)) = (e % R.wU).toNat := by
+    rw [R.val_ofUSize, Nat.mod_eq_of_lt]
+    rw [hem]
+    exact Nat.lt_trans (Nat.mod_lt _ LA.w_pos) Nat.lt_two_pow_self
+  have hb₀ : 0 < LA.val (R.ofUSize (e % R.wU)) := by
+    rw [hbv]
+    rcases Nat.eq_zero_or_pos (e % R.wU).toNat with h | h
+    · exact absurd (USize.toNat_inj.1 (by rw [h]; rfl)) h0
+    · exact h
+  have hb : LA.val (R.ofUSize (e % R.wU)) < LA.w := by
+    rw [hbv, hem]; exact Nat.mod_lt _ LA.w_pos
+  rw [he₆, ← hbv]
+  generalize hq : (e / R.wU).toNat = q at hw hnw htw hdw
+  generalize hG : rotShlAt arr n d t e hd ht he = G
+  rw [rotShlAt] at hG
+  -- The low limbs of `t`, shifted.
+  obtain ⟨a₁, h₁, c₁, e₁, hG₁⟩ := fold2Then_cases hG
+  clear hG
+  have P₁ := foldUInPlace2_spec (n - e / R.wU) (shlStep A (n - e / R.wU) (R.ofUSize (e % R.wU)))
+    LA.val (fun _ => 0) 0 0 (2 ^ LA.val (R.ofUSize (e % R.wU))) 0
+    (fun c => LA.val c < 2 ^ LA.val (R.ofUSize (e % R.wU))) (shlStep_inv _ _ hb₀ hb)
+    (shlStep_law _ _ hb₀ hb) arr (d + e / R.wU) t t (hd.lbAt (by lia) (by rw [hnw]; lia))
+    (ht.lb (by rw [hnw]; lia)) (ht.lb (by rw [hnw]; lia)) (by rw [hdw, hnw]; lia)
+    (by rw [hdw, hnw]; lia) 0 R.zero (by simp only [R.val_zero]; exact Nat.two_pow_pos _)
+  rw [e₁] at P₁
+  obtain ⟨-, i₁, p₁u, p₁v⟩ := P₁
+  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, hdw, hnw, Nat.zero_mul, Nat.mul_zero,
+    R.val_zero] at p₁u p₁v i₁
+  -- The next limbs of `t`, shifted and negated.
+  obtain ⟨a₂, h₂, c₂, e₂, hG⟩ := fold2Then_cases hG₁
+  clear hG₁
+  have hlw : LoopBound a₁ (t + (n - e / R.wU)) (e / R.wU) :=
+    ⟨by rw [htw, h₁, hq]; lia, by rw [htw, hq]; lia⟩
+  have P₂ := foldUInPlace2_spec (e / R.wU) (negShlStep A (e / R.wU) (R.ofUSize (e % R.wU)))
+    (fun _ => 0) LA.val (2 ^ LA.val (R.ofUSize (e % R.wU))) 0 0 0
+    (fun c => LA.val c ≤ 2 ^ LA.val (R.ofUSize (e % R.wU))) (negShlStep_inv _ _ hb₀ hb)
+    (negShlStep_law _ _ hb₀ hb) a₁ d (t + (n - e / R.wU)) (t + (n - e / R.wU))
+    ((hd.of_size h₁).lb (by lia)) hlw hlw (by rw [htw, hq]; lia) (by rw [htw, hq]; lia) 0 c₁
+    (Nat.le_of_lt i₁)
+  rw [e₂] at P₂
+  obtain ⟨-, i₂, p₂u, p₂v⟩ := P₂
+  simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, htw, hq, Nat.zero_mul, Nat.mul_zero,
+    Nat.zero_add] at p₂u p₂v i₂
+  -- The rest, subtracted.
+  have hd₂ : Win a₂ n d := hd.of_size (h₂.trans h₁)
+  have htn₂ : (t + n).toNat < LA.size a₂ := by rw [htn, h₂, h₁]; lia
+  obtain ⟨s₁, s₂, s₃, br, s₄⟩ := subTopAt_spec a₂ n d (e / R.wU) hd₂
+    (R.add c₂ (R.shl (R.uget a₂ (t + n) htn₂) (R.ofUSize (e % R.wU)))) (by rw [hq]; exact hw)
+  dsimp only at hG
+  subst hG
+  rw [hq] at s₄
+  refine ⟨s₁.trans (h₂.trans h₁), fun i hi => by rw [s₂ i hi, p₂u i (by lia), p₁u i (by lia)], ?_⟩
+  -- The values, as `Nat`s.
+  have hTop : LA.get a₂ (t.toNat + n.toNat) = LA.get arr (t.toNat + n.toNat) := by
+    rw [p₂u _ (by lia), p₁u _ (by lia)]
+  have hTv : LimbArray.valAt arr t.toNat (n.toNat + 1) =
+      LimbArray.valAt arr t.toNat (n.toNat - q) +
+        2 ^ (LA.w * (n.toNat - q)) * LimbArray.valAt arr (t.toNat + (n.toNat - q)) q +
+      2 ^ (LA.w * q) * 2 ^ (LA.w * (n.toNat - q)) * LA.val (LA.get arr (t.toNat + n.toNat)) := by
+    rw [valAt_top, ← Nat.pow_add, ← Nat.mul_add, show q + (n.toNat - q) = n.toNat by lia,
+      show n.toNat = (n.toNat - q) + q by lia, LimbArray.valAt_add,
+      show n.toNat - q + q = n.toNat by lia]
+  have hmid : LimbArray.valAt a₁ (t.toNat + (n.toNat - q)) q =
+      LimbArray.valAt arr (t.toNat + (n.toNat - q)) q :=
+    LimbArray.valAt_congr _ fun i _ _ => p₁u i (by lia)
+  have hVA : LimbArray.valAt a₂ (d.toNat + q) (n.toNat - q) =
+      LimbArray.valAt a₁ (d.toNat + q) (n.toNat - q) :=
+    LimbArray.valAt_congr _ fun i _ _ => p₂u i (by lia)
+  have hW : LimbArray.valAt a₂ d.toNat n.toNat = LimbArray.valAt a₂ d.toNat q +
+      2 ^ (LA.w * q) * LimbArray.valAt a₁ (d.toNat + q) (n.toNat - q) := by
+    rw [← hVA, ← LimbArray.valAt_add, Nat.add_sub_cancel' (Nat.le_of_lt hw)]
+  rw [hmid] at p₂v
+  rw [hW] at s₄
+  have hPn : 2 ^ (LA.w * n.toNat) = 2 ^ (LA.w * q) * 2 ^ (LA.w * (n.toNat - q)) := by
+    rw [← Nat.pow_add, ← Nat.mul_add, Nat.add_sub_cancel' (Nat.le_of_lt hw)]
+  simp only [fermatW] at hT s₃ s₄ ⊢
+  rw [Nat.pow_add]
+  rw [hPn] at hT s₃ s₄ ⊢
+  have hbB : 2 ^ LA.val (R.ofUSize (e % R.wU)) < 2 ^ LA.w := Nat.pow_lt_pow_right (by decide) hb
+  have hP0 : 0 < 2 ^ LA.val (R.ofUSize (e % R.wU)) := Nat.two_pow_pos _
+  -- The top limb of `t` is at most `1`, and what is subtracted at most `2ᵇ`.
+  have htop : LA.val (LA.get arr (t.toNat + n.toNat)) ≤ 1 := by
+    have hT' := hT
+    rw [hTv] at hT'
+    rcases Nat.lt_or_ge (LA.val (LA.get arr (t.toNat + n.toNat))) 2 with h | h
+    · lia
+    · have := Nat.mul_le_mul_left (2 ^ (LA.w * q) * 2 ^ (LA.w * (n.toNat - q))) h
+      have := Nat.mul_pos (Nat.two_pow_pos (LA.w * q)) (Nat.two_pow_pos (LA.w * (n.toNat - q)))
+      lia
+  have hsh : LA.val (R.shl (R.uget a₂ (t + n) htn₂) (R.ofUSize (e % R.wU))) =
+      2 ^ LA.val (R.ofUSize (e % R.wU)) * LA.val (LA.get arr (t.toNat + n.toNat)) := by
+    rw [R.val_shl, R.uget_eq, htn, hTop, Nat.mod_eq_of_lt hb, Nat.mod_eq_of_lt, Nat.mul_comm]
+    have := Nat.mul_le_mul_right (2 ^ LA.val (R.ofUSize (e % R.wU))) htop
+    lia
+  generalize LA.val (LA.get arr (t.toNat + n.toNat)) = top at *
+  generalize LimbArray.valAt arr t.toNat (n.toNat - q) = zlo at *
+  generalize LimbArray.valAt arr (t.toNat + (n.toNat - q)) q = zmid at *
+  generalize LimbArray.valAt arr t.toNat (n.toNat + 1) = z at *
+  have hVB := LimbArray.valAt_lt a₂ d.toNat q
+  have hVAl := LimbArray.valAt_lt a₁ (d.toNat + q) (n.toNat - q)
+  generalize LimbArray.valAt a₂ d.toNat q = VB at *
+  generalize LimbArray.valAt a₁ (d.toNat + q) (n.toNat - q) = VA at *
+  generalize 2 ^ LA.val (R.ofUSize (e % R.wU)) = P at *
+  generalize 2 ^ (LA.w * q) = Pq at *
+  generalize 2 ^ (LA.w * (n.toNat - q)) = PA at *
+  -- What is subtracted fits in a limb.
+  have key : z * P * Pq + Pq * PA * VB = Pq * VA + Pq * PA * Pq * (LA.val c₂ + P * top) := by
+    have e₁ := congrArg (Pq * ·) p₁v
+    have e₂ := congrArg (Pq * PA * ·) p₂v
+    simp only [Nat.mul_add] at e₁ e₂
+    rw [hTv]
+    grind
+  have hDt : LA.val c₂ + P * top ≤ P := by
+    rcases Nat.lt_or_ge P (LA.val c₂ + P * top) with h | h
+    · have h₁ := Nat.mul_le_mul_left (Pq * PA * Pq) h
+      have h₂ : z * P * Pq ≤ Pq * PA * P * Pq := by
+        have := Nat.mul_le_mul_right (P * Pq) (show z ≤ Pq * PA by lia)
+        grind
+      have h₃ := Nat.mul_lt_mul_of_pos_left hVB (show 0 < Pq * PA by
+        have := Nat.mul_le_mul_left Pq (show 1 ≤ PA by lia); lia)
+      grind
+    · exact h
+  have hD : LA.val (R.add c₂ (R.shl (R.uget a₂ (t + n) htn₂) (R.ofUSize (e % R.wU)))) =
+      LA.val c₂ + P * top := by
+    rw [R.val_add, hsh, Nat.mod_eq_of_lt (by lia)]
+  rw [hD] at s₄
+  have hv := rotShl_value hTv p₁v p₂v rfl s₄
+  refine (mod_of_eq' (q := Pq * (LA.val c₂ + P * top)) (c := VB + br) ?_ s₃).symm
+  rw [hv, Nat.mul_comm Pq P, ← Nat.mul_assoc]
+
+/--
+Writes `t 2ᵉ % F` into the window at `d`, for a residue `t` in the window at `t`, disjoint from
+it, and `e < w n`: by `rotAt` when `e` is a multiple of `w`, by `rotShlAt` otherwise.
+-/
+@[expose, specialize]
+public def mulPow2At (arr : A) (n d t e : USize) (hd : Win arr n d) (ht : Win arr n t)
+    (he : e.toNat < LA.w * n.toNat) : A :=
+  if e % R.wU = 0 then rotAt arr n d t e hd ht he else rotShlAt arr n d t e hd ht he
+
+public theorem mulPow2At_spec (arr : A) (n d t e : USize) (hd : Win arr n d)
+    (ht : Win arr n t) (he : e.toNat < LA.w * n.toNat) (hn : 1 ≤ n.toNat)
+    (hdt : d.toNat + n.toNat + 1 ≤ t.toNat ∨ t.toNat + n.toNat + 1 ≤ d.toNat)
+    (hT : LimbArray.valAt arr t.toNat (n.toNat + 1) < fermatW LA.w n.toNat) :
+    LA.size (mulPow2At arr n d t e hd ht he) = LA.size arr ∧
+      (∀ i, (i < d.toNat ∨ d.toNat + n.toNat + 1 ≤ i) →
+        LA.get (mulPow2At arr n d t e hd ht he) i = LA.get arr i) ∧
+      LimbArray.valAt (mulPow2At arr n d t e hd ht he) d.toNat (n.toNat + 1) =
+        LimbArray.valAt arr t.toNat (n.toNat + 1) * 2 ^ e.toNat % fermatW LA.w n.toNat := by
+  unfold mulPow2At
+  split
   · rename_i h0
-    subst hG
-    refine ⟨hsz, hun, ?_⟩
-    rw [he₆, show (e % R.wU).toNat = 0 by rw [h0]; rfl, Nat.add_zero]
-    exact r₃.symm
-  · rename_i h0
-    have hbv : LA.val (R.ofUSize (e % R.wU)) = (e % R.wU).toNat := by
-      rw [R.val_ofUSize, Nat.mod_eq_of_lt]
-      rw [hem]
-      exact Nat.lt_trans (Nat.mod_lt _ LA.w_pos) Nat.lt_two_pow_self
-    have hb₀ : 0 < LA.val (R.ofUSize (e % R.wU)) := by
-      rw [hbv]
-      rcases Nat.eq_zero_or_pos (e % R.wU).toNat with h | h
-      · exact absurd (USize.toNat_inj.1 (by rw [h]; rfl)) h0
-      · exact h
-    have hb : LA.val (R.ofUSize (e % R.wU)) < LA.w := by
-      rw [hbv, hem]; exact Nat.mod_lt _ LA.w_pos
-    obtain ⟨a₅, h₅, c₅, e₅, hG₅⟩ := fold2Then_cases hG
-    clear hG
-    have hl₄ : LoopBound (incrAt (R.uset a₂ (d + n) R.zero hidx) d (n + 1) hl₃ 0 c₂).1 d (n + 1) :=
-      (hd.of_size hsz).lb (by rw [hs]; exact Nat.le_refl _)
-    have P₅ := foldUInPlace2_spec (n + 1) (shlStep A (n + 1) (R.ofUSize (e % R.wU))) LA.val
-      (fun _ => 0) 0 0 (2 ^ LA.val (R.ofUSize (e % R.wU))) 0
-      (fun c => LA.val c < 2 ^ LA.val (R.ofUSize (e % R.wU)))
-      (shlStep_inv _ _ hb₀ hb) (shlStep_law _ _ hb₀ hb) _ d d d hl₄ hl₄ hl₄ (by lia) (by lia) 0
-      R.zero (by simp only [R.val_zero]; exact Nat.two_pow_pos _)
-    rw [e₅] at P₅
-    obtain ⟨-, -, p₅u, p₅v⟩ := P₅
-    simp only [USize.toNat_zero, Nat.add_zero, Nat.sub_zero, hs, Nat.zero_mul, Nat.mul_zero,
-      R.val_zero] at p₅u p₅v
-    subst hG₅
-    obtain ⟨n₁, n₂, n₃⟩ := normAt_spec a₅ n d ((hd.of_size hsz).of_size h₅) hn
-    refine ⟨n₁.trans (h₅.trans hsz), fun i hi => by rw [n₂ i hi, p₅u i (by lia), hun i hi], ?_⟩
-    rw [n₃]
-    simp only [fermatW]
-    rw [hbv] at p₅v hb
-    have hbb : 2 ^ (e % R.wU).toNat < 2 ^ LA.w := Nat.pow_lt_pow_right (by decide) hb
-    have hc₅ : LA.val c₅ = 0 := by
-      rcases Nat.eq_zero_or_pos (LA.val c₅) with h | h
-      · exact h
-      · rw [hB] at p₅v
-        have h₁ := Nat.mul_le_mul_left (2 ^ (LA.w * q) * 2 ^ (LA.w * (n.toNat - q)) * 2 ^ LA.w) h
-        have h₂ : 2 ^ (e % R.wU).toNat * LimbArray.valAt (incrAt (R.uset a₂ (d + n) R.zero hidx) d
-            (n + 1) hl₃ 0 c₂).1 d.toNat (n.toNat + 1) ≤ 2 ^ (e % R.wU).toNat * 2 ^ (LA.w * n.toNat) :=
-          Nat.mul_le_mul_left _ r₂
-        have h₃ : 2 ^ (e % R.wU).toNat * 2 ^ (LA.w * n.toNat) < 2 ^ LA.w * 2 ^ (LA.w * n.toNat) :=
-          Nat.mul_lt_mul_of_pos_right hbb (Nat.two_pow_pos _)
-        rw [hPn] at h₂ h₃
-        have h₄ : 2 ^ LA.w * (2 ^ (LA.w * q) * 2 ^ (LA.w * (n.toNat - q))) =
-            2 ^ (LA.w * q) * 2 ^ (LA.w * (n.toNat - q)) * 2 ^ LA.w := Nat.mul_comm _ _
-        lia
-    rw [hc₅, Nat.mul_zero, Nat.add_zero] at p₅v
-    rw [p₅v, he₆, Nat.pow_add, ← Nat.mul_assoc, Nat.mul_mod, ← r₃, Nat.mod_mod, ← Nat.mul_mod,
-      Nat.mul_comm]
+    have he₆ : e.toNat = LA.w * (e.toNat / LA.w) := by
+      have := Nat.div_add_mod e.toNat LA.w
+      have h' : e.toNat % LA.w = 0 := by rw [← R.toNat_wU, ← USize.toNat_mod, h0]; rfl
+      lia
+    rw [he₆]
+    rw [← he₆]
+    have := rotAt_spec arr n d t e hd ht he hn hdt hT
+    rwa [← he₆] at this
+  · exact rotShlAt_spec arr n d t e hd ht he (by assumption) hdt hT
 
 /-! ## The residue operations of the transforms
 
