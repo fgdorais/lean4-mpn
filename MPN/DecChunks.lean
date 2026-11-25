@@ -73,6 +73,22 @@ public class DecOps (A : Type) (L : outParam Type) [LA : LimbArray A L] where
   /-- `a m + v`, for `v < m`. -/
   mulAdd : A → L → L → A
   vA_mulAdd : ∀ a m v, LA.val v < LA.val m → vA (mulAdd a m v) = vA a * LA.val m + LA.val v
+  /-- `n` zero limbs, the room that `mulAddIn` fills. -/
+  alloc : Nat → A
+  size_alloc : ∀ n, LA.size (alloc n) = n
+  val_get_alloc : ∀ n i, LA.val (LA.get (alloc n) i) = 0
+  /--
+  `a m + v` for limbs `a` that are zero from `u` on, and the limb from which the result is zero,
+  in place when there is room.
+  -/
+  mulAddIn : A → Nat → L → L → A × Nat
+  mulAddIn_spec : ∀ a u m v, u ≤ LA.size a → (∀ i, u ≤ i → LA.val (LA.get a i) = 0) →
+    (mulAddIn a u m v).2 ≤ LA.size (mulAddIn a u m v).1 ∧
+      (∀ i, (mulAddIn a u m v).2 ≤ i → LA.val (LA.get (mulAddIn a u m v).1 i) = 0) ∧
+      vA (mulAddIn a u m v).1 = vA a * LA.val m + LA.val v
+  /-- The limbs without their zero top limbs. -/
+  trim : A → A
+  vA_trim : ∀ a, vA (trim a) = vA a
   /-- A chunk as a word, for writing its digits. -/
   chunkWord : L → UInt64
   toNat_chunkWord : ∀ x, (chunkWord x).toNat = LA.val x
@@ -412,6 +428,12 @@ private theorem vA_finish (st : O.St) (p : List Char) (h : Inv st p) :
   · rw [finish, ite_eq_right h0, O.vA_mulAdd _ _ _ (by rw [O.val_pow10 _ (by lia)]; exact hch),
       O.val_pow10 _ (by lia), hv]
 
+variable (A) in
+private theorem inv_init : Inv (O.mkSt O.empty O.chunk0 0) ([] : List Char) :=
+  ⟨by rw [O.count_mkSt]; exact O.one_le_k, by
+    rw [O.chunk_mkSt, O.count_mkSt, O.val_chunk0]; decide, by
+    rw [O.acc_mkSt, O.chunk_mkSt, O.count_mkSt, O.vA_empty, O.val_chunk0]; simp⟩
+
 /--
 The number with the decimal digits of `l`, skipping `_`, like `Nat.ofDigitChars` of the digits;
 `l.foldl` and `String.foldl` read it without building lists.
@@ -427,7 +449,7 @@ public theorem vA_finish_foldl (l : List Char) (hl : ∀ c ∈ l, c.isDigit = tr
 /-! ## Decimal to limbs, by bytes
 
 A string that `String.isNat` accepts is made of digits and `_`, characters of one byte each in
-UTF-8, so that its bytes are its characters: `readB` reads them with `String.getUTF8Byte`, with the
+UTF-8, so that its bytes are its characters: `readBI` reads them with `String.getUTF8Byte`, with the
 limbs so far, the chunk and its digits in the arguments of the loop instead of a state.
 -/
 
@@ -472,62 +494,189 @@ private theorem byte_eq_95 (c : Char) (h : c.val ≤ 127) : c.val.toUInt8 = 95 �
     rfl
   · rintro rfl; rfl
 
-/-- Reads the bytes of `s` from `i`, as `step` reads characters, then `finish`. -/
-@[expose, specialize] public def readB (s : String) (i : Nat) (acc : A) (c : L) (n : UInt32) : A :=
-  if h : i < s.utf8ByteSize then
-    let b := s.getUTF8Byte ⟨i⟩ h
-    if b = 95 then readB s (i + 1) acc c n
+omit [DecOps A L] in
+private theorem isDigit_ascii {c : Char} (h : c.isDigit = true ∨ c = '_') : c.val ≤ 127 := by
+  rcases h with h' | rfl
+  · simp only [Char.isDigit, Bool.and_eq_true, decide_eq_true_eq] at h'
+    exact UInt32.le_iff_toNat_le.2 (by have := UInt32.le_iff_toNat_le.1 h'.2; simp at this ⊢; lia)
+  · decide
+
+/--
+Reads the bytes of `s` from `i` below `stop`, as `step` reads characters, then as `finish`, with
+the limbs so far in place in `acc`, which is zero from limb `u` on: `mulAddIn` multiplies its `u`
+low limbs by `10ᵏ`, and `acc` needs a limb for every `k` digits and one more.
+-/
+@[expose, specialize] public def readBI (s : String) (stop i : Nat) (acc : A) (u : Nat) (c : L)
+    (n : UInt32) : A :=
+  if h : i < stop ∧ i < s.utf8ByteSize then
+    let b := s.getUTF8Byte ⟨i⟩ h.2
+    if b = 95 then readBI s stop (i + 1) acc u c n
     else
       let v := O.push c (b.toUInt32 - 48)
-      if n + 1 = O.kU then readB s (i + 1) (O.mulAdd acc O.base v) O.chunk0 0
-      else readB s (i + 1) acc v (n + 1)
-  else finish (O.mkSt acc c n)
+      if n + 1 = O.kU then
+        let r := O.mulAddIn acc u O.base v
+        readBI s stop (i + 1) r.1 r.2 O.chunk0 0
+      else readBI s stop (i + 1) acc u v (n + 1)
+  else O.trim (if n = 0 then acc else (O.mulAddIn acc u (O.pow10 n.toNat) c).1)
+termination_by stop - i
+
+private theorem drop_take_cons (l : List Char) (stop i : Nat) (hi : i < l.length) (hs : i < stop) :
+    (l.drop i).take (stop - i) = l[i] :: (l.drop (i + 1)).take (stop - (i + 1)) := by
+  rw [List.drop_eq_getElem_cons hi, show stop - i = stop - (i + 1) + 1 by lia, List.take_succ_cons]
+
+/-- `Inv` holds of any limbs of the same value. -/
+private theorem inv_of_vA {a a' : A} {c : L} {n : UInt32} {p : List Char} (h : vA a' = vA a)
+    (hi : Inv (O.mkSt a c n) p) : Inv (O.mkSt a' c n) p := by
+  unfold Inv at hi ⊢
+  simp only [O.acc_mkSt, O.chunk_mkSt, O.count_mkSt] at hi ⊢
+  exact ⟨hi.1, hi.2.1, by rw [h]; exact hi.2.2⟩
+
+private theorem vA_alloc (n : Nat) : vA (O.alloc n) = vA (O.empty (A := A)) := by
+  rw [O.vA_empty, vA, LimbArray.valAt_eq_zero _ (fun _ _ _ => O.val_get_alloc _ _)]
+
+private theorem readBI_spec (s : String) (h : ∀ c ∈ s.toList, c.isDigit = true ∨ c = '_')
+    (stop i : Nat) (acc : A) (u : Nat) (c : L) (n : UInt32) (p : List Char)
+    (hI : Inv (O.mkSt acc c n) p) (hu : u ≤ LA.size acc)
+    (hz : ∀ j, u ≤ j → LA.val (LA.get acc j) = 0) :
+    vA (readBI s stop i acc u c n) =
+      Nat.ofDigitChars 10 ((p ++ (s.toList.drop i).take (stop - i)).filter (· != '_')) 0 := by
+  have ha : ∀ c ∈ s.toList, c.val ≤ 127 := fun c hc => isDigit_ascii (h c hc)
+  obtain ⟨hsz, hbyte⟩ := bytes_ascii s ha
+  induction i, acc, u, c, n using readBI.induct (O := O) s stop generalizing p with
+  | case1 i acc u c n hi b hb ih =>
+    rw [readBI, dite_eq_left hi]
+    simp only [b] at hb ih ⊢
+    rw [ite_eq_left hb]
+    have hi' : i < s.toList.length := hsz ▸ hi.2
+    have hc := hbyte i hi' hi.2
+    rw [hc] at hb
+    have hu' : s.toList[i] = '_' := (byte_eq_95 _ (ha _ (List.getElem_mem hi'))).1 hb
+    have hs := inv_step _ p _ (h _ (List.getElem_mem hi')) hI
+    rw [hu', step, ite_eq_left rfl] at hs
+    rw [ih (p ++ [s.toList[i]]) (by rw [hu']; exact hs) hu hz, drop_take_cons _ _ _ hi' hi.1,
+      List.append_assoc, List.singleton_append]
+  | case2 i acc u c n hi b hb v hk r ih =>
+    rw [readBI, dite_eq_left hi]
+    simp only [b, v, r] at hb hk ih ⊢
+    rw [ite_eq_right hb, ite_eq_left hk]
+    have hi' : i < s.toList.length := hsz ▸ hi.2
+    have hc := hbyte i hi' hi.2
+    have hv := ha _ (List.getElem_mem hi')
+    rw [hc] at hb ih ⊢
+    have hu' : s.toList[i] ≠ '_' := fun e => hb ((byte_eq_95 _ hv).2 e)
+    rw [toUInt32_byte _ hv] at ih ⊢
+    have hs := inv_step _ p _ (h _ (List.getElem_mem hi')) hI
+    simp only [step, hu', ↓reduceIte, O.chunk_mkSt, O.count_mkSt, O.acc_mkSt, hk] at hs
+    obtain ⟨m₁, m₂, m₃⟩ := O.mulAddIn_spec acc u O.base (O.push c (s.toList[i].val - 48)) hu hz
+    -- the chunk is below `10ᵏ`, so `mulAdd` and `mulAddIn` agree
+    have hlt : LA.val (O.push c (s.toList[i].val - 48)) < LA.val O.base := by
+      obtain ⟨hk₁, hch, -⟩ := hI
+      simp only [O.chunk_mkSt, O.count_mkSt] at hk₁ hch
+      have hn : n.toNat + 1 = O.k := by
+        rw [← O.toNat_kU, ← hk, UInt32.toNat_add]
+        simp only [UInt32.reduceToNat]
+        exact (Nat.mod_eq_of_lt (by have := O.k_lt; lia)).symm
+      obtain ⟨hd₁, hd₂⟩ := digit_toNat ((h _ (List.getElem_mem hi')).resolve_right hu')
+      have hp : 10 ^ n.toNat = 10 ^ (O.k - 1) := by rw [← hn, Nat.add_sub_cancel]
+      rw [O.val_push _ _ (by rw [← hp]; exact hch) (by rw [hd₁]; exact hd₂), O.val_base, ← hn,
+        Nat.pow_succ, hd₁]
+      lia
+    rw [ih (p ++ [s.toList[i]])
+      (inv_of_vA (by rw [m₃, O.vA_mulAdd _ _ _ hlt]) hs) m₁ m₂, drop_take_cons _ _ _ hi' hi.1,
+      List.append_assoc, List.singleton_append]
+  | case3 i acc u c n hi b hb v hk ih =>
+    rw [readBI, dite_eq_left hi]
+    simp only [b, v] at hb hk ih ⊢
+    rw [ite_eq_right hb, ite_eq_right hk]
+    have hi' : i < s.toList.length := hsz ▸ hi.2
+    have hc := hbyte i hi' hi.2
+    have hv := ha _ (List.getElem_mem hi')
+    rw [hc] at hb ih ⊢
+    have hu' : s.toList[i] ≠ '_' := fun e => hb ((byte_eq_95 _ hv).2 e)
+    rw [toUInt32_byte _ hv] at ih ⊢
+    have hs := inv_step _ p _ (h _ (List.getElem_mem hi')) hI
+    simp only [step, hu', ↓reduceIte, O.chunk_mkSt, O.count_mkSt, O.acc_mkSt, hk] at hs
+    rw [ih (p ++ [s.toList[i]]) hs hu hz, drop_take_cons _ _ _ hi' hi.1, List.append_assoc,
+      List.singleton_append]
+  | case4 i acc u c n hi =>
+    rw [readBI, dite_eq_right hi]
+    have : (s.toList.drop i).take (stop - i) = [] := by
+      rcases Nat.lt_or_ge i stop with h₁ | h₁
+      · have : s.toList.length ≤ i := by rw [← hsz]; lia
+        rw [List.drop_eq_nil_of_le this, List.take_nil]
+      · rw [Nat.sub_eq_zero_of_le h₁, List.take_zero]
+    rw [this, List.append_nil, O.vA_trim, ← vA_finish _ p hI, finish]
+    simp only [O.count_mkSt, O.acc_mkSt, O.chunk_mkSt]
+    split
+    · rfl
+    · rename_i hn
+      obtain ⟨hk₁, hch, -⟩ := hI
+      simp only [O.chunk_mkSt, O.count_mkSt] at hk₁ hch
+      rw [(O.mulAddIn_spec acc u _ c hu hz).2.2,
+        O.vA_mulAdd _ _ _ (by rw [O.val_pow10 _ (by lia)]; exact hch)]
+
+/-- Whether `s` has a byte `95`, an `_`, from byte `i` on. -/
+@[expose] public def hasUnderscore (s : String) (i : Nat) : Bool :=
+  if h : i < s.utf8ByteSize then
+    if s.getUTF8Byte ⟨i⟩ h = 95 then true else hasUnderscore s (i + 1)
+  else false
 termination_by s.utf8ByteSize - i
 
-private theorem readB_eq (s : String) (h : ∀ c ∈ s.toList, c.val ≤ 127) (i : Nat) (acc : A)
-    (c : L) (n : UInt32) :
-    readB s i acc c n = finish ((s.toList.drop i).foldl step (O.mkSt acc c n)) := by
+omit [DecOps A L] in
+private theorem not_mem_of_hasUnderscore (s : String) (h : ∀ c ∈ s.toList, c.val ≤ 127) (i : Nat)
+    (hf : hasUnderscore s i = false) : '_' ∉ s.toList.drop i := by
   obtain ⟨hsz, hbyte⟩ := bytes_ascii s h
-  induction i, acc, c, n using readB.induct (O := O) s with
-  | case1 i acc c n hi b hb ih =>
-    rw [readB, dite_eq_left hi]
-    simp only [b] at hb ih ⊢
-    rw [ite_eq_left hb, ih]
+  induction i using hasUnderscore.induct s with
+  | case1 i hi hb =>
+    rw [hasUnderscore, dite_eq_left hi, ite_eq_left hb] at hf
+    exact absurd hf (by decide)
+  | case2 i hi hb ih =>
+    rw [hasUnderscore, dite_eq_left hi, ite_eq_right hb] at hf
     have hi' : i < s.toList.length := hsz ▸ hi
-    rw [List.drop_eq_getElem_cons hi', List.foldl_cons]
-    congr 2
-    have hc := hbyte i hi' hi
-    rw [hc] at hb
-    have hv := h _ (List.getElem_mem hi')
-    simp [step, (byte_eq_95 _ hv).1 hb]
-  | case2 i acc c n hi b hb v hk ih =>
-    rw [readB, dite_eq_left hi]
-    simp only [b, v] at hb hk ih ⊢
-    rw [ite_eq_right hb, ite_eq_left hk, ih]
-    have hi' : i < s.toList.length := hsz ▸ hi
-    rw [List.drop_eq_getElem_cons hi', List.foldl_cons]
-    have hc := hbyte i hi' hi
-    have hv := h _ (List.getElem_mem hi')
-    rw [hc] at hb ⊢
-    have hu : s.toList[i] ≠ '_' := fun e => hb ((byte_eq_95 _ hv).2 e)
-    rw [toUInt32_byte _ hv]
-    simp only [step, hu, ↓reduceIte, O.chunk_mkSt, O.count_mkSt, O.acc_mkSt, hk]
-  | case3 i acc c n hi b hb v hk ih =>
-    rw [readB, dite_eq_left hi]
-    simp only [b, v] at hb hk ih ⊢
-    rw [ite_eq_right hb, ite_eq_right hk, ih]
-    have hi' : i < s.toList.length := hsz ▸ hi
-    rw [List.drop_eq_getElem_cons hi', List.foldl_cons]
-    have hc := hbyte i hi' hi
-    have hv := h _ (List.getElem_mem hi')
-    rw [hc] at hb ⊢
-    have hu : s.toList[i] ≠ '_' := fun e => hb ((byte_eq_95 _ hv).2 e)
-    rw [toUInt32_byte _ hv]
-    simp only [step, hu, ↓reduceIte, O.chunk_mkSt, O.count_mkSt, O.acc_mkSt, hk]
-  | case4 i acc c n hi =>
-    rw [readB, dite_eq_right hi]
+    rw [List.drop_eq_getElem_cons hi', List.mem_cons, not_or]
+    refine ⟨fun e => hb ?_, ih hf⟩
+    rw [hbyte i hi' hi]
+    exact (byte_eq_95 _ (h _ (List.getElem_mem hi'))).2 e.symm
+  | case3 i hi =>
     have : s.toList.length ≤ i := by rw [← hsz]; lia
-    rw [List.drop_eq_nil_of_le this, List.foldl_nil]
+    rw [List.drop_eq_nil_of_le this]
+    simp
+
+/--
+The characters of `s` but `_`: `s` itself when it has none, which is the usual case, and otherwise
+by one fold over the string.
+-/
+@[expose] public def digitString (s : String) : String :=
+  if hasUnderscore s 0 then s.foldl (fun t c => if c = '_' then t else t.push c) "" else s
+
+omit [DecOps A L] in
+private theorem toList_digitString (s : String) (h : ∀ c ∈ s.toList, c.val ≤ 127) :
+    (digitString s).toList = s.toList.filter (· != '_') := by
+  unfold digitString
+  split
+  · rw [String.foldl_eq_foldl_toList]
+    suffices h : ∀ (l : List Char) (t : String),
+        (l.foldl (fun t c => if c = '_' then t else t.push c) t).toList =
+          t.toList ++ l.filter (· != '_') by
+      rw [h]; simp
+    intro l
+    induction l with
+    | nil => intro t; simp
+    | cons c cs ih =>
+      intro t
+      rw [List.foldl_cons, ih, List.filter_cons]
+      by_cases hc : c = '_'
+      · simp [hc]
+      · simp [hc, String.toList_push]
+  · rename_i hf
+    have hn := not_mem_of_hasUnderscore s h 0 (by simpa using hf)
+    rw [List.drop_zero] at hn
+    symm
+    apply List.filter_eq_self.2
+    intro c hc
+    simp only [bne_iff_ne, ne_eq]
+    rintro rfl
+    exact hn hc
 
 /-! ## Divide and conquer
 
@@ -559,23 +708,19 @@ public theorem toDecimalWith_eq (hto : ∀ x, vA (toA x) = o.val x)
       (fun x => by rw [decBase, toDecimal_eq, Nat.toList_repr, hto]), Nat.toList_repr, hof]
   · exact toDecimal_eq a
 
-/-- The value of `len` digits of `arr` from `start` by chunks, the base case of `fromDec`. -/
-@[expose, specialize] public def parseBase (arr : Array Char) (start len : Nat) : α :=
-  ofA (finish (arr.foldl step (init A) start (start + len)))
+/-- The value of the bytes of `s` from `start` below `start + len`, the base case of `fromDec`. -/
+@[expose, specialize] public def parseBase (s : String) (start len : Nat) : α :=
+  ofA (readBI s (start + len) start (O.alloc (len / O.k + 2)) 0 O.chunk0 0)
 
-omit [DecOps A L] in
-private theorem foldl_chars {β : Type} (f : β → Char → β) (b : β) (arr : Array Char)
-    (start len : Nat) :
-    arr.foldl f b start (start + len) = (NatOps.chars arr start len).foldl f b := by
-  rw [Array.foldl_eq_foldl_extract, ← Array.foldl_toList, Array.toList_extract,
-    List.extract_eq_take_drop, Nat.add_sub_cancel_left, NatOps.chars]
-
-private theorem parseBase_spec (hof : ∀ a, o.val (ofA a) = vA a) (arr : Array Char)
-    (hd : ∀ c ∈ arr.toList, c.isDigit = true) (start len : Nat) :
-    o.val (parseBase ofA arr start len) = Nat.ofDigitChars 10 (NatOps.chars arr start len) 0 := by
-  have hc : ∀ c ∈ NatOps.chars arr start len, c.isDigit = true := fun c hc =>
+private theorem parseBase_spec (hof : ∀ a, o.val (ofA a) = vA a) (s : String)
+    (hd : ∀ c ∈ s.toList, c.isDigit = true) (start len : Nat) :
+    o.val (parseBase ofA s start len) =
+      Nat.ofDigitChars 10 (NatOps.chars s.toList start len) 0 := by
+  have hc : ∀ c ∈ NatOps.chars s.toList start len, c.isDigit = true := fun c hc =>
     hd c (List.mem_of_mem_drop (List.mem_of_mem_take hc))
-  rw [parseBase, hof, foldl_chars, vA_finish_foldl _ (fun c h => Or.inl (hc c h))]
+  rw [parseBase, hof, readBI_spec s (fun c h => .inl (hd c h)) _ _ _ _ _ _ [] (inv_of_vA (vA_alloc _) (inv_init A))
+    (Nat.zero_le _) (fun _ _ => O.val_get_alloc _ _), Nat.add_sub_cancel_left, List.nil_append,
+    ← NatOps.chars]
   congr 1
   apply List.filter_eq_self.2
   intro c h
@@ -585,61 +730,40 @@ private theorem parseBase_spec (hof : ∀ a, o.val (ofA a) = vA a) (arr : Array 
   exact absurd this (by decide)
 
 /--
-The characters of `s` but `_`, as an array, by one fold over the string: no list of its
-characters, filtered and then converted.
--/
-@[expose] public def digitArray (s : String) : Array Char :=
-  s.foldl (fun a c => if c = '_' then a else a.push c) (Array.mkEmpty s.utf8ByteSize)
-
-omit [DecOps A L] in
-public theorem digitArray_eq (s : String) :
-    digitArray s = (s.toList.filter (· != '_')).toArray := by
-  rw [digitArray, String.foldl_eq_foldl_toList]
-  suffices h : ∀ (l : List Char) (a : Array Char),
-      l.foldl (fun a c => if c = '_' then a else a.push c) a = a ++ (l.filter (· != '_')).toArray by
-    rw [h]; simp
-  intro l
-  induction l with
-  | nil => intro a; simp
-  | cons c cs ih =>
-    intro a
-    rw [List.foldl_cons, ih, List.filter_cons]
-    by_cases hc : c = '_'
-    · simp [hc]
-    · simp [hc]
-
-/--
 The limbs of a string of decimal digits that `String.isNat` accepts: from `k parseDC` digits by
-divide and conquer (`NatOps.fromDec`, by chunks below `T` digits), and below by chunks.
+divide and conquer (`NatOps.fromDec`, on the bytes of the digits, by chunks below `T` digits),
+and below by chunks.
 -/
 @[expose, specialize] public def ofDecimalWith (parseDC T : Nat) (s : String) : A :=
-  if O.k * parseDC ≤ s.length then
-    toA (o.fromDec (parseBase ofA) T (digitArray s))
-  else readB s 0 O.empty O.chunk0 0
+  if O.k * parseDC ≤ s.utf8ByteSize then
+    let t := digitString s
+    toA (o.fromDec (parseBase ofA t) T t.utf8ByteSize)
+  else readBI s s.utf8ByteSize 0 (O.alloc (s.utf8ByteSize / O.k + 2)) 0 O.chunk0 0
 
 public theorem ofDecimalWith_spec (hto : ∀ x, vA (toA x) = o.val x)
     (hof : ∀ a, o.val (ofA a) = vA a) (parseDC T : Nat) (s : String) (h : s.isNat = true) :
     s.toNat? = some (vA (ofDecimalWith o toA ofA parseDC T s)) := by
   rw [String.toNat?_eq_some_ofDigitChars h, Option.some.injEq]
+  have hd := (String.isNat_iff.1 h).2.1
+  have ha : ∀ c ∈ s.toList, c.val ≤ 127 := fun c hc => isDigit_ascii (hd c hc)
   unfold ofDecimalWith
   split
-  · rw [digitArray_eq]
-    have hd : ∀ c ∈ (s.toList.filter (· != '_')).toArray.toList, c.isDigit = true := by
+  · dsimp only
+    have ht := toList_digitString s ha
+    have hdt : ∀ c ∈ (digitString s).toList, c.isDigit = true := by
       intro c hc
+      rw [ht] at hc
       simp only [List.mem_filter, bne_iff_ne, ne_eq] at hc
-      rcases (String.isNat_iff.1 h).2.1 c hc.1 with h' | h'
+      rcases hd c hc.1 with h' | h'
       · exact h'
       · exact absurd h' hc.2
-    rw [hto, o.fromDec_spec (parseBase ofA) T _
-      (fun st ln _ => parseBase_spec o ofA hof _ hd st ln), List.toList_toArray]
-  · have hd := (String.isNat_iff.1 h).2.1
-    have ha : ∀ c ∈ s.toList, c.val ≤ 127 := fun c hc => by
-      rcases hd c hc with h' | rfl
-      · simp only [Char.isDigit, Bool.and_eq_true, decide_eq_true_eq] at h'
-        exact UInt32.le_iff_toNat_le.2 (by have := UInt32.le_iff_toNat_le.1 h'.2; simp at this ⊢; lia)
-      · decide
-    rw [readB_eq s ha, List.drop_zero]
-    exact (vA_finish_foldl _ hd).symm
+    have hsz : (digitString s).utf8ByteSize = (digitString s).toList.length :=
+      (bytes_ascii _ (fun c hc => isDigit_ascii (.inl (hdt c hc)))).1
+    rw [hto, hsz, o.fromDec_spec (parseBase ofA (digitString s)) T _
+      (fun st ln _ => parseBase_spec o ofA hof _ hdt st ln), ht]
+  · rw [readBI_spec s hd _ _ _ _ _ _ [] (inv_of_vA (vA_alloc _) (inv_init A)) (Nat.zero_le _)
+      (fun _ _ => O.val_get_alloc _ _), Nat.sub_zero, List.drop_zero, List.nil_append,
+      List.take_of_length_le (by rw [(bytes_ascii s ha).1]; exact Nat.le_refl _)]
 
 end DC
 

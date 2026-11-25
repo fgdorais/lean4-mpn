@@ -300,77 +300,118 @@ public theorem toDec_spec (x : α) : (o.toDec base T x).toList = Nat.toDigits 10
       have := Nat.le_mul_self (o.val p)
       lia
 
-/-! ## Reading digits -/
+/-! ## Reading digits
 
-/-- The `len` characters of `arr` from `start`. -/
-@[expose] public def chars (arr : Array Char) (start len : Nat) : List Char :=
-  (arr.toList.drop start).take len
+`fromDec` reads digits after GMP's `mpn_set_str`: the high digits times a power `10^(2ʲ)` plus
+the low `2ʲ` digits, recursively. The power `10^(2ʲ)` ends with `2ʲ` zero bits, nearly a third of
+its limbs at base `2ʷ`, so each power is kept as `p' Bᶻ` with those `z` zero limbs off (`IsPowsZ`):
+the products by `p'` are smaller, and so are the squares that compute the powers.
+-/
 
-/-- The powers `10^(2ʲ)` for `j` from `k - 1` down to `0`. -/
-public def powsN : Nat → List α
+/-- The `len` characters of `l` from `start`. -/
+@[expose] public def chars (l : List Char) (start len : Nat) : List Char :=
+  (l.drop start).take len
+
+/--
+`ps` are the powers `10^(2ʲ)` for `j` from `ps.length - 1` down to `0`, each as a number `p'`
+and a count `z` of limbs with `p' Bᶻ = 10^(2ʲ)`.
+-/
+@[expose] public def IsPowsZ : List (α × Nat) → Prop
+  | [] => True
+  | (p, z) :: ps => o.val p * o.B ^ z = 10 ^ 2 ^ ps.length ∧ IsPowsZ ps
+
+/-- `s` without its low `e` limbs when they are zero, with the count of limbs taken off. -/
+public def stripLo (e : Nat) (s : α) : α × Nat :=
+  if e = 0 then (s, 0)
+  else if o.le (o.lo e s) (o.ofSmall 0) then (o.hi e s, e) else (s, 0)
+
+theorem val_stripLo (e : Nat) (s : α) :
+    o.val (o.stripLo e s).1 * o.B ^ (o.stripLo e s).2 = o.val s := by
+  unfold stripLo
+  split
+  · simp
+  split
+  · rename_i _ h
+    rw [o.le_iff, val_ofSmall, Nat.le_zero, o.val_lo] at h
+    dsimp only
+    rw [o.val_hi, Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero h)]
+  · simp
+
+/--
+The powers `10^(2ʲ)` for `j` from `k - 1` down to `0`, by squares, each without as many zero low
+limbs as it has: `10^(2ʲ)` ends with `2ʲ` zero bits, so with `2ʲ / log₂ B` zero limbs at base
+`B = 2ʷ`, which a check confirms.
+-/
+public def powsZ : Nat → List (α × Nat)
   | 0 => []
   | k + 1 =>
-    match powsN k with
-    | [] => [o.ofSmall 10]
-    | p :: ps => o.sqr p :: p :: ps
+    match powsZ k with
+    | [] => [(o.ofSmall 10, 0)]
+    | (p, z) :: ps =>
+      let s := o.stripLo (2 ^ k / Nat.log2 o.B - 2 * z) (o.sqr p)
+      (s.1, 2 * z + s.2) :: (p, z) :: ps
 
-public theorem isPows_powsN (k : Nat) : o.IsPows (o.powsN k) ∧ (o.powsN k).length = k := by
+public theorem isPowsZ_powsZ (k : Nat) : o.IsPowsZ (o.powsZ k) ∧ (o.powsZ k).length = k := by
   induction k with
   | zero => exact ⟨trivial, rfl⟩
   | succ k ih =>
     obtain ⟨h₁, h₂⟩ := ih
-    simp only [powsN]
+    simp only [powsZ]
     split
     · rename_i he
       rw [he] at h₂
       subst h₂
       exact ⟨⟨by rw [val_ofSmall]; rfl, trivial⟩, rfl⟩
-    · rename_i p ps he
+    · rename_i p z ps he
       rw [he] at h₁ h₂
       refine ⟨⟨?_, h₁⟩, by simp [h₂]⟩
-      rw [o.val_sqr, h₁.1, ← Nat.pow_add, List.length_cons, Nat.pow_succ, Nat.mul_two]
+      rw [Nat.pow_add, Nat.mul_comm (o.B ^ (2 * z)), ← Nat.mul_assoc, o.val_stripLo, o.val_sqr,
+        Nat.pow_mul', ← Nat.pow_two, ← Nat.mul_pow, h₁.1, ← Nat.pow_mul,
+        List.length_cons, Nat.pow_succ]
 
-variable (rbase : Array Char → Nat → Nat → α) (D : Nat) (arr : Array Char)
+variable (rbase : Nat → Nat → α) (D : Nat) (l : List Char)
 
 /--
-The value of the `len ≤ 2ᵏ` digits of `arr` from `start`, for the powers `ps` below `10^(2ᵏ)`:
-the high digits times the top power plus the low `2ᵏ⁻¹` digits, recursively, and `rbase` for
-`D` digits or fewer.
+The value of the `len ≤ 2ᵏ` digits from `start`, for the powers `ps` below `10^(2ᵏ)`: the high
+digits times the top power plus the low `2ᵏ⁻¹` digits, recursively, and `rbase` for `D` digits or
+fewer. The product by `p' Bᶻ` is the product by `p'`, shifted by `z` limbs.
 -/
-public def decVal : List α → Nat → Nat → α
-  | [], start, len => rbase arr start len
-  | p :: ps, start, len =>
-    if len ≤ D then rbase arr start len
+public def decVal : List (α × Nat) → Nat → Nat → α
+  | [], start, len => rbase start len
+  | (p, z) :: ps, start, len =>
+    if len ≤ D then rbase start len
     else if len ≤ 2 ^ ps.length then decVal ps start len
     else
-      o.add (o.mul (decVal ps start (len - 2 ^ ps.length)) p)
+      let m := o.mul (decVal ps start (len - 2 ^ ps.length)) p
+      o.add (if z = 0 then m else o.shl z m)
         (decVal ps (start + (len - 2 ^ ps.length)) (2 ^ ps.length))
 
-/-- The value of the decimal digits of `arr`, like `Nat.ofDigitChars 10`. -/
-public def fromDec : α :=
-  o.decVal rbase D arr (o.powsN (Nat.log2 arr.size + 1)) 0 arr.size
+/-- The value of `n` decimal digits, `rbase` reading `len` of them from `start`. -/
+public def fromDec (n : Nat) : α :=
+  o.decVal rbase D (o.powsZ (Nat.log2 n + 1)) 0 n
 
-variable (hrbase : ∀ start len, start + len ≤ arr.size →
-  o.val (rbase arr start len) = Nat.ofDigitChars 10 (chars arr start len) 0)
+variable (hrbase : ∀ start len, start + len ≤ l.length →
+  o.val (rbase start len) = Nat.ofDigitChars 10 (chars l start len) 0)
 
-private theorem chars_split (start hi lo : Nat) (_h : start + hi + lo ≤ arr.size) :
-    chars arr start (hi + lo) = chars arr start hi ++ chars arr (start + hi) lo := by
+private theorem chars_split (start hi lo : Nat) :
+    chars l start (hi + lo) = chars l start hi ++ chars l (start + hi) lo := by
   unfold chars
   rw [List.take_add, List.drop_drop]
 
-private theorem length_chars (start len : Nat) (h : start + len ≤ arr.size) :
-    (chars arr start len).length = len := by
+private theorem length_chars (start len : Nat) (h : start + len ≤ l.length) :
+    (chars l start len).length = len := by
   unfold chars
   simp; lia
 
 include hrbase in
-public theorem decVal_spec : ∀ (ps : List α) (start len : Nat), o.IsPows ps →
-    start + len ≤ arr.size → len ≤ 2 ^ ps.length →
-    o.val (o.decVal rbase D arr ps start len) = Nat.ofDigitChars 10 (chars arr start len) 0 := by
+public theorem decVal_spec : ∀ (ps : List (α × Nat)) (start len : Nat), o.IsPowsZ ps →
+    start + len ≤ l.length → len ≤ 2 ^ ps.length →
+    o.val (o.decVal rbase D ps start len) = Nat.ofDigitChars 10 (chars l start len) 0 := by
   intro ps
   induction ps with
   | nil => intro start len _ h _; rw [decVal, hrbase _ _ h]
-  | cons p ps ih =>
+  | cons pz ps ih =>
+    obtain ⟨p, z⟩ := pz
     intro start len hps h hlen
     rw [decVal]
     split
@@ -379,22 +420,30 @@ public theorem decVal_spec : ∀ (ps : List α) (start len : Nat), o.IsPows ps �
     · exact ih _ _ hps.2 h (by assumption)
     · rename_i _ hlo
       rw [List.length_cons, Nat.pow_succ, Nat.mul_two] at hlen
-      have e := chars_split arr start (len - 2 ^ ps.length) (2 ^ ps.length) (by lia)
+      have e := chars_split l start (len - 2 ^ ps.length) (2 ^ ps.length)
       rw [Nat.sub_add_cancel (by lia)] at e
-      rw [o.val_add, o.val_mul, ih _ _ hps.2 (by lia) (by lia),
-        ih _ _ hps.2 (by lia) (Nat.le_refl _),
-        hps.1, e, Nat.ofDigitChars_append,
-        Nat.ofDigitChars_eq_ofDigitChars_zero (l := chars arr (start + (len - 2 ^ ps.length)) _)
-          (init := Nat.ofDigitChars 10 (chars arr start (len - 2 ^ ps.length)) 0),
-        length_chars arr _ _ (by lia), Nat.mul_comm]
+      have hm : ∀ m : α, o.val m = Nat.ofDigitChars 10 (chars l start (len - 2 ^ ps.length)) 0 *
+          o.val p → o.val (if z = 0 then m else o.shl z m) =
+            Nat.ofDigitChars 10 (chars l start (len - 2 ^ ps.length)) 0 * 10 ^ 2 ^ ps.length := by
+        intro m hm
+        rw [← hps.1, ← Nat.mul_assoc, ← hm]
+        split
+        · rename_i hz; rw [hz, Nat.pow_zero, Nat.mul_one]
+        · rw [o.val_shl]
+      dsimp only
+      rw [o.val_add, hm _ (by rw [o.val_mul, ih _ _ hps.2 (by lia) (by lia)]),
+        ih _ _ hps.2 (by lia) (Nat.le_refl _), e, Nat.ofDigitChars_append,
+        Nat.ofDigitChars_eq_ofDigitChars_zero (l := chars l (start + (len - 2 ^ ps.length)) _)
+          (init := Nat.ofDigitChars 10 (chars l start (len - 2 ^ ps.length)) 0),
+        length_chars l _ _ (by lia), Nat.mul_comm]
 
 include hrbase in
 public theorem fromDec_spec :
-    o.val (o.fromDec rbase D arr) = Nat.ofDigitChars 10 arr.toList 0 := by
-  have hc : chars arr 0 arr.size = arr.toList := by
+    o.val (o.fromDec rbase D l.length) = Nat.ofDigitChars 10 l 0 := by
+  have hc : chars l 0 l.length = l := by
     simp [chars, List.take_of_length_le]
-  obtain ⟨h₁, h₂⟩ := o.isPows_powsN (Nat.log2 arr.size + 1)
-  rw [fromDec, o.decVal_spec rbase D arr hrbase _ _ _ h₁ (by lia)
+  obtain ⟨h₁, h₂⟩ := o.isPowsZ_powsZ (Nat.log2 l.length + 1)
+  rw [fromDec, o.decVal_spec rbase D l hrbase _ _ _ h₁ (by lia)
     (by rw [h₂]; exact Nat.le_of_lt (Nat.lt_log2_self)), hc]
 
 end NatOps

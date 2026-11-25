@@ -63,6 +63,13 @@ public instance dec32 : DecOps UInt32Array UInt32 where
   divRem_spec a := WordArray.divRem1InA_spec 0 div1RecipU a _ (by decide)
   mulAdd := WordArray.mulAddA 0
   vA_mulAdd a m v _ := WordArray.mulAddA_spec 0 a m v
+  alloc n := WordArray.zeros n
+  size_alloc := WordArray.size_zeros
+  val_get_alloc := WordArray.val_get_zeros
+  mulAddIn := WordArray.mulAddInA 0
+  mulAddIn_spec a u m v hu hz := WordArray.mulAddInA_spec 0 a u m v hu hz
+  trim := WordArray.trimTo 0
+  vA_trim := WordArray.valAt_trimTo 0
   chunkWord x := x.toUInt64
   toNat_chunkWord x := UInt32.toNat_toUInt64 x
   chunk0 := 0
