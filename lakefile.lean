@@ -136,7 +136,7 @@ def marchArgs : Array String :=
   | none => #[]
 
 package «lean4-mpn» where
-  version := v!"1.0.0"
+  version := v!"1.1.0"
   testDriver := "MPNTest"
 
 require «lean4-scalar-arrays» from git

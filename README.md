@@ -54,7 +54,7 @@ toolchain in `lean-toolchain`. Releases are tagged `vX.Y.Z`. Add one to your `la
 [[require]]
 name = "lean4-mpn"
 git = "https://github.com/fgdorais/lean4-mpn"
-rev = "v1.0.0"
+rev = "v1.1.0"
 ```
 
 then `import MPN.Default` for `MPN.Nat`, or `import MPN64` / `import MPN32` for a width. The
