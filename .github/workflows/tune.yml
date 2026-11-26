@@ -4,6 +4,9 @@ name: Tune
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   tune:
     runs-on: ubuntu-latest
