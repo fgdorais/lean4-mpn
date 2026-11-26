@@ -7,9 +7,13 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+# A new push cancels the older run of a pull request, but every commit on main gets its full run.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -39,8 +43,10 @@ jobs:
 
   # The portability rule, by building: `MPN32` and the shared `MPN` on other systems and
   # architectures, with the tests of `MPN32`, whose `#guard`s run its compiled code there. Then
-  # the whole package with all the tests, `MPN64` (`MPN.Default`) and its C included.
+  # the whole package with all the tests, `MPN64` (`MPN.Default`) and its C included. Only on
+  # pushes to main and by hand: pull requests build on Linux only.
   portable:
+    if: github.event_name != 'pull_request'
     strategy:
       fail-fast: false
       matrix:

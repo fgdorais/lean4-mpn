@@ -18,6 +18,9 @@ on:
         required: false
         default: ""
 
+permissions:
+  contents: read
+
 jobs:
   bench:
     runs-on: ubuntu-latest

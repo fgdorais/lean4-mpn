@@ -1,10 +1,11 @@
 name: Tune
 
+# Run by hand, as a rough check of the default thresholds in `MPN32.Config` and `MPN64.Config`.
 on:
   workflow_dispatch:
-  schedule:
-    # Weekly, as a rough check of the default thresholds in `MPN32.Config` and `MPN64.Config`.
-    - cron: "17 5 * * 1"
+
+permissions:
+  contents: read
 
 jobs:
   tune:

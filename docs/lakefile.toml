@@ -6,7 +6,8 @@ buildDir = "."
 [[require]]
 scope = "leanprover"
 name = "doc-gen4"
-rev = "main"
+# The tag of the toolchain in `lean-toolchain`: doc-gen4's main moves to newer Lean versions.
+rev = "v4.37.0-rc1"
 
 [[require]]
 name = "lean4-mpn"
